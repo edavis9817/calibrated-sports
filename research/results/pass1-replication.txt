@@ -1,0 +1,34 @@
+==========================================================================
+pass1-replication   source=current   train 2016-2022   test 2023-2024
+==========================================================================
+
+1. FORECASTABILITY  (out-of-sample R^2, ranked)
+   rank  market              OOS R2     ref    delta   n_train   n_test
+      1  rush attempts        0.529   0.254   +0.275     7,311    2,195
+      2  targets              0.492   0.277   +0.215    24,569    7,535
+      3  receptions           0.405   0.234   +0.171    24,569    7,535
+      4  receiving yards      0.347   0.145   +0.202    24,569    7,535
+      5  QB attempts          0.233   0.039   +0.194     2,890      898
+      6  TDs                  0.071   0.050   +0.021    24,569    7,535
+
+   reference order: targets > rush attempts > receptions > receiving yards > TDs > QB attempts
+   measured order : rush attempts > targets > receptions > receiving yards > QB attempts > TDs
+   ORDERING REORDERS
+
+2. DISTRIBUTION MOMENTS  (test seasons only)
+   series                   filter         mean  var/mean   skew   P(0)   reference
+   receptions (WR/TE)       all rows       2.52      2.39   1.28  0.216   ref 3.75 / 1.69 / 0.83 / 0.061
+                            >=1 touch      2.88      2.03   1.24  0.105
+                            trail4>=2      3.19      2.02   1.03  0.117
+   rush attempts (RB)       all rows       7.81      6.30   0.84  0.145   ref 12.10 / 3.72 / 0.45 / 0.012
+                            >=1 touch      9.14      4.98   0.77  0.000
+                            trail4>=2      9.07      5.34   0.68  0.073
+   receiving yards (WR/TE)  all rows      29.92     38.37   1.65  0.221   ref 47.70 / 28.60 / 1.15 / 0.058
+                            >=1 touch     34.18     34.11   1.56  0.110
+                            trail4>=2     38.42     33.57   1.37  0.120
+
+3. SAME-GAME CORRELATIONS  (test seasons only)
+   QB<->WR1           0.492   ref   0.42   delta +0.072
+   WR1<->WR2         -0.010   ref   0.02   delta -0.030
+   QB<->WR1 (rec)     0.375   (secondary, no reference)
+   n team-games         872

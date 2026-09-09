@@ -1,0 +1,12 @@
+data/
+__pycache__/
+*.pyc
+.venv/
+.env
+
+.env
+*.pem
+*.key
+data/
+.venv/
+__pycache__/
