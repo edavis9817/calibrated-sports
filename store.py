@@ -56,7 +56,13 @@ CREATE TABLE IF NOT EXISTS quotes (
     last         REAL,
     volume       REAL,
     open_interest REAL,
-    raw_ref      TEXT                       -- filename of the raw archive batch
+    raw_ref      TEXT,                      -- filename of the raw archive batch
+    -- live      = captured by the polling logger at that instant
+    -- backfill:* = reconstructed from a venue history endpoint after the fact
+    -- One table, one outcome_id, one query surface - but a backtest that cannot
+    -- tell a logged tick from a reconstructed candle is a backtest that will
+    -- quietly claim it could have traded a price nobody was quoting.
+    source       TEXT NOT NULL DEFAULT 'live'
 );
 CREATE INDEX IF NOT EXISTS ix_quotes_market_ts ON quotes(venue, market_id, ts);
 CREATE INDEX IF NOT EXISTS ix_quotes_ts        ON quotes(ts);
@@ -397,6 +403,7 @@ def _conn():
 # EXISTS", and there is a live database on this box that predates them.
 MIGRATIONS = [
     ("raw_shards", "kind", "TEXT DEFAULT 'market'"),
+    ("quotes", "source", "TEXT DEFAULT 'live'"),
     ("nfl_games", "home_coach", "TEXT"),
     ("nfl_games", "away_coach", "TEXT"),
 ] + [("nfl_player_week", c, "REAL") for c in DEF_COLS]
@@ -820,21 +827,42 @@ def should_write(row) -> bool:
     return (row.get("ts") or time.time()) - prev[3] >= config.QUOTE_HEARTBEAT_SEC
 
 
-def write_quotes(rows):
-    rows = [r for r in (rows or []) if should_write(r)]
-    if not rows:
-        return 0
-    for r in rows:
+def write_quotes(rows, dedupe=True):
+    """Append quote rows. `dedupe` off for backfills.
+
+    The change-plus-heartbeat filter exists because polling writes the same
+    price hundreds of times. A history endpoint does not: every candle it
+    returns is already one observation per period, and suppressing the
+    unchanged ones would punch holes in exactly the quiet stretches a
+    liquidity map is trying to measure.
+    """
+    # State is updated AS the batch is filtered, not after it. Filtering the
+    # whole list first meant every row in one call saw the previous call's
+    # state, so two rows for the same market in a single batch both got
+    # written - invisible for the live logger, which sends one row per market,
+    # and wrong the moment anything batches.
+    kept = []
+    for r in (rows or []):
+        if dedupe and not should_write(r):
+            continue
+        kept.append(r)
         _last_written[(r.get("venue"), r.get("market_id"))] = (
             r.get("best_bid"), r.get("best_ask"), r.get("mid"),
             r.get("ts") or time.time())
+    rows = kept
+    if not rows:
+        return 0
     cols = ("ts","sport","venue","event_id","market_id","market_type","subject",
             "line","side","best_bid","best_ask","mid","last","volume",
-            "open_interest","raw_ref")
+            "open_interest","raw_ref","source")
     with db() as c:
         c.executemany(
             f"INSERT INTO quotes ({','.join(cols)}) VALUES ({','.join('?'*len(cols))})",
-            [tuple(r.get(k) for k in cols) for r in rows],
+            # `source` defaults to 'live' here rather than relying on the
+            # column default: an explicit NULL does not trigger a DEFAULT and
+            # would fail the NOT NULL constraint instead.
+            [tuple(r.get(k) if k != "source" else (r.get("source") or "live")
+                   for k in cols) for r in rows],
         )
     return len(rows)
 

@@ -24,6 +24,48 @@ POLY_CLOB = os.getenv("POLY_CLOB", "https://clob.polymarket.com")
 KALSHI_KEY_ID = os.getenv("KALSHI_KEY_ID")
 KALSHI_PRIVATE_KEY_PATH = os.getenv("KALSHI_PRIVATE_KEY_PATH")
 
+
+def kalshi_private_key() -> str | None:
+    """The RSA private key PEM, however it was supplied.
+
+    Accepts a path OR the key inline. Inline needs care: a PEM is multi-line
+    and dotenv stops at the first newline unless the value is quoted, so an
+    unquoted key silently becomes the 31-character string
+    "-----BEGIN RSA PRIVATE KEY-----" and every signature fails with something
+    unhelpful. When that has happened, reassemble the block from the raw .env
+    rather than making the operator reformat a secret by hand.
+
+    Returns None when no key is configured - unauthenticated endpoints still
+    work and the caller degrades rather than crashes.
+    """
+    raw = (KALSHI_PRIVATE_KEY_PATH or "").strip()
+    if not raw:
+        return None
+    if os.path.exists(raw):
+        with open(raw, "r", encoding="utf-8") as f:
+            return f.read()
+    if not raw.startswith("-----BEGIN"):
+        return None
+    if "PRIVATE KEY-----" in raw and raw.count(chr(10)) > 1:
+        return raw                      # already whole, e.g. a quoted value
+
+    # Truncated by dotenv. Recover the block verbatim from the file itself.
+    for candidate in (os.getenv("DOTENV_PATH"), ".env"):
+        if not candidate or not os.path.exists(candidate):
+            continue
+        text = open(candidate, "r", encoding="utf-8").read()
+        start = text.find("-----BEGIN")
+        # Anchor on -----END, not on "KEY-----": the BEGIN header ENDS in
+        # "KEY-----", so searching for that finds the header's own tail and
+        # returns a 32-character "key" that fails with MalformedFraming.
+        end = text.find("-----END", start + 10)
+        if start == -1 or end == -1:
+            continue
+        tail = text.find(chr(10), end)
+        end = len(text) if tail == -1 else tail
+        return text[start:end].rstrip() + chr(10)
+    return None
+
 # --- The Odds API (sportsbook lines) ---------------------------------------
 ODDS_API_KEY = os.getenv("ODDS_API_KEY")
 ODDS_BASE = os.getenv("ODDS_BASE", "https://api.the-odds-api.com/v4")

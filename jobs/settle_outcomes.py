@@ -165,6 +165,73 @@ def spot_check():
     return bad
 
 
+def reasons(season=None, week=None):
+    """Why each unsettled outcome is unsettled.
+
+    A settlement job that reports "0 settled" and stops is indistinguishable
+    from a broken one. The categories below separate "the game has not been
+    played" from "the player did not record a stat" from "we cannot settle this
+    kind of claim yet", and only the last is work.
+    """
+    con = sqlite3.connect(f"file:{config.DB_PATH}?mode=ro", uri=True)
+    now = time.time()
+    q = """
+        SELECT o.outcome_id, o.entity_type, o.week, o.stat, o.entity_id,
+               o.season, g.kickoff_ts, g.home_score,
+               (SELECT 1 FROM nfl_player_week pw
+                 WHERE pw.gsis_id = o.entity_id AND pw.season = o.season
+                   AND pw.week = o.week AND pw.season_type = 'REG' LIMIT 1),
+               s.result
+          FROM outcomes o
+          JOIN market_outcome mo USING (outcome_id)
+          LEFT JOIN (SELECT game_id, MAX(kickoff_ts) kickoff_ts,
+                            MAX(home_score) home_score
+                       FROM nfl_games GROUP BY game_id) g
+            ON g.game_id = o.event_id
+          LEFT JOIN outcome_settlement s ON s.outcome_id = o.outcome_id
+         WHERE mo.outcome_id IS NOT NULL
+    """
+    args = []
+    if season:
+        q += " AND o.season = ?"
+        args.append(season)
+    if week:
+        q += " AND o.week = ?"
+        args.append(week)
+    q += " GROUP BY o.outcome_id"
+
+    counts = {}
+    for (_oid, etype, wk, stat, _eid, _season, kickoff, score, has_pw,
+         result) in con.execute(q, args):
+        if result in (OVER, UNDER, PUSH):
+            key = f"settled: {result}"
+        elif etype != "player":
+            key = f"unsettled: {etype} outcome (team/game settlement is later work)"
+        elif wk is None:
+            key = "unsettled: season-long claim, settles after the postseason"
+        elif stat not in STAT_COLUMN:
+            key = f"unsettled: no fact column for stat {stat!r}"
+        elif kickoff is None:
+            key = "unsettled: outcome has no game attached"
+        elif kickoff > now:
+            key = "unsettled: game has not kicked off"
+        elif score is None:
+            key = "unsettled: game in progress or final not published"
+        elif not has_pw:
+            key = "unsettled: no player-week row (inactive, or stats not posted)"
+        else:
+            key = "unsettled: player-week exists but stat is null"
+        counts[key] = counts.get(key, 0) + 1
+    con.close()
+
+    total = sum(counts.values()) or 1
+    print(f"{'outcome':<62} {'n':>7} {'share':>7}")
+    for k, v in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])):
+        print(f"{k:<62} {v:>7,} {v/total:>7.1%}")
+    print(f"{'TOTAL':<62} {total:>7,}")
+    return counts
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--season", type=int)
@@ -172,11 +239,15 @@ def main():
     ap.add_argument("--as-of", dest="as_of")
     ap.add_argument("--limit", type=int)
     ap.add_argument("--spot-check", action="store_true")
+    ap.add_argument("--reasons", action="store_true")
     args = ap.parse_args()
 
     store.init_db()
     if args.spot_check:
         raise SystemExit(1 if spot_check() else 0)
+    if args.reasons:
+        reasons(args.season, args.week)
+        return
     c = run(args.season, args.week, args.as_of, args.limit)
     print(f"over={c[OVER]} under={c[UNDER]} push={c[PUSH]} "
           f"unsettled={c[UNSETTLED]}")

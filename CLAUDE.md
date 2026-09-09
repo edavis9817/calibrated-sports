@@ -89,6 +89,13 @@ not yet measured and the retention arithmetic depends on it.**
   `KXNFLREC` covers every threshold under one series; strikes are half-integer,
   so no push handling is needed on that path.
 - Fee `0.07·C·P·(1−P)` taker, `0.0175` maker — cheapest at the tails.
+- **History is free and needs no auth**: `/series/{s}/markets/{t}/candlesticks`.
+  `period_interval` is in MINUTES (1/60/1440). 90-day spans return, 365 is a
+  400, so chunk. **429 after ~5 rapid requests**, no rate headers, no
+  Retry-After. Candles carry `volume_fp` and `open_interest_fp`; `price` is
+  `{}` when nothing traded, and bid/ask still exist there.
+- **Live `volume` is CUMULATIVE, a candle's `volume_fp` is PER-PERIOD.**
+  Summing both together produced a 6.7-billion-contract week.
 
 **Substring traps in NFL filtering.** "i-NFL-ation" contains NFL, and so does
 `KXNCAAFCO-NFL-EAVE` across a word boundary. The filter is
@@ -98,6 +105,10 @@ not yet measured and the retention arithmetic depends on it.**
 - Blind pagination 422s past `offset≈2000`; the API names `/markets/keyset` for
   deeper paging. Use `/events` with `tag_slug=nfl` instead.
 - Slugs look like `pro-football-2026-27-passing-yards-leader`.
+- **`prices-history` carries NO volume and NO open interest** — `{t, p}` only,
+  ~31 days. Neither does the live CLOB path. Polymarket cannot be bucketed on
+  the same liquidity axis as Kalshi; spread is all it offers, and an empty book
+  quotes 0/1 so its mid is a meaningless 0.500.
 - **Use `POST /clob/prices`, not gamma's inline `bestBid`/`bestAsk`.** Same
   top-of-book values, 235× fewer bytes, and materially fresher — gamma logged
   zero price changes across four minutes where CLOB logged 17–65 per 20s cycle.
