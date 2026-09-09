@@ -166,6 +166,13 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
   to pin this: both Roquan Smith and Bobby Okereke had `with_assist` = 0, which
   leaves `solo + assists` looking correct when it is not. Tremaine Edmunds
   (2025 wk3, CHI) is the discriminating case.
+- **nflverse `gametime` is US/Eastern.** Parse it with `ZoneInfo`, never as
+  UTC - that puts kickoff 4-5 hours early, which is invisible in a schedule
+  listing and silently closes any pre-kickoff window. September is EDT,
+  January EST, so a fixed offset is wrong for half the postseason.
+- **Shrink toward position AND role.** An RB1 and a third-string back share a
+  position; shrinking to the bare position drags every starter down. Measured
+  role means for carries: 14.25 / 7.06 / 3.62 / 1.90.
 - **Push handling**: on integer lines price `P(X>L)/(1−P(X=L))`. For receptions
   at line 4 that is 0.385 versus 0.329 — larger than any edge being hunted.
 

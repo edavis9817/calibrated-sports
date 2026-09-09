@@ -32,6 +32,7 @@ import argparse
 import io
 import time
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -125,8 +126,8 @@ def normalize_games(data: bytes, version: str, week=None, seasons=None):
             "gameday", "kickoff_ts", "home_team", "away_team", "home_score",
             "away_score", "spread_line", "total_line", "home_moneyline",
             "away_moneyline", "over_odds", "under_odds", "home_spread_odds",
-            "away_spread_odds", "roof", "surface", "stadium", "source",
-            "ingested_ts")
+            "away_spread_odds", "roof", "surface", "stadium",
+            "home_coach", "away_coach", "source", "ingested_ts")
     rows = []
     for r in df.iter_rows(named=True):
         rows.append(("nfl", r.get("game_id"), version, r.get("season"),
@@ -138,7 +139,7 @@ def normalize_games(data: bytes, version: str, week=None, seasons=None):
                      _f(r.get("over_odds")), _f(r.get("under_odds")),
                      _f(r.get("home_spread_odds")), _f(r.get("away_spread_odds")),
                      r.get("roof"), r.get("surface"), r.get("stadium"),
-                     SOURCE, now))
+                     r.get("home_coach"), r.get("away_coach"), SOURCE, now))
     return "nfl_games", cols, rows
 
 
@@ -196,14 +197,23 @@ def _f(v):
         return None
 
 
+# nflverse publishes `gametime` in US/Eastern, not UTC. Stamping it as UTC puts
+# every kickoff 4-5 hours early, which is invisible in a schedule listing and
+# catastrophic anywhere that asks "has this game started yet" - the 20:20 ET
+# opener reads as 16:20 ET and a pre-kickoff prediction window silently closes
+# before the market has even moved. DST matters too: September is EDT (-4),
+# January is EST (-5), so a fixed offset is wrong for half the postseason.
+EASTERN = ZoneInfo("America/New_York")
+
+
 def _kickoff(r):
     day, t = r.get("gameday"), r.get("gametime")
     if not day:
         return None
     try:
         stamp = f"{day} {t or '00:00'}"
-        return datetime.strptime(stamp, "%Y-%m-%d %H:%M").replace(
-            tzinfo=timezone.utc).timestamp()
+        naive = datetime.strptime(stamp, "%Y-%m-%d %H:%M")
+        return naive.replace(tzinfo=EASTERN).timestamp()
     except ValueError:
         return None
 

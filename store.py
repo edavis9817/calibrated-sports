@@ -217,6 +217,8 @@ CREATE TABLE IF NOT EXISTS nfl_games (
     roof          TEXT,
     surface       TEXT,
     stadium       TEXT,
+    home_coach    TEXT,          -- head coach, the only scheme proxy we have
+    away_coach    TEXT,
     source        TEXT NOT NULL,
     ingested_ts   REAL NOT NULL,
     PRIMARY KEY (game_id, data_version)
@@ -317,6 +319,60 @@ CREATE INDEX IF NOT EXISTS ix_alias ON player_alias(alias);
 
 -- Settlement is a FACT (invariant #6). Beliefs never land in this table, and a
 -- correction restates it under a new data_version rather than editing history.
+-- ==================== beliefs (brief 004) ====================
+-- Invariant #6: facts and beliefs live in separate stores. Everything above
+-- this line may be corrected in place when a source restates. Everything below
+-- it is APPEND ONLY and immutable - a prediction that can be edited after the
+-- fact is not a prediction, it is a story about one.
+
+CREATE TABLE IF NOT EXISTS predictions (
+    prediction_id    INTEGER PRIMARY KEY,   -- surfaced only so rows are ordered
+    outcome_id       TEXT NOT NULL,
+    model_version    TEXT NOT NULL,
+    code_fingerprint TEXT NOT NULL,         -- the build that produced it
+    as_of_ts         REAL NOT NULL,         -- nothing later than this was read
+    created_ts       REAL NOT NULL,
+    -- The DISTRIBUTION, not a scalar (invariant #3). family + params is enough
+    -- to rebuild the object and re-ask it anything later.
+    family           TEXT NOT NULL,         -- negative_binomial | zero_inflated_gamma
+    params_json      TEXT NOT NULL,
+    -- Cached answers, so the common queries do not need a rebuild. Derived
+    -- from the params above and never independently edited.
+    mean             REAL,
+    prob_over        REAL,                  -- at the outcome's own line
+    push_prob        REAL,
+    prior_games      INTEGER,               -- how much evidence is behind it
+    shrink_weight    REAL,                  -- weight on the player's own history
+    UNIQUE (outcome_id, model_version, as_of_ts)
+);
+CREATE INDEX IF NOT EXISTS ix_pred_outcome ON predictions(outcome_id, as_of_ts);
+
+-- What a flat-stake paper strategy would have done. FLAT STAKES ONLY: QB<->WR1
+-- is ~0.42 and a diagonal covariance systematically over-bets, so Kelly waits
+-- for the correlated-sizing brief.
+CREATE TABLE IF NOT EXISTS paper_ledger (
+    ticket_id      INTEGER PRIMARY KEY,
+    outcome_id     TEXT NOT NULL,
+    prediction_id  INTEGER NOT NULL,
+    venue          TEXT NOT NULL,
+    market_id      TEXT NOT NULL,
+    side           TEXT NOT NULL,          -- yes | no  (the side actually taken)
+    model_prob     REAL NOT NULL,          -- our probability for THAT side
+    market_prob    REAL NOT NULL,          -- mid at entry, for THAT side
+    best_bid       REAL,
+    best_ask       REAL,
+    spread         REAL NOT NULL,          -- recorded separately: a mid inside a
+                                           -- wide spread is not a tradeable price
+    gross_edge     REAL NOT NULL,
+    fee            REAL NOT NULL,
+    net_edge       REAL NOT NULL,
+    stake          REAL NOT NULL,
+    entry_ts       REAL NOT NULL,
+    kickoff_ts     REAL,
+    UNIQUE (outcome_id, prediction_id, side)
+);
+CREATE INDEX IF NOT EXISTS ix_ledger_entry ON paper_ledger(entry_ts);
+
 CREATE TABLE IF NOT EXISTS outcome_settlement (
     outcome_id   TEXT NOT NULL,
     data_version TEXT NOT NULL,
@@ -341,6 +397,8 @@ def _conn():
 # EXISTS", and there is a live database on this box that predates them.
 MIGRATIONS = [
     ("raw_shards", "kind", "TEXT DEFAULT 'market'"),
+    ("nfl_games", "home_coach", "TEXT"),
+    ("nfl_games", "away_coach", "TEXT"),
 ] + [("nfl_player_week", c, "REAL") for c in DEF_COLS]
 
 
@@ -552,6 +610,43 @@ def record_mapping(venue, market_id, outcome_id=None, method=None,
                  mapped_ts=excluded.mapped_ts""",
             (venue, market_id, outcome_id, method, confidence,
              unmapped_reason, time.time()))
+
+
+def record_prediction(row: dict) -> int:
+    """Append one immutable prediction. Returns its id.
+
+    There is deliberately no update path. A revised belief is a NEW row with a
+    later as_of_ts; the old one stays exactly as it was written, because the
+    only way to check whether a model was calibrated is to still have what it
+    actually said at the time.
+    """
+    cols = ("outcome_id", "model_version", "code_fingerprint", "as_of_ts",
+            "created_ts", "family", "params_json", "mean", "prob_over",
+            "push_prob", "prior_games", "shrink_weight")
+    with db() as c:
+        cur = c.execute(
+            f"INSERT OR IGNORE INTO predictions ({','.join(cols)}) "
+            f"VALUES ({','.join('?' * len(cols))})",
+            tuple(row.get(k) for k in cols))
+        if cur.lastrowid:
+            return cur.lastrowid
+        got = c.execute(
+            "SELECT prediction_id FROM predictions WHERE outcome_id=? AND "
+            "model_version=? AND as_of_ts=?",
+            (row["outcome_id"], row["model_version"], row["as_of_ts"])).fetchone()
+        return got[0] if got else None
+
+
+def record_ticket(row: dict) -> int:
+    cols = ("outcome_id", "prediction_id", "venue", "market_id", "side",
+            "model_prob", "market_prob", "best_bid", "best_ask", "spread",
+            "gross_edge", "fee", "net_edge", "stake", "entry_ts", "kickoff_ts")
+    with db() as c:
+        cur = c.execute(
+            f"INSERT OR IGNORE INTO paper_ledger ({','.join(cols)}) "
+            f"VALUES ({','.join('?' * len(cols))})",
+            tuple(row.get(k) for k in cols))
+        return cur.lastrowid
 
 
 def record_settlement(outcome_id, result, actual, data_version, source):

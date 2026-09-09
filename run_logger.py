@@ -134,7 +134,9 @@ def code_fingerprint() -> str:
                 "nflverse.py", "queries.py",
                 "venues/base.py", "venues/kalshi.py", "venues/polymarket.py",
                 "venues/oddsapi.py", "jobs/rotate_raw.py", "jobs/prune_quotes.py",
-                "jobs/ingest_nflverse.py"):
+                "jobs/ingest_nflverse.py", "jobs/map_markets.py",
+                "jobs/predict.py", "jobs/paper_trade.py",
+                "models/features.py", "models/baseline.py", "evaluation.py"):
         path = os.path.join(here, rel)
         if os.path.exists(path):
             h.update(rel.encode())
