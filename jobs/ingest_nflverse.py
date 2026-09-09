@@ -87,6 +87,7 @@ def normalize_weekly_stats(data: bytes, version: str, week=None):
         _col(df, "passing_yards"), _col(df, "passing_tds"),
         _col(df, "passing_interceptions").alias("interceptions"),
         _col(df, "fantasy_points_ppr"),
+        *[_col(df, c).alias(c) for c in store.DEF_COLS],
     ]).drop_nulls("gsis_id")
 
     cols = ("sport", "gsis_id", "season", "week", "season_type", "data_version",
@@ -94,7 +95,7 @@ def normalize_weekly_stats(data: bytes, version: str, week=None):
             "targets", "receiving_yards", "receiving_tds", "target_share",
             "carries", "rushing_yards", "rushing_tds", "attempts", "completions",
             "passing_yards", "passing_tds", "interceptions", "fantasy_points_ppr",
-            "source", "ingested_ts")
+            *store.DEF_COLS, "source", "ingested_ts")
     rows = [("nfl", r["gsis_id"], r["season"], r["week"], r["season_type"],
              version, r["player_name"], r["position"], r["team"], r["opponent"],
              _f(r["receptions"]), _f(r["targets"]), _f(r["receiving_yards"]),
@@ -102,6 +103,7 @@ def normalize_weekly_stats(data: bytes, version: str, week=None):
              _f(r["rushing_yards"]), _f(r["rushing_tds"]), _f(r["attempts"]),
              _f(r["completions"]), _f(r["passing_yards"]), _f(r["passing_tds"]),
              _f(r["interceptions"]), _f(r["fantasy_points_ppr"]),
+             *[_f(r[c]) for c in store.DEF_COLS],
              SOURCE, now)
             for r in out.iter_rows(named=True)]
     return "nfl_player_week", cols, rows
@@ -164,7 +166,17 @@ def normalize_snap_counts(data: bytes, version: str, week=None):
     return "nfl_snap_counts", cols, rows
 
 
+def normalize_players(data: bytes, version: str, week=None):
+    """The gsis_id crosswalk. Writes player_xwalk + player_alias directly - it
+    is two tables, not one, so it does not fit the (table, cols, rows) shape."""
+    from venues.mapping import build_crosswalk
+    n_players, n_aliases = build_crosswalk(data, version)
+    print(f"       crosswalk: {n_players:,} players, {n_aliases:,} aliases")
+    return None, None, [None] * n_players       # row count only, already written
+
+
 NORMALIZERS = {
+    "players": normalize_players,
     "weekly_stats": normalize_weekly_stats,
     "games": normalize_games,
     "snap_counts": normalize_snap_counts,
@@ -232,7 +244,8 @@ def ingest_one(ds: nflverse.Dataset, season=None, week=None, version=None,
         if ds.name == "games":
             kwargs["seasons"] = seasons if seasons else ([season] if season else None)
         table, cols, rows = fn(data, version, **kwargs)
-        rows_written = store.replace_rows(table, cols, rows, KEY_COLS[table])
+        rows_written = (len(rows) if table is None
+                        else store.replace_rows(table, cols, rows, KEY_COLS[table]))
         res["rows"] = rows_written
 
     store.record_version(ds.name, season, version, digest, len(data), rel,
@@ -296,6 +309,52 @@ def run(datasets=None, seasons=None, week=None, tier=None, force=False,
     return stats
 
 
+def rebuild_from_archive(datasets=None, seasons=None) -> dict:
+    """Re-derive the normalized tables from the LOCAL archive. No network.
+
+    This is invariant #2 collecting on its promise: the parquet bytes nflverse
+    published are on disk, so widening a projection is a re-parse, not a
+    re-fetch. It also keeps the versioning honest - each shard is re-normalized
+    under the data_version it was originally pulled as, so no new version is
+    manufactured for what is only a parser change.
+    """
+    stats = {"rebuilt": 0, "rows": 0, "missing": 0, "skipped": 0}
+    rows = store.versions()
+    for ds_name, season, version, _sha, _bytes, _rows, _tier, _i, _c in rows:
+        if ds_name not in NORMALIZERS:
+            stats["skipped"] += 1
+            continue
+        if datasets and ds_name not in datasets:
+            continue
+        if seasons and season is not None and season not in seasons:
+            continue
+        ds = nflverse.DATASETS[ds_name]
+        rel = f"{SOURCE}/{version}/{ds.asset(season)}"
+        try:
+            data = store.read_archived(rel)
+        except OSError:
+            print(f"  MISSING  {rel}")
+            stats["missing"] += 1
+            continue
+        fn = NORMALIZERS[ds_name]
+        kwargs = {"week": None}
+        if ds_name == "games":
+            kwargs["seasons"] = [season] if season else None
+        table, cols, out = fn(data, version, **kwargs)
+        n = (len(out) if table is None
+             else store.replace_rows(table, cols, out, KEY_COLS[table]))
+        store.record_version(ds_name, season, version, _sha, _bytes, rel,
+                             rows=n, tier=ds.tier)
+        stats["rebuilt"] += 1
+        stats["rows"] += n
+        print(f"  rebuilt  {ds_name:14s} {season or '':>6} {version}  {n:>7,} rows")
+    store.record_health("nflverse:rebuild", stats["missing"] == 0,
+                        f"rebuilt {stats['rebuilt']} shards, {stats['rows']} rows, "
+                        f"{stats['missing']} missing from archive",
+                        watermark=time.time())
+    return stats
+
+
 def status():
     rows = store.versions()
     print(f"{'dataset':18s} {'season':>6} {'version':12s} {'rows':>8} "
@@ -331,11 +390,19 @@ def main():
                     help="re-archive even if the bytes are unchanged")
     ap.add_argument("--version", help="override the data_version (testing)")
     ap.add_argument("--status", action="store_true")
+    ap.add_argument("--from-archive", action="store_true",
+                    help="re-derive normalized tables from data/raw, no network")
     args = ap.parse_args()
 
     store.init_db()
     if args.status:
         status()
+        return
+    if args.from_archive:
+        t0 = time.time()
+        s = rebuild_from_archive(args.dataset, _seasons(args.season))
+        print(f"\nrebuilt={s['rebuilt']} rows={s['rows']} missing={s['missing']} "
+              f"in {time.time()-t0:.1f}s")
         return
 
     bad = [d for d in (args.dataset or []) if d not in nflverse.DATASETS]

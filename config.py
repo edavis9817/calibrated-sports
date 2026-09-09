@@ -139,6 +139,16 @@ DEADMAN_CHECK_EVERY = float(os.getenv("DEADMAN_CHECK_EVERY", 60))
 # scheduler somebody has to remember to install.
 MAINTENANCE_EVERY = float(os.getenv("MAINTENANCE_EVERY", 3600))
 
+# External dead-man: healthchecks.io. The logger pings this URL only while the
+# internal switch says data is arriving, so SILENCE is the alert - if the
+# process dies, wedges, or keeps looping without capturing, the pings stop and
+# healthchecks fires on its own timer. That is the part a self-report cannot do:
+# a process cannot tell you it is gone.
+#
+# Set the check to Period 20m / Grace 5m to match DEADMAN_MIN.
+HEALTHCHECK_URL = os.getenv("HEALTHCHECK_URL")
+HEALTHCHECK_TIMEOUT = float(os.getenv("HEALTHCHECK_TIMEOUT", 10))
+
 # --- Polling cadence (seconds) ---------------------------------------------
 # Tiered because futures don't move and pre-kick game markets do. Tune after
 # you see how often quotes actually change; over-polling burns rate limit for

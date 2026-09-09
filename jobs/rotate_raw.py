@@ -45,15 +45,21 @@ def _shard_day(rel_path: str):
 
 
 def local_shards(root: str = None):
-    """Every shard on disk, as (rel_path, abs_path, day). Newest hour excluded
-    by the caller's age cutoff, never by guessing which file is still open."""
+    """Every archived file on disk, as (rel_path, abs_path, day).
+
+    Deliberately not filtered by extension. The market archive is .jsonl.gz and
+    the nflverse mirror is .parquet, and matching only the former made `--status`
+    report "exempt: 0 shards" while 566MB of exempt corpus sat on disk - the one
+    line whose job is to prove that corpus is protected. Protection is
+    is_exempt()'s job; this function's job is to see everything.
+    """
     root = root or config.RAW_DIR
     out = []
     if not os.path.isdir(root):
         return out
     for dirpath, _dirs, files in os.walk(root):
         for name in files:
-            if not name.endswith(".jsonl.gz"):
+            if name.endswith(".part"):          # a write still in flight
                 continue
             abs_path = os.path.join(dirpath, name)
             rel = os.path.relpath(abs_path, root).replace(os.sep, "/")
@@ -183,8 +189,12 @@ def status():
     counts = store.shard_counts()
     local_bytes = sum(os.path.getsize(p) for _, p, _ in local_shards())
     print(f"manifest: {counts}")
-    exempt = [(r, p) for r, p, _ in local_shards() if is_exempt(r)]
-    print(f"local:    {len(local_shards())} shards, {local_bytes/1e9:.2f}GB")
+    shards = local_shards()
+    exempt = [(r, p) for r, p, _ in shards if is_exempt(r)]
+    rotatable = [(r, p) for r, p, _ in shards if not is_exempt(r)]
+    print(f"local:    {len(shards)} shards, {local_bytes/1e9:.2f}GB total")
+    print(f"  rotatable {len(rotatable):>4}, "
+          f"{sum(os.path.getsize(p) for _, p in rotatable)/1e9:.2f}GB")
     print(f"exempt:   {len(exempt)} shards, "
           f"{sum(os.path.getsize(p) for _, p in exempt)/1e9:.2f}GB "
           f"({', '.join(config.RAW_ROTATE_EXEMPT) or 'none'})")

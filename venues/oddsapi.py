@@ -39,6 +39,8 @@ from datetime import datetime, timezone
 
 import config
 import store
+from core import outcomes
+from venues import mapping
 from venues.base import VenueClient
 
 # American odds -> implied probability (still contains the vig; de-vig later,
@@ -213,3 +215,70 @@ def _iso(s):
         return datetime.fromisoformat(str(s).replace("Z", "+00:00")).timestamp()
     except ValueError:
         return None
+
+
+# ---- outcome mapping (brief 003) -------------------------------------------
+
+# The Odds API market keys. Structural, so a renamed display label cannot move
+# a market onto a different stat.
+MARKET_STAT = {
+    "player_receptions": outcomes.Stat.RECEPTIONS,
+    "player_reception_yds": outcomes.Stat.RECEIVING_YARDS,
+    "player_rush_attempts": outcomes.Stat.RUSH_ATTEMPTS,
+    "player_rush_yds": outcomes.Stat.RUSH_YARDS,
+    "player_pass_yds": outcomes.Stat.PASSING_YARDS,
+    "player_pass_attempts": outcomes.Stat.PASS_ATTEMPTS,
+    "player_pass_completions": outcomes.Stat.COMPLETIONS,
+    "player_anytime_td": outcomes.Stat.ANYTIME_TD,
+}
+
+SIDE = {"over": outcomes.Side.OVER, "under": outcomes.Side.UNDER,
+        "yes": outcomes.Side.YES, "no": outcomes.Side.NO}
+
+
+def map_market(row: dict):
+    """One Odds API row -> (outcome_id, method, confidence).
+
+    Quote rows carry `{event_id}|{market_key}|{player}|{side}` as the market id;
+    discovery rows carry `game:{event_id}` and describe a whole game rather than
+    a claim, so they are recorded unmapped with that reason rather than being
+    forced into an outcome.
+    """
+    mid = row.get("market_id") or ""
+    if mid.startswith("game:"):
+        raise mapping.Unresolved(
+            "discovery row: an event, not a claim - props arrive as quote rows "
+            "at snapshot time")
+
+    parts = mid.split("|")
+    if len(parts) != 4:
+        raise mapping.Unresolved(f"market_id not in 4-part form: {mid[:60]!r}")
+    _eid, mkey, player, side_name = parts
+
+    stat = MARKET_STAT.get(mkey)
+    if stat is None:
+        raise mapping.Unresolved(f"market key {mkey!r} is not a player prop")
+    side = SIDE.get((side_name or "").strip().lower())
+    if side is None:
+        raise mapping.Unresolved(f"unknown side {side_name!r}")
+
+    close_ts = row.get("close_ts")
+    if not close_ts:
+        raise mapping.Unresolved("no kickoff time to place the game")
+    from datetime import datetime, timezone
+    day = datetime.fromtimestamp(close_ts, timezone.utc).strftime("%Y-%m-%d")
+
+    home, away = row.get("home_team"), row.get("away_team")
+    if home and away:
+        season, week, game_id = mapping.game_for(away, home, day)
+    else:
+        raise mapping.Unresolved("no team pair on the row to place the game")
+
+    line = row.get("line")
+    if line is None and stat is not outcomes.Stat.ANYTIME_TD:
+        raise mapping.Unresolved("prop with no point/line")
+    gsis, how, conf = mapping.resolve_player(player, season)
+    o = outcomes.player_prop(season, week, gsis, stat,
+                             0.5 if line is None else float(line), side,
+                             event_id=game_id)
+    return store.upsert_outcome(o, game_id), f"oddsapi:{mkey}+{how}", conf

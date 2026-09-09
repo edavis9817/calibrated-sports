@@ -24,7 +24,21 @@ from datetime import datetime, timezone
 
 import config
 
-SCHEMA = """
+# The full defensive set from stats_player_week. Defined once: the CREATE TABLE
+# below and the ALTER TABLE migrations are both generated from this list, so the
+# two cannot drift apart.
+DEF_COLS = (
+    "def_tackles_solo", "def_tackles_with_assist", "def_tackle_assists",
+    "def_tackles_for_loss", "def_tackles_for_loss_yards",
+    "def_sacks", "def_sack_yards", "def_qb_hits",
+    "def_interceptions", "def_interception_yards", "def_pass_defended",
+    "def_fumbles_forced", "def_fumbles", "def_tds", "def_safeties",
+    "def_punt_blocks", "def_pat_blocks", "def_fg_blocks",
+    "def_2pt_atts", "def_2pt_made",
+)
+_DEF_DDL = "".join(f"    {c:<28} REAL,\n" for c in DEF_COLS)
+
+SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS quotes (
     id           INTEGER PRIMARY KEY,
     ts           REAL    NOT NULL,          -- unix seconds, capture time
@@ -169,7 +183,7 @@ CREATE TABLE IF NOT EXISTS nfl_player_week (
     passing_tds   REAL,
     interceptions REAL,
     fantasy_points_ppr REAL,
-    source        TEXT NOT NULL,
+{_DEF_DDL}    source        TEXT NOT NULL,
     ingested_ts   REAL NOT NULL,
     PRIMARY KEY (gsis_id, season, week, season_type, data_version)
 );
@@ -230,6 +244,88 @@ CREATE TABLE IF NOT EXISTS nfl_snap_counts (
     PRIMARY KEY (pfr_player_id, game_id, data_version)
 );
 CREATE INDEX IF NOT EXISTS ix_snaps_season ON nfl_snap_counts(season, week);
+
+-- ==================== the join key (brief 003) ====================
+-- An OUTCOME is a semantic claim independent of venue. A MARKET is one venue's
+-- instrument pointing at one. Cross-venue comparison and CLV against a book you
+-- did not bet at both live or die on these two tables agreeing.
+
+CREATE TABLE IF NOT EXISTS outcomes (
+    outcome_id    TEXT PRIMARY KEY,   -- sha1(key)[:16], see core/outcomes.py
+    key           TEXT NOT NULL,      -- the canonical string it hashes
+    sport         TEXT NOT NULL,
+    season        INTEGER NOT NULL,
+    week          INTEGER,            -- NULL for season-long claims
+    entity_type   TEXT NOT NULL,      -- player | team | game
+    entity_id     TEXT NOT NULL,      -- gsis_id for players, abbr for teams
+    stat          TEXT,
+    line          REAL,
+    side          TEXT NOT NULL,
+    push_possible INTEGER NOT NULL,
+    event_id      TEXT,               -- canonical nflverse game_id when known
+    created_ts    REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_outcomes_entity ON outcomes(entity_id, season, week);
+CREATE INDEX IF NOT EXISTS ix_outcomes_event  ON outcomes(event_id);
+
+-- Every logged market gets a row here, mapped or not. An unmapped market with a
+-- reason is a work item; an unmapped market that was silently dropped is a
+-- coverage number that lies.
+CREATE TABLE IF NOT EXISTS market_outcome (
+    venue           TEXT NOT NULL,
+    market_id       TEXT NOT NULL,
+    outcome_id      TEXT,             -- NULL when unmapped
+    method          TEXT,             -- how it was resolved
+    confidence      REAL,
+    unmapped_reason TEXT,             -- NULL when mapped
+    mapped_ts       REAL NOT NULL,
+    PRIMARY KEY (venue, market_id)
+);
+CREATE INDEX IF NOT EXISTS ix_mo_outcome ON market_outcome(outcome_id);
+CREATE INDEX IF NOT EXISTS ix_mo_unmapped ON market_outcome(venue, unmapped_reason);
+
+-- Identity, resolved AT INGEST. Analysis code joins on gsis_id and never sees
+-- a name; that is the whole point of crosswalking here rather than there.
+CREATE TABLE IF NOT EXISTS player_xwalk (
+    gsis_id       TEXT PRIMARY KEY,
+    display_name  TEXT,
+    first_name    TEXT,
+    last_name     TEXT,
+    position      TEXT,
+    last_team     TEXT,
+    last_season   INTEGER,
+    status        TEXT,
+    pfr_id        TEXT,
+    espn_id       TEXT,
+    sleeper_id    TEXT,
+    yahoo_id      TEXT,
+    pff_id        TEXT,
+    ingested_ts   REAL
+);
+CREATE INDEX IF NOT EXISTS ix_xwalk_pfr ON player_xwalk(pfr_id);
+
+-- Normalized name -> gsis_id. Many aliases per player; a name that maps to more
+-- than one ACTIVE player is ambiguous and must not be guessed.
+CREATE TABLE IF NOT EXISTS player_alias (
+    alias        TEXT NOT NULL,      -- normalized, see venues/mapping.norm_name
+    gsis_id      TEXT NOT NULL,
+    source       TEXT NOT NULL,      -- display | short | first_last | ...
+    last_season  INTEGER,
+    PRIMARY KEY (alias, gsis_id)
+);
+CREATE INDEX IF NOT EXISTS ix_alias ON player_alias(alias);
+
+-- Settlement is a FACT (invariant #6). Beliefs never land in this table, and a
+-- correction restates it under a new data_version rather than editing history.
+CREATE TABLE IF NOT EXISTS outcome_settlement (
+    outcome_id   TEXT NOT NULL,
+    data_version TEXT NOT NULL,
+    result       TEXT NOT NULL,      -- over | under | push | unsettled
+    actual       REAL,
+    source       TEXT NOT NULL,
+    settled_ts   REAL NOT NULL,
+    PRIMARY KEY (outcome_id, data_version)
+);
 """
 
 
@@ -245,7 +341,7 @@ def _conn():
 # EXISTS", and there is a live database on this box that predates them.
 MIGRATIONS = [
     ("raw_shards", "kind", "TEXT DEFAULT 'market'"),
-]
+] + [("nfl_player_week", c, "REAL") for c in DEF_COLS]
 
 
 def init_db():
@@ -413,6 +509,61 @@ def archive_raw(venue: str, endpoint: str, payload) -> str:
     with gzip.open(path, "at", encoding="utf-8") as f:
         f.write(json.dumps(rec, separators=(",", ":")) + "\n")
     return os.path.join(venue, day, name)
+
+
+def upsert_outcome(o, event_id=None) -> str:
+    """Persist an Outcome and return its id. Idempotent by construction: the id
+    IS the hash of the key, so re-inserting the same claim is a no-op."""
+    from core.outcomes import MarketType, is_push_possible
+    entity_type = {
+        MarketType.PLAYER_PROP: "player",
+        MarketType.SPREAD: "team",
+        MarketType.MONEYLINE: "team",
+        MarketType.FUTURE: "team",
+        MarketType.TOTAL: "game",
+    }.get(o.market_type, "team")
+    with db() as c:
+        c.execute(
+            """INSERT INTO outcomes
+                 (outcome_id, key, sport, season, week, entity_type, entity_id,
+                  stat, line, side, push_possible, event_id, created_ts)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(outcome_id) DO UPDATE SET
+                 event_id=COALESCE(excluded.event_id, outcomes.event_id)""",
+            (o.outcome_id, o.key, o.sport.value, o.season, o.week, entity_type,
+             o.subject, o.stat.value if o.stat else None, o.line, o.side.value,
+             int(is_push_possible(o.line, o.stat)),
+             event_id or o.event_id, time.time()))
+    return o.outcome_id
+
+
+def record_mapping(venue, market_id, outcome_id=None, method=None,
+                   confidence=None, unmapped_reason=None):
+    with db() as c:
+        c.execute(
+            """INSERT INTO market_outcome
+                 (venue, market_id, outcome_id, method, confidence,
+                  unmapped_reason, mapped_ts)
+               VALUES (?,?,?,?,?,?,?)
+               ON CONFLICT(venue, market_id) DO UPDATE SET
+                 outcome_id=excluded.outcome_id, method=excluded.method,
+                 confidence=excluded.confidence,
+                 unmapped_reason=excluded.unmapped_reason,
+                 mapped_ts=excluded.mapped_ts""",
+            (venue, market_id, outcome_id, method, confidence,
+             unmapped_reason, time.time()))
+
+
+def record_settlement(outcome_id, result, actual, data_version, source):
+    with db() as c:
+        c.execute(
+            """INSERT INTO outcome_settlement
+                 (outcome_id, data_version, result, actual, source, settled_ts)
+               VALUES (?,?,?,?,?,?)
+               ON CONFLICT(outcome_id, data_version) DO UPDATE SET
+                 result=excluded.result, actual=excluded.actual,
+                 settled_ts=excluded.settled_ts""",
+            (outcome_id, data_version, result, actual, source, time.time()))
 
 
 def archive_file(source: str, name: str, data: bytes, day: str = None,

@@ -13,8 +13,10 @@ appear without a restart.
 Two background tasks run alongside the venue workers, both there to satisfy the
 same rule - the system must survive three weeks of total neglect:
 
-  watchdog()     dead-man switch. A logger that is up but no longer capturing
-                 looks exactly like a healthy one on a quiet night.
+  watchdog()     dead-man switch, and the external healthcheck ping. The ping
+                 goes out only while the switch is happy, so silence is the
+                 alert - which is the only thing that survives the process
+                 being killed outright.
   maintenance()  rotates raw shards to R2, prunes the quotes table, and
                  refreshes the live-tier nflverse mirror for the current season,
                  so none of it depends on somebody remembering a cron entry.
@@ -160,7 +162,91 @@ def deadman_status(rows, now=None, limit_min=None):
     return False, [v for v, ts in seen if now - ts > limit], newest
 
 
-async def watchdog():
+async def send_healthcheck(client) -> bool:
+    """Ping the external dead-man. Never raises, never blocks the loop.
+
+    A failed ping is a monitoring problem, not a capture problem: the logger
+    must not care whether healthchecks.io is reachable.
+    """
+    if not config.HEALTHCHECK_URL:
+        return False
+    try:
+        r = await client.get(config.HEALTHCHECK_URL,
+                             timeout=config.HEALTHCHECK_TIMEOUT)
+        ok = r.status_code < 400
+        store.record_health("healthcheck", ok,
+                            f"pinged, HTTP {r.status_code}" if ok
+                            else f"ping rejected, HTTP {r.status_code}")
+        return ok
+    except Exception as e:
+        store.record_health("healthcheck", False, f"{type(e).__name__}: {e}")
+        return False
+
+
+async def watchdog_tick(client=None, venues=None) -> bool:
+    """One liveness check. Returns True if the external ping was sent.
+
+    The ping is gated on exactly the condition the dead-man switch reports, in
+    the same place, on purpose. Pinging from the poll loop instead would create
+    two code paths that answer "is this thing capturing?" separately, and the
+    failure that matters is the one where they disagree - a logger that keeps
+    reassuring an external monitor while its own switch is tripped.
+
+    When the switch IS tripped it stays silent rather than sending a /fail.
+    Silence is what healthchecks turns into an alert on its own timer, and it
+    also covers the cases a self-report never can: killed process, wedged loop,
+    dead box.
+    """
+    try:
+        with store.db() as c:
+            rows = c.execute(
+                "SELECT venue, MAX(ts) FROM poll_log WHERE ok=1 GROUP BY venue"
+            ).fetchall()
+    except Exception as e:
+        log(f"watchdog ERROR {type(e).__name__}: {e}")
+        return False
+
+    # Only venues this process is actually running. poll_log keeps history
+    # forever, so a venue you switch off would otherwise look permanently
+    # stale and suppress every future ping.
+    if venues:
+        rows = [(v, ts) for v, ts in rows if v in venues]
+
+    now = time.time()
+    dead, stale, newest = deadman_status(rows, now)
+
+    if dead:
+        age = "never" if newest is None else f"{(now - newest)/60:.1f} min ago"
+        log("!" * 68)
+        log(f"DEAD-MAN SWITCH: no successful poll in {config.DEADMAN_MIN:g} "
+            f"min (last: {age})")
+        log("the process is up but data is NOT arriving - check venue "
+            "discovery and credentials")
+        for venue, ts in rows:
+            log(f"    {venue:<12} last ok {(now - ts)/60:8.1f} min ago")
+        log("HEALTHCHECK PING SUPPRESSED - external monitor will fire on its "
+            "own timer")
+        log("!" * 68)
+        store.record_health("liveness", False,
+                            f"no successful poll in {config.DEADMAN_MIN:g} min "
+                            f"(last {age})", watermark=newest)
+        return False
+
+    if stale:
+        log(f"WARNING: no successful poll from {', '.join(stale)} in "
+            f"{config.DEADMAN_MIN:g} min - healthcheck ping suppressed")
+    store.record_health(
+        "liveness", not stale,
+        f"last poll {(now - newest)/60:.1f} min ago"
+        + (f"; STALE: {', '.join(stale)}" if stale else ""),
+        watermark=newest)
+
+    if stale or client is None:
+        return False
+    return await send_healthcheck(client)
+
+
+async def watchdog(client=None, venues=None):
     """Dead-man switch.
 
     The failure this exists for is not a crash - a crash is loud and the
@@ -175,38 +261,9 @@ async def watchdog():
     """
     while not _stop.is_set():
         try:
-            with store.db() as c:
-                rows = c.execute(
-                    "SELECT venue, MAX(ts) FROM poll_log WHERE ok=1 GROUP BY venue"
-                ).fetchall()
-            now = time.time()
-            dead, stale, newest = deadman_status(rows, now)
-
-            if dead:
-                age = "never" if newest is None else f"{(now - newest)/60:.1f} min ago"
-                log("!" * 68)
-                log(f"DEAD-MAN SWITCH: no successful poll in {config.DEADMAN_MIN:g} "
-                    f"min (last: {age})")
-                log("the process is up but data is NOT arriving - check venue "
-                    "discovery and credentials")
-                for venue, ts in rows:
-                    log(f"    {venue:<12} last ok {(now - ts)/60:8.1f} min ago")
-                log("!" * 68)
-                store.record_health("liveness", False,
-                                    f"no successful poll in {config.DEADMAN_MIN:g} min "
-                                    f"(last {age})", watermark=newest)
-            else:
-                if stale:
-                    log(f"WARNING: no successful poll from {', '.join(stale)} in "
-                        f"{config.DEADMAN_MIN:g} min")
-                store.record_health(
-                    "liveness", not stale,
-                    f"last poll {(now - newest)/60:.1f} min ago"
-                    + (f"; STALE: {', '.join(stale)}" if stale else ""),
-                    watermark=newest)
+            await watchdog_tick(client, venues)
         except Exception as e:
             log(f"watchdog ERROR {type(e).__name__}: {e}")
-
         try:
             await asyncio.wait_for(_stop.wait(), timeout=config.DEADMAN_CHECK_EVERY)
         except asyncio.TimeoutError:
@@ -323,8 +380,13 @@ async def main():
             f"every {config.NFLVERSE_INGEST_EVERY/3600:g}h "
             f"({'on' if config.NFLVERSE_INGEST_ENABLED else 'OFF'}), "
             f"exempt from rotation")
+        log("healthcheck: " + ("pinging every "
+            f"{config.DEADMAN_CHECK_EVERY:g}s while liveness is healthy"
+            if config.HEALTHCHECK_URL else
+            "HEALTHCHECK_URL NOT SET - no external dead-man"))
+        names = {c.name for c in clients}
         await asyncio.gather(*(venue_worker(c) for c in clients),
-                             watchdog(), maintenance())
+                             watchdog(http, names), maintenance())
 
 
 def _handle_signal(*_):

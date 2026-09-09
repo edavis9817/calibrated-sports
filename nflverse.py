@@ -84,6 +84,9 @@ DATASETS = {
                            "ngs_rushing.parquet", LIVE, first_season=2016),
     "ngs_passing": Dataset("ngs_passing", "nextgen_stats",
                            "ngs_passing.parquet", LIVE, first_season=2016),
+    "players": Dataset(
+        "players", "players", "players.parquet", LIVE, normalize=True,
+        note="the gsis_id crosswalk; carries pfr/espn/pff/otc ids and names"),
     "weekly_rosters": Dataset("weekly_rosters", "weekly_rosters",
                               "roster_weekly_{season}.parquet", LIVE,
                               first_season=2002),

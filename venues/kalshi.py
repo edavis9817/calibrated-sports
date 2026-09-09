@@ -41,6 +41,9 @@ import re
 import time
 
 import config
+import store
+from core import outcomes
+from venues import mapping
 from venues.base import VenueClient, mid_from
 
 # THE TRAP: "inflation" contains "nfl", so `"NFL" in title.upper()` matches
@@ -248,3 +251,111 @@ def _iso(s):
         return datetime.fromisoformat(str(s).replace("Z", "+00:00")).timestamp()
     except ValueError:
         return None
+
+
+# ---- outcome mapping (brief 003) -------------------------------------------
+
+# KXNFLREC-26SEP09NESEA-NEABROWN1-10
+#  ^series   ^date ^teams  ^player   ^threshold
+_TICKER = re.compile(r"^(?P<series>KX[A-Z0-9]+?)-(?P<yy>\d{2})(?P<mon>[A-Z]{3})"
+                     r"(?P<dd>\d{2})(?P<teams>[A-Z]+)-(?P<rest>.+)$")
+_SPREAD_SUBJECT = re.compile(r"^(?P<team>.+?)\s+wins by (over|more than)\s", re.I)
+_TITLE_THRESHOLD = re.compile(r"^(?P<name>.+?):\s*(?P<n>\d+)\+\s*(?P<stat>.+)$")
+_MONTHS = {m: i for i, m in enumerate(
+    ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+     "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"], 1)}
+
+# Series ticker -> what the market is about. Structural, not title-derived:
+# titles get reworded, series do not.
+SERIES_STAT = {
+    "KXNFLREC": "receptions",
+    "KXNFLRSHATT": "rush attempts",
+    "KXNFLRECYDS": "receiving yards",
+    "KXNFLRSHYDS": "rushing yards",
+    "KXNFLPASSYDS": "passing yards",
+    "KXNFLPASSATT": "passing attempts",
+    "KXNFLPASSCOMP": "completions",
+    "KXNFLTD": "touchdowns",
+    "KXNFLANYTD": "anytime touchdown",
+}
+
+
+def _event_game(ticker: str):
+    """(season, week, game_id) from the date+teams block of a Kalshi ticker."""
+    m = _TICKER.match(ticker or "")
+    if not m:
+        raise mapping.Unresolved(f"ticker {ticker!r} is not the game-market shape")
+    mon = _MONTHS.get(m.group("mon"))
+    if not mon:
+        raise mapping.Unresolved(f"bad month in {ticker!r}")
+    day = f"20{m.group('yy')}-{mon:02d}-{m.group('dd')}"
+    return mapping.game_by_concat_teams(m.group("teams"), day), m
+
+
+def map_market(row: dict):
+    """One logged Kalshi market -> (outcome_id, method, confidence).
+
+    Raises mapping.Unresolved with a reason rather than returning None, so the
+    caller records WHY a market is unmapped. The unmapped list is the only thing
+    that tells you which mapper to improve next.
+    """
+    ticker = row.get("market_id") or ""
+    mtype = row.get("market_type")
+    title = row.get("title") or ""
+
+    if mtype == "future":
+        raise mapping.Unresolved("future: season-long outcomes not modelled yet")
+    if mtype == "parlay":
+        raise mapping.Unresolved("parlay: SGP pre-pack, not a single claim")
+
+    (season, week, game_id), m = _event_game(ticker)
+    series = m.group("series")
+
+    if mtype == "prop":
+        t = _TITLE_THRESHOLD.match(title)
+        if not t:
+            raise mapping.Unresolved(f"prop title not in 'N+ stat' form: {title!r}")
+        stat = (mapping.stat_from_words(SERIES_STAT.get(series, ""))
+                or mapping.stat_from_words(t.group("stat")))
+        if stat is None:
+            raise mapping.Unresolved(f"unknown stat for series {series}: {title!r}")
+        # Kalshi is natively threshold format: "4+ receptions" pays on >= 4,
+        # which is the over on 3.5. floor_strike already carries that; trust it
+        # and fall back to the title only if it is missing.
+        line = row.get("line")
+        if line is None:
+            line = float(t.group("n")) - 0.5
+        gsis, how, conf = mapping.resolve_player(t.group("name"), season)
+        o = outcomes.player_prop(season, week, gsis, stat, float(line),
+                                 outcomes.Side.OVER, event_id=game_id)
+        return store.upsert_outcome(o, game_id), f"kalshi:series+{how}", conf
+
+    if mtype == "moneyline":
+        team = mapping.team_abbr(row.get("subject") or "")
+        if not team:
+            raise mapping.Unresolved(f"unknown team {row.get('subject')!r}")
+        o = outcomes.Outcome(outcomes.Sport.NFL, season, week,
+                             outcomes.MarketType.MONEYLINE, team,
+                             None, None, outcomes.Side.YES, game_id)
+        return store.upsert_outcome(o, game_id), "kalshi:ticker+team", 1.0
+
+    if mtype in ("spread", "total"):
+        line = row.get("line")
+        if line is None:
+            raise mapping.Unresolved(f"{mtype} with no strike: {title!r}")
+        if mtype == "spread":
+            # Kalshi's yes_sub_title for a spread is a whole sentence -
+            # "New England wins by over 9.5 points" - not a team code.
+            subj = row.get("subject") or ""
+            m2 = _SPREAD_SUBJECT.match(subj)
+            team = mapping.team_abbr(m2.group("team") if m2 else subj)
+            if not team:
+                raise mapping.Unresolved(f"unknown team in spread subject {subj!r}")
+            subject, mt = team, outcomes.MarketType.SPREAD
+        else:
+            subject, mt = game_id, outcomes.MarketType.TOTAL
+        o = outcomes.Outcome(outcomes.Sport.NFL, season, week, mt, subject,
+                             None, float(line), outcomes.Side.OVER, game_id)
+        return store.upsert_outcome(o, game_id), f"kalshi:ticker+{mtype}", 0.9
+
+    raise mapping.Unresolved(f"unhandled market_type {mtype!r}")

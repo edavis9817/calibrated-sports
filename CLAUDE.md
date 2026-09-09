@@ -153,6 +153,19 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
 - **Wind is the only situational factor** surviving multiple-comparison
   correction (30 tests, Bonferroni |t| > 3.14). Divisional, primetime, home/away
   for receivers and short rest are tested nulls.
+- **Tackles are three columns, not one.** Verified against ESPN box scores
+  (`research/tackle_definition.py`, three player-games):
+
+      box-score SOLO      = def_tackles_solo + def_tackles_with_assist
+      TACKLES + ASSISTS   = def_tackles_solo + def_tackles_with_assist
+                          + def_tackle_assists
+
+  `def_tackles_with_assist` is a tackle this player made that someone else
+  assisted on — it scores as SOLO officially. Dropping it undercounts ~6% of
+  defensive player-games by up to 3 tackles. Two reference cases are NOT enough
+  to pin this: both Roquan Smith and Bobby Okereke had `with_assist` = 0, which
+  leaves `solo + assists` looking correct when it is not. Tremaine Edmunds
+  (2025 wk3, CHI) is the discriminating case.
 - **Push handling**: on integer lines price `P(X>L)/(1−P(X=L))`. For receptions
   at line 4 that is 0.385 versus 0.329 — larger than any edge being hunted.
 

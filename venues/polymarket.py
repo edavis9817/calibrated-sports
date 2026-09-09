@@ -37,7 +37,12 @@ Most of the tagged catalogue is dust: 12,620 markets are tradeable but only
 import json
 import time
 
+import re
+
 import config
+import store
+from core import outcomes
+from venues import mapping
 from venues.base import VenueClient, classify_market, mid_from
 
 
@@ -209,3 +214,126 @@ def _iso(s):
         return datetime.fromisoformat(str(s).replace("Z", "+00:00")).timestamp()
     except ValueError:
         return None
+
+
+# ---- outcome mapping (brief 003) -------------------------------------------
+
+# nfl-ne-sea-2026-09-10-player-props  ->  away, home, date
+_EVENT = re.compile(r"^nfl-(?P<a>[a-z0-9]+)-(?P<b>[a-z0-9]+)-"
+                    r"(?P<date>\d{4}-\d{2}-\d{2})(?P<tail>-.*)?$")
+
+_OU = re.compile(r"^(?P<name>.+?):\s*(?P<stat>.+?)\s*O/U\s*(?P<line>[\d.]+)$", re.I)
+_ANYTIME = re.compile(r"^(?P<name>.+?):\s*Anytime\s+Touchdown\s*$", re.I)
+_NPLUS = re.compile(r"^(?P<name>.+?):\s*(?P<n>\d+)\+\s*(?P<stat>.+?)\s*$", re.I)
+_SPREAD = re.compile(r"^Spread:\s*(?P<team>.+?)\s*\((?P<line>[-+][\d.]+)\)\s*$", re.I)
+_TEAM_TOTAL = re.compile(r"^(?P<team>.+?)\s+Team Total:\s*O/U\s*(?P<line>[\d.]+)$", re.I)
+_GAME_TOTAL = re.compile(
+    r"^(?:(?:Total|Game Total)|.+?\s+vs\.?\s+.+?):\s*O/U\s*(?P<line>[\d.]+)$", re.I)
+_MONEYLINE = re.compile(r"^Moneyline:\s*(?P<team>.+?)\s*$", re.I)
+
+# Segment markets - quarters and halves. We have no outcome type for a partial
+# game, and silently mapping "1Q Spread" onto the full-game spread would be a
+# wrong number rather than a missing one.
+_SEGMENT = re.compile(r"\b(1Q|2Q|3Q|4Q|1H|2H|first half|second half|quarter)\b", re.I)
+
+
+def _event_game(event_id: str):
+    m = _EVENT.match((event_id or "").lower())
+    if not m:
+        raise mapping.Unresolved(f"event {event_id!r} is not a game slug")
+    return mapping.game_for(m.group("a"), m.group("b"), m.group("date"))
+
+
+def map_market(row: dict):
+    """One logged Polymarket market -> (outcome_id, method, confidence)."""
+    title = (row.get("title") or "").strip()
+    event_id = row.get("event_id") or ""
+
+    if not title:
+        raise mapping.Unresolved("no title")
+    if _SEGMENT.search(title):
+        raise mapping.Unresolved("segment market (quarter/half), no outcome type")
+    if not _EVENT.match(event_id.lower()):
+        # Season-long leader and futures markets carry a non-game slug. They are
+        # real claims, just not week-keyed ones, and the outcomes table wants a
+        # week. Recorded, not dropped.
+        raise mapping.Unresolved("season-long or non-game event slug")
+
+    season, week, game_id = _event_game(event_id)
+
+    m = _GAME_TOTAL.match(title)
+    if m:
+        o = outcomes.Outcome(outcomes.Sport.NFL, season, week,
+                             outcomes.MarketType.TOTAL, game_id, None,
+                             float(m.group("line")), outcomes.Side.OVER, game_id)
+        return store.upsert_outcome(o, game_id), "poly:game_total", 0.95
+
+    m = _TEAM_TOTAL.match(title)
+    if m:
+        team = mapping.team_abbr(m.group("team"))
+        if not team:
+            raise mapping.Unresolved(f"unknown team {m.group('team')!r}")
+        o = outcomes.Outcome(outcomes.Sport.NFL, season, week,
+                             outcomes.MarketType.TOTAL, team, None,
+                             float(m.group("line")), outcomes.Side.OVER, game_id)
+        return store.upsert_outcome(o, game_id), "poly:team_total", 0.95
+
+    m = _OU.match(title)
+    if m:
+        stat = mapping.stat_from_words(m.group("stat"))
+        if stat is None:
+            raise mapping.Unresolved(f"unknown stat {m.group('stat')!r}")
+        gsis, how, conf = mapping.resolve_player(m.group("name"), season)
+        o = outcomes.player_prop(season, week, gsis, stat,
+                                 float(m.group("line")), outcomes.Side.OVER,
+                                 event_id=game_id)
+        return store.upsert_outcome(o, game_id), f"poly:ou+{how}", conf
+
+    m = _ANYTIME.match(title)
+    if m:
+        gsis, how, conf = mapping.resolve_player(m.group("name"), season)
+        o = outcomes.player_prop(season, week, gsis, outcomes.Stat.ANYTIME_TD,
+                                 0.5, outcomes.Side.OVER, event_id=game_id)
+        return store.upsert_outcome(o, game_id), f"poly:anytime+{how}", conf
+
+    m = _NPLUS.match(title)
+    if m:
+        stat = mapping.stat_from_words(m.group("stat"))
+        if stat is None:
+            raise mapping.Unresolved(f"unknown stat {m.group('stat')!r}")
+        gsis, how, conf = mapping.resolve_player(m.group("name"), season)
+        # "2+ Touchdowns" pays on >= 2, i.e. the over on 1.5 - the same
+        # threshold-to-line conversion Kalshi needs.
+        o = outcomes.player_prop(season, week, gsis, stat,
+                                 float(m.group("n")) - 0.5, outcomes.Side.OVER,
+                                 event_id=game_id)
+        return store.upsert_outcome(o, game_id), f"poly:nplus+{how}", conf
+
+    m = _SPREAD.match(title)
+    if m:
+        team = mapping.team_abbr(m.group("team"))
+        if not team:
+            raise mapping.Unresolved(f"unknown team {m.group('team')!r}")
+        o = outcomes.Outcome(outcomes.Sport.NFL, season, week,
+                             outcomes.MarketType.SPREAD, team, None,
+                             float(m.group("line")), outcomes.Side.OVER, game_id)
+        return store.upsert_outcome(o, game_id), "poly:spread", 0.95
+
+    m = _GAME_TOTAL.match(title)
+    if m:
+        o = outcomes.Outcome(outcomes.Sport.NFL, season, week,
+                             outcomes.MarketType.TOTAL, game_id, None,
+                             float(m.group("line")), outcomes.Side.OVER, game_id)
+        return store.upsert_outcome(o, game_id), "poly:game_total", 0.95
+
+    m = _MONEYLINE.match(title)
+    if m:
+        team = mapping.team_abbr(m.group("team"))
+        if not team:
+            raise mapping.Unresolved(f"unknown team {m.group('team')!r}")
+        o = outcomes.Outcome(outcomes.Sport.NFL, season, week,
+                             outcomes.MarketType.MONEYLINE, team, None, None,
+                             outcomes.Side.YES, game_id)
+        return store.upsert_outcome(o, game_id), "poly:moneyline", 1.0
+
+    raise mapping.Unresolved(f"title shape not recognised: {title[:70]!r}")
