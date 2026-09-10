@@ -115,6 +115,15 @@ RAW_ROTATE_MAX_SHARDS = int(os.getenv("RAW_ROTATE_MAX_SHARDS", 500))  # per run
 # the one thing that may be pruned outright. See DECISIONS.md for the bytes/day
 # arithmetic behind the default.
 QUOTES_RETENTION_DAYS = float(os.getenv("QUOTES_RETENTION_DAYS", 14))
+# Retention prunes LIVE capture only. Backfilled rows carry the timestamp of
+# the event they describe, not of when they were fetched, so a 14-day window on
+# `ts` deletes a 90-day history the moment it lands. That is exactly what
+# happened: brief 006 lost 76 days of Kalshi candles and brief 009's entire
+# 806-credit pilot, silently, to the hourly maintenance pass.
+# Retention exists to bound GROWTH. A historical backfill does not grow, so
+# pruning it buys nothing and destroys the expensive thing.
+QUOTES_PRUNE_SOURCES = tuple(
+    x for x in os.getenv("QUOTES_PRUNE_SOURCES", "live").split(",") if x)
 QUOTES_PRUNE_VACUUM = os.getenv("QUOTES_PRUNE_VACUUM", "0") == "1"
 
 # --- nflverse -------------------------------------------------------------

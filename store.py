@@ -57,6 +57,10 @@ CREATE TABLE IF NOT EXISTS quotes (
     volume       REAL,
     open_interest REAL,
     raw_ref      TEXT,                      -- filename of the raw archive batch
+    -- Vig removed multiplicatively across the two sides of the same line.
+    -- `mid` keeps the vigged implied price and `last` the raw American odds,
+    -- so nothing here is lossy: de-vigging is a derivation, not a replacement.
+    prob_devig   REAL,
     -- live      = captured by the polling logger at that instant
     -- backfill:* = reconstructed from a venue history endpoint after the fact
     -- One table, one outcome_id, one query surface - but a backtest that cannot
@@ -379,6 +383,36 @@ CREATE TABLE IF NOT EXISTS paper_ledger (
 );
 CREATE INDEX IF NOT EXISTS ix_ledger_entry ON paper_ledger(entry_ts);
 
+-- Checkpoint for the paid backfill. A 55k-credit job that cannot restart from
+-- where it stopped is one network blip away from being re-bought.
+CREATE TABLE IF NOT EXISTS oddsapi_progress (
+    kind        TEXT NOT NULL,       -- props | featured | listing
+    key         TEXT NOT NULL,       -- game_id, or the slot's ISO timestamp
+    season      INTEGER,
+    credits     INTEGER,
+    rows        INTEGER,
+    status      TEXT NOT NULL,       -- done | empty | failed
+    detail      TEXT,
+    done_ts     REAL NOT NULL,
+    PRIMARY KEY (kind, key)
+);
+
+-- The de-vigged consensus per outcome, and how much the books disagreed.
+-- Dispersion is a confidence signal: a line every book agrees on is a
+-- different object from one where they are 8 points apart.
+CREATE TABLE IF NOT EXISTS outcome_benchmark (
+    outcome_id   TEXT NOT NULL,
+    snapshot_ts  REAL NOT NULL,
+    n_books      INTEGER NOT NULL,
+    median_devig REAL,
+    min_devig    REAL,
+    max_devig    REAL,
+    dispersion   REAL,              -- max - min across benchmark books
+    books        TEXT,
+    PRIMARY KEY (outcome_id, snapshot_ts)
+);
+CREATE INDEX IF NOT EXISTS ix_bench_outcome ON outcome_benchmark(outcome_id);
+
 CREATE TABLE IF NOT EXISTS outcome_settlement (
     outcome_id   TEXT NOT NULL,
     data_version TEXT NOT NULL,
@@ -404,6 +438,7 @@ def _conn():
 MIGRATIONS = [
     ("raw_shards", "kind", "TEXT DEFAULT 'market'"),
     ("quotes", "source", "TEXT DEFAULT 'live'"),
+    ("quotes", "prob_devig", "REAL"),
     ("nfl_games", "home_coach", "TEXT"),
     ("nfl_games", "away_coach", "TEXT"),
 ] + [("nfl_player_week", c, "REAL") for c in DEF_COLS]
@@ -854,7 +889,7 @@ def write_quotes(rows, dedupe=True):
         return 0
     cols = ("ts","sport","venue","event_id","market_id","market_type","subject",
             "line","side","best_bid","best_ask","mid","last","volume",
-            "open_interest","raw_ref","source")
+            "open_interest","raw_ref","source","prob_devig")
     with db() as c:
         c.executemany(
             f"INSERT INTO quotes ({','.join(cols)}) VALUES ({','.join('?'*len(cols))})",

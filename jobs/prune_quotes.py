@@ -41,14 +41,23 @@ def run(days: float = None, dry_run: bool = False, vacuum: bool = None) -> dict:
     vacuum = config.QUOTES_PRUNE_VACUUM if vacuum is None else vacuum
     before = os.path.getsize(config.DB_PATH) if os.path.exists(config.DB_PATH) else 0
 
+    # ONLY live capture is prunable. See config.QUOTES_PRUNE_SOURCES.
+    srcs = config.QUOTES_PRUNE_SOURCES
+    ph = ",".join("?" for _ in srcs)
     with store.db() as c:
-        stale = c.execute("SELECT COUNT(*) FROM quotes WHERE ts < ?",
-                          (cutoff,)).fetchone()[0]
+        stale = c.execute(
+            f"SELECT COUNT(*) FROM quotes WHERE ts < ? AND source IN ({ph})",
+            (cutoff, *srcs)).fetchone()[0]
         total = c.execute("SELECT COUNT(*) FROM quotes").fetchone()[0]
+        protected = c.execute(
+            f"SELECT COUNT(*) FROM quotes WHERE ts < ? AND source NOT IN ({ph})",
+            (cutoff, *srcs)).fetchone()[0]
         if stale and not dry_run:
-            c.execute("DELETE FROM quotes WHERE ts < ?", (cutoff,))
+            c.execute(f"DELETE FROM quotes WHERE ts < ? AND source IN ({ph})",
+                      (cutoff, *srcs))
 
     stats = {"deleted": 0 if dry_run else stale, "candidates": stale,
+             "protected": protected,
              "remaining": total - (0 if dry_run else stale),
              "cutoff": cutoff, "bytes_before": before, "bytes_after": before}
 
@@ -64,7 +73,8 @@ def run(days: float = None, dry_run: bool = False, vacuum: bool = None) -> dict:
 
     store.record_health(
         SOURCE, True,
-        f"pruned {stats['deleted']} quotes older than "
+        f"pruned {stats['deleted']} live quotes ({protected} historical rows "
+        f"protected) older than "
         f"{config.QUOTES_RETENTION_DAYS if days is None else days:g}d, "
         f"{stats['remaining']} remain",
         watermark=time.time())

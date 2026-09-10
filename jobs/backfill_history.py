@@ -222,6 +222,16 @@ def run(venue, limit=None, days=90):
                 stats["empty"] += 1
                 continue
             stats["with_history"] += 1
+            # A re-run REPLACES this market's prior derivation. Appending is
+            # what turned an 578,708-row Kalshi backfill into 857,676 after a
+            # single restore - the same bug the Odds API job had, and it is
+            # invisible until someone counts.
+            with store.db() as c:
+                c.execute("DELETE FROM quotes WHERE venue=? AND market_id=? "
+                          "AND source=?",
+                          (venue, market_id,
+                           "backfill:kalshi_candles" if venue == "kalshi"
+                           else "backfill:poly_history"))
             stats["rows"] += store.write_quotes(rows, dedupe=False)
             if i % 200 == 0:
                 print(f"    {venue} {i}/{len(tgts)}  rows={stats['rows']:,}  "

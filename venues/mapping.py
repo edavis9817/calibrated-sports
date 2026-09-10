@@ -173,6 +173,35 @@ def build_crosswalk(data: bytes, version: str = None):
 
 # --- resolution --------------------------------------------------------------
 
+# Sportsbooks disambiguate same-name players inline, in two shapes seen in the
+# 2023-2025 historical feed: a parenthesised team ("Chris Jones (KC)") and a
+# trailing position code ("Akayleb Evans CB"). Both are FACTS the feed is
+# handing over, so they are parsed out and used rather than stripped and lost.
+_TEAM_SUFFIX = re.compile(r"\s*\(([A-Za-z]{2,3})\)\s*$")
+_POS_SUFFIX = re.compile(
+    r"\s+(CB|S|SS|FS|SAF|OLB|ILB|MLB|LB|DE|DT|NT|EDGE|QB|RB|WR|TE|K|P)$")
+
+
+def parse_book_name(raw: str):
+    """('Chris Jones (KC)') -> ('Chris Jones', 'KC', None).
+
+    Returns (name, team_hint, position_hint). The hints are the whole point:
+    a book that writes "(KC)" is telling you which Chris Jones it means, and
+    throwing that away turns a resolvable name into an ambiguous one.
+    """
+    name = (raw or "").strip()
+    team = pos = None
+    m = _TEAM_SUFFIX.search(name)
+    if m:
+        team = team_abbr(m.group(1))
+        name = _TEAM_SUFFIX.sub("", name).strip()
+    m = _POS_SUFFIX.search(name)
+    if m:
+        pos = m.group(1).upper()
+        name = _POS_SUFFIX.sub("", name).strip()
+    return name, team, pos
+
+
 class Unresolved(Exception):
     """A name did not resolve to exactly one player. Never guessed."""
 

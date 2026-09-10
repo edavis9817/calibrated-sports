@@ -136,6 +136,16 @@ not yet measured and the retention arithmetic depends on it.**
   region × 10); the historical **events listing costs 1 credit and is not
   free**. Snapshots snap to a 5-minute grid. 3 seasons × 5 prop markets =
   43,163 credits.
+- **Retention must never touch a backfill.** Backfilled rows carry the EVENT
+  timestamp, so a window on `ts` deletes a 90-day history the moment it lands.
+  `prune_quotes` prunes `source='live'` only. This silently destroyed an
+  806-credit pilot and 76 days of Kalshi candles before it was caught.
+- **Billing follows markets RETURNED, not requested.** `player_sacks` does not
+  exist in 2023, so a 2023 event costs ~38 credits and a 2024-25 one costs 50.
+- **17 books appear across 2023-2025**, not the 7 in a 2024 sample; several
+  (pointsbetus, barstool, twinspires, wynnbet) have since exited.
+- **`pointsbetus` quotes both sides at ~0.999** on ~99 pairs. The overround
+  invariant is what catches it: two sides must sum to 1.00-1.15.
 - **Pinnacle is ABSENT from 2024 us-region historical props.** Seven books
   quote: betmgm, betonlineag, betrivers, bovada, draftkings, fanduel,
   williamhill_us. The CLV benchmark cannot be Pinnacle for historical work.
