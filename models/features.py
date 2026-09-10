@@ -152,6 +152,47 @@ def _ranked_cte(col: str, seasons) -> str:
     """
 
 
+_SNAP_ROLE_SQL = """
+WITH share AS (
+  SELECT x.gsis_id AS gsis_id, s.team AS team, s.position AS position,
+         AVG(s.offense_pct) AS pct
+    FROM nfl_snap_counts s
+    JOIN player_xwalk x ON x.pfr_id = s.pfr_player_id
+    JOIN nfl_games g    ON g.game_id = s.game_id
+   WHERE s.season IN (%s) AND s.offense_pct IS NOT NULL
+     AND g.kickoff_ts < :as_of
+   GROUP BY x.gsis_id, s.team, s.position
+),
+ranked AS (
+  SELECT gsis_id, team, position, pct,
+         ROW_NUMBER() OVER (PARTITION BY team, position
+                            ORDER BY pct DESC) AS rnk
+    FROM share
+)
+SELECT MIN(rnk, :cap) FROM ranked WHERE gsis_id = :gid ORDER BY pct DESC LIMIT 1
+"""
+
+
+def snap_role(con: sqlite3.Connection, gsis_id: str, as_of_ts: float,
+              seasons=(2025,), cap: int = 4):
+    """Role from SNAP SHARE, ranked within (team, position). None if unknown.
+
+    Independent of the stat being predicted, which the volume-rank version is
+    not: ranking a player by the very quantity the model is about to forecast
+    makes his shrinkage target a function of his own outcome, so he is pulled
+    toward players who already looked like him. That quietly undoes the
+    shrinkage it is supposed to inform, and it does so hardest at the high end
+    where the lines are.
+
+    Snap share is what "bell cow / committee / rotational" actually means, and
+    it is measured before the ball is snapped rather than after.
+    """
+    q = _SNAP_ROLE_SQL % ",".join(str(int(x)) for x in seasons)
+    row = con.execute(q, {"as_of": as_of_ts, "gid": gsis_id,
+                          "cap": cap}).fetchone()
+    return int(row[0]) if row and row[0] is not None else None
+
+
 def role_rank(con: sqlite3.Connection, gsis_id: str, stat: str,
               as_of_ts: float, seasons=(2025,), cap: int = 4) -> int:
     """Where the player sat in his own team's pecking order for this stat.

@@ -24,6 +24,19 @@ from models import baseline, features
 
 
 def code_fingerprint() -> str:
+    """The MODEL's fingerprint, not the logger's.
+
+    A version must be derived from the code that decides what the model
+    predicts - baseline.py, features.py, distributions.py - and nothing else.
+    Hashing the whole logger meant a venue-adapter edit changed the model's
+    fingerprint while a change to the shrinkage constant that also touched the
+    logger did not stand out at all.
+    """
+    from models.baseline import _fingerprint
+    return _fingerprint()
+
+
+def _logger_fingerprint() -> str:
     from run_logger import code_fingerprint as fp
     return fp()
 
@@ -99,7 +112,7 @@ def run(season=2026, week=1, as_of_ts=None, dry_run=False, venue="kalshi"):
             continue
         store.record_prediction({
             "outcome_id": oid,
-            "model_version": baseline.MODEL_VERSION,
+            "model_version": baseline.model_version(),
             "code_fingerprint": fingerprint,
             "as_of_ts": as_of_ts,
             "created_ts": now,

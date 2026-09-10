@@ -482,6 +482,17 @@ MIGRATIONS = [
     # only that the transfer was faithful, never that the bytes were.
     ("raw_shards", "sha256_sealed", "TEXT"),
     ("raw_shards", "sealed_ts", "REAL"),
+    # model_prob_yes - mid, on a FIXED axis. `gross_edge` and `net_edge` are
+    # positive by construction (the side is chosen so the model is above the
+    # market), so they cannot be averaged across tickets - doing so reported
+    # 13-18pp of "edge" from a baseline model for two sessions.
+    ("paper_ledger", "signed_edge", "REAL"),
+    # Denormalised from predictions ON PURPOSE. The ledger is the decision
+    # record and "which model decided this" has to be answerable from the row
+    # itself, not by a join that a future query might forget. 332 tickets split
+    # 171/161 across two builds were averaged into one number because nothing
+    # in the row said they were different models.
+    ("paper_ledger", "model_version", "TEXT"),
     ("nfl_games", "home_coach", "TEXT"),
     ("nfl_games", "away_coach", "TEXT"),
 ] + [("nfl_player_week", c, "REAL") for c in DEF_COLS]
@@ -934,14 +945,43 @@ def record_mappings(rows):
     return len(payload)
 
 
+class VersionMismatch(RuntimeError):
+    """The declared model_version does not carry the running fingerprint.
+
+    A version string that is typed can drift from the code it names, and when
+    it does the store cannot tell two models apart. That is not hypothetical:
+    `baseline-usage-0.2` was written by TWO different builds (24e5b62d5819 and
+    c4479a8b0627, 1,049 rows each), and the paper ledger then averaged 171
+    tickets from one and 161 from the other into a single number that described
+    neither. Refusing the write is the only place this can be caught, because
+    by the time anything reads the table both rows look identical.
+    """
+
+
 def record_prediction(row: dict) -> int:
     """Append one immutable prediction. Returns its id.
+
+    REFUSES when `model_version` does not embed `code_fingerprint`. See
+    VersionMismatch.
 
     There is deliberately no update path. A revised belief is a NEW row with a
     later as_of_ts; the old one stays exactly as it was written, because the
     only way to check whether a model was calibrated is to still have what it
     actually said at the time.
     """
+    version = row.get("model_version") or ""
+    fingerprint = row.get("code_fingerprint") or ""
+    if not fingerprint:
+        raise VersionMismatch(
+            f"prediction for {row.get('outcome_id')} carries no "
+            f"code_fingerprint; model_version={version!r}")
+    if fingerprint not in version:
+        raise VersionMismatch(
+            f"model_version {version!r} does not embed the running "
+            f"code_fingerprint {fingerprint!r}. Derive the version from the "
+            f"fingerprint (models.baseline.model_version()) rather than "
+            f"declaring it - a typed version drifts from its code silently, "
+            f"and two builds sharing one label cannot be told apart later.")
     cols = ("outcome_id", "model_version", "code_fingerprint", "as_of_ts",
             "created_ts", "family", "params_json", "mean", "prob_over",
             "push_prob", "prior_games", "shrink_weight")
@@ -962,7 +1002,8 @@ def record_prediction(row: dict) -> int:
 def record_ticket(row: dict) -> int:
     cols = ("outcome_id", "prediction_id", "venue", "market_id", "side",
             "model_prob", "market_prob", "best_bid", "best_ask", "spread",
-            "gross_edge", "fee", "net_edge", "stake", "entry_ts", "kickoff_ts")
+            "gross_edge", "fee", "net_edge", "signed_edge", "stake",
+            "entry_ts", "kickoff_ts", "model_version")
     with db() as c:
         cur = c.execute(
             f"INSERT OR IGNORE INTO paper_ledger ({','.join(cols)}) "

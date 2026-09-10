@@ -231,7 +231,9 @@ def test_pushes_are_dropped_not_scored_as_half(env):
     never took a position against."""
     now = time.time()
     store.record_prediction({
-        "outcome_id": "abc", "model_version": "m", "code_fingerprint": "f",
+        # The version must embed the fingerprint or the store refuses it -
+        # see store.VersionMismatch and test_version_derivation.py.
+        "outcome_id": "abc", "model_version": "test-0.0+f", "code_fingerprint": "f",
         "as_of_ts": now, "created_ts": now, "family": "negative_binomial",
         "params_json": "{}", "mean": 4.0, "prob_over": 0.6, "push_prob": 0.1,
         "prior_games": 10, "shrink_weight": 0.5})
