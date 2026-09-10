@@ -477,6 +477,11 @@ MIGRATIONS = [
     ("quotes", "source", "TEXT DEFAULT 'live'"),
     ("quotes", "prob_devig", "REAL"),
     ("quotes", "ingest_ts", "REAL"),
+    # Hashed when the shard's hour CLOSES, not when it is rotated. See
+    # seal_shards(): rotation's own hash is taken seven days later and proves
+    # only that the transfer was faithful, never that the bytes were.
+    ("raw_shards", "sha256_sealed", "TEXT"),
+    ("raw_shards", "sealed_ts", "REAL"),
     ("nfl_games", "home_coach", "TEXT"),
     ("nfl_games", "away_coach", "TEXT"),
 ] + [("nfl_player_week", c, "REAL") for c in DEF_COLS]
@@ -618,6 +623,109 @@ def note_shard(rel_path: str, **cols):
             (rel_path, venue, day, hour, *[fields[k] for k in keys], now, now))
 
 
+# Newest data_version wins, not MAX(kickoff_ts). They agree today because no
+# 2026 game has moved yet, but flex scheduling exists precisely to move games -
+# and it moves them EARLIER as often as later, so a MAX() would eventually hand
+# the poller a kickoff that has already passed and call the market cold.
+#
+# Deliberately TWO indexed queries joined in Python rather than one statement.
+# The single-statement form with a ROW_NUMBER() CTE took 10.9 seconds against
+# this store, because the window has to be materialized over every game before
+# the venue filter can touch it - and this runs on the polling path, where ten
+# seconds is most of a `live` tier interval.
+_GAMES_SQL = "SELECT game_id, data_version, kickoff_ts FROM nfl_games "              "WHERE kickoff_ts IS NOT NULL"
+_MARKET_EVENT_SQL = """
+SELECT mo.venue, mo.market_id, o.event_id
+  FROM market_outcome mo
+  JOIN outcomes o ON o.outcome_id = mo.outcome_id
+ WHERE mo.outcome_id IS NOT NULL AND o.event_id IS NOT NULL
+"""
+
+
+def kickoff_map(venues=None) -> dict:
+    """{(venue, market_id): kickoff_ts} for every mapped market.
+
+    This is the join the polling tiers key on. A venue's own `close_ts` means
+    whatever that venue decided it means - Kalshi closes a prop at GAME END and
+    Polymarket closes the same claim at KICKOFF - so tiering on it runs two
+    venues at two cadences for one event. The game clock is the thing both
+    venues are actually about.
+
+    Pass `venues` on the polling path. Unfiltered this covers 650k markets and
+    645k of them are `oddsapi:<book>` rows from the historical backfill -
+    markets nothing polls, for games played two years ago.
+    """
+    sql, args = _MARKET_EVENT_SQL, ()
+    if venues:
+        vs = tuple(venues)
+        sql += " AND mo.venue IN (%s)" % ",".join("?" for _ in vs)
+        args = vs
+    with db() as c:
+        best = {}
+        for gid, ver, kick in c.execute(_GAMES_SQL):
+            cur = best.get(gid)
+            if cur is None or (ver or "") >= cur[0]:
+                best[gid] = ((ver or ""), kick)
+        out = {}
+        for venue, market_id, event_id in c.execute(sql, args):
+            hit = best.get(event_id)
+            if hit:
+                out[(venue, market_id)] = hit[1]
+    return out
+
+
+def sealed_hash(rel_path: str):
+    """The hash taken when this shard's hour closed, or None if never sealed."""
+    with db() as c:
+        row = c.execute("SELECT sha256_sealed FROM raw_shards WHERE rel_path=?",
+                        (rel_path,)).fetchone()
+    return row[0] if row else None
+
+
+def audit_shards(root=None) -> dict:
+    """Every raw file on disk must have a manifest row. Register any that do not.
+
+    The manifest held ONLY the nflverse mirror: archive_file() registered what
+    it wrote and archive_raw() did not, so 163 shards and 2.07 GB of live
+    kalshi, polymarket and depth capture existed with no row. Rotation still
+    found them - it walks the disk - but locate_shard() could not answer "where
+    is this hour?" for anything the logger itself produced, and nothing had a
+    write-time hash to be checked against later.
+
+    Self-healing on purpose, and loud on purpose. Registering silently would
+    hide a write path that forgot to register; refusing to start would trade a
+    manifest gap for a capture outage, which is the worse of the two.
+    """
+    root = root or config.RAW_DIR
+    found, registered = 0, []
+    if os.path.isdir(root):
+        with db() as c:
+            known = {r[0] for r in c.execute("SELECT rel_path FROM raw_shards")}
+        for dirpath, _dirs, files in os.walk(root):
+            for name in files:
+                if name.endswith(".part"):
+                    continue
+                rel = os.path.relpath(os.path.join(dirpath, name),
+                                      root).replace(os.sep, "/")
+                found += 1
+                if rel not in known:
+                    registered.append(rel)
+    for rel in registered:
+        kind = "market" if rel.endswith(".jsonl.gz") else "reference"
+        try:
+            note_shard(rel, kind=kind, state="local",
+                       bytes=os.path.getsize(os.path.join(
+                           root, rel.replace("/", os.sep))))
+        except Exception:
+            pass
+    stats = {"on_disk": found, "unregistered": len(registered),
+             "registered_now": len(registered)}
+    record_health("shard_audit", not registered,
+                  f"{found} files on disk, {len(registered)} had no manifest "
+                  f"row and were registered", watermark=time.time())
+    return dict(stats, paths=registered)
+
+
 def locate_shard(rel_path: str):
     """Where is this hour of raw data? -> (state, bucket, key, verified_ts)."""
     with db() as c:
@@ -650,7 +758,75 @@ def archive_raw(venue: str, endpoint: str, payload) -> str:
     rec = {"ts": time.time(), "endpoint": endpoint, "payload": payload}
     with gzip.open(path, "at", encoding="utf-8") as f:
         f.write(json.dumps(rec, separators=(",", ":")) + "\n")
-    return os.path.join(venue, day, name)
+    rel = os.path.join(venue, day, name).replace(os.sep, "/")
+    # REGISTER THE SHARD. Without this the manifest held only the nflverse
+    # mirror - 2.07 GB of live kalshi, polymarket and depth capture had no row
+    # at all, so locate_shard() could not answer "where is this hour of raw
+    # data?" for anything the logger itself wrote. Once per shard per process,
+    # not once per poll: this sits on the hot path of every venue tick.
+    if rel not in _shards_seen:
+        _shards_seen.add(rel)
+        try:
+            note_shard(rel, kind="market", state="open")
+        except Exception:
+            pass          # a manifest write must never fail an archive write
+    return rel
+
+
+# Shards this process has already registered. Bounded by hours x venues, so a
+# few hundred entries a week, and the process restarts long before that matters.
+_shards_seen = set()
+
+# A shard is hour-sharded, so it is final once its hour is over. Ten minutes of
+# quiet is a generous margin against a slow last append.
+SEAL_QUIET_SECONDS = 600
+
+
+def seal_shards(now=None, root=None) -> dict:
+    """Hash every shard whose hour has closed, and record it.
+
+    THE POINT: rotate_raw hashes a shard seven days after it was written, so a
+    faithful upload of already-corrupt bytes verifies perfectly and then deletes
+    the only other copy. The read-back verification proves the TRANSFER. Nothing
+    proved the CONTENT. Hashing at the hour boundary - when the file is final
+    and still minutes old - is what makes corruption at rest detectable at all.
+
+    Idempotent; skips anything already sealed or still being written to.
+    """
+    now = time.time() if now is None else now
+    root = root or config.RAW_DIR
+    stats = {"sealed": 0, "bytes": 0, "skipped": 0, "failed": 0}
+    with db() as c:
+        rows = c.execute(
+            "SELECT rel_path FROM raw_shards WHERE sha256_sealed IS NULL "
+            "AND kind='market'").fetchall()
+    for (rel,) in rows:
+        abs_path = os.path.join(root, rel.replace("/", os.sep))
+        if not os.path.exists(abs_path):
+            stats["skipped"] += 1
+            continue
+        # Still being appended to? Leave it. Hashing mid-write records the hash
+        # of a prefix, which is worse than having no hash at all: it would fail
+        # the rotation check every time and teach whoever sees it to ignore it.
+        if now - os.path.getmtime(abs_path) < SEAL_QUIET_SECONDS:
+            stats["skipped"] += 1
+            continue
+        try:
+            h = hashlib.sha256()
+            with open(abs_path, "rb") as f:
+                for block in iter(lambda: f.read(1 << 20), b""):
+                    h.update(block)
+            note_shard(rel, bytes=os.path.getsize(abs_path),
+                       sha256_sealed=h.hexdigest(), sealed_ts=now,
+                       state="local")
+            stats["sealed"] += 1
+            stats["bytes"] += os.path.getsize(abs_path)
+        except Exception:
+            stats["failed"] += 1
+    record_health("seal_shards", stats["failed"] == 0,
+                  ", ".join(f"{k}={v}" for k, v in stats.items()),
+                  watermark=now)
+    return stats
 
 
 def upsert_outcome(o, event_id=None) -> str:

@@ -354,3 +354,100 @@ def test_deadman_treats_an_empty_poll_log_as_dead(env):
     dead, stale, newest = deadman_status([], time.time(), limit_min=20)
 
     assert dead is True and newest is None
+
+
+# --- shard registration and sealing (brief 008) ------------------------------
+
+def test_archive_raw_registers_the_shard_it_writes(env):
+    """The manifest held ONLY the nflverse mirror: archive_file() registered
+    what it wrote and archive_raw() did not. 163 shards and 2.07 GB of live
+    kalshi, polymarket and depth capture had no row, so locate_shard() could
+    not answer "where is this hour?" for anything the logger itself produced."""
+    store._shards_seen.clear()
+    rel = store.archive_raw("kalshi", "markets", {"a": 1})
+
+    assert rel is not None
+    with store.db() as c:
+        row = c.execute("SELECT venue, kind, state FROM raw_shards "
+                        "WHERE rel_path=?", (rel,)).fetchone()
+    assert row == ("kalshi", "market", "open")
+
+
+def test_registration_happens_once_per_shard_not_once_per_poll(env):
+    """This sits on the hot path of every venue tick - 3,400 markets a cycle.
+    A manifest write per poll would be a write per poll."""
+    store._shards_seen.clear()
+    calls = []
+    real = store.note_shard
+    try:
+        store.note_shard = lambda *a, **k: calls.append(a) or real(*a, **k)
+        for _ in range(20):
+            store.archive_raw("kalshi", "markets", {"a": 1})
+    finally:
+        store.note_shard = real
+    assert len(calls) == 1
+
+
+def test_sealing_hashes_a_closed_shard_and_skips_a_live_one(env, monkeypatch):
+    """The hash rotate_raw computes is taken seven DAYS after the bytes were
+    written, so a faithful upload of already-corrupt bytes verifies perfectly
+    and then deletes the only other copy. Sealing at the hour boundary is what
+    makes corruption at rest detectable at all."""
+    store._shards_seen.clear()
+    rel = store.archive_raw("kalshi", "markets", {"a": 1})
+
+    # Still being appended to: no hash, because a hash of a prefix is worse
+    # than no hash - it would fail every rotation and train people to ignore it.
+    assert store.seal_shards()["sealed"] == 0
+    assert store.sealed_hash(rel) is None
+
+    # The hour has closed.
+    stats = store.seal_shards(now=time.time() + store.SEAL_QUIET_SECONDS + 1)
+    assert stats["sealed"] == 1
+    digest = store.sealed_hash(rel)
+    assert digest and len(digest) == 64
+
+    # Idempotent.
+    assert store.seal_shards(now=time.time() + 10_000)["sealed"] == 0
+
+
+def test_the_audit_finds_and_registers_an_orphan_file(env):
+    """Loud, and it fixes what it finds. Registering silently would hide a
+    write path that forgot to register; refusing to start would trade a
+    manifest gap for a capture outage."""
+    orphan = os.path.join(config.RAW_DIR, "polymarket", "2026-09-01")
+    os.makedirs(orphan, exist_ok=True)
+    with open(os.path.join(orphan, "07.jsonl.gz"), "wb") as f:
+        f.write(b"not really gzip, but it is a file on disk")
+
+    stats = store.audit_shards()
+
+    assert stats["unregistered"] == 1
+    assert stats["paths"] == ["polymarket/2026-09-01/07.jsonl.gz"]
+    assert store.locate_shard("polymarket/2026-09-01/07.jsonl.gz") is not None
+    assert store.audit_shards()["unregistered"] == 0     # self-healed
+
+
+def test_rotation_refuses_a_shard_that_changed_after_it_was_sealed(env,
+                                                                   monkeypatch):
+    """THE reason sealing exists. Rotation hashes, uploads, reads back, and
+    deletes - a sequence that is airtight about the TRANSFER and silent about
+    the CONTENT. A shard truncated by a bad append on day two would be
+    faithfully preserved to R2 and the local copy removed."""
+    from jobs import rotate_raw
+    store._shards_seen.clear()
+    rel = store.archive_raw("kalshi", "markets", {"a": 1})
+    abs_path = os.path.join(config.RAW_DIR, rel.replace("/", os.sep))
+    store.seal_shards(now=time.time() + store.SEAL_QUIET_SECONDS + 1)
+
+    with open(abs_path, "ab") as f:          # corruption at rest
+        f.write(b"\x00\x00garbage")
+
+    rotated, detail = rotate_raw.rotate_one(None, rel, abs_path)
+
+    assert rotated is False
+    assert "REFUSING TO ROTATE" in detail
+    assert os.path.exists(abs_path), "a failed check must never delete"
+    with store.db() as c:
+        assert c.execute("SELECT state FROM raw_shards WHERE rel_path=?",
+                         (rel,)).fetchone()[0] == "corrupt"

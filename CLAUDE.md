@@ -45,6 +45,48 @@ including when it looks bad.
    caller, because a row that can name its own ingestion time can name one in
    the past. Guarded by `tests/test_backfill_full.py`.
 
+## Polling tiers
+
+Tiers key on **KICKOFF**, never on a venue's `close_ts`. Kalshi closes a player
+prop at GAME END and Polymarket closes the same claim at KICKOFF, so one field
+means two instants and the identical outcome runs at two cadences.
+`store.kickoff_map()` is the join; `close_ts` is the fallback for unmapped
+markets only.
+
+    hot     15s   0 < secs_to_kick < HOT_WINDOW_MIN (240m)
+    live    10s   -LIVE_WINDOW_MIN (240m) < secs_to_kick <= 0
+    game    60s   secs_to_kick > 0 and within COLD_WINDOW_HOURS (24h)
+    cold   600s   everything else, INCLUDING all post-live markets
+    futures 300s  market_type == future
+
+`game` is **future-side only**. Post-game prices converge to 0/1 and stay, so
+600s is sufficient resolution for a converged market — and it keeps finished
+games out of `DEPTH_TIERS`, where they would otherwise compete for the depth
+cycle on the busiest night of the week.
+
+Discovery runs **off the polling path** as a task. Kalshi's catalogue pass
+averages 15.7s and peaks at 37.6s; awaited inline it stalled the venue. One
+pass in flight at a time, and a failure keeps the previous catalogue rather
+than emptying it. `LOOP_TICK` bounds the resolution of every cadence above.
+
+The Odds API is **snapshot-scheduled and is not in the tiers** — see
+`venues/oddsapi.py`. `jobs/tier_report.py --accept` checks all of this against
+the real catalogue and schedule.
+
+## The raw archive manifest
+
+Every raw file on disk must have a `raw_shards` row. `archive_raw()` registers
+on first write to a shard (once per shard per process — it is on the hot path
+of every venue tick), and the logger audits the tree at startup, registering
+and reporting anything it finds unregistered.
+
+Shards are hashed when their **hour closes** (`store.seal_shards()`), not when
+they rotate. Rotation's own hash is taken seven days later, so verifying the
+upload against it proves the **transfer** and says nothing about the
+**content**: a shard truncated by a bad append on day two would be faithfully
+preserved to R2 and the only other copy deleted. Rotation refuses, loudly and
+without deleting, when the sealed and current hashes disagree.
+
 ## The join key
 
 `outcome_id` identifies a semantic claim independent of venue:
@@ -135,6 +177,12 @@ not yet measured and the retention arithmetic depends on it.**
   ~31 days. Neither does the live CLOB path. Polymarket cannot be bucketed on
   the same liquidity axis as Kalshi; spread is all it offers, and an empty book
   quotes 0/1 so its mid is a meaningless 0.500.
+- **A pagination ceiling RAISES; it does not truncate.** Reversed 2026-09-10.
+  A short catalogue is indistinguishable from a quiet day — the loop keeps
+  succeeding, the dead-man stays green, and the gap surfaces months later as
+  history nobody can re-derive. Discovery refuses at `POLY_MAX_OFFSET` rather
+  than discovering the ceiling by getting a 422. If it ever fires the answer is
+  `/markets/keyset` or a narrower tag, **never a bigger cap**.
 - **Use `POST /clob/prices`, not gamma's inline `bestBid`/`bestAsk`.** Same
   top-of-book values, 235× fewer bytes, and materially fresher — gamma logged
   zero price changes across four minutes where CLOB logged 17–65 per 20s cycle.

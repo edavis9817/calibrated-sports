@@ -192,6 +192,15 @@ DISK_CHECK_EVERY = float(os.getenv("DISK_CHECK_EVERY", 30))   # seconds, cached
 # At 60s this is ~0.95 GB/day of VWAP ladders plus allowlist raw L2.
 DEPTH_CAPTURE_ENABLED = os.getenv("DEPTH_CAPTURE_ENABLED", "1") == "1"
 DEPTH_CAPTURE_EVERY = float(os.getenv("DEPTH_CAPTURE_EVERY", 60))
+# Depth is tiered on kickoff for the same reason quotes are, and for one more:
+# a full snapshot costs ~27s, so sampling every mapped market at one rate means
+# the 13 books actually in play on a Sunday get sampled every 86s. Dropping
+# week-17 futures out of the cycle is what buys the in-play cadence.
+DEPTH_TIER_ENABLED = os.getenv("DEPTH_TIER_ENABLED", "1") == "1"
+# Which tiers are worth a depth snapshot at all. Futures books do not move and
+# a cold market has no game inside 24 hours.
+DEPTH_TIERS = tuple(x for x in os.getenv(
+    "DEPTH_TIERS", "hot,live,game").split(",") if x)
 
 # --- Liveness --------------------------------------------------------------
 # Dead-man switch: if no venue has logged a successful poll in this long, the
@@ -221,12 +230,47 @@ HEALTHCHECK_TIMEOUT = float(os.getenv("HEALTHCHECK_TIMEOUT", 10))
 POLL_FUTURES = int(os.getenv("POLL_FUTURES", 300))
 POLL_GAME = int(os.getenv("POLL_GAME", 60))
 POLL_HOT = int(os.getenv("POLL_HOT", 15))      # inside HOT_WINDOW_MIN of kickoff
-HOT_WINDOW_MIN = int(os.getenv("HOT_WINDOW_MIN", 120))
+# Widened from 120 to 240 to capture cross-game line movement across the first
+# full 13-game slate - afternoon and night lines move all day in response to
+# early results, and that data is unrecoverable after the fact. Re-tune after
+# measuring what the 120-240 band actually contains.
+# Note: the windows that matter operationally are the T-90 inactive report and
+# the final hour, both of which 120 already covered.
+HOT_WINDOW_MIN = int(os.getenv("HOT_WINDOW_MIN", 240))
 # In-game. REST polling is a stopgap here - live markets really want a
 # WebSocket (see docs/briefs/005-live-capture.md). 10s is about as fast as
 # polling is worth before you are just paying rate limit for duplicate rows.
 POLL_LIVE = int(os.getenv("POLL_LIVE", 10))
 LIVE_WINDOW_MIN = int(os.getenv("LIVE_WINDOW_MIN", 240))   # ~4h game window
+# Midweek there is no game inside 24 hours and nothing to be fast about.
+# Polling 3,265 Polymarket markets every 60s from Monday to Friday spends the
+# rate limit of a venue we intend to trade on, to record prices that are not
+# moving. COLD is what pays for the Sunday cadence.
+POLL_COLD = int(os.getenv("POLL_COLD", 600))
+# The FUTURE side only. Everything after the live window closes is cold; see
+# tier_for(). Post-game prices converge to 0/1 and stay there.
+COLD_WINDOW_HOURS = float(os.getenv("COLD_WINDOW_HOURS", 24))
+
+# TIERS KEY ON KICKOFF, NOT ON THE VENUE'S CLOSE. Kalshi props close at GAME
+# END and Polymarket's close at kickoff, so one close_ts means two different
+# instants and a mid-game Kalshi market silently drops to the 60s tier while
+# the identical Polymarket claim correctly runs at 10s. Observed live on the
+# 2026-09-10 opener. close_ts is the fallback for markets with no mapped game.
+TIER_ON_KICKOFF = os.getenv("TIER_ON_KICKOFF", "1") == "1"
+# How often to rebuild the market -> kickoff map. It only changes when
+# discovery finds new markets or the schedule moves.
+KICKOFF_MAP_EVERY = float(os.getenv("KICKOFF_MAP_EVERY", 300))
+
+# The Odds API is snapshot-scheduled (see venues/oddsapi.py), not polled. It
+# has no business in the cadence tiers: it was burning a 10s loop to print
+# "1 markets -> 0 quotes" 1,173 times. Check its ladder on its own timer.
+ODDS_CHECK_EVERY = float(os.getenv("ODDS_CHECK_EVERY", 60))
+
+# How often the venue worker wakes to check whether any tier is due. It bounds
+# the resolution of every cadence above: a 5s tick cannot honour a 3s tier, and
+# it adds up to half a tick of jitter to the 10s `live` one. The loop body is
+# cheap when nothing is due, so tick faster than the fastest tier.
+LOOP_TICK = float(os.getenv("LOOP_TICK", 1))
 
 # --- Rate limiting ---------------------------------------------------------
 # Kalshi Basic tier: 200 read tokens/s, 10 tokens/request => ~20 req/s.

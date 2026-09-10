@@ -47,28 +47,59 @@ def log(msg):
     print(f"{datetime.now(timezone.utc).strftime('%H:%M:%S')}Z {msg}", flush=True)
 
 
-def tier_for(market: dict) -> str:
+def tier_for(market: dict, kickoffs: dict = None, now: float = None) -> str:
     """Which cadence bucket a market belongs to right now.
 
-    Four tiers. The 'live' one matters: once kickoff passes, close_ts is in the
-    past, so without this branch an in-progress game silently drops back to the
-    60s 'game' cadence - the exact window where prices move fastest.
+    KEYED ON KICKOFF, NOT ON THE VENUE'S CLOSE. `close_ts` means whatever each
+    venue decided it means: Kalshi closes a player prop at GAME END, Polymarket
+    closes the same claim at KICKOFF. Tiering on it therefore ran the identical
+    outcome at two cadences - mid-game Kalshi silently on the 60s `game` tier
+    while Polymarket correctly ran at 10s, which is the exact window where
+    prices move fastest. Observed live on the 2026-09-10 opener.
+
+    `close_ts` remains the fallback for a market with no mapped game, which is
+    most futures and anything discovery found before the mapper caught up.
+
+    Five tiers now. `cold` is the new one and it is what pays for the rest:
+    Monday to Friday there is no game inside 24 hours, and polling 3,265
+    Polymarket markets every 60s to watch prices not move spends the rate limit
+    of a venue we intend to trade on. `cold` also absorbs everything after the
+    live window closes - see the comment on that branch.
     """
     if market.get("market_type") == "future":
         return "futures"
-    close = market.get("close_ts")
-    if not close:
-        return "game"
-    secs_to_close = close - time.time()
-    if 0 < secs_to_close < config.HOT_WINDOW_MIN * 60:
+    now = time.time() if now is None else now
+
+    secs = None
+    if config.TIER_ON_KICKOFF and kickoffs:
+        kick = kickoffs.get((market.get("venue"), market.get("market_id")))
+        if kick is not None:
+            secs = kick - now
+    if secs is None:
+        close = market.get("close_ts")
+        if not close:
+            return "game"
+        secs = close - now
+
+    if 0 < secs < config.HOT_WINDOW_MIN * 60:
         return "hot"                      # pre-kickoff run-up
-    if -config.LIVE_WINDOW_MIN * 60 < secs_to_close <= 0:
+    if -config.LIVE_WINDOW_MIN * 60 < secs <= 0:
         return "live"                     # game in progress
-    return "game"
+    # FUTURE SIDE ONLY. A game that kicked off more than LIVE_WINDOW ago is
+    # over, and its prices have converged to 0 or 1 and stayed there. The only
+    # things worth catching between game end and settlement are settlement
+    # disputes and data lags, which play out over hours - cold samples those
+    # six times an hour. This is not "post-game does not matter", it is "600s
+    # is sufficient resolution for a converged market". It also keeps finished
+    # games out of DEPTH_TIERS, so they stop competing for the 27s depth cycle
+    # on the busiest night of the week.
+    if 0 < secs <= config.COLD_WINDOW_HOURS * 3600:
+        return "game"                     # kickoff ahead, inside a day
+    return "cold"                         # no game ahead within 24h
 
 
-async def poll_venue(client, markets, tier):
-    subset = [m for m in markets if tier_for(m) == tier]
+async def poll_venue(client, markets, tier, kickoffs=None):
+    subset = [m for m in markets if tier_for(m, kickoffs) == tier]
     if not subset:
         return
     t0 = time.time()
@@ -89,35 +120,120 @@ async def venue_worker(client):
     its own schedule. Failures are logged and retried, never fatal - a logger
     that dies on a bad response loses the data it exists to capture."""
     markets, last_discovery = [], 0.0
-    next_run = {"futures": 0.0, "game": 0.0, "hot": 0.0, "live": 0.0}
+    kickoffs, last_kickoffs = {}, 0.0
     cadence = {"futures": config.POLL_FUTURES,
+               "cold": config.POLL_COLD,
                "game": config.POLL_GAME,
                "hot": config.POLL_HOT,
                "live": config.POLL_LIVE}
+    next_run = {t: 0.0 for t in cadence}
+    discovery = None                      # in-flight catalogue refresh
 
     while not _stop.is_set():
         now = time.time()
-        if now - last_discovery > DISCOVERY_EVERY:
-            t0 = time.time()
-            try:
-                markets = await client.list_markets()
-                store.upsert_markets(markets)
-                store.log_poll(client.name, "discovery", len(markets), 0, True,
-                               None, time.time() - t0)
-                log(f"{client.name:11s} discovery -> {len(markets)} NFL markets")
-            except Exception as e:
-                store.log_poll(client.name, "discovery", 0, 0, False, e,
-                               time.time() - t0)
-                log(f"{client.name:11s} discovery ERROR {type(e).__name__}: {e}")
+
+        # DISCOVERY RUNS OFF THE POLLING PATH. Awaiting it inline stalled the
+        # whole venue: kalshi's catalogue pass averages 15.7s and has peaked at
+        # 37.6s against a `live` tier that wants to fire every 10s. Kick it off
+        # as a task, keep polling the catalogue we already have, and adopt the
+        # new one when it lands.
+        if discovery is None and now - last_discovery > DISCOVERY_EVERY:
+            discovery = asyncio.create_task(_discover(client))
             last_discovery = now
+        if discovery is not None and discovery.done():
+            try:
+                found = discovery.result()
+            except Exception as e:      # cancellation, or a bug in _discover
+                log(f"{client.name:11s} discovery TASK {type(e).__name__}: {e}")
+                found = None
+            if found is not None:
+                markets = found
+                last_kickoffs = 0.0        # new markets, remap
+            discovery = None
+
+        # The market -> kickoff join, refreshed on its own timer and in a
+        # thread. It is 0.04s scoped to the live venues, but it is SQLite on a
+        # box that is also writing quotes, and the one thing the poll loop must
+        # never do is block on the database.
+        if now - last_kickoffs > config.KICKOFF_MAP_EVERY:
+            try:
+                kickoffs = await asyncio.to_thread(
+                    store.kickoff_map, (client.name,))
+            except Exception as e:
+                log(f"{client.name:11s} kickoff map ERROR {type(e).__name__}: {e}")
+            last_kickoffs = now
 
         for tier, every in cadence.items():
             if now >= next_run[tier]:
-                await poll_venue(client, markets, tier)
+                await poll_venue(client, markets, tier, kickoffs)
                 next_run[tier] = now + every
 
         try:
-            await asyncio.wait_for(_stop.wait(), timeout=5)
+            await asyncio.wait_for(_stop.wait(), timeout=config.LOOP_TICK)
+        except asyncio.TimeoutError:
+            pass
+
+
+async def _discover(client):
+    """One catalogue refresh. Returns the markets, or None on failure.
+
+    Never raises: a venue that changes a response shape must not take down the
+    loop that is still capturing the other venue.
+    """
+    t0 = time.time()
+    try:
+        markets = await client.list_markets()
+        # SQLite, on a box that is also writing quotes. Cheap today (0.03s for
+        # 3,255 kalshi markets) and still off the loop, for the same reason the
+        # kickoff map is: the poll loop must never block on the database.
+        await asyncio.to_thread(store.upsert_markets, markets)
+        store.log_poll(client.name, "discovery", len(markets), 0, True, None,
+                       time.time() - t0)
+        log(f"{client.name:11s} discovery -> {len(markets)} NFL markets "
+            f"({time.time()-t0:.1f}s)")
+        return markets
+    except Exception as e:
+        store.log_poll(client.name, "discovery", 0, 0, False, e,
+                       time.time() - t0)
+        log(f"{client.name:11s} discovery ERROR {type(e).__name__}: {e}")
+        return None
+
+
+async def snapshot_worker(client):
+    """The Odds API is snapshot-scheduled, not polled.
+
+    It has no business in the cadence tiers. Inside them it was firing a 10s
+    `live` loop to print "1 markets -> 0 quotes" - 1,173 times, for zero quotes
+    - because `fetch_quotes` is a no-op unless a snapshot on the kickoff ladder
+    is actually due. So: refresh the free event list on the discovery timer,
+    and ask the ladder whether anything is due on its own.
+    """
+    markets, last_discovery = [], 0.0
+    while not _stop.is_set():
+        now = time.time()
+        if now - last_discovery > DISCOVERY_EVERY:
+            found = await _discover(client)
+            if found is not None:
+                markets = found
+            last_discovery = now
+
+        due = client.due_snapshots(markets) if markets else []
+        if due:
+            t0 = time.time()
+            try:
+                rows = await client.fetch_quotes(markets)
+                n = store.write_quotes(rows)
+                store.log_poll(client.name, "snapshot", len(due), n, True, None,
+                               time.time() - t0)
+                log(f"{client.name:11s} snapshot {len(due):4d} due -> {n:4d} quotes")
+            except Exception as e:
+                store.log_poll(client.name, "snapshot", len(due), 0, False, e,
+                               time.time() - t0)
+                log(f"{client.name:11s} snapshot ERROR {type(e).__name__}: {e}")
+
+        try:
+            await asyncio.wait_for(_stop.wait(),
+                                   timeout=config.ODDS_CHECK_EVERY)
         except asyncio.TimeoutError:
             pass
 
@@ -303,6 +419,16 @@ async def maintenance():
             log(f"maintenance  rotate ERROR {type(e).__name__}: {e}")
             store.record_health("rotate_raw", False, f"{type(e).__name__}: {e}")
         try:
+            # Hash every shard whose hour has closed. Rotation's own hash is
+            # taken seven days later and proves the transfer, not the content.
+            sealed = await asyncio.to_thread(store.seal_shards)
+            if sealed["sealed"]:
+                log(f"maintenance  sealed {sealed['sealed']} shards "
+                    f"({sealed['bytes']/1e6:.0f}MB), {sealed['failed']} failed")
+        except Exception as e:
+            log(f"maintenance  seal ERROR {type(e).__name__}: {e}")
+            store.record_health("seal_shards", False, f"{type(e).__name__}: {e}")
+        try:
             stats = await asyncio.to_thread(prune_quotes.run)
             if stats["deleted"]:
                 log(f"maintenance  prune: {stats['deleted']} quote rows older than "
@@ -401,7 +527,16 @@ async def main():
             return
 
         free_gb = store.disk_free_bytes() / 1e9
-        log(f"build {code_fingerprint()}  pid {os.getpid()}")
+        fingerprint = code_fingerprint()
+        log(f"build {fingerprint}  pid {os.getpid()}")
+        # "When did the running process start, according to the process?" is a
+        # question worth being able to answer from the database rather than by
+        # reading a log tail - a restart time inferred from file mtimes has
+        # been wrong before. It also gives anything checking behaviour a clean
+        # anchor: rows older than this watermark belong to the previous build.
+        store.record_health("logger_start", True,
+                            f"build {fingerprint} pid {os.getpid()}",
+                            watermark=time.time())
         log(f"logging {[c.name for c in clients]} -> {config.DB_PATH}")
         log(f"disk {free_gb:.1f}GB free (floor {config.DISK_MIN_FREE_GB:g}GB) | "
             f"raw rotates at {config.RAW_ROTATE_DAYS:g}d "
@@ -415,12 +550,40 @@ async def main():
         log(f"depth capture: "
             + (f"every {config.DEPTH_CAPTURE_EVERY:g}s, ~0.95 GB/day"
                if config.DEPTH_CAPTURE_ENABLED else "OFF"))
+        # Every raw file on disk must have a manifest row. Loud, and it fixes
+        # what it finds: registering silently would hide a write path that
+        # forgot to register, and refusing to start would trade a manifest gap
+        # for a capture outage.
+        audit = store.audit_shards()
+        if audit["unregistered"]:
+            log("!" * 68)
+            log(f"SHARD AUDIT: {audit['unregistered']} of {audit['on_disk']} raw "
+                f"files had NO manifest row - registered them now")
+            for rel in audit["paths"][:5]:
+                log(f"    {rel}")
+            if audit["unregistered"] > 5:
+                log(f"    ... and {audit['unregistered'] - 5} more")
+            log("!" * 68)
+        else:
+            log(f"shard audit: {audit['on_disk']} raw files, all registered")
         log("healthcheck: " + ("pinging every "
             f"{config.DEADMAN_CHECK_EVERY:g}s while liveness is healthy"
             if config.HEALTHCHECK_URL else
             "HEALTHCHECK_URL NOT SET - no external dead-man"))
         names = {c.name for c in clients}
-        await asyncio.gather(*(venue_worker(c) for c in clients),
+        # The Odds API takes snapshots on a kickoff ladder; everything else is
+        # polled on cadence tiers. Two different shapes, two different workers.
+        polled = [c for c in clients if c.name != "oddsapi"]
+        snapshot = [c for c in clients if c.name == "oddsapi"]
+        log(f"tiers: hot {config.POLL_HOT}s (kickoff <{config.HOT_WINDOW_MIN}m) "
+            f"| live {config.POLL_LIVE}s (<{config.LIVE_WINDOW_MIN}m in) "
+            f"| game {config.POLL_GAME}s | cold {config.POLL_COLD}s "
+            f"(no game <{config.COLD_WINDOW_HOURS:g}h) "
+            f"| futures {config.POLL_FUTURES}s")
+        log(f"tiering on {'KICKOFF' if config.TIER_ON_KICKOFF else 'close_ts'}"
+            f", close_ts as fallback")
+        await asyncio.gather(*(venue_worker(c) for c in polled),
+                             *(snapshot_worker(c) for c in snapshot),
                              watchdog(http, names), maintenance(),
                              depth_worker())
 

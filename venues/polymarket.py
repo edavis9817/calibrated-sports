@@ -13,8 +13,11 @@ VERIFIED AGAINST THE LIVE API 2026-09-09:
    "offset too large, use /markets/keyset for deeper pagination". Football sits
    far past that, which is why the old walk found nothing. `/events` filtered by
    `tag_slug=nfl` pages cleanly to the end instead: 588 events in 6 calls, no
-   422 anywhere. Discovery still treats a 422 as "stop paging", never as an
-   error, so a future ceiling truncates the catalogue rather than killing it.
+   422 anywhere. Discovery now RAISES at POLY_MAX_OFFSET rather than treating a
+   ceiling as "stop paging": a truncated catalogue looks exactly like a quiet
+   day - the loop keeps succeeding and the dead-man stays green - and the gap
+   only surfaces later as history nobody can re-derive. If this ever fires, the
+   answer is /markets/keyset or a narrower tag, never a bigger cap.
 
 2. GAMMA CARRIES `bestBid`/`bestAsk` INLINE on the nested markets - 14,011 of
    14,133 of them - so discovery yields a free quote for everything it finds.
@@ -46,6 +49,17 @@ from venues import mapping
 from venues.base import VenueClient, classify_market, mid_from
 
 
+class PaginationCeiling(RuntimeError):
+    """Discovery hit the end of what an endpoint will page through blindly.
+
+    THIS MUST RAISE, NOT RETURN A SHORT LIST. A truncated catalogue is
+    indistinguishable from a quiet day: markets simply stop being quoted, the
+    poll loop keeps succeeding, the dead-man switch stays green, and the gap
+    only shows up later as missing history nobody can re-derive. The 422 that
+    hid football behind offset 2100 was exactly this shape.
+    """
+
+
 class PolymarketClient(VenueClient):
     name = "polymarket"
 
@@ -66,18 +80,25 @@ class PolymarketClient(VenueClient):
             return self._snapshot
 
         events, offset = [], 0
-        while offset <= config.POLY_MAX_OFFSET:
+        while True:
+            # HARD GUARD. Blind offset pagination is how discovery found zero
+            # NFL markets for weeks: gamma 422s past offset 2100 and the walk
+            # never reached football. Refusing at the ceiling - rather than
+            # discovering it by getting a 422 - is what keeps a future ceiling
+            # from becoming a silent truncation.
+            if offset > config.POLY_MAX_OFFSET:
+                raise PaginationCeiling(
+                    f"/events reached offset {offset} > POLY_MAX_OFFSET "
+                    f"{config.POLY_MAX_OFFSET} with {len(events)} events "
+                    f"collected. gamma refuses blind pagination past ~2100 and "
+                    f"names /markets/keyset for deeper paging. Do NOT raise the "
+                    f"cap - use keyset, or narrow the tag filter.")
             payload = await self.get_json(
                 f"{config.POLY_GAMMA}/events",
                 params={"limit": config.POLY_PAGE_LIMIT, "offset": offset,
                         "closed": "false", "tag_slug": config.POLY_TAG_SLUG},
-                archive_as="events",
-                # A 422 here is gamma's pagination ceiling, not our bug. Keep
-                # what we already have and stop; never let it raise.
-                soft_status=(422,))
-            if payload is None:
-                break
-            batch = payload if isinstance(payload, list) else payload.get("data", [])
+                archive_as="events")
+            batch = payload if isinstance(payload, list) else (payload or {}).get("data", [])
             if not batch:
                 break
             events.extend(batch)

@@ -173,12 +173,15 @@ class _PagingClient:
     def __init__(self, pages, fail_at=None):
         self.pages, self.fail_at, self.calls = pages, fail_at, 0
 
-    async def get_json(self, url, params=None, archive_as=None, soft_status=(), **kw):
+    async def get_json(self, url, params=None, archive_as=None, soft_status=(),
+                       **kw):
         self.calls += 1
         offset = params["offset"]
         if self.fail_at is not None and offset >= self.fail_at:
-            assert 422 in soft_status, "discovery must treat gamma's 422 as soft"
-            return None
+            assert 422 not in soft_status, (
+                "a pagination ceiling must NOT be swallowed - see "
+                "test_a_truncated_catalogue_is_never_returned_as_success")
+            raise RuntimeError("422 Unprocessable Entity: offset too large")
         return self.pages.get(offset, [])
 
 
@@ -195,19 +198,65 @@ def _market(token, liquidity=500.0, bid=0.40, ask=0.42):
             "startDate": "2026-09-01T00:00:00Z", "endDate": "2026-09-30T00:00:00Z"}
 
 
-def test_a_422_truncates_discovery_instead_of_killing_it():
-    """Blind pagination 422s at offset 2100. Whatever was already collected is
-    real data and must survive; the alternative is a venue that discovers
-    nothing the day gamma moves its ceiling."""
+def test_a_truncated_catalogue_is_never_returned_as_success():
+    """REVERSED 2026-09-10 (brief 008). This previously asserted the opposite -
+    that a 422 truncates discovery and whatever was already collected survives.
+    That is the wrong contract and it is the more dangerous of the two:
+
+    a short catalogue is INDISTINGUISHABLE FROM A QUIET DAY. Markets stop being
+    quoted, the poll loop keeps succeeding, the dead-man switch stays green, and
+    the gap only surfaces months later as history nobody can re-derive. A
+    failure that stops the venue is loud, gets fixed in minutes, and costs one
+    discovery cycle. Do not restore the old behaviour."""
     pages = {0: [_event("pro-football-a", [_market("t1")])],
              1: [_event("pro-football-b", [_market("t2")])]}
     client = PolymarketClient.__new__(PolymarketClient)
     client._snapshot, client._snapshot_ts = [], 0.0
     client.get_json = _PagingClient(pages, fail_at=1).get_json
 
-    markets = run(PolymarketClient.list_markets(client))
+    with pytest.raises(RuntimeError):
+        run(PolymarketClient.list_markets(client))
 
-    assert [m["market_id"] for m in markets] == ["t1"]
+
+def test_discovery_refuses_the_pagination_ceiling_before_reaching_it():
+    """The HARD GUARD. Refuse at POLY_MAX_OFFSET rather than discovering the
+    ceiling by getting a 422 - so a future ceiling cannot become a silent
+    truncation, and so the error names the fix (keyset) instead of a status
+    code."""
+    from venues.polymarket import PaginationCeiling
+    # Pages that never run out: the walk would page forever without the guard.
+    endless = {i: [_event(f"pro-football-{i}", [_market(f"t{i}")])]
+               for i in range(0, 4000)}
+    client = PolymarketClient.__new__(PolymarketClient)
+    client._snapshot, client._snapshot_ts = [], 0.0
+    client.get_json = _PagingClient(endless).get_json
+
+    with pytest.raises(PaginationCeiling) as e:
+        run(PolymarketClient._events(client))
+    assert "keyset" in str(e.value), "the error must name the fix"
+
+
+def test_no_code_path_builds_blind_offset_pagination():
+    """A regression guard on the source itself, not on behaviour.
+
+    Blind `/markets?offset=` paging is what hid every football market behind
+    gamma's ceiling for weeks. Discovery goes through `/events?tag_slug=`; if
+    deeper paging is ever needed the endpoint is `/markets/keyset`. Probe
+    scripts under the repo root are exempt - they exist to explore exactly this
+    kind of limit - but nothing the logger imports may do it."""
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parents[1]
+    offenders = []
+    for rel in ("venues", "jobs", "core", "models"):
+        for path in (root / rel).rglob("*.py"):
+            text = path.read_text(encoding="utf-8")
+            if "/markets" in text and "offset" in text and "keyset" not in text:
+                offenders.append(str(path.relative_to(root)))
+    for name in ("run_logger.py", "store.py", "queries.py"):
+        text = (root / name).read_text(encoding="utf-8")
+        if "/markets" in text and "offset" in text and "keyset" not in text:
+            offenders.append(name)
+    assert not offenders, f"blind /markets offset pagination in: {offenders}"
 
 
 def test_discovery_pages_to_the_end_and_applies_the_liquidity_floor():

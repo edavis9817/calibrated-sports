@@ -109,6 +109,26 @@ def rotate_one(s3, rel_path: str, abs_path: str, dry_run: bool = False) -> tuple
         return False, f"would rotate {size/1e6:.1f}MB -> {key}"
 
     digest = r2.sha256_file(abs_path)
+
+    # THE CORRUPTION-AT-REST CHECK. This hash is taken seven days after the
+    # bytes were written; the read-back verify below then proves the upload
+    # matches IT, and the local copy is deleted. That sequence is airtight about
+    # the transfer and says nothing at all about the content: a shard truncated
+    # by a bad append or a bad sector on day two is faithfully preserved to R2
+    # and the only other copy removed. store.seal_shards() hashes each shard
+    # when its hour closes, minutes after the last write, so the two hashes
+    # disagreeing is the only signal that anything rotted in between.
+    sealed = store.sealed_hash(rel_path)
+    if sealed and sealed != digest:
+        store.note_shard(rel_path, state="corrupt")
+        store.record_health(
+            "rotate_raw", False,
+            f"CORRUPT AT REST: {rel_path} sealed {sealed[:12]} now {digest[:12]}")
+        return False, (f"REFUSING TO ROTATE {rel_path}: sealed sha256 "
+                       f"{sealed[:12]} != current {digest[:12]}. The local "
+                       f"bytes changed after they were written. Local copy "
+                       f"kept; do not delete it.")
+
     store.note_shard(rel_path, bytes=size, sha256=digest, state="local",
                      remote_bucket=config.R2_BUCKET, remote_key=key)
 

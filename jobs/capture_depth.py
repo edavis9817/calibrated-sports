@@ -86,11 +86,36 @@ def allowlist(con):
     return {(v, m) for v, m in rows}
 
 
-def targets(con, venue):
-    return con.execute(
+def targets(con, venue, kickoffs=None, now=None):
+    """Mapped markets for one venue, TIERED ON KICKOFF like the quote loop.
+
+    A full snapshot costs ~27s, so sampling every mapped market at one rate
+    means the books actually in play on a 13-game Sunday get sampled every 86s
+    - and depth not captured live is gone, because candlesticks carry price and
+    volume but no book. What buys the in-play cadence is not snapshotting week
+    17 futures at the same rate.
+
+    A market with no kickoff keeps its snapshot rather than being dropped:
+    tiering is here to spend the cycle where it is worth spending, not to
+    silently narrow what gets captured on the strength of a missing join.
+    """
+    rows = con.execute(
         """SELECT mo.market_id, mo.outcome_id FROM market_outcome mo
             WHERE mo.venue = ? AND mo.outcome_id IS NOT NULL""",
         (venue,)).fetchall()
+    if not (config.DEPTH_TIER_ENABLED and kickoffs):
+        return rows
+    from run_logger import tier_for
+    now = time.time() if now is None else now
+    keep = []
+    for market_id, outcome_id in rows:
+        if (venue, market_id) not in kickoffs:
+            keep.append((market_id, outcome_id))
+            continue
+        t = tier_for({"venue": venue, "market_id": market_id}, kickoffs, now)
+        if t in config.DEPTH_TIERS:
+            keep.append((market_id, outcome_id))
+    return keep
 
 
 def _rows(ts, venue, market_id, outcome_id, buy_yes, buy_no):
@@ -110,8 +135,8 @@ COLS = ("ts", "venue", "market_id", "outcome_id", "side", "touch_price",
         "filled_1000")
 
 
-def snapshot_kalshi(client, con, allow, ts):
-    tgts = targets(con, "kalshi")
+def snapshot_kalshi(client, con, allow, ts, kickoffs=None):
+    tgts = targets(con, "kalshi", kickoffs, ts)
     by_id = dict(tgts)
     tickers = [t for t, _ in tgts]
     rows, raw_kept, interval = [], 0, 1.0 / KALSHI_CALLS_PER_S
@@ -147,10 +172,10 @@ def snapshot_kalshi(client, con, allow, ts):
     return rows, raw_kept
 
 
-def snapshot_polymarket(client, con, allow, ts):
+def snapshot_polymarket(client, con, allow, ts, kickoffs=None):
     """Allowlist only - there is no batched book endpoint, so this is one call
     per token and the whole slate would not fit inside any sane cadence."""
-    tgts = [(m, o) for m, o in targets(con, "polymarket")
+    tgts = [(m, o) for m, o in targets(con, "polymarket", kickoffs, ts)
             if ("polymarket", m) in allow]
     rows, raw_kept, interval = [], 0, 1.0 / POLY_CALLS_PER_S
     for token, outcome_id in tgts:
@@ -171,11 +196,13 @@ def snapshot_polymarket(client, con, allow, ts):
     return rows, raw_kept
 
 
-def run_once():
+def run_once(kickoffs=None):
     with store.db() as c:
         c.executescript(SCHEMA)
     con = sqlite3.connect(f"file:{config.DB_PATH}?mode=ro", uri=True)
     allow = allowlist(con)
+    if kickoffs is None and config.DEPTH_TIER_ENABLED:
+        kickoffs = store.kickoff_map(("kalshi", "polymarket"))
     t0 = time.time()
     # ONE timestamp for the whole snapshot. Stamping each venue as it finished
     # meant a snapshot had two different ts values, and any query anchored on
@@ -183,12 +210,13 @@ def run_once():
     ts = t0
     with httpx.Client(timeout=45, follow_redirects=True,
                       headers={"User-Agent": config.USER_AGENT}) as client:
-        krows, kraw = snapshot_kalshi(client, con, allow, ts)
-        prows, praw = snapshot_polymarket(client, con, allow, ts)
+        krows, kraw = snapshot_kalshi(client, con, allow, ts, kickoffs)
+        prows, praw = snapshot_polymarket(client, con, allow, ts, kickoffs)
     con.close()
     n = store.replace_rows("market_depth", COLS, krows + prows, None)
     stats = {"kalshi_rows": len(krows), "poly_rows": len(prows),
              "raw_books_kept": kraw + praw, "allowlist": len(allow),
+             "tiered": bool(config.DEPTH_TIER_ENABLED and kickoffs),
              "written": n, "elapsed": round(time.time() - t0, 1)}
     store.record_health("depth_capture", True,
                         ", ".join(f"{k}={v}" for k, v in stats.items()),
