@@ -170,6 +170,16 @@ DISK_MIN_FREE_GB = float(os.getenv("DISK_MIN_FREE_GB", 5))
 DISK_WARN_FREE_GB = float(os.getenv("DISK_WARN_FREE_GB", 12))
 DISK_CHECK_EVERY = float(os.getenv("DISK_CHECK_EVERY", 30))   # seconds, cached
 
+# --- Depth capture (brief 007) ---------------------------------------------
+# Top of book is not a tradeable price. Measured 2026-09-10: the BATCHED
+# /markets/orderbooks endpoint sustained 13.6 calls/s over 18 consecutive calls
+# with zero 429s and returns full L2, so the whole slate costs ~25s per
+# snapshot and REST holds it comfortably. (The ~5-call limit noted for Kalshi
+# belongs to /candlesticks, a different endpoint.)
+# At 60s this is ~0.95 GB/day of VWAP ladders plus allowlist raw L2.
+DEPTH_CAPTURE_ENABLED = os.getenv("DEPTH_CAPTURE_ENABLED", "1") == "1"
+DEPTH_CAPTURE_EVERY = float(os.getenv("DEPTH_CAPTURE_EVERY", 60))
+
 # --- Liveness --------------------------------------------------------------
 # Dead-man switch: if no venue has logged a successful poll in this long, the
 # process is up but the data is not arriving, which is the failure that looks

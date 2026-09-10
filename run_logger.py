@@ -33,7 +33,7 @@ import httpx
 import config
 import nflverse
 import store
-from jobs import ingest_nflverse, prune_quotes, rotate_raw
+from jobs import capture_depth, ingest_nflverse, prune_quotes, rotate_raw
 from venues.base import RateLimiter
 from venues.kalshi import KalshiClient
 from venues.oddsapi import OddsApiClient
@@ -136,6 +136,7 @@ def code_fingerprint() -> str:
                 "venues/oddsapi.py", "jobs/rotate_raw.py", "jobs/prune_quotes.py",
                 "jobs/ingest_nflverse.py", "jobs/map_markets.py",
                 "jobs/predict.py", "jobs/paper_trade.py",
+                "jobs/capture_depth.py", "venues/depth.py",
                 "models/features.py", "models/baseline.py", "evaluation.py"):
         path = os.path.join(here, rel)
         if os.path.exists(path):
@@ -347,6 +348,35 @@ async def _refresh_nflverse():
         store.record_health("nflverse", False, f"{type(e).__name__}: {e}")
 
 
+async def depth_worker():
+    """Capture executable depth alongside the quote loop.
+
+    Runs in-process rather than as a separate cron job for the same reason
+    retention does: depth not captured live is gone. Candlesticks carry price
+    and volume but no book, so a Sunday slate missed here cannot be recovered
+    on Monday at any price.
+
+    Blocking work goes to a thread; a slow snapshot must not stall the pollers.
+    """
+    if not config.DEPTH_CAPTURE_ENABLED:
+        log("depth capture DISABLED")
+        return
+    while not _stop.is_set():
+        try:
+            s = await asyncio.to_thread(capture_depth.run_once)
+            log(f"depth        {s['kalshi_rows']:5d} kalshi + {s['poly_rows']:4d} "
+                f"poly rows, {s['raw_books_kept']:4d} raw books, "
+                f"{s['elapsed']:.0f}s")
+        except Exception as e:
+            log(f"depth        ERROR {type(e).__name__}: {e}")
+            store.record_health("depth_capture", False, f"{type(e).__name__}: {e}")
+        try:
+            await asyncio.wait_for(_stop.wait(),
+                                   timeout=config.DEPTH_CAPTURE_EVERY)
+        except asyncio.TimeoutError:
+            pass
+
+
 async def main():
     store.init_db()
     # One bucket per venue. A single shared limiter makes Kalshi's discovery
@@ -382,13 +412,17 @@ async def main():
             f"every {config.NFLVERSE_INGEST_EVERY/3600:g}h "
             f"({'on' if config.NFLVERSE_INGEST_ENABLED else 'OFF'}), "
             f"exempt from rotation")
+        log(f"depth capture: "
+            + (f"every {config.DEPTH_CAPTURE_EVERY:g}s, ~0.95 GB/day"
+               if config.DEPTH_CAPTURE_ENABLED else "OFF"))
         log("healthcheck: " + ("pinging every "
             f"{config.DEADMAN_CHECK_EVERY:g}s while liveness is healthy"
             if config.HEALTHCHECK_URL else
             "HEALTHCHECK_URL NOT SET - no external dead-man"))
         names = {c.name for c in clients}
         await asyncio.gather(*(venue_worker(c) for c in clients),
-                             watchdog(http, names), maintenance())
+                             watchdog(http, names), maintenance(),
+                             depth_worker())
 
 
 def _handle_signal(*_):

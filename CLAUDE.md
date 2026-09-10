@@ -89,6 +89,15 @@ not yet measured and the retention arithmetic depends on it.**
   `KXNFLREC` covers every threshold under one series; strikes are half-integer,
   so no push handling is needed on that path.
 - Fee `0.07·C·P·(1−P)` taker, `0.0175` maker — cheapest at the tails.
+- **Rate limits are PER ENDPOINT.** `/candlesticks` 429s after ~5 rapid calls;
+  the batched `/markets/orderbooks` sustained 13.6 calls/s over 18 consecutive
+  calls with zero 429s and returns full L2. Do not generalise one endpoint's
+  limit to the venue.
+- **Top of book is not a tradeable price.** Ladders are two ASCENDING BID
+  ladders, no asks: the yes-ask is `1 - no_bid`. Observed 4c touch for ONE
+  contract with a wall behind it; 1000-contract VWAP 0.333. 228 markets on one
+  slate show >20% slippage from touch to 1000 contracts. Depth is
+  unrecoverable after the fact - candlesticks carry price and volume, no book.
 - **History is free and needs no auth**: `/series/{s}/markets/{t}/candlesticks`.
   `period_interval` is in MINUTES (1/60/1440). 90-day spans return, 365 is a
   400, so chunk. **429 after ~5 rapid requests**, no rate headers, no
@@ -105,6 +114,8 @@ not yet measured and the retention arithmetic depends on it.**
 - Blind pagination 422s past `offset≈2000`; the API names `/markets/keyset` for
   deeper paging. Use `/events` with `tag_slug=nfl` instead.
 - Slugs look like `pro-football-2026-27-passing-yards-leader`.
+- **Bids ascend, asks DESCEND** in a CLOB book. Best bid is max, best ask is
+  min. The two sides use opposite conventions.
 - **`prices-history` carries NO volume and NO open interest** — `{t, p}` only,
   ~31 days. Neither does the live CLOB path. Polymarket cannot be bucketed on
   the same liquidity axis as Kalshi; spread is all it offers, and an empty book
