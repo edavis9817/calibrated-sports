@@ -66,11 +66,23 @@ CREATE TABLE IF NOT EXISTS quotes (
     -- One table, one outcome_id, one query surface - but a backtest that cannot
     -- tell a logged tick from a reconstructed candle is a backtest that will
     -- quietly claim it could have traded a price nobody was quoting.
-    source       TEXT NOT NULL DEFAULT 'live'
+    source       TEXT NOT NULL DEFAULT 'live',
+    -- WHEN THIS ROW WAS WRITTEN, as distinct from when the price existed.
+    -- `ts` is the observation time and for anything backfilled it is old by
+    -- definition: a 2023 closing line lands with ts two years in the past the
+    -- second it is parsed. A retention window keyed on `ts` therefore deletes
+    -- paid history on arrival, which is exactly what happened - see
+    -- jobs/prune_quotes.py. Every time-based POLICY keys on this column; only
+    -- analysis keys on `ts`.
+    ingest_ts    REAL
 );
 CREATE INDEX IF NOT EXISTS ix_quotes_market_ts ON quotes(venue, market_id, ts);
 CREATE INDEX IF NOT EXISTS ix_quotes_ts        ON quotes(ts);
 CREATE INDEX IF NOT EXISTS ix_quotes_event     ON quotes(venue, event_id, ts);
+-- A re-parse deletes its own prior rows by (source, event_id) and the
+-- venue-leading index cannot serve that: one backfill payload meant a full
+-- scan of every quote in the store.
+CREATE INDEX IF NOT EXISTS ix_quotes_src_event ON quotes(source, event_id);
 
 CREATE TABLE IF NOT EXISTS markets (
     venue        TEXT NOT NULL,
@@ -413,6 +425,31 @@ CREATE TABLE IF NOT EXISTS outcome_benchmark (
 );
 CREATE INDEX IF NOT EXISTS ix_bench_outcome ON outcome_benchmark(outcome_id);
 
+-- The closing consensus per outcome: one row, the last snapshot at or before
+-- kickoff, collapsed to a median across books. Derived entirely from `quotes`,
+-- so it is rebuildable and never a second source of truth - but the calibration
+-- curve is read off it often enough that recomputing the median every time is
+-- the wrong trade.
+--
+-- `n_bench` is the benchmark books (draftkings, fanduel, betmgm) and `n_all`
+-- every book that quoted the outcome. They differ a lot on props: betrivers is
+-- the widest prop feed in this archive and it is not a benchmark book, so an
+-- outcome can have n_all=6 and n_bench=0. A curve drawn on n_bench alone is
+-- drawn on half the data, which is why both are here.
+CREATE TABLE IF NOT EXISTS outcome_close (
+    outcome_id   TEXT PRIMARY KEY,
+    close_ts     REAL NOT NULL,     -- snapshot used; <= kickoff_ts
+    kickoff_ts   REAL,
+    lead_min     REAL,              -- (kickoff - close) / 60
+    p_bench      REAL,              -- median de-vigged across BENCHMARK_BOOKS
+    n_bench      INTEGER NOT NULL,
+    p_all        REAL,              -- median de-vigged across every book
+    n_all        INTEGER NOT NULL,
+    dispersion   REAL,              -- max - min across every book
+    built_ts     REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_close_p ON outcome_close(p_bench);
+
 CREATE TABLE IF NOT EXISTS outcome_settlement (
     outcome_id   TEXT NOT NULL,
     data_version TEXT NOT NULL,
@@ -439,6 +476,7 @@ MIGRATIONS = [
     ("raw_shards", "kind", "TEXT DEFAULT 'market'"),
     ("quotes", "source", "TEXT DEFAULT 'live'"),
     ("quotes", "prob_devig", "REAL"),
+    ("quotes", "ingest_ts", "REAL"),
     ("nfl_games", "home_coach", "TEXT"),
     ("nfl_games", "away_coach", "TEXT"),
 ] + [("nfl_player_week", c, "REAL") for c in DEF_COLS]
@@ -451,6 +489,10 @@ def init_db():
             have = {r[1] for r in c.execute(f"PRAGMA table_info({table})")}
             if column not in have:
                 c.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+        # After the migrations: these index columns are themselves migrations,
+        # so they cannot live in SCHEMA, which runs first.
+        c.execute("CREATE INDEX IF NOT EXISTS ix_quotes_ingest "
+                  "ON quotes(source, ingest_ts)")
 
 
 @contextmanager
@@ -654,6 +696,68 @@ def record_mapping(venue, market_id, outcome_id=None, method=None,
              unmapped_reason, time.time()))
 
 
+def upsert_outcomes(pairs):
+    """The batch form of upsert_outcome. `pairs` is (Outcome, event_id).
+
+    One connection for the whole list. Per-outcome it was a connection, a
+    transaction and an fsync each - half a million of them in a full re-derive,
+    which is why the first one never finished.
+    """
+    from core.outcomes import MarketType, is_push_possible
+    kinds = {
+        MarketType.PLAYER_PROP: "player",
+        MarketType.SPREAD: "team",
+        MarketType.MONEYLINE: "team",
+        MarketType.FUTURE: "team",
+        MarketType.TOTAL: "game",
+    }
+    now = time.time()
+    payload = [
+        (o.outcome_id, o.key, o.sport.value, o.season, o.week,
+         kinds.get(o.market_type, "team"), o.subject,
+         o.stat.value if o.stat else None, o.line, o.side.value,
+         int(is_push_possible(o.line, o.stat)), eid or o.event_id, now)
+        for o, eid in pairs]
+    if not payload:
+        return 0
+    with db() as c:
+        c.executemany(
+            """INSERT INTO outcomes
+                 (outcome_id, key, sport, season, week, entity_type, entity_id,
+                  stat, line, side, push_possible, event_id, created_ts)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(outcome_id) DO UPDATE SET
+                 event_id=COALESCE(excluded.event_id, outcomes.event_id)""",
+            payload)
+    return len(payload)
+
+
+def record_mappings(rows):
+    """The batch form. One connection for the whole list rather than one per
+    row - at 500k rows the per-row connection was the slowest thing in the
+    re-derive by an order of magnitude.
+
+    rows: iterable of (venue, market_id, outcome_id, method, confidence,
+                       unmapped_reason)
+    """
+    now = time.time()
+    payload = [(*r, now) for r in rows]
+    if not payload:
+        return 0
+    with db() as c:
+        c.executemany(
+            """INSERT INTO market_outcome
+                 (venue, market_id, outcome_id, method, confidence,
+                  unmapped_reason, mapped_ts)
+               VALUES (?,?,?,?,?,?,?)
+               ON CONFLICT(venue, market_id) DO UPDATE SET
+                 outcome_id=excluded.outcome_id, method=excluded.method,
+                 confidence=excluded.confidence,
+                 unmapped_reason=excluded.unmapped_reason,
+                 mapped_ts=excluded.mapped_ts""", payload)
+    return len(payload)
+
+
 def record_prediction(row: dict) -> int:
     """Append one immutable prediction. Returns its id.
 
@@ -701,6 +805,28 @@ def record_settlement(outcome_id, result, actual, data_version, source):
                  result=excluded.result, actual=excluded.actual,
                  settled_ts=excluded.settled_ts""",
             (outcome_id, data_version, result, actual, source, time.time()))
+
+
+def record_settlements(rows):
+    """The batch form. rows: (outcome_id, result, actual, data_version, source).
+
+    Settlement runs over every player outcome in the store at once, so the
+    per-row connection was ~200k transactions for one pass.
+    """
+    now = time.time()
+    payload = [(oid, ver, res, act, src, now)
+               for oid, res, act, ver, src in rows]
+    if not payload:
+        return 0
+    with db() as c:
+        c.executemany(
+            """INSERT INTO outcome_settlement
+                 (outcome_id, data_version, result, actual, source, settled_ts)
+               VALUES (?,?,?,?,?,?)
+               ON CONFLICT(outcome_id, data_version) DO UPDATE SET
+                 result=excluded.result, actual=excluded.actual,
+                 settled_ts=excluded.settled_ts""", payload)
+    return len(payload)
 
 
 def archive_file(source: str, name: str, data: bytes, day: str = None,
@@ -889,15 +1015,21 @@ def write_quotes(rows, dedupe=True):
         return 0
     cols = ("ts","sport","venue","event_id","market_id","market_type","subject",
             "line","side","best_bid","best_ask","mid","last","volume",
-            "open_interest","raw_ref","source","prob_devig")
+            "open_interest","raw_ref","source","prob_devig","ingest_ts")
+    # Stamped here from the wall clock, never taken from the caller. A row that
+    # could name its own ingestion time could name one in the past, and then a
+    # retention window would delete it - the whole point of the column is that
+    # it is the one timestamp no upstream feed controls.
+    now = time.time()
     with db() as c:
         c.executemany(
             f"INSERT INTO quotes ({','.join(cols)}) VALUES ({','.join('?'*len(cols))})",
             # `source` defaults to 'live' here rather than relying on the
             # column default: an explicit NULL does not trigger a DEFAULT and
             # would fail the NOT NULL constraint instead.
-            [tuple(r.get(k) if k != "source" else (r.get("source") or "live")
-                   for k in cols) for r in rows],
+            [tuple(now if k == "ingest_ts"
+                   else (r.get("source") or "live") if k == "source"
+                   else r.get(k) for k in cols) for r in rows],
         )
     return len(rows)
 

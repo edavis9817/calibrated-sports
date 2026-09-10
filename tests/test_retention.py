@@ -259,9 +259,19 @@ def _quote(ts, market_id):
             "best_bid": 0.4, "best_ask": 0.42, "mid": 0.41}
 
 
+def _ingested(market_id, days_ago):
+    """Retention keys on INGESTION time, and write_quotes stamps that from the
+    wall clock. A test that wants an old row has to backdate it explicitly -
+    setting an old `ts` is not enough, and that is the entire fix."""
+    with store.db() as c:
+        c.execute("UPDATE quotes SET ingest_ts=? WHERE market_id=?",
+                  (time.time() - days_ago * 86400, market_id))
+
+
 def test_prune_deletes_only_rows_past_the_window(env):
     now = time.time()
     store.write_quotes([_quote(now - 40 * 86400, "old"), _quote(now, "new")])
+    _ingested("old", 40)
 
     stats = prune_quotes.run(days=21)
 
@@ -273,6 +283,7 @@ def test_prune_deletes_only_rows_past_the_window(env):
 def test_prune_dry_run_deletes_nothing(env):
     now = time.time()
     store.write_quotes([_quote(now - 40 * 86400, "old")])
+    _ingested("old", 40)
 
     stats = prune_quotes.run(days=21, dry_run=True)
 

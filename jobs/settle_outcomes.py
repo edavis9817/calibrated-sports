@@ -106,11 +106,16 @@ def run(season=None, week=None, as_of=None, limit=None) -> dict:
     rows = con.execute(q, args).fetchall()
 
     counts = {OVER: 0, UNDER: 0, PUSH: 0, UNSETTLED: 0}
+    batch = []
     for r in rows:
         result, actual, version = settle_one(con, r, as_of)
         counts[result] += 1
         if result != UNSETTLED:
-            store.record_settlement(r[0], result, actual, version, "nflverse")
+            batch.append((r[0], result, actual, version, "nflverse"))
+        if len(batch) >= 5000:
+            store.record_settlements(batch)
+            batch = []
+    store.record_settlements(batch)
     con.close()
     settled = sum(v for k, v in counts.items() if k != UNSETTLED)
     store.record_health("settlement", True,

@@ -122,6 +122,10 @@ QUOTES_RETENTION_DAYS = float(os.getenv("QUOTES_RETENTION_DAYS", 14))
 # 806-credit pilot, silently, to the hourly maintenance pass.
 # Retention exists to bound GROWTH. A historical backfill does not grow, so
 # pruning it buys nothing and destroys the expensive thing.
+# And the age of a prunable row is measured on `ingest_ts`, never on `ts` -
+# invariant 8. Rule 1 (this list) fails silently the first time someone adds a
+# source and forgets to list it; rule 2 (ingest_ts) would still delete a paid
+# backfill, just fourteen days later. Both, or neither works.
 QUOTES_PRUNE_SOURCES = tuple(
     x for x in os.getenv("QUOTES_PRUNE_SOURCES", "live").split(",") if x)
 QUOTES_PRUNE_VACUUM = os.getenv("QUOTES_PRUNE_VACUUM", "0") == "1"

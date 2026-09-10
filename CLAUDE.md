@@ -31,6 +31,19 @@ including when it looks bad.
 6. **Facts and beliefs in separate stores.** Facts may be corrected;
    predictions are immutable and timestamped.
 7. **`sport` discriminator on every entity** from row one.
+8. **Every time-based policy keys on INGESTION time, never on event time.**
+   `quotes.ts` is when a price existed; `quotes.ingest_ts` is when the row was
+   written. Backfilled data is old by definition — a 2023 closing line lands
+   with a `ts` two years in the past the second it is parsed — so a retention
+   window on `ts` deletes purchased history on arrival. It did: `prune_quotes`
+   destroyed brief 009's entire 806-credit Odds API pilot, 76 days of Kalshi
+   candles and 17 days of Polymarket history before anyone looked. Two rules,
+   both load-bearing and neither sufficient alone:
+   (a) only sources in `QUOTES_PRUNE_SOURCES` are prunable at all — today just
+   `live`; and (b) their age is measured on `ingest_ts`. `ingest_ts` is stamped
+   by `store.write_quotes` from the wall clock and is never accepted from a
+   caller, because a row that can name its own ingestion time can name one in
+   the past. Guarded by `tests/test_backfill_full.py`.
 
 ## The join key
 
@@ -54,7 +67,9 @@ nothing but week 3. Watermark per source, `source_health` per job, and the
 publish job **refuses to run on stale inputs**.
 
 Retention runs **in-process**, not via cron. A policy that depends on someone
-remembering a cron entry is the policy that already failed once.
+remembering a cron entry is the policy that already failed once. And see
+invariant 8: what it deletes is bounded by source, and how old is measured on
+ingestion time.
 
 ## Automation rule
 
@@ -138,8 +153,16 @@ not yet measured and the retention arithmetic depends on it.**
   43,163 credits.
 - **Retention must never touch a backfill.** Backfilled rows carry the EVENT
   timestamp, so a window on `ts` deletes a 90-day history the moment it lands.
-  `prune_quotes` prunes `source='live'` only. This silently destroyed an
-  806-credit pilot and 76 days of Kalshi candles before it was caught.
+  `prune_quotes` prunes `source='live'` only AND measures age on `ingest_ts`.
+  This silently destroyed an 806-credit pilot and 76 days of Kalshi candles
+  before it was caught. See invariant 8.
+- **A re-parse replaces its OWN derivation, never the whole event.** The
+  archive holds two payloads for 2024 week 8 - the pilot bought it with
+  `player_receptions_alternate`, the full backfill bought it again without.
+  Deleting by event before the second parse threw the alternate ladder away,
+  and had been wiping every prior featured snapshot besides the last: 527,352
+  rows became 907,421 once it stopped. A full re-derive purges the source once
+  and stays idempotent on (venue, market_id, ts).
 - **Billing follows markets RETURNED, not requested.** `player_sacks` does not
   exist in 2023, so a 2023 event costs ~38 credits and a 2024-25 one costs 50.
 - **17 books appear across 2023-2025**, not the 7 in a 2024 sample; several
@@ -216,6 +239,34 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
   role means for carries: 14.25 / 7.06 / 3.62 / 1.90.
 - **Push handling**: on integer lines price `P(X>L)/(1−P(X=L))`. For receptions
   at line 4 that is 0.385 versus 0.329 — larger than any edge being hunted.
+
+- **The closing market is well calibrated, and the OVER is overpriced.**
+  Measured 2026-09-10 on 183,669 settled player props, 2023–2025
+  (`research/calibration.py`). Both sides together: Brier 0.2452, log loss
+  0.6832, **ECE 0.0043** — the curve tracks the diagonal across every price
+  bucket. The over side alone prices 0.4883 and realizes 0.4743: **−1.40pp,
+  z = −5.9**, and it survives restriction to prices in [0.45, 0.55] (−1.26pp,
+  z = −4.4, n = 30,440), so it is a pricing fact and not only line placement.
+  Line placement is real too and shows separately — median margin −0.50
+  against mean +2.74.
+  - **It is mostly untradeable.** +0.0126/contract against a Kalshi taker fee
+    of 0.0175 and half a 1.0675 overround at 0.0338. Clears a maker fill
+    (0.0044) and nothing else. Do not treat it as an edge without a venue that
+    quotes these props and a maker fill to show for it.
+  - Strongest where books AGREE (dispersion <0.02: −1.78pp) and growing by
+    season: 2023 **+0.60pp, not significant**; 2024 −1.67pp; 2025 −2.65pp.
+  - By stat inside the band: sacks −7.2pp, rush attempts −2.4pp,
+    tackles+assists −2.1pp, receiving yards −0.8pp, receptions −0.8pp.
+- **Report every slice on ONE SIDE.** Over and under are exact complements, so
+  a table covering both reads 0.5000 / 0.5000 in every slice, always. That
+  looks like proof of perfect calibration and is arithmetic.
+- **The `outcome_id` key is only as good as the week on it.** A team market's
+  key is (season, week, team, side) and nothing else, so one wrong week merges
+  eighteen different claims. Two ways it went wrong on 2026-09-10: stamping one
+  season/week on every event in a payload, and resolving a January game by
+  calendar year to the FOLLOWING season's identical matchup. Both are silent —
+  the prices stay plausible. `--trust` in `research/calibration.py` counts
+  outcomes whose markets span more than one game; it must stay at zero.
 
 **Anything quoted as a finding must have a committed script in `research/`.**
 Numbers reached `CLAUDE.md` once without one; the reference then could not be

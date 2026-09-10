@@ -16,6 +16,20 @@ anything under data/raw, which is why rotation moves shards and this deletes.
     markets   = catalogue, tiny, kept
     poll_log  = the coverage record; kept, it is how gaps stay visible
 
+RETENTION KEYS ON INGESTION TIME. `quotes.ts` is when the price EXISTED; a
+backfilled row is old by definition, so a window on `ts` deletes paid history
+the moment it lands. It did: this job destroyed brief 009's entire 806-credit
+Odds API pilot, 76 days of Kalshi candles and 17 days of Polymarket history
+before anyone noticed, because every one of those rows carries an event
+timestamp from months or years ago. Two rules, and both are load-bearing:
+
+    1. only sources in QUOTES_PRUNE_SOURCES are prunable at all; and
+    2. their age is measured on `ingest_ts`, never on `ts`.
+
+Rule 1 alone is not enough - it fails silently the first time someone adds a
+source and forgets to list it. Rule 2 alone is not enough either - it would
+still delete a paid backfill, just fourteen days later instead of instantly.
+
 SQLite does not return deleted pages to the filesystem without a VACUUM, and a
 VACUUM needs room for a full copy of the database plus an exclusive lock, so it
 is opt-in rather than automatic. Without it the file stops growing but does not
@@ -44,20 +58,34 @@ def run(days: float = None, dry_run: bool = False, vacuum: bool = None) -> dict:
     # ONLY live capture is prunable. See config.QUOTES_PRUNE_SOURCES.
     srcs = config.QUOTES_PRUNE_SOURCES
     ph = ",".join("?" for _ in srcs)
+    # COALESCE for rows written before the column existed. Those are live rows
+    # whose ts and ingest_ts are the same instant anyway; a backfilled row from
+    # that era would have been deleted long before this code ran.
+    age = "COALESCE(ingest_ts, ts)"
     with store.db() as c:
         stale = c.execute(
-            f"SELECT COUNT(*) FROM quotes WHERE ts < ? AND source IN ({ph})",
-            (cutoff, *srcs)).fetchone()[0]
+            f"SELECT COUNT(*) FROM quotes WHERE {age} < ? "
+            f"AND source IN ({ph})", (cutoff, *srcs)).fetchone()[0]
         total = c.execute("SELECT COUNT(*) FROM quotes").fetchone()[0]
+        # Deliberately keyed on `ts`, not on age: this is the count of rows a
+        # naive ts-keyed window WOULD have destroyed, which is the number worth
+        # printing. It is the size of the crater rule 1 is standing in front of.
         protected = c.execute(
-            f"SELECT COUNT(*) FROM quotes WHERE ts < ? AND source NOT IN ({ph})",
-            (cutoff, *srcs)).fetchone()[0]
+            f"SELECT COUNT(*) FROM quotes WHERE ts < ? "
+            f"AND source NOT IN ({ph})", (cutoff, *srcs)).fetchone()[0]
+        # How many rows rule 2 alone saves - live rows whose PRICE is older
+        # than the window but which were written recently. Non-zero here means
+        # something restored or re-parsed live capture, and a ts-keyed window
+        # would have thrown it away again.
+        reparsed = c.execute(
+            f"SELECT COUNT(*) FROM quotes WHERE ts < ? AND {age} >= ? "
+            f"AND source IN ({ph})", (cutoff, cutoff, *srcs)).fetchone()[0]
         if stale and not dry_run:
-            c.execute(f"DELETE FROM quotes WHERE ts < ? AND source IN ({ph})",
-                      (cutoff, *srcs))
+            c.execute(f"DELETE FROM quotes WHERE {age} < ? "
+                      f"AND source IN ({ph})", (cutoff, *srcs))
 
     stats = {"deleted": 0 if dry_run else stale, "candidates": stale,
-             "protected": protected,
+             "protected": protected, "saved_by_ingest_ts": reparsed,
              "remaining": total - (0 if dry_run else stale),
              "cutoff": cutoff, "bytes_before": before, "bytes_after": before}
 

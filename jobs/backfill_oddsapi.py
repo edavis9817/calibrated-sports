@@ -470,6 +470,7 @@ def normalize_props(body, season, week, game_id, teams, stats, violations):
 
     rows, failures, seen = [], [], {}
     devig_by_outcome = {}
+    pending = []
     for bk in data.get("bookmakers") or []:
         book = bk.get("key")
         for mkt in bk.get("markets") or []:
@@ -518,13 +519,18 @@ def normalize_props(body, season, week, game_id, teams, stats, violations):
                     gsis = got[0]
                     o = player_prop(season, week, gsis, stat, float(line),
                                     side, event_id=game_id)
-                    oid = store.upsert_outcome(o, game_id)
+                    # The id IS the hash of the key, so it is known before the
+                    # row is persisted; the writes are flushed once per payload
+                    # instead of once per outcome.
+                    oid = o.outcome_id
+                    pending.append((o, game_id))
                     prob = american_to_prob(oc.get("price"))
                     pdv = dv.get(side.value)
                     if pdv is not None and book in BENCHMARK_BOOKS:
                         devig_by_outcome.setdefault(oid, []).append((book, pdv))
                     rows.append(_row(ts, book, game_id, mkt["key"], name, oc,
                                      gsis, float(line), side, prob, pdv, oid))
+    store.upsert_outcomes(pending)
     _write_benchmarks(devig_by_outcome, ts)
     return rows, failures
 
@@ -539,11 +545,21 @@ def normalize_featured(body, season, week, games_by_pair, stats, violations):
 
     rows = []
     devig_by_outcome = {}
+    pending = []
     for ev in data:
         away, home = team_abbr(ev.get("away_team")), team_abbr(ev.get("home_team"))
-        game_id = games_by_pair.get((away, home))
-        if not game_id:
+        hit = games_by_pair.get((away, home))
+        if not hit:
             continue
+        # Season and week come from the EVENT, never from the payload. A
+        # historical featured snapshot carries every event the API had open at
+        # that instant; stamping them all with one week collapsed eighteen
+        # different "DAL moneyline" claims onto one outcome_id, because the
+        # outcome key is (season, week, team, side) and nothing else.
+        if isinstance(hit, tuple):
+            game_id, ev_season, ev_week = hit
+        else:
+            game_id, ev_season, ev_week = hit, season, week
         for bk in ev.get("bookmakers") or []:
             book = bk.get("key")
             for mkt in bk.get("markets") or []:
@@ -577,10 +593,12 @@ def normalize_featured(body, season, week, games_by_pair, stats, violations):
                         side = Side.OVER if mkey == "spreads" else Side.YES
                         subject, mt = team, (MarketType.SPREAD if mkey == "spreads"
                                              else MarketType.MONEYLINE)
-                    o = Outcome(Sport.NFL, season, week, mt, subject, None,
+                    o = Outcome(Sport.NFL, ev_season, ev_week, mt, subject,
+                                None,
                                 float(point) if point is not None else None,
                                 side, game_id)
-                    oid = store.upsert_outcome(o, game_id)
+                    oid = o.outcome_id
+                    pending.append((o, game_id))
                     pdv = dv.get(nm)
                     if pdv is not None and book in BENCHMARK_BOOKS:
                         devig_by_outcome.setdefault(oid, []).append((book, pdv))
@@ -598,6 +616,7 @@ def normalize_featured(body, season, week, games_by_pair, stats, violations):
                         "source": SOURCE, "prob_devig": pdv,
                         "_outcome_id": oid,
                     })
+    store.upsert_outcomes(pending)
     _write_benchmarks(devig_by_outcome, ts)
     return rows
 
@@ -691,11 +710,9 @@ def run_full(seasons=(2023, 2024, 2025), reserve=20000, do_props=True,
                         body = r.json()
                         store.archive_raw("oddsapi_historical",
                                           f"featured/{iso}", body)
-                        gbp = {(a, h): g for g, a, h, _w in
-                               [(g, a, h, w) for g, a, h, w in games]}
-                        week = games[0][3]
-                        frows = normalize_featured(body, season, week, gbp,
-                                                   stats, violations)
+                        gbp = {(a, h): (g, season, w) for g, a, h, w in games}
+                        frows = normalize_featured(body, season, games[0][3],
+                                                   gbp, stats, violations)
                         _replace_and_write(frows, [iso], "featured")
                         totals["featured"] += 1
                         totals["rows"] += len(frows)
@@ -752,6 +769,47 @@ def run_full(seasons=(2023, 2024, 2025), reserve=20000, do_props=True,
             "failures": failures, "markets": stats, "aborted": aborted}
 
 
+ORPHAN_SQL = """
+SELECT o.entity_type, o.season, COUNT(*),
+       SUM(EXISTS(SELECT 1 FROM outcome_settlement s
+                   WHERE s.outcome_id = o.outcome_id))
+  FROM outcomes o
+ WHERE NOT EXISTS (SELECT 1 FROM market_outcome mo
+                    WHERE mo.outcome_id = o.outcome_id)
+ GROUP BY 1, 2 ORDER BY 3 DESC
+"""
+
+
+def orphans(purge=False):
+    """Outcome rows no market points at any more.
+
+    A re-derive that changes an outcome KEY does not edit the old row - the id
+    is the hash of the key, so a corrected key is a NEW id and the old one is
+    left behind, still carrying its settlements and benchmarks. Those are the
+    rows that made the pre-fix numbers, and leaving them in `outcomes`
+    unannounced is how a corrected store still answers with the old answer.
+    """
+    con = sqlite3.connect(f"file:{config.DB_PATH}?mode=ro", uri=True)
+    rows = con.execute(ORPHAN_SQL).fetchall()
+    con.close()
+    total = sum(r[2] for r in rows)
+    print(f"  {'entity':<10}{'season':>8}{'orphans':>10}{'settled':>10}")
+    for et, sn, n, st in rows:
+        print(f"  {et:<10}{sn:>8}{n:>10,}{st or 0:>10,}")
+    print(f"  total {total:,}")
+    if purge and total:
+        with store.db() as c:
+            for t in ("outcome_settlement", "outcome_benchmark",
+                      "outcome_close", "outcomes"):
+                gone = c.execute(
+                    f"DELETE FROM {t} WHERE outcome_id IN ("
+                    "SELECT o.outcome_id FROM outcomes o WHERE NOT EXISTS ("
+                    "SELECT 1 FROM market_outcome mo "
+                    "WHERE mo.outcome_id = o.outcome_id))").rowcount
+                print(f"  purged {gone:,} from {t}")
+    return total
+
+
 def rederive_full():
     """Re-normalize EVERY archived payload. Costs nothing.
 
@@ -767,14 +825,36 @@ def rederive_full():
 
     con = sqlite3.connect(f"file:{config.DB_PATH}?mode=ro", uri=True)
     meta = {}
-    for gid, season, week, away, home in con.execute(
-            """SELECT game_id, MAX(season), MAX(week), MAX(away_team),
-                      MAX(home_team) FROM nfl_games
+    for gid, season, week, kick, away, home in con.execute(
+            """SELECT game_id, MAX(season), MAX(week), MAX(kickoff_ts),
+                      MAX(away_team), MAX(home_team) FROM nfl_games
                 WHERE season IN (2023,2024,2025) GROUP BY game_id"""):
-        meta[(away, home, season)] = (gid, season, week, (away, home))
+        meta.setdefault((away, home), []).append(
+            (kick, gid, season, week, (away, home)))
     con.close()
 
+    # A full re-derive replaces the WHOLE derivation, so drop it in one
+    # statement rather than 1,268 times. The mappings are upserted by key and
+    # the outcomes are content-addressed, so only `quotes` needs clearing; any
+    # outcome row the new parse no longer references is reported by --orphans
+    # rather than deleted here, because kalshi and polymarket point at some of
+    # the same ids.
+    print("  purging prior derivation...", flush=True)
+    with store.db() as c:
+        gone = c.execute("DELETE FROM quotes WHERE source=?",
+                         (SOURCE,)).rowcount
+    print(f"  dropped {gone:,} prior rows", flush=True)
+
     stats, violations, failures = {}, [], []
+    # The archive holds more than one payload for some events - brief 009's
+    # pilot covered 2024 week 8 and the full backfill covered it again, and any
+    # retry leaves a second copy. Everything this source owns was dropped in one
+    # statement above, so nothing here deletes; `seen_rows` is what keeps the
+    # second copy of a row from landing beside the first. That is the same bug
+    # that turned a 578,708-row Kalshi backfill into 857,676, arriving by a
+    # different door - and deleting by event to prevent it lost the pilot's
+    # alternate ladder, which is a different door again.
+    seen_rows = set()
     n_props = n_feat = rows_written = 0
     for f in sorted(glob.glob(os.path.join(
             config.RAW_DIR, "oddsapi_historical", "*", "*.jsonl.gz"))):
@@ -785,15 +865,15 @@ def rederive_full():
             if ep.startswith("event_odds"):
                 d = payload.get("data") or {}
                 a, h = team_abbr(d.get("away_team")), team_abbr(d.get("home_team"))
-                yr = int(str(d.get("commence_time", "0"))[:4] or 0)
-                hit = meta.get((a, h, yr)) or meta.get((a, h, yr - 1))
+                hit = match_game(meta, a, h, d.get("commence_time"))
                 if not hit:
                     continue
                 gid, season, week, teams = hit
                 r, fails = normalize_props(payload, season, week, gid, teams,
                                            stats, violations)
                 failures.extend(fails)
-                rows_written += _replace_and_write(r, [gid], "props")
+                rows_written += _replace_and_write(r, [gid], "props", True,
+                                                   seen_rows)
                 n_props += 1
             elif ep.startswith("featured"):
                 data = payload.get("data") or []
@@ -801,17 +881,17 @@ def rederive_full():
                 for ev in data:
                     a, h = (team_abbr(ev.get("away_team")),
                             team_abbr(ev.get("home_team")))
-                    yr = int(str(ev.get("commence_time", "0"))[:4] or 0)
-                    hit = meta.get((a, h, yr)) or meta.get((a, h, yr - 1))
+                    hit = match_game(meta, a, h, ev.get("commence_time"))
                     if hit:
-                        gbp[(a, h)] = hit[0]
+                        gbp[(a, h)] = (hit[0], hit[1], hit[2])
                         season, week = hit[1], hit[2]
                         ids.append(hit[0])
                 if not gbp:
                     continue
                 r = normalize_featured(payload, season, week, gbp, stats,
                                        violations)
-                rows_written += _replace_and_write(r, ids, "featured")
+                rows_written += _replace_and_write(r, ids, "featured", True,
+                                                   seen_rows)
                 n_feat += 1
             if (n_props + n_feat) % 200 == 0 and (n_props + n_feat):
                 print(f"    re-derived {n_props} props / {n_feat} featured, "
@@ -820,9 +900,51 @@ def rederive_full():
             "violations": violations, "failures": failures, "markets": stats}
 
 
-def _replace_and_write(rows, event_ids, kind):
-    """A re-parse replaces its own prior derivation; it never appends."""
-    if event_ids:
+# An NFL season straddles the new year: season N week 18 kicks off in January of
+# year N+1. Keying the lookup on the calendar year of commence_time and falling
+# back to year-1 resolved every January game to the FOLLOWING season's identical
+# matchup whenever one existed - MIN@DET on 2024-01-07 became 2024_18_MIN_DET,
+# a game played 364 days later. Match on kickoff proximity instead; it cannot be
+# fooled by a repeated matchup.
+GAME_MATCH_TOLERANCE_S = 3 * 86400
+
+
+def match_game(meta, away, home, commence_iso):
+    """Nearest kickoff to the event's commence_time, or None."""
+    cands = meta.get((away, home))
+    if not cands:
+        return None
+    try:
+        want = dt.datetime.strptime(
+            str(commence_iso)[:19], "%Y-%m-%dT%H:%M:%S").replace(
+                tzinfo=dt.timezone.utc).timestamp()
+    except (ValueError, TypeError):
+        return None
+    kick, gid, season, week, teams = min(
+        cands, key=lambda c: abs(c[0] - want))
+    if abs(kick - want) > GAME_MATCH_TOLERANCE_S:
+        return None
+    return gid, season, week, teams
+
+
+def _replace_and_write(rows, event_ids, kind, purged=False, seen_rows=None):
+    """A re-parse replaces its own prior derivation; it never appends.
+
+    `purged` says the caller already dropped every row this source owns, which
+    a FULL re-derive does in one statement. Without it the per-payload DELETE
+    scans 4.7M quote rows once per payload - 1,268 full scans, which is why the
+    first re-derive of this archive never finished.
+
+    `seen_rows` is how a full re-derive stays idempotent without deleting. The
+    archive holds more than one payload for some events - brief 009's pilot
+    bought 2024 week 8 and the full backfill bought it again - and deleting by
+    event before the second parse threw away every market the FIRST payload had
+    and the second did not. That is how the pilot's paid
+    `player_receptions_alternate` ladder disappeared: not overwritten, deleted
+    by a payload that never carried it. Dropping rows already written this run
+    is the same idempotence with none of the collateral.
+    """
+    if event_ids and not purged:
         ph = ",".join("?" for _ in event_ids)
         with store.db() as c:
             c.execute(
@@ -831,14 +953,23 @@ def _replace_and_write(rows, event_ids, kind):
                 (SOURCE, *event_ids,
                  "oddsapi_historical/featured" if kind == "featured"
                  else "oddsapi_historical/event_odds"))
+    if seen_rows is not None:
+        kept = []
+        for r in rows:
+            k = (r["venue"], r["market_id"], r["ts"])
+            if k in seen_rows:
+                continue
+            seen_rows.add(k)
+            kept.append(r)
+        rows = kept
     if not rows:
         return 0
     n = store.write_quotes(
         [{k: v for k, v in r.items() if not k.startswith("_")} for r in rows],
         dedupe=False)
-    for r in rows:
-        store.record_mapping(r["venue"], r["market_id"], r["_outcome_id"],
-                             "oddsapi_historical", 1.0)
+    store.record_mappings(
+        [(r["venue"], r["market_id"], r["_outcome_id"], "oddsapi_historical",
+          1.0, None) for r in rows])
     return n
 
 
@@ -857,11 +988,18 @@ def main():
     ap.add_argument("--no-props", action="store_true")
     ap.add_argument("--no-featured", action="store_true")
     ap.add_argument("--progress", action="store_true")
+    ap.add_argument("--orphans", action="store_true",
+                    help="outcome rows no market points at any more")
+    ap.add_argument("--purge-orphans", action="store_true",
+                    help="and delete them, with their settlements")
     args = ap.parse_args()
 
     store.init_db()
     if args.verify:
         verify(args.season, args.week)
+        return
+    if args.orphans or args.purge_orphans:
+        orphans(purge=args.purge_orphans)
         return
     if args.progress:
         with store.db() as c:
