@@ -36,6 +36,15 @@ STAT_COLUMN = {
     Stat.COMPLETIONS.value: "completions",
     # "Anytime TD" is any touchdown the player scored, which is two columns.
     Stat.ANYTIME_TD.value: "COALESCE(receiving_tds,0) + COALESCE(rushing_tds,0)",
+    # Pinned against ESPN box scores (research/tackle_definition.py): the
+    # sportsbook number is all three columns, and `def_tackles_with_assist` -
+    # a tackle this player made that someone else assisted on - scores as SOLO
+    # officially. Dropping it undercounts ~6% of defensive player-games by up
+    # to 3 tackles.
+    Stat.TACKLES_ASSISTS.value: ("COALESCE(def_tackles_solo,0) + "
+                                 "COALESCE(def_tackles_with_assist,0) + "
+                                 "COALESCE(def_tackle_assists,0)"),
+    Stat.SACKS.value: "COALESCE(def_sacks,0)",
 }
 
 

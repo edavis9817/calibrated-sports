@@ -38,7 +38,26 @@ def norm_name(name: str) -> str:
     s = s.lower().replace("&", " and ")
     s = _SUFFIX.sub(" ", s)
     s = _PUNCT.sub(" ", s)
-    return _WS.sub(" ", s).strip()
+    s = _WS.sub(" ", s).strip()
+    # Collapse runs of single letters. nflverse writes "A.J. Brown", which
+    # loses its periods and becomes "a j brown"; the sportsbook writes
+    # "AJ Brown" -> "aj brown". Without this they are different keys, and it
+    # was the single largest name failure in the Odds API pilot - 66 outcomes
+    # on one player. Only RUNS of two or more collapse, so a lone middle
+    # initial ("Robert L Jones") is left alone.
+    parts, out = s.split(), []
+    i = 0
+    while i < len(parts):
+        j = i
+        while j < len(parts) and len(parts[j]) == 1:
+            j += 1
+        if j - i >= 2:
+            out.append("".join(parts[i:j]))
+            i = j
+        else:
+            out.append(parts[i])
+            i += 1
+    return " ".join(out)
 
 
 # --- team abbreviations ------------------------------------------------------
@@ -158,7 +177,8 @@ class Unresolved(Exception):
     """A name did not resolve to exactly one player. Never guessed."""
 
 
-def resolve_player(name: str, season: int = None, position: str = None):
+def resolve_player(name: str, season: int = None, position: str = None,
+                   teams=None):
     """name -> (gsis_id, method, confidence). Raises Unresolved otherwise.
 
     Ambiguity is broken only by facts - active-in-season, then position - never
@@ -179,6 +199,22 @@ def resolve_player(name: str, season: int = None, position: str = None):
         return hits[0][0], f"alias:{hits[0][1]}", 1.0
 
     cands = hits
+    # The strongest fact available, when the caller has it: a prop belongs to
+    # one game, so the player must be on one of two rosters. This separates
+    # same-name pairs that nothing else can - Byron Murphy the MIN corner from
+    # Byron Murphy II the SEA tackle, both active in 2024.
+    if teams and season is not None:
+        ids = sorted({h[0] for h in cands})
+        with store.db() as c:
+            on_team = {r[0] for r in c.execute(
+                f"SELECT DISTINCT gsis_id FROM nfl_player_week "
+                f"WHERE gsis_id IN ({','.join('?' * len(ids))}) AND season = ? "
+                f"AND team IN ({','.join('?' * len(teams))})",
+                (*ids, season, *teams))}
+        narrowed = [h for h in cands if h[0] in on_team]
+        if len({h[0] for h in narrowed}) == 1:
+            return narrowed[0][0], f"alias:{narrowed[0][1]}+team", 1.0
+        cands = narrowed or cands
     if season is not None:
         active = [h for h in cands if h[3] is not None and h[3] >= season - 1]
         if len(active) == 1:

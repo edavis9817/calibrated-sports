@@ -56,6 +56,11 @@ class Stat(str, Enum):
     COMPLETIONS = "completions"
     PASSING_YARDS = "passing_yards"
     ANYTIME_TD = "anytime_td"
+    # Defensive. "Tackles + Assists" is the sportsbook market and it is
+    # def_tackles_solo + def_tackles_with_assist + def_tackle_assists - pinned
+    # against three ESPN box scores, see research/tackle_definition.py.
+    TACKLES_ASSISTS = "tackles_assists"
+    SACKS = "sacks"
 
 
 _SLUG = re.compile(r"[^a-z0-9]+")
@@ -160,4 +165,5 @@ def is_push_possible(line: Optional[float], stat: Optional[Stat]) -> bool:
     if not float(line).is_integer():
         return False
     return stat in {Stat.TARGETS, Stat.RUSH_ATTEMPTS, Stat.RECEPTIONS,
-                    Stat.PASS_ATTEMPTS, Stat.COMPLETIONS, Stat.ANYTIME_TD}
+                    Stat.PASS_ATTEMPTS, Stat.COMPLETIONS, Stat.ANYTIME_TD,
+                    Stat.TACKLES_ASSISTS, Stat.SACKS}

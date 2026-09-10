@@ -132,6 +132,15 @@ not yet measured and the retention arithmetic depends on it.**
 - **Books are free** — every bookmaker in a region comes with the call. There
   is no reason to pick one at ingest.
 - Historical costs 10× and player props only go back to 2023-05-03.
+- **MEASURED 2026-09-10**: historical event odds = 50 credits (5 markets × 1
+  region × 10); the historical **events listing costs 1 credit and is not
+  free**. Snapshots snap to a 5-minute grid. 3 seasons × 5 prop markets =
+  43,163 credits.
+- **Pinnacle is ABSENT from 2024 us-region historical props.** Seven books
+  quote: betmgm, betonlineag, betrivers, bovada, draftkings, fanduel,
+  williamhill_us. The CLV benchmark cannot be Pinnacle for historical work.
+- `player_receptions_alternate` is quoted by **fanduel only**; do not assume
+  alternate-ladder coverage at scale.
 - **Props post 48–72h before kickoff**, so snapshot targets earlier than that
   bill credits for empty responses.
 - Never poll live. Snapshot on a schedule keyed to kickoff; the T−5 snapshot is
