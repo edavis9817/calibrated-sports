@@ -114,6 +114,18 @@ RAW_ROTATE_MAX_SHARDS = int(os.getenv("RAW_ROTATE_MAX_SHARDS", 500))  # per run
 # Quotes are DERIVED - the raw archive can re-produce them - so this table is
 # the one thing that may be pruned outright. See DECISIONS.md for the bytes/day
 # arithmetic behind the default.
+# THE STORAGE ROOT. Every store - databases, exports, scratch - derives its
+# location from here and never from a path literal. `data/x.db` resolves against
+# the process working directory, which is the repo on C:, while RAW_DIR points at
+# D:. That split put a 4.3 GB probe database on the disk with 22 GB free.
+STORAGE_DIR = os.path.dirname(os.path.abspath(DB_PATH))
+
+
+def storage_path(*parts) -> str:
+    """A path inside the configured store. Use this instead of joining "data"."""
+    return os.path.join(STORAGE_DIR, *parts)
+
+
 QUOTES_RETENTION_DAYS = float(os.getenv("QUOTES_RETENTION_DAYS", 14))
 # Retention prunes LIVE capture only. Backfilled rows carry the timestamp of
 # the event they describe, not of when they were fetched, so a 14-day window on

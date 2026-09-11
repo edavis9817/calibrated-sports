@@ -9,9 +9,11 @@ main logger and this is a throwaway probe running the day before it: nothing
 here may touch the main logger's market universe, its database, its cadence or
 its rate-limit budget. Kill it Sunday morning.
 
-  writes   data/cfb_probe.db          (config.DB_PATH is repointed in main())
-  raw      data/raw/cfb_kalshi/       (the adapters archive under `name`)
-           data/raw/cfb_polymarket/
+  writes   <config storage dir>/cfb_probe.db   (config.DB_PATH is repointed
+                                               in main(); the DIRECTORY is
+                                               derived from config, never typed)
+  raw      <config.RAW_DIR>/cfb_kalshi/        (the adapters archive under `name`)
+           <config.RAW_DIR>/cfb_polymarket/
 
 WHAT IS REUSED AND WHAT IS NOT
 The venue adapters are reused as-is for QUOTES - `fetch_quotes` takes a list of
@@ -50,10 +52,17 @@ import config
 
 # Repointed before store is used. store reads config at call time, so this has
 # to happen before init_db() and it must happen in THIS process only.
-CFB_DB = os.path.join("data", "cfb_probe.db")
-# Read-only, and only to print "CFB is N markets against NFL's M" - the number
-# the brief exists to produce. Captured before DB_PATH is repointed.
+# STORAGE LOCATION COMES FROM CONFIG, NEVER FROM A PATH LITERAL.
+#
+# This was `os.path.join("data", "cfb_probe.db")`, which resolves relative to
+# the process working directory - the repo on C: - while raw correctly landed on
+# D: because it reads config.RAW_DIR. The probe half-inherited config and put a
+# 4.3 GB database on a disk with 22 GB free. Deriving the directory from
+# config.DB_PATH means the probe cannot disagree with the logger about where
+# data lives, and moving the store moves the probe with it.
 NFL_DB = config.DB_PATH
+STORAGE_DIR = os.path.dirname(os.path.abspath(NFL_DB))
+CFB_DB = os.path.join(STORAGE_DIR, "cfb_probe.db")
 
 # --- the CFB classifier -----------------------------------------------------
 # Kalshi files college football as KXNCAAF*. The F is load-bearing: KXNCAAMBB,

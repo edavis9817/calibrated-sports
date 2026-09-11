@@ -368,6 +368,10 @@ def report(df, train, test, label, source):
             "moments": mom, "corr": cor}
 
 
+# Derived from config like every other store; see tests/test_storage_paths.py.
+LEGACY_DB_NAME = "legacy_player_stats.db"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--train", default="2016-2022")
@@ -380,12 +384,12 @@ def main():
 
     import config
     if args.build_legacy:
-        build_legacy(args.db or "data/legacy_player_stats.db",
+        build_legacy(args.db or config.storage_path(LEGACY_DB_NAME),
                      _rng(args.build_legacy))
         return
 
-    db = args.db or ("data/legacy_player_stats.db" if args.source == "legacy"
-                     else config.DB_PATH)
+    db = args.db or (config.storage_path(LEGACY_DB_NAME)
+                     if args.source == "legacy" else config.DB_PATH)
     train, test = _rng(args.train), _rng(args.test)
     df = load(db, train + test)
     report(df, train, test, args.label or f"{args.train} -> {args.test}",

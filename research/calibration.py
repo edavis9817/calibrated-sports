@@ -40,7 +40,9 @@ import store
 
 BENCH_BOOKS = ("draftkings", "fanduel", "betmgm")
 SOURCE = "oddsapi_historical"
-EXPORT_DIR = os.path.join("data", "exports")
+# From config, not from a literal: "data/exports" resolves against the working
+# directory, which is the repo on C:, while every other store is on D:.
+EXPORT_DIR = config.storage_path("exports")
 
 # 0.05 bins. Narrower than a decile because the interesting region for a
 # two-sided prop is 0.40-0.60 and a decile smears it into one number.
