@@ -369,6 +369,26 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
   home team is favoured — checked by correlation (+0.391 vs −0.150), not
   assumed.
 
+- **The longshot bias is a SACKS artifact and is not tradeable.** Retired as a
+  finding 2026-09-12 (`research/longshot.py`). All 194 settled observations
+  priced below 0.15 are `sacks`, `over` side, single-book, 1-2 line ladders.
+  Every other stat has a de-vigged price FLOOR - receiving yards and receptions
+  never below 0.165, rush attempts never below 0.338 - because a book hangs its
+  line near the median outcome. There is no general longshot zone to be biased
+  in. Above 0.15 the market prices 0.1673 against a realized 0.1671 (n=850) and
+  0.1871 against 0.1869 (n=1,867).
+  - Even where it lives it does not clear a Wilson interval: 0.125-0.150,
+    n=167, priced 0.1388, realized 0.0898, CI [0.0552, 0.1429] - the priced
+    value is inside. **Quote Wilson intervals, not normal-approximation SEs, on
+    any bucket with n in the hundreds at a low rate.**
+  - The 4.9pp residual is smaller than the 3.7pp-per-side raw vig it claims to
+    have removed, so Shin under-removing the margin explains it as well as a
+    market bias does, and price data alone cannot separate them.
+- **Kalshi spreads are the binding constraint at longshot prices**, not fees.
+  Mid in 0.05-0.20: median quoted spread 9.0c. Depth is fine (1,000 contracts
+  slips 0.53c from touch) and fees are small (taker 0.84pp, maker 0.21pp). A
+  sub-5pp edge does not survive crossing a 9c spread.
+
 **Anything quoted as a finding must have a committed script in `research/`.**
 Numbers reached `CLAUDE.md` once without one; the reference then could not be
 reproduced, and separating a data change from a methodology change cost a
