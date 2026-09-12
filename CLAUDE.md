@@ -162,6 +162,20 @@ not yet measured and the retention arithmetic depends on it.**
   `{}` when nothing traded, and bid/ask still exist there.
 - **Live `volume` is CUMULATIVE, a candle's `volume_fp` is PER-PERIOD.**
   Summing both together produced a 6.7-billion-contract week.
+- **Kalshi ladders are dense where they exist and absent where they do not.**
+  `KXNFLREC` (receptions) and `KXNFLRSHATT` (rush attempts) carry a median of
+  **7 thresholds per player-game**, max 12 - a genuine survival function, free.
+  There is **no rushing-yards series and no anytime-TD series**; tickers
+  matching "TD" are players named DMetcalf and DWashington.
+- **Kalshi prices fantasy points directly**: `KXNFLFFPTS` quotes
+  P(fantasy points > X) per player per game (one threshold each, 185 open on
+  the 2026 wk1 slate), alongside `KXNFLFFWEEKTOP` and `KXNFLFFPLAYERHIGH`.
+  `KXNFLFFH2H` appears in the series list but had **zero open markets**.
+  FFPTS is the better consistency check anyway: same exchange, same game, and
+  it needs no cross-player correlation term.
+- **A Kalshi spread is not a bookmaker margin.** It is an exchange: the yes-book
+  mid IS the probability. Applying Shin or multiplicative de-vig to it invents a
+  correction for a margin that does not exist.
 
 **Substring traps in NFL filtering.** "i-NFL-ation" contains NFL, and so does
 `KXNCAAFCO-NFL-EAVE` across a word boundary. The filter is
@@ -222,6 +236,16 @@ not yet measured and the retention arithmetic depends on it.**
   williamhill_us. The CLV benchmark cannot be Pinnacle for historical work.
 - `player_receptions_alternate` is quoted by **fanduel only**; do not assume
   alternate-ladder coverage at scale.
+- **`player_anytime_td` is ONE-SIDED.** Every outcome is `{"name":"Yes",
+  "description":"<player>"}` with no "No" - 136 of 136 on a probe event. It is
+  not a partition either: several players score, and the listed set is not
+  exhaustive. So the overround invariant cannot run on it and NO de-vig that
+  normalises to 1 applies - not multiplicative, not Shin, not power. Any TD
+  component must be ANCHORED to a count fitted elsewhere and labelled as such.
+- **`player_rush_yds` is a one-book ladder.** betrivers hangs 11 thresholds;
+  betmgm, bovada, draftkings and fanduel hang exactly one line each. The pooled
+  "12-line ladder" is one book's ladder plus four point quotes - the same shape
+  as `player_receptions_alternate`, which was declined for that reason.
 - **Props post 48–72h before kickoff**, so snapshot targets earlier than that
   bill credits for empty responses.
 - Never poll live. Snapshot on a schedule keyed to kickoff; the T−5 snapshot is
@@ -315,6 +339,35 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
   calendar year to the FOLLOWING season's identical matchup. Both are silent —
   the prices stay plausible. `--trust` in `research/calibration.py` counts
   outcomes whose markets span more than one game; it must stay at zero.
+
+- **A market-implied fantasy distribution is calibrated in aggregate and fails
+  in three specific places.** Built from de-vigged ladders, coupled with a
+  Gaussian copula, scored on 9,822 settled player-games
+  (`research/implied.py`). Quantile coverage: q50 0.482, q75 0.235, q90 0.101,
+  q95 0.054 against 0.50 / 0.25 / 0.10 / 0.05 — the aggregate is good and
+  **the aggregate is the least useful number in the study**. It fails at:
+  - **running backs** — q90 0.140, q95 0.075. An RB's points are rushing
+    yards, which arm B derives from a median-1-point attempt ladder times a
+    fitted YPC. The weakest input path produces the worst tail.
+  - **sparse ladders** — 1–2 points gives q90 0.139; 5+ points gives 0.113.
+    Where the market pins only a point or two, the fitted family supplies the
+    shape and the tail comes out too thin.
+  - **single-book fits** — q90 0.161 against 0.100. A *noisy* book is safe
+    (wide dispersion → q90 0.077, mildly underconfident); a *lone* book is
+    not. `outcome_close.dispersion` is 0 when one book quoted, so single-book
+    fits must be split out or they poison the "tight spread" stratum.
+- **Within-player dependence is strong and must be modelled.** Rank
+  correlation of receptions to receiving yards is +0.838 WR, +0.826 TE,
+  +0.863 RB; carries to rushing yards +0.900 for RB. Independent marginals
+  understate the joint upper corner, which is exactly the fantasy ceiling.
+  QB rec↔yards is +0.300 — a QB reception is a trick play, not a workload.
+- **E[distinct TD scorers] is sublinear in team TDs**: 2 → 1.82, 3 → 2.57,
+  6 → 4.31 over 5,790 team-games. A TD anchor that treats a two-TD game as two
+  scorers inflates every player's TD probability by ~10%.
+- **The market's implied team total is an unbiased predictor of points**:
+  actual = −0.24 + 1.019 × implied. nflverse `spread_line` is POSITIVE when the
+  home team is favoured — checked by correlation (+0.391 vs −0.150), not
+  assumed.
 
 **Anything quoted as a finding must have a committed script in `research/`.**
 Numbers reached `CLAUDE.md` once without one; the reference then could not be
