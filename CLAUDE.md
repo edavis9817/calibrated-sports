@@ -200,6 +200,40 @@ not yet measured and the retention arithmetic depends on it.**
   in 56 hours, against 6.5 GB for the NFL logger's entire life. A `game`-tier
   poll over 9,080 markets takes a median 40.9s and a worst case 111.9s, so a
   60s cadence does not fit inside its own period and the loop runs saturated.
+- **BOTH teams are quoted on the spread, on ALTERNATING rungs** - 79 of 126
+  games. One series, one event, two interleaved half-curves. Pooling them into
+  a single ladder is not a small error: it fits at rmse up to 0.51 and returns
+  a median favourite margin of 32 points. Split by team they are complements,
+  `S_A(-L) = 1 - S_B(L)` (half-integer lines, so no tie at -L), which turns a
+  one-sided ladder from +1.5 up into a two-sided margin curve. Where only one
+  team is quoted, ANY fit extrapolates across the whole left half and invents
+  tens of points on a blowout - stratify on it, never pool it.
+- **Kalshi derives its CFB period and team markets mechanically. There is no
+  edge in the relations between them.** Measured 2026-09-13 on the 09-12 slate
+  at a 10:00 ET pre-kickoff snapshot (`research/cfb_coherence.py`, signed
+  deviations, unselected):
+
+      teamRef - teamOpp = spread  (2-sided)  n=38  med -0.01  sd 0.30   0/38
+      teamA + teamB = game total             n=59  med +0.17  sd 0.67   3/59
+      Q1 + Q2 = 1H                           n=27  med -0.16  sd 0.59   0/27
+      Q1..Q4 = game total                    n=23  med +0.79  sd 0.77   0/23
+
+  The last column counts games whose deviation exceeds the summed bid-ask
+  bands of its own legs. Quarter bands run ~10 points wide, so no quarter
+  deviation of any plausible size is tradeable regardless of the estimate.
+- **Quarter means are estimator-sensitive; game and team totals are not.** A
+  probit-normal fit and a near model-free integration agree to 0.1 points on a
+  game total and to 0.7 on the team-total relation, but differ by 1-3 points on
+  every quarter relation, because a quarter's scoring is lumpy (mass at 0, 3,
+  7, 10, 14) and its priced tail is fatter than normal. Any future CFB quarter
+  claim must carry both estimators or it is measuring the family, not the
+  market.
+- **The exchange's own coherence is exact at the mid.** Moneyline mid sums
+  median 1.0000 (n=230); quarter-winner 3-ways median 0.99-1.01. Ask sums are
+  1.02 two-way and 1.14-1.17 three-way, and NOT ONE partition of the 300 could
+  be bought whole below 1.00. The bookmaker overround band of 1.00-1.15 does
+  not apply to an exchange - a mid sum under 1.00 is the spread seen from the
+  inside, not free money.
 
 **Two processes writing one raw shard silently destroy it.** The storage-fix
 restart on 2026-09-11 left two `cfb_probe.py` instances running — poll rate went
