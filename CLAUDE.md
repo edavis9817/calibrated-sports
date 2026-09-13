@@ -233,6 +233,59 @@ not yet measured and the retention arithmetic depends on it.**
   7, 10, 14) and its priced tail is fatter than normal. Any future CFB quarter
   claim must carry both estimators or it is measuring the family, not the
   market.
+- **The college market is calibrated at about the same size as the NFL's, and
+  one Saturday cannot say more than that.** Measured 2026-09-13 on 119 games
+  with a close at their own kickoff (`research/cfb_calibration.py`, results
+  from `jobs/ingest_cfbd.py`). Game total ECE 0.0315 (over side +2.71pp), game
+  spread ECE 0.0223 (+0.75pp), against the NFL props' ECE 0.0043 on three
+  seasons. **Every bucket's priced value sits inside its Wilson interval** -
+  nothing here is distinguishable from correct pricing.
+  - **The effective sample is GAMES, not rungs.** A 19-rung total ladder
+    settles off ONE final score, so 119 games make ~2,000 rung-observations
+    carrying nowhere near that much information. Wilson intervals are computed
+    on distinct games throughout; on rungs they would be ~sqrt(19) too narrow.
+    Collapsed to one observation per game - did the final clear the market's
+    own implied mean? - it is 55.3% over, Wilson [0.4402, 0.6168], mean miss
+    +1.55 points against a 15.01-point sd. That is the number to quote.
+  - **No de-vig, on purpose.** An exchange mid IS the probability; there is no
+    margin to remove and Shin would invent one. Partitions are normalised to
+    sum to 1, which is a different operation and ~0.005 in size.
+- **CFB Q1 is genuinely quiet and the market only half-knows it.** Realized
+  mean Q1 is 10.06 points against a 13.51-point average regulation quarter -
+  74% - while the market prices E[Q1]/E[game] at 0.2306 against a flat 0.2500
+  and a realized 0.1834. The market has ~a third of the true first-quarter
+  discount. The sign pattern across quarters is the mechanism's: it overprices
+  the first quarter of each half (Q1 -2.19, Q3 -1.68) and underprices the
+  second (Q2 +1.82, Q4 +1.09), which is scoring bunching before each break.
+  **NOT ONE QUARTER CLEARS 1.5 SE** at n<=26, and four alternating signs is a
+  1-in-8 coincidence, so this is a thing to re-measure, not to believe.
+- **College really is lopsided, which is why one week is thin everywhere.**
+  36% of games close with a favourite priced >=0.90 and 22% >=0.95, a range the
+  NFL never reaches. Sub-0.15 underdogs went 1 for 45 against a 0.0613 price -
+  the longshot direction - but Wilson is [0.0039, 0.1157] and contains it.
+- **The CFBD results feed is metered at 1,000 requests per CALENDAR MONTH**,
+  free tier, with no per-call weighting: one HTTP request is one unit whatever
+  it returns. `/games?year=&week=` returns a whole week WITH line scores, so a
+  season is ~15 requests and a per-game loop is ~800. **Never loop per game** -
+  `tests/test_cfb_calibration.py` asserts the job can build only the one URL.
+  Invariant 2 is a budget rule here: `--from-archive` re-derives every table
+  from the gzipped shard at zero requests. A full historical backfill is the
+  Starter Pack CSV download, not the API.
+- **Team names differ between the feeds and the parenthetical is load-bearing.**
+  107 of 120 games matched before an alias table, 120 of 120 after. Fold to
+  ASCII first (CFBD writes "San Jose State" with an accent; strip-then-fold
+  gives "jos"), treat a hyphen as a separator ("Louisiana-Monroe" is two
+  words), and KEEP the bracketed qualifier - dropping it merges Anderson (IN)
+  with Anderson (SC), Lincoln (MO) with Lincoln (PA), and Miami (FL) with
+  Miami (OH). Match on date +/-1 day: a 23:00 ET Saturday kickoff in Hawaii is
+  a Sunday in UTC.
+- **VERDICT: NO-GO on college football.** Not because the market is sharp -
+  because there is nothing to point a model at. No single-game player props
+  exist, the derivatives already cohere to within a third of a point (Part 1),
+  and a team-level effort needs a CFB facts layer that does not exist. What
+  would change it: a venue listing college player props at NFL ladder density,
+  or a Starter Pack backfill making a team model cheap to build. Neither is
+  close.
 - **The exchange's own coherence is exact at the mid.** Moneyline mid sums
   median 1.0000 (n=230); quarter-winner 3-ways median 0.99-1.01. Ask sums are
   1.02 two-way and 1.14-1.17 three-way, and NOT ONE partition of the 300 could

@@ -152,9 +152,17 @@ def probe_window(conn):
     return conn.execute("SELECT MIN(ts), MAX(ts) FROM quotes").fetchone()
 
 
-def load_snapshot(conn, series, lo, hi):
+def load_snapshot(conn, series, lo, hi, ts_by_game=None):
     """Last quote at or before each game's snapshot, for every market in
-    `series`. One indexed query per market (ix_quotes_market_ts)."""
+    `series`. One indexed query per market (ix_quotes_market_ts).
+
+    `ts_by_game` overrides the default 10:00 ET snapshot per game. C01 Part 2
+    passes real kickoffs from the results feed, which Part 1 could not: with no
+    results table there was no kickoff to key on, so a fixed pre-slate hour was
+    the best available. A game absent from the override is skipped rather than
+    silently falling back to the fixed hour - mixing the two would put some
+    games at the close and others hours early, in one column.
+    """
     out = defaultdict(list)
     by_game = defaultdict(list)
     for mid, ev, line, subj in conn.execute(
@@ -162,7 +170,7 @@ def load_snapshot(conn, series, lo, hi):
             "WHERE market_id LIKE ?||'-%'", (series,)):
         by_game[game_key(ev)].append((mid, line, subj))
     for gkey, rows in by_game.items():
-        ts = snapshot_ts(gkey)
+        ts = ts_by_game.get(gkey) if ts_by_game is not None else snapshot_ts(gkey)
         if ts is None:
             continue
         # A game dated after the probe died was never played inside the

@@ -95,6 +95,25 @@ ODDS_SNAPSHOTS_MIN = [int(x) for x in os.getenv(
     "ODDS_SNAPSHOTS_MIN", "4320,1440,180,60,10").split(",")]
 ODDS_SNAPSHOT_TOLERANCE_MIN = 8   # fire if within this many minutes of target
 
+# --- collegefootballdata.com ------------------------------------------------
+# 1,000 requests per CALENDAR MONTH on the free tier, and unlike the Odds API
+# there is no per-call credit weighting: one HTTP request is one unit whatever
+# it returns. That makes the whole discipline "use week-level endpoints".
+# `/games?year=&week=` returns every game for a week WITH line scores in a
+# single call, so a season is ~15 requests and a per-game loop is ~800 - the
+# failure mode that burns the month in one run.
+#
+# Because a re-parse must cost nothing, invariant 2 is a BUDGET rule here and
+# not only a principle: archive verbatim, then re-derive from the archive
+# forever. `jobs/ingest_cfbd.py --from-archive` re-parses at zero requests.
+#
+# A full historical backfill is NOT an API job - CFBD ships downloadable CSVs
+# in the Starter Pack. Reach for that, never for a loop.
+CFBD_API_KEY = os.getenv("CFBD_API_KEY")
+CFBD_BASE = os.getenv("CFBD_BASE", "https://api.collegefootballdata.com")
+CFBD_MONTHLY_BUDGET = int(os.getenv("CFBD_MONTHLY_BUDGET", 1000))
+CFBD_RESERVE = int(os.getenv("CFBD_RESERVE", 100))  # never spend below this
+
 # --- Storage ---------------------------------------------------------------
 DB_PATH = os.getenv("LOGGER_DB", "data/market_log.db")
 RAW_DIR = os.getenv("LOGGER_RAW_DIR", "data/raw")
