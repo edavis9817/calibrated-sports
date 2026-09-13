@@ -181,6 +181,41 @@ not yet measured and the retention arithmetic depends on it.**
 `KXNCAAFCO-NFL-EAVE` across a word boundary. The filter is
 `(?<!I)NFL(?!X)` plus an NCAA/college exclusion plus a category guard.
 
+**College football (measured by `cfb_probe.py`, 2026-09-10 to 09-12, 56h)**
+- **There are no single-game player props.** 47,553 markets across 97 NCAAF
+  series on Kalshi and not one of them prices a player's receptions, carries,
+  targets or yards for a game. Everything player-named is a SEASON leader
+  future closing 2027-01-07 ("Nick Rinaldi records the most sacks in the SEC").
+  What looks like a prop is team-level: `KXNCAAFTEAMRECYDS` is "Texas: 325+
+  receiving yards", `KXNCAAFTEAMTD` is "Utah: 4+ rushing touchdowns".
+- **So CFB is not addressable by this model.** The validated edge is single-game
+  player usage — targets, rush attempts, receptions — and CFB lists none of it.
+  A CFB expansion would be a different model (team totals, spreads, quarters),
+  not this one pointed at a new sport. Do not re-probe for props.
+- The depth that does exist is game-shaped: `KXNCAAFSPREAD` 2,822 markets,
+  `KXNCAAFTOTAL` 2,232, `KXNCAAFTEAMTOTAL` 1,582, plus full quarter and
+  first-half ladders. 20,801 of 47,553 markets close within 3 days of first
+  being seen. Polymarket carries the same shapes, 20,587 markets.
+- Volume is ~10x NFL for a sport we cannot trade: 50.6M quote rows and 23.9 GB
+  in 56 hours, against 6.5 GB for the NFL logger's entire life. A `game`-tier
+  poll over 9,080 markets takes a median 40.9s and a worst case 111.9s, so a
+  60s cadence does not fit inside its own period and the loop runs saturated.
+
+**Two processes writing one raw shard silently destroy it.** The storage-fix
+restart on 2026-09-11 left two `cfb_probe.py` instances running — poll rate went
+from 58 game polls/hour to 117, exactly double, from 12:00 EDT onward. Both
+appended to the same hourly `.jsonl.gz`. 43 of 114 CFB shards fail `gunzip -t`,
+and the first corrupt file is the UTC hour the second process started. A 227 MB
+shard yields 688 readable lines before `invalid compressed data--format
+violated` — recovery is not partial, it is nil. **Nothing detected this.**
+`audit_shards()` checks that every file on disk has a manifest row; `seal_shards()`
+hashes bytes. Neither opens the stream, so an unreadable archive passes both and
+invariant 2 ("every derivation must be re-runnable from the archive") is
+asserted but not verified. Two gaps to close: a single-instance lock on any
+capture process, and a decompress check in the shard audit. The NFL archive was
+scanned at the same time — 382 shards, 0 corrupt — because only ever one process
+writes it, which is luck holding a guarantee up.
+
 **Polymarket**
 - Blind pagination 422s past `offset≈2000`; the API names `/markets/keyset` for
   deeper paging. Use `/events` with `tag_slug=nfl` instead.
