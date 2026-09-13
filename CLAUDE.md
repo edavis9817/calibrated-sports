@@ -221,6 +221,11 @@ not yet measured and the retention arithmetic depends on it.**
   The last column counts games whose deviation exceeds the summed bid-ask
   bands of its own legs. Quarter bands run ~10 points wide, so no quarter
   deviation of any plausible size is tradeable regardless of the estimate.
+  Every one of the three that DID clear its band is a blowout: split on the
+  favourite's margin, <=14 pts is 0/30 at sd 0.51 and 14-28 pts is 0/13 at sd
+  0.31, while >28 pts is 3/16 at sd 1.02 with the median still at -0.07. The
+  dispersion doubles and the centre does not move, which is a ladder pinned
+  near zero on the underdog rather than a directional mispricing.
 - **Quarter means are estimator-sensitive; game and team totals are not.** A
   probit-normal fit and a near model-free integration agree to 0.1 points on a
   game total and to 0.7 on the team-total relation, but differ by 1-3 points on

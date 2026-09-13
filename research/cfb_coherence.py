@@ -440,7 +440,8 @@ def relations(g):
             g["teams"][a]["band"] + g["teams"][b]["band"] + f["game"]["band"],
             f'{s:.1f} vs {f["game"]["mu"]:.1f}',
             (na + nb) if (na is not None and nb is not None) else None,
-            f["game"]["np"])
+            f["game"]["np"],
+            fav_margin=(f["spread"]["mu"] if "spread" in f else None))
     if len(g["teams"]) == 2 and "spread" in f and "ref" in f["spread"]:
         ref = f["spread"]["ref"]
         if ref in g["teams"]:
@@ -598,6 +599,27 @@ def report_coherence(games):
         b = statistics.median([r["np_dev"] for r in rows])
         same = "yes" if (a * b > 0 and abs(a - b) < max(1.0, abs(a) * 0.75)) else "NO"
         print(f"    {name:<36}{len(rows):>5}{a:>10.2f}{b:>10.2f}{same:>8}")
+
+    # The handful that clear their band are not scattered: they are the
+    # mismatches. In a 36-point blowout the underdog's team-total ladder is
+    # pinned near zero and the fit is badly conditioned, so this is more
+    # likely the estimator running out of road than a tradeable gap.
+    rows = buckets.get("teamA+teamB = game total", [])
+    if rows:
+        print("\n  teamA+teamB = game total, split on how lopsided the game is")
+        print(f"    {'favourite margin':<20}{'n':>5}{'med dev':>10}{'sd':>8}{'|dev|>band':>12}")
+        for lab, lo_m, hi_m in (("<= 14 pts", -99.0, 14.0),
+                                ("14 - 28 pts", 14.0, 28.0),
+                                ("> 28 pts", 28.0, 999.0)):
+            sub = [(r, k) for r, k in rows
+                   if r.get("fav_margin") is not None
+                   and lo_m < r["fav_margin"] <= hi_m]
+            if not sub:
+                continue
+            d = [r["dev"] for r, _ in sub]
+            a = sum(1 for r, _ in sub if abs(r["dev"]) > r["band"])
+            print(f"    {lab:<20}{len(d):>5}{statistics.median(d):>10.2f}"
+                  f"{statistics.pstdev(d):>8.2f}{a:>7} /{len(d):<4}")
 
     for name in ("Q1..Q4 = game", "teamA+teamB = game total"):
         rows = sorted(buckets.get(name, []), key=lambda r: -abs(r[0]["dev"]))[:8]
