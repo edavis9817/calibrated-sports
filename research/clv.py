@@ -280,13 +280,22 @@ def clv_one_crossing(r, side=None, basis="mid"):
     return value - cost
 
 
-def net_of_fee(r, side=None, basis="mid", maker=False):
-    """One-crossing CLV less the Kalshi taker fee on the price actually paid.
-    The fee is a function of that price, so it belongs on the side taken."""
+def net_of_fee(r, side=None, basis="mid", maker=False, contracts=None):
+    """One-crossing CLV less the Kalshi fee on the price actually paid.
+
+    The fee is charged on the WHOLE ORDER and rounded up to the next cent, so
+    it must be computed at the ticket size and then expressed per contract.
+    Calling `kalshi_fee(p, 1)` instead charges that rounding to EVERY contract:
+    at p=0.40 a maker fee of 0.42c becomes 1.00c, inflating it 2.4x, and the
+    maker arm reads +3.23pp instead of its true +3.81pp. The rounding is real
+    but it is one cent per order, not one cent per contract.
+    """
     v = clv_one_crossing(r, side, basis)
     if v is None:
         return None
-    return v - kalshi_fee(entry_cost(r, side, basis), 1, maker)
+    price = entry_cost(r, side, basis)
+    n = contracts or (basis if isinstance(basis, int) else 1)
+    return v - kalshi_fee(price, n, maker) / n
 
 
 def clv_exec(r, side=None):

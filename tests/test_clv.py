@@ -263,7 +263,9 @@ def test_net_of_fee_is_strictly_worse_than_gross():
     net = clv.net_of_fee(r, basis=100)
     assert net < gross
     from core.distributions import kalshi_fee
-    assert gross - net == pytest.approx(kalshi_fee(0.47, 1))
+    # Fee is charged on the whole order and then divided, NOT ceilinged per
+    # contract - that rounding is one cent per order.
+    assert gross - net == pytest.approx(kalshi_fee(0.47, 100) / 100)
 
 
 def test_the_fee_is_charged_on_the_price_actually_paid():
@@ -272,7 +274,7 @@ def test_the_fee_is_charged_on_the_price_actually_paid():
     from core.distributions import kalshi_fee
     r = _with_stakes(row(side="no"), {100: (0.10, 0.93)})
     gross = clv.clv_one_crossing(r, basis=100)
-    assert gross - clv.net_of_fee(r, basis=100) == pytest.approx(kalshi_fee(0.93, 1))
+    assert gross - clv.net_of_fee(r, basis=100) == pytest.approx(kalshi_fee(0.93, 100) / 100)
 
 
 def test_a_missing_stake_yields_no_number_rather_than_a_guess():

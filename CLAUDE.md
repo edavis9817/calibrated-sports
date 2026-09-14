@@ -532,6 +532,45 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
   half of a one-sided tightening whatever the model knew. On the ask leg
   alone the interval touches zero. The 14.14pp gap between mid and executable
   is the book crossed twice.
+- **The maker path is starved, and the fills that happen are worth nothing.**
+  Measured 2026-09-14 on 65,467 Kalshi trade prints for the 935 week-1 markets
+  (`research/maker.py`, prints from `jobs/ingest_kalshi_trades.py`). A passive
+  order resting at the touch from the prediction instant to kickoff, sitting
+  BEHIND the size already at that level:
+
+      fill rate                18.0%  [14.3, 21.5]   (704 simulated, 14 games)
+      unconditional maker CLV  +3.91pp
+      CONDITIONAL on a fill    +0.28pp [-0.34, +1.00]  - contains zero
+      never filled             +4.80pp [+4.00, +5.74]
+      selection gap            +4.52pp [+3.58, +5.79]  - excludes zero
+
+  **Adverse selection did not show up as a loss on the fills; it showed up as
+  the fills being worth nothing while the misses were worth everything.** The
+  post-fill mid drift is -0.35pp [-0.79, +0.06]: directionally right, interval
+  touches zero. Quote the SELECTION GAP, bootstrapped as one quantity - the
+  difference of two separately quoted means carries more confidence than the
+  data supports.
+  - **Shrinking the ticket does not rescue it.** At 10 contracts the fill rate
+    is only 21.6% and conditional CLV +0.47pp; at 1,000 it is 7.8% and
+    -0.41pp. The binding constraint is the QUEUE, whose median is 203
+    contracts - an order of magnitude larger than any ticket worth placing.
+  - 11.6% of these markets had ZERO prints between entry and kickoff, and the
+    median market had 11 prints of which **0 were eligible** to fill us: half
+    of all volume trades on the other side of the book from where we rest.
+- **`taker_side` is the side the TAKER bought, so a passive YES buy is filled
+  by `taker_side == "no"` prints.** Reading it backwards fills you off the
+  wrong half of the tape and still yields a plausible rate. `/markets/trades`
+  is free and unauthenticated; 935 markets at 4 req/s drew zero 429s.
+- **A fill rate and a "did this player trade at all" rate are different
+  questions and must not share a line.** Per-prediction it is 18%; per
+  (player, stat) fit with any rung filled it is 60%. Rungs within a fit are
+  not independent, so the per-prediction rate gets a block bootstrap and only
+  the fit-level rate gets a Wilson interval.
+- **`kalshi_fee(p, 1)` overstates the fee ~2.4x.** The fee is charged on the
+  WHOLE ORDER and rounded up to the next cent, so it must be computed at ticket
+  size and divided. At p=0.40 a maker fee of 0.42c becomes 1.00c per contract,
+  and the maker arm reads +3.23pp instead of +3.81pp. The rounding is one cent
+  per order, not per contract.
 - **S00's -13.52pp is a ROUND TRIP and overstates what a held ticket pays.**
   A position held to settlement crosses ONCE. Charging entry at the touch and
   valuing against the CLOSING MID gives -3.00pp [-3.80, -2.26], which is
