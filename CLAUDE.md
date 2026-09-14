@@ -516,6 +516,48 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
   slips 0.53c from touch) and fees are small (taker 0.84pp, maker 0.21pp). A
   sub-5pp edge does not survive crossing a 9c spread.
 
+- **Week 1 CLV is not distinguishable from zero, and is deeply negative where
+  money changes hands.** Measured 2026-09-14 on all 935 week-1 predictions,
+  unselected (`research/clv.py`). Entry is one instant, Thu 09-10 15:03 ET;
+  the close is the last quote STRICTLY BEFORE KICKOFF, which lands a median of
+  1.0 minutes early. Block-bootstrapped over the 14 games:
+
+      mid -> mid                    +0.62pp  [+0.13, +1.22]   n=624
+      ask -> ask (what a taker pays) +0.32pp  [-0.01, +0.68]   n=624
+      executable @1000 contracts   -13.52pp  [-17.06, -10.40] n=493
+
+  The mid interval excludes zero and is the WEAKEST of the three to lean on.
+  Between entry and kickoff the yes BID rises ~2.0c while the ask moves
+  -0.2c - the book tightens almost entirely from below - so a mid collects
+  half of a one-sided tightening whatever the model knew. On the ask leg
+  alone the interval touches zero. The 14.14pp gap between mid and executable
+  is the book crossed twice.
+- **A positive mean CLV needs its mechanical term ruled out.** Decompose
+  `mean(side x drift)` into `cov(side, drift)` plus `mean(side) x mean(drift)`:
+  the second is just a directional lean multiplied by market-wide drift and can
+  produce a "finding" from nothing. Here it is -0.115pp against a +0.731pp
+  covariance, so the lean is not the cause - but the convention test above
+  still is not passed, and both checks have to hold.
+- **The effective sample is 136 (player, stat) fits over 14 games, not 935.**
+  A ladder's rungs are one claim priced at ~6.9 thresholds and a slate shares
+  a scoring environment. Intervals are block bootstraps over games; a
+  normal-approximation interval on 935 would be roughly 3x too narrow.
+  Guarded by `tests/test_clv.py`, which duplicates every row 20x inside its own
+  game and asserts the interval does NOT narrow.
+- **Lead time cannot be studied from a single entry instant.** All 935
+  predictions were written in one run, so lead time is fully determined by
+  kickoff: bimodal at 5.5h (the Thursday game) and 69.9-77.3h (Sunday), with
+  nothing between. "48-72h vs >=72h" is Sunday's early games against its late
+  ones - a time-slot contrast, not a decay curve. Answering decay needs
+  SEVERAL entry times against the same kickoff.
+- **The executable placebo is not zero-sum, and a test demanding that it were
+  would be wrong.** Flipping the side must negate mid CLV exactly (asserted at
+  0.0). At executable prices both sides pay to cross, so
+  `clv_exec(yes) + clv_exec(no) == -(entry_eff_spread + close_eff_spread)` -
+  that identity is the check, and it holds to 2.2e-16.
+- **Liquidity cannot be stratified on this slate**: 910 of 935 predictions sit
+  in `thin`, 24 in `medium`, 1 in `deep`.
+
 **Anything quoted as a finding must have a committed script in `research/`.**
 Numbers reached `CLAUDE.md` once without one; the reference then could not be
 reproduced, and separating a data change from a methodology change cost a
