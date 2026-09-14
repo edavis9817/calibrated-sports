@@ -68,8 +68,9 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
-from core.distributions import kalshi_fee
+from core.fees import fee_per_contract
 from jobs.paper_trade import evaluate
+import store
 from models import baseline
 from research.longshot import wilson
 
@@ -128,7 +129,13 @@ def depth_at(c, market_id, side, ts, strict, col):
 
 
 def build(season=2026, week=1, stake=1000, model_version=None):
-    mv = model_version or baseline.MODEL_VERSION
+    # Resolve rather than assume. See store.latest_model_version: brief 016
+    # moved the fee out of `core/distributions.py`, which is hashed into the
+    # model fingerprint, so MODEL_VERSION moved without the model moving.
+    mv, note = store.latest_model_version(
+        season, week, model_version or baseline.MODEL_VERSION)
+    if note:
+        print(f"  NOTE: {note}")
     c = db()
     col = STAKE_COL[stake]
     raw = c.execute(PRED_SQL, (season, week, mv)).fetchall()
@@ -295,7 +302,10 @@ def net_of_fee(r, side=None, basis="mid", maker=False, contracts=None):
         return None
     price = entry_cost(r, side, basis)
     n = contracts or (basis if isinstance(basis, int) else 1)
-    return v - kalshi_fee(price, n, maker) / n
+    # Brief 016 moved the fee to core.fees; this arm is TAKER, so the default
+    # multiplier of 1 is the right one and the number is unchanged.
+    return v - fee_per_contract(price, n, "maker" if maker else "taker",
+                                multiplier=1 if maker else None)
 
 
 def clv_exec(r, side=None):

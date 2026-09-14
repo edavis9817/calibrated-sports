@@ -7,6 +7,7 @@ fees and -EV after is one you will happily take all season.
 """
 import sqlite3
 import time
+from decimal import Decimal
 
 import numpy as np
 import pytest
@@ -66,11 +67,13 @@ def test_a_position_can_be_positive_gross_and_negative_net():
     fees and gone after - and the fee peaks exactly there, at P=0.5."""
     fair, price = 0.515, 0.50
     gross = fair - price
-    net = edge_after_fees(fair, price, 1)
+    net = edge_after_fees(fair, price, 100)
 
     assert gross > 0, "should be +EV before fees"
     assert net < 0, "must be -EV after fees"
-    assert kalshi_fee(0.50, 1) == pytest.approx(0.02)
+    # Brief 016: the fee is a Decimal now, so compare against one. Mixing it
+    # with pytest.approx's float arithmetic raises rather than fails.
+    assert kalshi_fee(0.50, 1) == Decimal("0.02")
 
 
 def test_the_same_edge_survives_at_the_tails():
@@ -78,8 +81,8 @@ def test_the_same_edge_survives_at_the_tails():
     dies on a coin flip lives comfortably at a longshot price - which changes
     which side of a market is worth taking, not just how much it is worth."""
     edge = 0.015
-    assert edge_after_fees(0.50 + edge, 0.50, 1) < 0
-    assert edge_after_fees(0.06 + edge, 0.06, 1) > 0
+    assert edge_after_fees(0.50 + edge, 0.50, 100) < 0
+    assert edge_after_fees(0.06 + edge, 0.06, 100) > 0
     # The raw fee ratio is ~4x, but at ONE contract the ceiling-to-whole-cents
     # flattens it to 2c vs 1c. Size is what exposes the real shape, which is
     # also the only regime where it matters.
@@ -94,7 +97,9 @@ def test_evaluate_prices_the_side_it_actually_takes():
     assert ev["model_prob"] == pytest.approx(0.80)
     assert ev["market_prob"] == pytest.approx(0.38)
     assert ev["spread"] == pytest.approx(0.04)
-    assert ev["fee"] == pytest.approx(kalshi_fee(0.38, 1))
+    # Brief 016: evaluate() now prices the real ticket, PER CONTRACT.
+    from core.fees import fee_per_contract
+    assert ev["fee"] == pytest.approx(fee_per_contract(0.38, 100))
     assert ev["net_edge"] == pytest.approx(ev["gross_edge"] - ev["fee"])
 
 

@@ -138,7 +138,10 @@ def targets(season, week, model_version=None):
     """The markets the 935 predictions point at. Exactly the M01 population.
     Read from the LIVE database, read-only."""
     from models import baseline
-    mv = model_version or baseline.MODEL_VERSION
+    mv, note = store.latest_model_version(
+        season, week, model_version or baseline.MODEL_VERSION)
+    if note:
+        print(f"  NOTE: {note}")
     c = live_ro()
     return [r[0] for r in c.execute(
         "SELECT DISTINCT mo.market_id FROM predictions p "

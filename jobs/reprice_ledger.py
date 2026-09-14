@@ -23,7 +23,7 @@ import time
 
 import config
 import store
-from core.distributions import edge_after_fees, kalshi_fee
+from core.fees import edge_after_fees, fee_per_contract, series_multiplier
 
 SIDE_TO_DEPTH = {"yes": "buy_yes", "no": "buy_no"}
 
@@ -108,8 +108,14 @@ def run(stake=100):
             # edge, it is no trade - recorded as NULL rather than as a number.
             edge_after, fee_after = None, None
         else:
-            edge_after = edge_after_fees(model_prob, exec_p, 1)
-            fee_after = kalshi_fee(exec_p, 1)
+            # `stake` is the whole point of this job - repricing AT SIZE -
+            # so the fee must use it too. Passing 1 here charged the
+            # ceil-to-cent per contract and made the repriced edge look worse
+            # than the touch edge for a reason that was arithmetic, not depth.
+            _, taker_m = series_multiplier(market_id)
+            edge_after = edge_after_fees(model_prob, exec_p, int(stake),
+                                         "taker", taker_m)
+            fee_after = fee_per_contract(exec_p, int(stake), "taker", taker_m)
         out.append((tid, stake, depth_ts, touch, exec_p, fillable, model_prob,
                     edge_before, edge_after, fee_before, fee_after, bucket, now))
     con.close()

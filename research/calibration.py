@@ -361,7 +361,7 @@ def _print_tradeability(b):
     difference between a finding and a bet - the same check brief 004 forced on
     the model side, applied to the market side.
     """
-    from core.distributions import kalshi_fee
+    from core.fees import fee_per_contract
     if not b:
         return
     edge = -b["diff"]                       # the UNDER is the underpriced side
@@ -371,8 +371,10 @@ def _print_tradeability(b):
     # 14% and 128% overstatement that lands on exactly the coin-flip prices
     # this section is about. Divide a block fee instead.
     size = 1000
-    taker = kalshi_fee(p, size, maker=False) / size
-    maker = kalshi_fee(p, size, maker=True) / size
+    taker = fee_per_contract(p, size, "taker")
+    # Brief 016: explicit multiplier=1 keeps this published number stable.
+    # Unlisted series (every NFL prop) are maker M=0 under the defaults.
+    maker = fee_per_contract(p, size, "maker", multiplier=1)
     # A sportsbook charges the vig rather than a fee. Half the overround is
     # what one side of a two-way market pays; the measured median overround on
     # this archive is 1.0675, so a side pays about 3.4 cents.

@@ -163,8 +163,10 @@ def test_the_maker_fee_is_charged_and_is_smaller_than_the_taker_fee():
     s = maker.simulate(r, prints((10.0, "no", 0.40, 999)), ticket=100)
     net = maker.maker_clv(r, s, net=True)
     gross = maker.maker_clv(r, s, net=False)
-    assert gross - net == pytest.approx(kalshi_fee(0.40, 100, maker=True) / 100)
-    assert kalshi_fee(0.40, 100, maker=True) < kalshi_fee(0.40, 100, maker=False)
+    assert gross - net == pytest.approx(
+        float(kalshi_fee(0.40, 100, side="maker", multiplier=1)) / 100)
+    assert (kalshi_fee(0.40, 100, side="maker", multiplier=1)
+            < kalshi_fee(0.40, 100, side="taker"))
 
 
 def test_no_side_clv_uses_the_complement_at_both_ends():

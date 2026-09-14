@@ -7,6 +7,7 @@ reproduce the moments measured in research/.
 import numpy as np
 import pytest
 
+from core.fees import fee_per_contract
 from core.distributions import (Empirical, NegativeBinomial, ZeroInflatedGamma,
                                 american_to_prob, devig_two_way,
                                 edge_after_fees, kalshi_fee)
@@ -155,11 +156,12 @@ def test_kalshi_fee_peaks_at_the_middle_and_collapses_at_the_tails():
     tail = kalshi_fee(0.07, 100)
     assert mid == pytest.approx(1.75, abs=0.01)
     assert tail < mid / 3
-    assert kalshi_fee(0.50, 100, maker=True) < mid / 3
+    # Brief 016: maker needs an explicit multiplier now - the default is 0.
+    assert kalshi_fee(0.50, 100, side="maker", multiplier=1) < mid / 3
 
 
 def test_no_edge_at_fair_value_after_fees():
     """Buying at exactly fair value must be negative EV once fees are paid -
     if this ever passes at zero, the fee model has been dropped somewhere."""
-    assert edge_after_fees(0.50, 0.50) < 0
-    assert edge_after_fees(0.60, 0.50) > 0
+    assert edge_after_fees(0.50, 0.50, 100) < 0
+    assert edge_after_fees(0.60, 0.50, 100) > 0

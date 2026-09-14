@@ -237,29 +237,14 @@ def devig_two_way(p_over: float, p_under: float,
     return p_over / total, p_under / total
 
 
-def kalshi_fee(price: float, contracts: int = 1, maker: bool = False) -> float:
-    """Kalshi fee in DOLLARS. taker ceil(0.07*C*P*(1-P)), maker 0.0175.
-
-    Peaks at P=0.50 (~1.75c/contract) and collapses at the tails (~0.46c at
-    P=0.07). That shape is why tail mispricing is the cheapest to trade and
-    why exchange coin-flip lines carry no structural edge over a -110 book.
-    """
-    rate = 0.0175 if maker else 0.07
-    raw_cents = rate * contracts * price * (1.0 - price) * 100.0
-    # Guard the float before ceil. 0.07*100*0.5*0.5*100 evaluates to
-    # 175.00000000000003, and a naive ceil turns an exact $1.75 into $1.76 -
-    # a systematic one-cent overstatement on precisely the round numbers that
-    # show up most, which quietly biases every EV calculation downstream.
-    cents = math.ceil(round(raw_cents, 6))
-    return cents / 100.0
-
-
-def edge_after_fees(fair_prob: float, price: float, contracts: int = 1,
-                    maker: bool = False) -> float:
-    """Expected profit per contract in dollars, fees included.
-
-    Positive is not sufficient - it must clear the Monte Carlo standard error
-    on fair_prob as well, or you are trading simulation noise.
-    """
-    fee = kalshi_fee(price, contracts, maker) / max(contracts, 1)
-    return fair_prob * (1.0 - price) - (1.0 - fair_prob) * price - fee
+# Fees moved to `core/fees.py` in brief 016. Re-exported here because the fee
+# used to live in this module and several call sites import it from here; the
+# arithmetic, the Decimal handling and the per-series multipliers all belong
+# with the fee schedule, not with distribution families.
+#
+# The old signature was `kalshi_fee(price, contracts=1, maker=False)` and that
+# DEFAULT was the bug: the fee is charged on the whole order, so billing the
+# ceil-to-cent to every contract overstated it ~2.4x across the ledger.
+# `contracts` is now required. See docs/kalshi-fee-mechanics.md.
+from core.fees import (edge_after_fees, fee_per_contract,  # noqa: E402,F401
+                       kalshi_fee, series_multiplier)

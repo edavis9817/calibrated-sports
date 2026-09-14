@@ -29,7 +29,7 @@ import statistics
 from collections import defaultdict
 
 import config
-from core.distributions import kalshi_fee
+from core.fees import fee_per_contract
 from research.implied import shin_devig
 
 # Finer than brief 012's 0.05 bins. The whole question lives between 0.05 and
@@ -207,8 +207,13 @@ def fee_table(buckets, price_key="price"):
         priced = statistics.fmean(x[price_key] for x in v)
         realized = sum(x["hit"] for x in v) / n
         gross = priced - realized              # edge to the SELLER of the longshot
-        taker = kalshi_fee(priced, size, maker=False) / size
-        maker = kalshi_fee(priced, size, maker=True) / size
+        taker = fee_per_contract(priced, size, "taker")
+        # Brief 016: maker fees keep an EXPLICIT multiplier=1 here so this
+        # previously-reported number does not move under the new default.
+        # Under the published defaults an UNLISTED series - which is every
+        # NFL player prop - is maker M=0, i.e. free. That makes the maker
+        # figures below conservative. See docs/kalshi-fee-mechanics.md.
+        maker = fee_per_contract(priced, size, "maker", multiplier=1)
         print(f"    {k:<15}{n:>7,}{100*gross:>10.2f}{100*taker:>10.2f}"
               f"{100*maker:>10.2f}{100*(gross-taker):>+11.2f}"
               f"{100*(gross-maker):>+11.2f}")

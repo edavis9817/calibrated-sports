@@ -29,7 +29,7 @@ import time
 
 import config
 import store
-from core.distributions import edge_after_fees, kalshi_fee
+from core.fees import edge_after_fees, fee_per_contract, series_multiplier
 from models import baseline
 
 STAKE = 100.0                 # contracts per ticket, flat, always
@@ -47,7 +47,8 @@ def latest_quote(con, venue, market_id, as_of_ts):
         (venue, market_id, as_of_ts)).fetchone()
 
 
-def evaluate(model_prob_yes: float, bid: float, ask: float):
+def evaluate(model_prob_yes: float, bid: float, ask: float,
+             contracts: float = None, market_id: str = None):
     """Pick a side and price it. Pure: no database, so the fee arithmetic can
     be tested directly.
 
@@ -73,8 +74,17 @@ def evaluate(model_prob_yes: float, bid: float, ask: float):
     else:
         side, model_p, market_p = "no", 1.0 - model_prob_yes, 1.0 - mid
     gross = model_p - market_p
-    fee = kalshi_fee(market_p, 1)
-    net = edge_after_fees(model_p, market_p, 1)
+    # THE FEE IS ON THE WHOLE ORDER, so it needs the real ticket size. Passing
+    # 1 here billed the ceil-to-cent to every contract and overstated the fee
+    # ~2.4x, which made every `net_edge` in the ledger too pessimistic.
+    # Reported PER CONTRACT, because that is the unit `gross_edge` is in.
+    c = int(contracts or STAKE)
+    # A taker order pays the series multiplier, which defaults to 1 and is 1
+    # for every football series in the schedule's table anyway. Resolving it
+    # from the ticker keeps the one series that differs (KXMVE) honest.
+    _, taker_m = series_multiplier(market_id) if market_id else (None, None)
+    fee = fee_per_contract(market_p, c, "taker", taker_m)
+    net = edge_after_fees(model_p, market_p, c, "taker", taker_m)
     return {"side": side, "model_prob": model_p, "market_prob": market_p,
             "mid": mid, "spread": spread, "gross_edge": gross, "fee": fee,
             "net_edge": net,
@@ -121,7 +131,7 @@ def run(season=2026, week=1, as_of_ts=None, venue="kalshi", dry_run=False,
         if (prior_games or 0) < MIN_PRIOR_GAMES:
             stats["thin_history"] += 1
             continue
-        ev = evaluate(prob_yes, bid, ask)
+        ev = evaluate(prob_yes, bid, ask, STAKE, market_id)
         if ev["spread"] > MAX_SPREAD:
             stats["wide_spread"] += 1
             continue

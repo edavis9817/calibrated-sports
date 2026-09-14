@@ -73,9 +73,11 @@ def test_the_kalshi_fee_is_small_relative_to_the_effect_at_these_prices():
     computed at SIZE, since the per-contract rounding is 14x at P=0.12."""
     from core.distributions import kalshi_fee
     for p in (0.075, 0.10, 0.125, 0.15):
-        taker = kalshi_fee(p, 1000, maker=False) / 1000
-        maker = kalshi_fee(p, 1000, maker=True) / 1000
+        from core.fees import fee_per_contract
+        taker = fee_per_contract(p, 1000, "taker")
+        # Explicit multiplier: unlisted series are maker M=0 by default.
+        maker = fee_per_contract(p, 1000, "maker", multiplier=1)
         assert taker < 0.058, f"taker fee at {p} exceeds the effect"
         assert maker < taker
         # one contract rounds up to a whole cent and overstates badly
-        assert kalshi_fee(p, 1) >= taker
+        assert float(kalshi_fee(p, 1)) >= taker

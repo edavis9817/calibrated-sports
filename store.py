@@ -1284,3 +1284,42 @@ def log_poll(venue, endpoint, n_markets, n_quotes, ok, error, elapsed):
             (time.time(), venue, endpoint, n_markets, n_quotes, int(ok),
              (str(error)[:500] if error else None), elapsed),
         )
+
+
+def latest_model_version(season: int, week: int, want: str = None) -> tuple:
+    """Resolve the model version to analyse. Returns (version, note).
+
+    BRIEF 016 MADE THIS NECESSARY. `models.baseline.MODEL_VERSION` is derived
+    from a hash of `models/baseline.py`, `models/features.py` and
+    `core/distributions.py` - so moving the fee arithmetic OUT of
+    `core/distributions.py` changed the model's identity without changing a
+    single thing the model predicts. Every research script defaulting to
+    `MODEL_VERSION` silently returned zero rows.
+
+    A derived version is still the right design: it is what stopped two
+    different builds both calling themselves "baseline-usage-0.2". But a
+    consumer asking "score last week" wants the version the predictions were
+    actually written under, and it should say so out loud rather than report
+    an empty sample as a finding.
+    """
+    con = sqlite3.connect(f"file:{config.DB_PATH}?mode=ro", uri=True)
+    try:
+        rows = con.execute(
+            "SELECT p.model_version, COUNT(*), MAX(p.created_ts) "
+            "FROM predictions p JOIN outcomes o USING (outcome_id) "
+            "WHERE o.season=? AND o.week=? GROUP BY 1 ORDER BY 3 DESC",
+            (season, week)).fetchall()
+    finally:
+        con.close()
+    if want:
+        for v, n, _ in rows:
+            if v == want:
+                return v, ""
+        if not rows:
+            return want, "no predictions at all for this season/week"
+        v, n, _ = rows[0]
+        return v, (f"requested {want} has NO predictions; falling back to the "
+                   f"most recent version present, {v} ({n:,} rows)")
+    if not rows:
+        return None, "no predictions at all for this season/week"
+    return rows[0][0], ""

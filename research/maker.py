@@ -63,7 +63,7 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
-from core.distributions import kalshi_fee
+from core.fees import fee_per_contract, series_multiplier
 from research import clv as S00
 from research.longshot import wilson
 
@@ -169,7 +169,13 @@ def maker_clv(r, sim, net=True):
     # `kalshi_fee(p, 1)` bills the cent-rounding to every contract and turns a
     # 0.42c maker fee into 1.00c.
     n = sim["ticket"]
-    return v - kalshi_fee(sim["price"], n, maker=True) / n
+    # EXPLICIT multiplier=1, so M01's published conditional CLV does not move
+    # under brief 016's new maker default. It is also the conservative choice:
+    # every series behind these 935 predictions is UNLISTED in the fee
+    # schedule, so the published default is maker M=0 and a resting order on
+    # them is free. Dropping the fee would IMPROVE every maker number here by
+    # about 0.4pp and would not change the verdict, which is about fill rate.
+    return v - fee_per_contract(sim["price"], n, "maker", multiplier=1)
 
 
 def drift_after_fill(r, sim, mid_at):

@@ -532,6 +532,37 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
   half of a one-sided tightening whatever the model knew. On the ask leg
   alone the interval touches zero. The 14.14pp gap between mid and executable
   is the book crossed twice.
+- **The Kalshi fee is charged on the WHOLE ORDER, and the defaults are taker
+  M=1, maker M=0.** `fee = ceil_to_cent(M x rate x C x P x (1-P))`, rate 0.07
+  taker and 0.0175 maker. `core/fees.py`, sourced from
+  `docs/kalshi-fee-mechanics.md`; 42 vectors from the published table are
+  pinned in `tests/test_fees.py`.
+  - Calling it per contract bills the ceil-to-cent to EVERY contract: ~1.1x
+    over at p=0.5, ~1.6x at p=0.1, ~2.9x at p=0.05. `contracts` now has NO
+    DEFAULT, because there is no safe guess.
+  - **Do the arithmetic in `Decimal`.** `0.07*100*0.1*0.9` is
+    0.6300000000000001 in binary, and a ceil turns an exact $0.63 into $0.64 -
+    on precisely the round prices that occur most.
+  - **M = 0 means free, not one cent.** No NFL player-prop series appears in
+    the schedule's Non-Standard Fees table, so under the published defaults a
+    RESTING order on a prop costs nothing. Verified against our own tickers:
+    all 935 week-1 predictions sit on `KXNFLREC` (689) and `KXNFLRSHATT` (246),
+    both unlisted. Football entries that ARE listed are all 1/1; the only
+    football multiplier that differs anywhere is `KXMVE` (maker 2), which we
+    do not hold.
+  - Rounding is ceil-to-CENT, which is what the published table does; the
+    schedule's prose says centicent. Unresolved, and it only matters at
+    1-contract tickets. One live fill settles it - change `QUANTUM` and
+    nothing else.
+- **`models/baseline._fingerprint()` hashes `core/distributions.py`, so a
+  change to ANY code in that file bumps MODEL_VERSION** even when nothing the
+  model predicts has changed. Moving the fee out of it did exactly that
+  (`679868a8549a` -> `a307952813e6`) and silently emptied every research script
+  that defaults to the current version. `store.latest_model_version()` now
+  resolves and says out loud when it falls back. A derived version is still
+  right - it is what stopped two builds both calling themselves
+  "baseline-usage-0.2" - but a consumer asking to score last week wants the
+  version the predictions were written under.
 - **The maker path is starved, and the fills that happen are worth nothing.**
   Measured 2026-09-14 on 65,467 Kalshi trade prints for the 935 week-1 markets
   (`research/maker.py`, prints from `jobs/ingest_kalshi_trades.py`). A passive
