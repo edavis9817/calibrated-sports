@@ -532,6 +532,21 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
   half of a one-sided tightening whatever the model knew. On the ask leg
   alone the interval touches zero. The 14.14pp gap between mid and executable
   is the book crossed twice.
+- **S00's -13.52pp is a ROUND TRIP and overstates what a held ticket pays.**
+  A position held to settlement crosses ONCE. Charging entry at the touch and
+  valuing against the CLOSING MID gives -3.00pp [-3.80, -2.26], which is
+  exactly mid-to-mid minus half the 7.22c entry spread - and that arithmetic is
+  the check: a one-crossing arm that does not land there has a book-convention
+  bug. The first version of it read the mid at entry and reproduced mid-to-mid
+  exactly, which looks like agreement rather than like a bug.
+- **Capacity: crossing cost falls with size, edge does not rise to meet it.**
+  One crossing, entry VWAP at size against the closing mid, net of the taker
+  fee: 100 contracts -5.55pp, 500 -6.74pp, 1,000 -8.60pp, 5,000 -16.67pp.
+  Shrinking the ticket 50x buys back 11.13pp of slippage and nothing else - the
+  signed edge is a property of the forecast, not of the stake - so the curve
+  flattens toward a ceiling of -3.00pp, which is still negative. **`market_depth`
+  stores 100/500/1000/5000 and NOT 300**; a VWAP over a discrete book is a step
+  function, so 300 is bracketed rather than interpolated.
 - **A positive mean CLV needs its mechanical term ruled out.** Decompose
   `mean(side x drift)` into `cov(side, drift)` plus `mean(side) x mean(drift)`:
   the second is just a directional lean multiplied by market-wide drift and can

@@ -68,11 +68,17 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
+from core.distributions import kalshi_fee
 from jobs.paper_trade import evaluate
 from models import baseline
 from research.longshot import wilson
 
 ET = ZoneInfo("America/New_York")
+# The stakes `market_depth` actually stores. 300 is NOT among them - the depth
+# job writes 100/500/1000/5000 - so the capacity curve reports a bracket around
+# 300 rather than inventing a VWAP by interpolating a step function.
+STAKE_COL = {100: "vwap_100", 500: "vwap_500",
+             1000: "vwap_1000", 5000: "vwap_5000"}
 BOOTSTRAP = 10000
 SEED = 20260914
 
@@ -124,8 +130,7 @@ def depth_at(c, market_id, side, ts, strict, col):
 def build(season=2026, week=1, stake=1000, model_version=None):
     mv = model_version or baseline.MODEL_VERSION
     c = db()
-    col = {100: "vwap_100", 500: "vwap_500",
-           1000: "vwap_1000", 5000: "vwap_5000"}[stake]
+    col = STAKE_COL[stake]
     raw = c.execute(PRED_SQL, (season, week, mv)).fetchall()
 
     liq = {}
@@ -188,18 +193,30 @@ def build(season=2026, week=1, stake=1000, model_version=None):
         r["sgn"] = 1.0 if ev["side"] == "yes" else -1.0
         r["signed_edge"] = ev["signed_edge"]
 
-        # --- executable arm --------------------------------------------------
-        dy_e = depth_at(c, market_id, "buy_yes", entry_ts, False, col)
-        dn_e = depth_at(c, market_id, "buy_no", entry_ts, False, col)
-        dy_c = depth_at(c, market_id, "buy_yes", kickoff, True, col)
-        dn_c = depth_at(c, market_id, "buy_no", kickoff, True, col)
-        if all(x for x in (dy_e, dn_e, dy_c, dn_c)):
+        # --- executable arm, at every stored stake ---------------------------
+        # All four stakes are loaded, not just the configured one, because the
+        # capacity curve is the whole point of S01 item 5 and re-running the
+        # extraction per stake would be four passes over the same rows.
+        r["depth"] = {}
+        for stake_k, col_k in STAKE_COL.items():
+            dy_e = depth_at(c, market_id, "buy_yes", entry_ts, False, col_k)
+            dn_e = depth_at(c, market_id, "buy_no", entry_ts, False, col_k)
+            dy_c = depth_at(c, market_id, "buy_yes", kickoff, True, col_k)
+            dn_c = depth_at(c, market_id, "buy_no", kickoff, True, col_k)
+            if not all(x for x in (dy_e, dn_e, dy_c, dn_c)):
+                continue
             for x in (dy_c, dn_c):
                 assert x[0] < kickoff, f"{market_id}: depth close not before kickoff"
-            r["buy_yes_entry"], r["buy_no_entry"] = dy_e[1], dn_e[1]
-            r["buy_yes_close"], r["buy_no_close"] = dy_c[1], dn_c[1]
-            r["entry_eff_spread"] = dy_e[1] + dn_e[1] - 1.0
-            r["close_eff_spread"] = dy_c[1] + dn_c[1] - 1.0
+            r["depth"][stake_k] = {
+                "buy_yes_entry": dy_e[1], "buy_no_entry": dn_e[1],
+                "buy_yes_close": dy_c[1], "buy_no_close": dn_c[1],
+                "entry_eff_spread": dy_e[1] + dn_e[1] - 1.0,
+                "close_eff_spread": dy_c[1] + dn_c[1] - 1.0}
+        # The configured stake is promoted to the top level so S00's round-trip
+        # arm and its tests keep reading exactly what they read before.
+        d = r["depth"].get(stake)
+        if d:
+            r.update(d)
         else:
             r["buy_yes_entry"] = None
         rows.append(r)
@@ -216,6 +233,60 @@ def clv_mid(r, side=None):
         return None
     s = 1.0 if (side or r["side"]) == "yes" else -1.0
     return s * (r["close_mid"] - r["entry_mid"])
+
+
+def entry_cost(r, side=None, basis="mid"):
+    """What ONE contract of the chosen side actually costs to open.
+
+    `basis` is "mid" for the paper price, or a stake key present in
+    `r["depth"]` for the size-weighted offer. A no position is opened by
+    buying no, which on the yes book costs `1 - yes_bid`.
+    """
+    s = side or r["side"]
+    if basis == "mid":
+        # The paper price. Nobody trades here; it is the ceiling.
+        if r["entry_mid"] is None:
+            return None
+        return r["entry_mid"] if s == "yes" else 1.0 - r["entry_mid"]
+    if basis == "touch":
+        # Top of book, size-agnostic: buying yes pays the ask, buying no pays
+        # 1 - bid. This is the brief's "entry at ask" arm and it is the best
+        # price a taker of ONE contract could have had.
+        if r["entry_bid"] is None or r["entry_ask"] is None:
+            return None
+        return r["entry_ask"] if s == "yes" else 1.0 - r["entry_bid"]
+    d = r["depth"].get(basis)
+    if not d:
+        return None
+    return d["buy_yes_entry"] if s == "yes" else d["buy_no_entry"]
+
+
+def clv_one_crossing(r, side=None, basis="mid"):
+    """S00 measured a ROUND TRIP: buy at the offer, leave at the bid. A ticket
+    held to settlement never leaves, so it crosses ONCE.
+
+    Entry is what was actually paid; the reference is the closing MID, which is
+    the market's own final estimate rather than a price anyone could exit at.
+    That is the honest way to charge one crossing: the cost of getting in is
+    real, the exit is not charged because there is no exit.
+    """
+    if r["entry_mid"] is None or r["close_mid"] is None:
+        return None
+    cost = entry_cost(r, side, basis)
+    if cost is None:
+        return None
+    s = side or r["side"]
+    value = r["close_mid"] if s == "yes" else 1.0 - r["close_mid"]
+    return value - cost
+
+
+def net_of_fee(r, side=None, basis="mid", maker=False):
+    """One-crossing CLV less the Kalshi taker fee on the price actually paid.
+    The fee is a function of that price, so it belongs on the side taken."""
+    v = clv_one_crossing(r, side, basis)
+    if v is None:
+        return None
+    return v - kalshi_fee(entry_cost(r, side, basis), 1, maker)
 
 
 def clv_exec(r, side=None):
@@ -461,6 +532,70 @@ def report_convention(rows):
     return out
 
 
+def report_capacity(rows):
+    """S01 item 5. Price-only: nothing here needs settlement.
+
+    S00's -13.52pp is a ROUND TRIP - buy at the offer, leave at the bid. A
+    ticket held to settlement never leaves, so it pays to cross ONCE. And 1,000
+    contracts is roughly three times a realistic ticket, so the round-trip
+    number charges a size nobody would take, twice.
+    """
+    _hdr("CAPACITY - crossing once, and what size costs (S01 item 5)")
+    mid = block_bootstrap(rows, clv_mid, "game")
+    rt = block_bootstrap(rows, clv_exec, "game")
+    one_touch = block_bootstrap(
+        rows, lambda r: clv_one_crossing(r, basis="touch"), "game")
+    print(f"""
+  The four arms, most optimistic first. Only the last two are prices anyone
+  could have paid, and only the last is what a held-to-settlement ticket faces.""")
+    print(f"\n    {'arm':<34}{'mean pp':>8}   {'95% block CI':>16}"
+          f"{'n':>7}{'blocks':>7}")
+    _line("mid -> mid (no crossing at all)", mid)
+    _line("one crossing, entry at the touch", one_touch)
+    _line("round trip @ 1000 (S00)", rt)
+    esp = statistics.fmean([r["entry_ask"] - r["entry_bid"]
+                            for r in rows if r["entry_mid"] is not None])
+    if mid and one_touch:
+        print(f"""
+  The one-crossing arm sits {100*(mid['mean']-one_touch['mean']):.2f}pp below mid-to-mid, which is half
+  the {100*esp:.2f}c entry spread - exactly what paying the offer instead of the mid
+  costs. The arithmetic is the check: a one-crossing number that did NOT come
+  out near mid minus half the entry spread would mean the side handling or the
+  book convention was wrong somewhere.""")
+
+    print(f"""
+  CAPACITY CURVE - one crossing, entry VWAP at size, against the closing mid.
+  Gross is before fees; net charges the Kalshi taker fee on the price paid.
+  `market_depth` stores 100/500/1000/5000 and NOT 300, so 300 is bracketed
+  rather than interpolated - a VWAP over a discrete book is a step function and
+  interpolating it would invent liquidity that may not be there.""")
+    print(f"\n    {'stake':<34}{'mean pp':>8}   {'95% block CI':>16}"
+          f"{'n':>7}{'blocks':>7}")
+    curve = {}
+    for s in sorted(STAKE_COL):
+        g = block_bootstrap(rows, lambda r, s=s: clv_one_crossing(r, basis=s),
+                            "game")
+        n = block_bootstrap(rows, lambda r, s=s: net_of_fee(r, basis=s), "game")
+        curve[s] = (g, n)
+        _line(f"{s:,} contracts  gross", g)
+        _line(f"{s:,} contracts  net of fee", n)
+        if s == 100:
+            print(f"    {'300 contracts':<34}{'bracketed by the 100 and 500 rows above':>8}")
+    have = [(s, v) for s, v in curve.items() if v[1]]
+    if len(have) >= 2:
+        lo_s, hi_s = have[0][0], have[-1][0]
+        lo_v, hi_v = have[0][1][1]["mean"], have[-1][1][1]["mean"]
+        print(f"""
+  Crossing cost DOES fall at small size: net goes {100*hi_v:+.2f}pp at {hi_s:,}
+  to {100*lo_v:+.2f}pp at {lo_s:,}, a gain of {100*(lo_v-hi_v):.2f}pp for taking
+  {hi_s//lo_s}x less risk. But the edge does not grow to meet it - the model's
+  signed edge is a property of the forecast, not of the stake - so the curve
+  flattens toward a ceiling of the mid-to-mid number minus half a spread, and
+  that ceiling is {100*one_touch['mean']:+.2f}pp. Shrinking the ticket buys back
+  slippage, not alpha.""")
+    return curve
+
+
 def report_strata(rows, stake):
     _hdr("STRATA - census first, then the number")
 
@@ -552,14 +687,16 @@ def report_verdict(mid, ex, rows, conv=None):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    for f in ("census", "placebo", "clv", "convention", "strata", "all"):
+    for f in ("census", "placebo", "clv", "convention", "capacity",
+              "strata", "all"):
         ap.add_argument(f"--{f}", action="store_true")
     ap.add_argument("--stake", type=int, default=1000,
-                    choices=[100, 500, 1000, 5000])
+                    choices=sorted(STAKE_COL))
     ap.add_argument("--season", type=int, default=2026)
     ap.add_argument("--week", type=int, default=1)
     a = ap.parse_args()
-    if not (a.census or a.placebo or a.clv or a.convention or a.strata):
+    if not (a.census or a.placebo or a.clv or a.convention or a.capacity
+            or a.strata):
         a.all = True
     rows, drops, mv = build(a.season, a.week, a.stake)
     if not rows:
@@ -576,6 +713,8 @@ def main():
     conv = None
     if a.convention or a.all:
         conv = report_convention(rows)
+    if a.capacity or a.all:
+        report_capacity(rows)
     if a.strata or a.all:
         report_strata(rows, a.stake)
     if a.all:

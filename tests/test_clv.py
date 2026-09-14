@@ -197,3 +197,92 @@ def test_evaluate_picks_yes_above_the_mid_and_no_below():
     from jobs.paper_trade import evaluate
     assert evaluate(0.80, 0.40, 0.46)["side"] == "yes"
     assert evaluate(0.10, 0.40, 0.46)["side"] == "no"
+
+
+# =============================================================================
+# S01 item 5: one crossing, and the capacity curve
+# =============================================================================
+
+def _with_stakes(r, table):
+    """table: {stake: (buy_yes_entry, buy_no_entry)} - what each side costs."""
+    r["depth"] = {}
+    for s, (ye, ne) in table.items():
+        r["depth"][s] = {"buy_yes_entry": ye, "buy_no_entry": ne,
+                         "buy_yes_close": ye, "buy_no_close": ne,
+                         "entry_eff_spread": ye + ne - 1.0,
+                         "close_eff_spread": ye + ne - 1.0}
+    return r
+
+
+def test_entry_cost_at_the_touch_is_the_ask_for_yes_and_one_minus_bid_for_no():
+    r = row()
+    assert clv.entry_cost(r, "yes", "touch") == pytest.approx(0.46)
+    assert clv.entry_cost(r, "no", "touch") == pytest.approx(0.60)
+
+
+def test_one_crossing_is_mid_clv_minus_half_the_entry_spread():
+    """THE ARITHMETIC CHECK. Paying the offer instead of the mid costs exactly
+    half the spread, on EITHER side. A one-crossing number that does not come
+    out here means the book convention is wrong somewhere - which is how the
+    first version of this arm shipped reading the mid and reproducing
+    mid-to-mid exactly."""
+    for side in ("yes", "no"):
+        r = row(side=side)
+        half = (r["entry_ask"] - r["entry_bid"]) / 2
+        assert clv.clv_one_crossing(r, basis="touch") == pytest.approx(
+            clv.clv_mid(r) - half)
+
+
+def test_one_crossing_charges_entry_only_and_never_the_exit():
+    """A ticket held to settlement does not sell, so the close is the MID and
+    not the bid. Widening only the CLOSE spread must not move the number."""
+    a = clv.clv_one_crossing(row(close_bid=0.50, close_ask=0.54), basis="touch")
+    b = clv.clv_one_crossing(row(close_bid=0.42, close_ask=0.62), basis="touch")
+    assert a == pytest.approx(b)     # same close mid, far wider close book
+
+
+def test_one_crossing_beats_the_round_trip():
+    r = _with_stakes(row(), {1000: (0.46, 0.60)})
+    r.update(r["depth"][1000])
+    assert clv.clv_one_crossing(r, basis="touch") > clv.clv_exec(r)
+
+
+def test_capacity_cost_rises_with_stake():
+    """Deeper into the book is a worse average price, so CLV must fall as the
+    stake grows. A curve that improved with size would mean the VWAP columns
+    were being read in the wrong order."""
+    r = _with_stakes(row(), {100: (0.47, 0.60), 500: (0.49, 0.62),
+                             1000: (0.52, 0.65), 5000: (0.60, 0.72)})
+    vals = [clv.clv_one_crossing(r, basis=s) for s in (100, 500, 1000, 5000)]
+    assert vals == sorted(vals, reverse=True), vals
+
+
+def test_net_of_fee_is_strictly_worse_than_gross():
+    r = _with_stakes(row(), {100: (0.47, 0.60)})
+    gross = clv.clv_one_crossing(r, basis=100)
+    net = clv.net_of_fee(r, basis=100)
+    assert net < gross
+    from core.distributions import kalshi_fee
+    assert gross - net == pytest.approx(kalshi_fee(0.47, 1))
+
+
+def test_the_fee_is_charged_on_the_price_actually_paid():
+    """The Kalshi fee peaks at 0.50 and collapses at the tails, so charging it
+    on the yes price when the ticket bought no would misprice every tail."""
+    from core.distributions import kalshi_fee
+    r = _with_stakes(row(side="no"), {100: (0.10, 0.93)})
+    gross = clv.clv_one_crossing(r, basis=100)
+    assert gross - clv.net_of_fee(r, basis=100) == pytest.approx(kalshi_fee(0.93, 1))
+
+
+def test_a_missing_stake_yields_no_number_rather_than_a_guess():
+    r = _with_stakes(row(), {100: (0.47, 0.60)})
+    assert clv.clv_one_crossing(r, basis=100) is not None
+    assert clv.clv_one_crossing(r, basis=5000) is None
+
+
+def test_three_hundred_contracts_is_not_a_stored_stake():
+    """The depth job writes 100/500/1000/5000. 300 must be bracketed, never
+    interpolated: a VWAP over a discrete book is a step function."""
+    assert 300 not in clv.STAKE_COL
+    assert sorted(clv.STAKE_COL) == [100, 500, 1000, 5000]
