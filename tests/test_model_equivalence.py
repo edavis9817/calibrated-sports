@@ -250,7 +250,11 @@ def test_a_prediction_symbol_still_may_not_change_in_place():
 
 
 def test_the_018_change_verifies_and_is_identity_only():
-    cmp = me.compare("HEAD~1", "HEAD")
+    """Pinned to SHAs, not to HEAD~1. A relative ref makes the test assert
+    something different after every commit - it passed when written and broke
+    on the next one, which is the same class of silent drift the equivalence
+    table exists to prevent."""
+    cmp = me.compare("c867a5b", "b11adc1")
     me.assert_fee_only(cmp)
     assert cmp["changed"] == {"models/baseline.py": ["_fingerprint"]}
     assert cmp["added"] == {} and cmp["removed"] == {}
