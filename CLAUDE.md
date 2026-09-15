@@ -390,6 +390,15 @@ writes it, which is luck holding a guarantee up.
   `stats_player`. Building against the dead one gives green health rows and
   data that silently stops at 2024.
 - `contracts/historical_contracts.parquet`, not `contracts/contracts.parquet`.
+- **`stats_player_week` has NO ROW for a player who played but recorded no
+  stat.** Verified 2026-09-15 on the raw parquet: Calvin Ridley, De'Zhaun
+  Stribling, Elijah Arroyo and Odell Beckham Jr. played 11-32 offensive snaps in
+  week 1 and are absent from the file itself, not just the table. A missing row
+  is therefore NOT "inactive" and NOT "unresolvable": with offensive snaps > 0
+  (`nfl_snap_counts`, from 2012) the actual is 0 and the over LOST; with no snaps
+  the book voids the prop. `jobs/settle_outcomes.py` still treats every missing
+  row as unsettled, which drops exactly the zero outcomes and inflates the
+  realized over rate - brief 021's 28 "no stat row" exclusions are this.
 - Participation refreshes **only after the postseason**. It carries `route`,
   `defense_man_zone_type`, `defense_coverage_type`, `was_pressure` and
   `offense_players` — all backtest-tier, never Sunday-tier. A feature reading
