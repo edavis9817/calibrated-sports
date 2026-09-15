@@ -1075,6 +1075,63 @@ Numbers reached `CLAUDE.md` once without one; the reference then could not be
 reproduced, and separating a data change from a methodology change cost a
 session.
 
+## The website (brief W02)
+
+calibratedsports.com is `calibratedsports-web`: a Next 14 static export on
+Cloudflare Pages that rebuilds on every push to `main`.
+
+**v1 scope.** Team and player pages, and market-derived fantasy distributions.
+**No login, paywall, betting recommendations or "best bets" - by decision, not
+omission.** Brief 021 showed the model forecasts worse than the market, and
+brief 023 confirmed it against the book close in every season.
+
+- **The contract is `docs/web-schema.md`, currently schema_version 1.**
+  - Every file carries `schema_version`, `generated_at` and `kind`, and the site
+    renders an explicit "data format changed" state on any mismatch.
+  - Changing or removing a field bumps the version; adding an optional field
+    does not.
+  - `jobs/export_web.py` writes it into `config.WEB_DATA_DIR`, which has NO
+    default, so the export refuses rather than guessing a path.
+- **Only the manifest is read at build.**
+  - Player and team routes are generated from `manifest.json` as real,
+    indexable URLs.
+  - Their HTML is a shell; all other data is fetched at runtime.
+  - A data refresh needs no code change. A rebuild matters only when a player is
+    added.
+- **The file budget sets player scope.** Cloudflare Pages' free plan caps a site
+  at 20,000 files (25 MiB each, 20-minute builds, 500 builds a month).
+  - A static player route costs three files (`index.html`, `index.txt` and its
+    JSON).
+  - So v1 player pages cover only players with offensive usage: 3,971, for a
+    build of ~12,100 files.
+  - Defenders appear on team pages. Widening scope is an export filter plus the
+    paid plan (100,000 files), not a redesign.
+- **The weekly refresh is `python -m jobs.weekly_refresh`**, logged to
+  `storage_path("logs", "weekly_refresh.log")`.
+  - Steps: nflverse ingest, `map_markets --venue kalshi`, export, `npm run check`
+    as a gate, commit only on a diff, push.
+  - **`jobs/map_markets.py` must run before the market export.** Nothing else
+    maps new Kalshi markets: week-2 props sat at 0 of 89 mapped until it ran.
+  - **When nflverse is late,** the export still runs,
+    `manifest.current.stale` names the missing week, the log WARNs, and the next
+    scheduled run picks the data up.
+  - Accepted debt: the PC must be on.
+- **Market distributions carry their basis on every component.**
+  - Receptions and rush attempts are MARKET (Kalshi ladders).
+  - Yards are DERIVED.
+  - TDs are ANCHORED.
+  - They also carry an honest validation note: the method was validated on
+    sportsbook ladders and the Kalshi arm never was.
+- **Fantasy points omit fumbles lost and two-point conversions,** which
+  `nfl_player_week` does not project. Against nflverse's own PPR the median
+  difference is 0.00 and the p99 is 2.00 over 193,354 player-games.
+- **`/build.json` names the commit a deployment was built from**
+  (`CF_PAGES_COMMIT_SHA`). Check it after a push; a local `npm run build` passing
+  is not evidence the deploy works.
+- **Git history grows with the data.** The site repo commits ~132 MB of JSON, and
+  roughly 30 MB changes weekly in season. Moving the data out of git is a later
+  decision.
+
 ## Out of scope for v1
 
 WR/CB matchup modelling · PFF or SIS data · a second sport · order placement ·
