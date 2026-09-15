@@ -11,13 +11,17 @@ config.storage_path("logs", "weekly_refresh.log"):
                        marks the data stale)
   2. market mapping    jobs.map_markets --venue kalshi       (failure: WARN)
   3. export            jobs.export_web                       (failure: ERROR, stop)
+  3b. slug registry    if the export appended to web/slugs/, commit ONLY that path
+                       in THIS repo (failure: WARN). URLs are only stable once
+                       the registry is in git; nothing else is ever committed.
   4. upload            jobs.export_web --upload-only         (failure: ERROR, stop;
                        unconfigured R2 credentials log a line and exit 0)
   5. validate          GET {WEB_SITE_URL}/data/nfl/manifest.json and compare its
                        generated_at with the local export (mismatch or an
                        unreachable site: WARN - the site may not be on v2 yet)
 
-A data refresh commits nothing and builds nothing: the site reads R2 at runtime.
+A data refresh builds nothing and commits no DATA: the site reads R2 at runtime.
+The one commit it may make is the slug registry in this repo (step 3b).
 Late nflverse is not an error: the export sets current.stale with the reason, the
 log records a WARN, and the next scheduled run picks the data up.
 
@@ -65,6 +69,36 @@ def fetch_json(url, timeout=20):
     return r.json()
 
 
+SLUG_PATH = "web/slugs"
+
+
+def commit_slug_registry(runner, log):
+    """Commit web/slugs/ if the export appended slugs, and nothing else.
+
+    `git commit -- web/slugs` commits only that pathspec, so anything else
+    someone left staged in the repo is never swept into an automated commit.
+    Never fatal: an uncommitted registry is still on disk and the next run
+    retries; a refresh must not fail over it."""
+    st = runner(["git", "status", "--porcelain", "--", SLUG_PATH],
+                cwd=ROOT, capture_output=True, text=True)
+    if st.returncode != 0:
+        log("WARN", f"slug registry: git status failed ({st.returncode}) - not committed")
+        return False
+    lines = [ln for ln in (st.stdout or "").splitlines() if ln.strip()]
+    if not lines:
+        log("INFO", "slug registry: unchanged")
+        return False
+    add = runner(["git", "add", "--", SLUG_PATH], cwd=ROOT, capture_output=True, text=True)
+    msg = f"slugs: registry append ({datetime.now().date().isoformat()}, weekly refresh)"
+    com = runner(["git", "commit", "-m", msg, "--", SLUG_PATH],
+                 cwd=ROOT, capture_output=True, text=True) if add.returncode == 0 else add
+    if com.returncode != 0:
+        log("WARN", f"slug registry: commit failed ({com.returncode}) - still on disk, next run retries")
+        return False
+    log("INFO", f"slug registry: committed {len(lines)} changed file(s)")
+    return True
+
+
 def run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fetch_json):
     """Exit code: 0 ok (including stale and validation warnings), 1 export failed,
     2 upload failed, 4 configuration missing."""
@@ -97,6 +131,7 @@ def run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fetc
     step("map", [py, "-m", "jobs.map_markets", "--venue", "kalshi"], fatal=False)
     if step("export", [py, "-m", "jobs.export_web"], fatal=True).returncode != 0:
         return 1
+    commit_slug_registry(runner, log)
 
     local = None
     try:

@@ -1,6 +1,7 @@
 """Contract v2: the weekly refresh runs ingest -> map -> export -> upload ->
-validate, never touches git or npm, and treats late nflverse and an unreachable
-site as warnings."""
+validate, never runs npm, uses git ONLY to commit the slug registry
+(web/slugs pathspec), and treats late nflverse and an unreachable site as
+warnings."""
 import json
 import os
 from types import SimpleNamespace
@@ -62,13 +63,21 @@ def matching_fetch(url):
     return {"generated_at": "2026-09-15T18:00:00Z"}
 
 
-def test_steps_run_in_order_and_never_touch_git_or_npm(env):
+def test_steps_run_in_order_and_touch_git_only_for_the_slug_registry(env):
+    """A data refresh builds nothing and commits no data. Its ONLY git use is the
+    slug registry in this repo - every git call carries the web/slugs pathspec -
+    and it never runs npm."""
     tmp, _ = env
     r = Runner()
     assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
-    assert r.names() == ["ingest", "map", "export", "upload"]
+    # python steps only: `git commit -m <message>` also contains "-m"
+    py_steps = [c[c.index("-m") + 1] for c in r.calls if c and c[0] != "git" and "-m" in c]
+    assert py_steps == ["jobs.ingest_nflverse", "jobs.map_markets", "jobs.export_web", "jobs.export_web"]
+    git_calls = [c for c in r.calls if c and c[0] == "git"]
+    assert git_calls, "the refresh should check the slug registry"
+    assert all(c[-1] == W.SLUG_PATH and c[-2] == "--" for c in git_calls)
     flat = [" ".join(c).lower() for c in r.calls]
-    assert not any("git" in c.split() or "npm" in c or "npm.cmd" in c for c in flat)
+    assert not any("npm" in c for c in flat)
     assert "live manifest matches" in read_log(tmp)
 
 
