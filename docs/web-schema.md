@@ -1,302 +1,260 @@
-# Web data contract — schema_version 1
+# Web data contract — schema_version 2
 
-The contract between `jobs/export_web.py` (this repo) and calibratedsports.com
-(`calibratedsports-web`). This file is the source of truth; the site's
-`lib/schema.ts` transcribes it. Changing a field's meaning or removing a field
-bumps `schema_version`. Adding an optional field does not.
+The contract between `jobs/export_web.py` (this repo) and the site
+(`calibratedsports-web`). It implements `calibratedsports-web/docs/site-architecture.md`
+§1 (contracts) and §1.2 (R2, brought forward). §3 (components tables, custom
+scoring, client-side distribution sampling, incremental export and
+content-hash keys) is NOT in v2 and will add to it.
 
-## Destination
+v1 (static files in `public/data`, sport-less paths, fantasy points computed at
+export) is retired. Changing a field's meaning or removing one bumps
+`schema_version`; adding an optional field does not.
 
-`config.WEB_DATA_DIR`, read from the environment (`WEB_DATA_DIR` in `.env`),
-normally `<web repo>/public/data`. **There is no default.** The export refuses
-to run when it is unset, rather than guessing a path; guessing is how
-`6e42f09` happened.
+## Governing rules
+
+1. **Sport is the first key segment and the first URL segment.** There is no
+   un-prefixed player or team path.
+2. **The data describes itself.** Every sport-specific label, format, stat group
+   and scoring weight lives in that sport's manifest (data) or in
+   `config/sports/{sport}.ts` (site). A site component never branches on a sport
+   name; CI greps for it.
+3. **No fantasy points are stored.** Player files carry stat components. The
+   site computes points from `scoring_presets` in the manifest with ONE scoring
+   function, so presets and a future custom scoring share a code path (§3.1).
+4. **`period_type` replaces "week."** NFL periods are weeks. Another sport
+   declares `game` or `date`, and nothing in the contract assumes a week.
+
+## Storage
+
+- **Bucket:** `config.WEB_R2_BUCKET` (`calibrated-sports-site`), which is separate
+  from the logger's `calibrated-sports-raw`.
+- **Credentials:** `WEB_R2_ACCESS_KEY_ID` / `WEB_R2_SECRET_ACCESS_KEY`, an R2
+  token scoped to that bucket.
+- **Local staging:** the export also writes a local mirror to
+  `config.WEB_EXPORT_DIR` before upload.
+- **No defaults.** None of these has a default; the export refuses to run rather
+  than guess.
+
+The site reads the bucket through a Worker R2 binding. Pages render at the edge
+from the binding, and browser fetches go to the same-origin route
+`/data/{key}`. The bucket is not public.
+
+```
+sports.json
+{sport}/manifest.json
+{sport}/players/index.json
+{sport}/players/{id}/summary.json
+{sport}/players/{id}/{season}.json
+{sport}/teams/{slug}.json
+{sport}/market/{id}/{period_key}.json
+research/hypotheses.json
+research/calibration.json
+research/execution.json
+```
+
+- `id` is the sport's source id: nflverse `gsis_id` for NFL, e.g. `00-0036355`.
+- `slug` is for URLs only. Keys use ids, and indexes map slug to id.
+- `period_key` is `{season}-{index}`, e.g. `2026-2`.
+- **Caching in v2:** the manifest, `sports.json` and indexes get
+  `Cache-Control: public, max-age=60`. Everything else gets `max-age=300`.
+  Immutable content-hash keys are §3.5.
 
 ## Envelope — every file
 
 ```json
-{
-  "schema_version": 1,
-  "generated_at": "2026-09-15T18:00:00Z",
-  "kind": "manifest | player | team | market | research.hypotheses | research.calibration | research.execution"
-}
+{"schema_version": 2, "generated_at": "2026-09-15T18:00:00Z", "kind": "...", "sport": "nfl"}
 ```
 
-The site checks `schema_version === 1` AND `kind`. Any mismatch, a missing
-file or a parse failure renders the explicit **"data format changed"** state,
-naming the file and both versions. It never renders a blank chart.
+- `sport` is `null` for `sports.json` and `research/*`.
+- The site checks `schema_version === 2`, `kind` and `sport`. Any mismatch, a
+  missing key or a parse failure renders the explicit "data format changed"
+  state, naming the key and both versions.
+- Conventions:
+  - timestamps are ISO-8601 UTC; `*_ts` fields are unix seconds;
+  - missing values are `null`, never 0;
+  - probabilities and shares are in [0, 1].
 
-Conventions:
-- Every timestamp is ISO-8601 UTC. `*_ts` fields are unix seconds.
-- A missing value is `null`, never 0: a player with no snap data pre-2013 has
-  `snaps: null`.
-- Probabilities are in [0, 1]. Rates and shares are in [0, 1].
+## sports.json — kind `sports`
 
-## Layout
-
-```
-public/data/
-  manifest.json
-  players/{id}.json        # id = nflverse gsis_id, e.g. 00-0036355
-  teams/{team}.json        # team = nflverse abbreviation, e.g. BUF
-  market/{id}.json         # current week only; absent when no market exists
-  research/hypotheses.json
-  research/calibration.json
-  research/execution.json
+```json
+{"schema_version": 2, "generated_at": "...", "kind": "sports", "sport": null,
+ "sports": [{"sport": "nfl", "name": "NFL", "manifest": "nfl/manifest.json"}]}
 ```
 
-**Player scope (v1).** Every player with a regular-season week of offensive
-usage (`targets + carries + attempts > 0`) in 1999–current: 3,971 players.
-
-Cloudflare Pages' free plan caps a site at 20,000 files. A static-exported
-player route costs 3 (`index.html`, `index.txt` and its JSON), so all 11,484
-players would not fit. Defensive players appear on team pages (roster and
-defensive splits) without their own page. The paid plan raises the cap to
-100,000; widening scope then is an export filter, not a redesign.
-
-## manifest.json
+## {sport}/manifest.json — kind `sport_manifest`
 
 ```json
 {
-  "schema_version": 1, "generated_at": "...", "kind": "manifest",
+  "schema_version": 2, "generated_at": "...", "kind": "sport_manifest", "sport": "nfl",
+  "name": "NFL",
+  "period_type": "week",
   "current": {
-    "season": 2026, "week": 2,
-    "data_through": {"season": 2026, "week": 1},
-    "nflverse_version": "2026-09-15",
-    "stale": false,
-    "stale_reason": null
+    "season": 2026,
+    "period": {"index": 2, "label": "Week 2", "key": "2026-2"},
+    "data_through": {"season": 2026, "index": 1},
+    "source_version": "2026-09-15",
+    "stale": false, "stale_reason": null
   },
-  "seasons": [1999, 2000, "...", 2026],
-  "teams": [{"team": "BUF", "name": "Buffalo Bills"}],
-  "players": [
-    {"id": "00-0036355", "name": "Justin Herbert", "position": "QB", "team": "LAC",
-     "first_season": 2020, "last_season": 2026, "has_market": false}
-  ],
-  "counts": {"players": 3971, "teams": 32, "market": 0},
-  "unresolved_ids": [{"id": "...", "name": "...", "reason": "not in player_xwalk"}]
-}
-```
-
-- `current.week` is the upcoming or in-progress week.
-- `data_through` is the last week whose player stats are in the database.
-- `stale` is true when `data_through` lags the last completed week (every game
-  has a final score) — nflverse is late. `stale_reason` says which week is
-  missing.
-- The site shows "stats through week N" and, when stale, says so plainly.
-
-## players/{id}.json
-
-```json
-{
-  "schema_version": 1, "generated_at": "...", "kind": "player",
-  "id": "00-0036355", "name": "...", "position": "WR", "team": "BUF",
-  "ids": {"gsis": "...", "pfr": "...", "espn": "...", "sleeper": "...",
-          "yahoo": "...", "pff": "..."},
-  "aliases": ["..."],
-  "seasons": [2020, 2021],
-  "has_market": true,
-  "games": [
-    {"season": 2025, "week": 3, "season_type": "REG", "game_id": "2025_03_BUF_MIA",
-     "date": "2025-09-18", "team": "BUF", "opponent": "MIA", "home": true,
-     "snaps": 54, "snap_share": 0.87,
-     "targets": 9, "target_share": 0.28, "receptions": 7,
-     "receiving_yards": 88, "receiving_tds": 1,
-     "carries": 0, "rushing_yards": 0, "rushing_tds": 0,
-     "attempts": 0, "completions": 0, "passing_yards": 0, "passing_tds": 0,
-     "interceptions": 0, "fumbles_lost": 0, "two_point_conversions": 0,
-     "fantasy": {"ppr": 21.8, "half": 18.3, "standard": 14.8}}
-  ],
-  "season_totals": [
-    {"season": 2025, "season_type": "REG", "games": 17,
-     "targets": 0, "receptions": 0, "receiving_yards": 0, "receiving_tds": 0,
-     "carries": 0, "rushing_yards": 0, "rushing_tds": 0, "attempts": 0,
-     "completions": 0, "passing_yards": 0, "passing_tds": 0, "interceptions": 0,
-     "fumbles_lost": 0, "two_point_conversions": 0,
-     "snap_share_mean": 0.81,
-     "fantasy": {"ppr": {"total": 0, "per_game": 0},
-                 "half": {"total": 0, "per_game": 0},
-                 "standard": {"total": 0, "per_game": 0}}}
-  ],
-  "career": {"games": 0, "...": "same fields as a season total, REG only"},
-  "usage": [{"season": 2025, "week": 3, "snap_share": 0.87, "target_share": 0.28}],
-  "fantasy_scoring": {
-    "ppr":      {"rec": 1.0, "rec_yd": 0.1, "rush_yd": 0.1, "td": 6, "pass_yd": 0.04,
-                 "pass_td": 4, "int": -2, "fumble_lost": -2, "two_pt": 2},
-    "half":     {"rec": 0.5, "...": "otherwise as ppr"},
-    "standard": {"rec": 0.0, "...": "otherwise as ppr"},
-    "note": "Computed once at export. Components missing from the source are null and scored as 0, and the note says which."
-  }
-}
-```
-
-- `games` covers every week of every season, REG and POST, in chronological
-  order.
-- `snaps` and `snap_share` are `null` before 2013 (nflverse snap counts start
-  then).
-- `usage` is REG only, chronological, one row per week played.
-- `career` is regular season only.
-
-## teams/{team}.json
-
-```json
-{
-  "schema_version": 1, "generated_at": "...", "kind": "team",
-  "team": "BUF", "name": "Buffalo Bills",
   "seasons": [1999, "...", 2026],
-  "schedule": [
-    {"season": 2026, "week": 1, "game_type": "REG", "game_id": "2026_01_BUF_HOU",
-     "date": "2026-09-13", "kickoff_ts": 1789318800, "home": false,
-     "opponent": "HOU", "points_for": 36, "points_against": 31, "result": "W",
-     "spread": 1.5, "total": 44.5, "coach": "...", "opponent_coach": "..."}
-  ],
-  "splits": [
-    {"season": 2026, "season_type": "REG", "games": 1,
-     "offense": {"points": 36, "passing_yards": 0, "rushing_yards": 0,
-                 "receiving_yards": 0, "pass_attempts": 0, "completions": 0,
-                 "passing_tds": 0, "rushing_tds": 0, "receiving_tds": 0,
-                 "interceptions_thrown": 0, "targets": 0, "carries": 0},
-     "defense": {"points_allowed": 31, "tackles_solo": 0, "tackles_with_assist": 0,
-                 "tackle_assists": 0, "tackles_for_loss": 0, "sacks": 0,
-                 "qb_hits": 0, "interceptions": 0, "pass_defended": 0,
-                 "fumbles_forced": 0, "def_tds": 0, "safeties": 0}}
-  ],
-  "roster": [
-    {"season": 2026, "id": "...", "name": "...", "position": "WR", "games": 1,
-     "snap_share": 0.87, "target_share": 0.28, "carry_share": 0.0,
-     "has_page": true}
-  ],
-  "coaches": [{"season": 2026, "head_coach": "..."}]
-}
-```
-
-- `spread` is from THIS team's perspective: positive means this team is
-  favoured. nflverse `spread_line` is positive when the home team is favoured,
-  so the export flips it for away games.
-- `result` and the points are `null` before a game is played.
-- `splits` are season totals; the site divides by `games` for per-game.
-- `roster` is the latest season with any player data for the team.
-- `has_page` is false for players outside the v1 player scope.
-
-## market/{id}.json
-
-```json
-{
-  "schema_version": 1, "generated_at": "...", "kind": "market",
-  "id": "...", "name": "...", "position": "WR", "team": "BUF",
-  "season": 2026, "week": 2, "game_id": "2026_02_DET_BUF",
-  "opponent": "DET", "kickoff_ts": 1789690500,
-  "as_of": "2026-09-17T15:00:00Z",
-  "source": {
-    "venue": "kalshi",
-    "method": "research/implied.py arm A: mid of each rung, no de-vig (exchange); isotonic survival fit; Gaussian copula receptions↔receiving yards; Monte Carlo",
-    "n_sims": 4000
+  "stat_definitions": {
+    "rec":     {"label": "Rec", "format": "int", "group": "receiving", "higher_is_better": true},
+    "rec_yds": {"label": "Rec Yds", "format": "int", "group": "receiving", "higher_is_better": true},
+    "snap_share": {"label": "Snap %", "format": "pct", "group": "usage", "higher_is_better": true}
   },
-  "components": [
-    {"stat": "receptions", "basis": "MARKET",
-     "rungs": [{"line": 3.5, "p_over": 0.62, "bid": 0.61, "ask": 0.63,
-                "quote_ts": 1789680000}]},
-    {"stat": "receiving_yards", "basis": "DERIVED",
-     "note": "receptions × yards per catch by position"},
-    {"stat": "rush_attempts", "basis": "MARKET", "rungs": []},
-    {"stat": "rushing_yards", "basis": "DERIVED",
-     "note": "attempts × yards per carry by position"},
-    {"stat": "touchdowns", "basis": "ANCHORED",
-     "note": "player TD rate scaled by the game total and spread"}
-  ],
-  "game_lines": {"total": 51.5, "spread": 3.0, "source": "nflverse games"},
-  "distributions": {
-    "ppr": {
-      "cdf": [{"x": 0, "p_at_most": 0.02}],
-      "thresholds": [{"points": 5, "p_at_least": 0.91}],
-      "quantiles": {"q10": 0, "q25": 0, "q50": 0, "q75": 0, "q90": 0}
-    },
-    "half": {"...": "same shape"},
-    "standard": {"...": "same shape"}
+  "scoring_presets": {
+    "ppr":      {"label": "PPR", "weights": {"rec": 1, "rec_yds": 0.1, "rec_td": 6, "rush_yds": 0.1, "rush_td": 6,
+                                             "pass_yds": 0.04, "pass_td": 4, "int": -2, "fum_lost": -2, "two_pt": 2},
+                 "bonuses": []},
+    "half":     {"label": "Half PPR", "weights": {"rec": 0.5, "...": "otherwise as ppr"}, "bonuses": []},
+    "standard": {"label": "Standard", "weights": {"rec": 0, "...": "otherwise as ppr"}, "bonuses": []}
   },
-  "validation": {
-    "status": "The method was validated on sportsbook ladders, 2023-25 (q90 coverage 0.101 against 0.100). The Kalshi-ladder arm used here has not been independently validated.",
-    "source": "CLAUDE.md, market-implied fantasy distribution"
-  }
+  "scoring_note": "Scored from the components present. fum_lost and two_pt are null in the NFL source table and score 0; against nflverse's own PPR the median difference is 0.00, p99 2.00.",
+  "teams": [{"slug": "buf", "abbr": "BUF", "name": "Buffalo Bills"}],
+  "counts": {"players": 3971, "teams": 32, "market": 11},
+  "unresolved_ids": [{"id": "...", "name": null, "reason": "not in player_xwalk"}]
 }
 ```
 
-- `as_of` is the newest quote used. Only quotes strictly before kickoff are
-  used.
-- `cdf` covers x = 0..50 in steps of 1.
-- `thresholds` are 5, 10, 15, 20, 25 and 30 points.
-- A player gets a market file only when he has a receptions ladder (the
-  validated scope). Basis labels are mandatory, and the page shows them.
+- **`stat_definitions` is the ONLY place stat labels, formats and groups
+  exist.** Every stat key used in any file of this sport must be defined here,
+  and the export asserts it.
+- **`format`** is one of `int`, `dec1`, `dec2`, `pct` or `signed_dec1`.
+- **`group`** is free text owned by the sport. The site orders groups from
+  `config/sports/{sport}.ts`, not from here.
+- **`scoring_presets`** are weights plus threshold bonuses:
+  `{"stat": "rec_yds", "at": 100, "points": 3}`. Their stat keys must exist in
+  `stat_definitions`.
+- **`current.stale`** is true when `data_through` lags the last completed period
+  (the source is late), and `stale_reason` names the missing period.
 
-## research/hypotheses.json
+## {sport}/players/index.json — kind `player_index`
+
+The search and browse index. Aliases are included because they feed search
+directly (§1.4).
 
 ```json
-{
-  "schema_version": 1, "generated_at": "...", "kind": "research.hypotheses",
-  "hypotheses": [
-    {"id": "R01", "brief": "S00", "date": "2026-09-14",
-     "question": "Does the model's week-1 entry beat the Kalshi close?",
-     "verdict": "retired",
-     "metric": "executable CLV at 1,000 contracts", "estimate": -13.52,
-     "interval": [-17.06, -10.40], "unit": "pp", "n": 493, "games": 14,
-     "why": "One sentence, plain.",
-     "script": "research/clv.py"}
-  ]
-}
+{"schema_version": 2, "generated_at": "...", "kind": "player_index", "sport": "nfl",
+ "players": [
+   {"id": "00-0036223", "slug": "jonathan-taylor", "name": "Jonathan Taylor",
+    "position": "RB", "team": "IND", "first_season": 2020, "last_season": 2026,
+    "aliases": ["j taylor"], "has_market": false}
+ ]}
 ```
 
-`verdict` is one of: `retired` (tested, no edge), `null` (tested, no effect),
-`not_testable` (data does not exist), `open` (awaiting a holdout).
+**Slugs** are lower-case, ASCII-folded and hyphenated from the display name, and
+unique within the sport. When names collide, the player with the earliest
+`first_season` keeps the bare slug (ties broken by id), and each other player
+gets `-{first_season}`, then `-{last 4 of id}` if still ambiguous. A newcomer
+therefore never renames an existing page. v1 scope stands: players with
+offensive usage (3,971).
 
-## research/calibration.json
+## {sport}/players/{id}/summary.json — kind `player_summary`
+
+First paint. Identity, the season list, aggregates and the market pointer; no
+game logs.
 
 ```json
-{
-  "schema_version": 1, "generated_at": "...", "kind": "research.calibration",
-  "source": "research/score.py (brief 021)",
-  "population": "NFL week 1 2026, KXNFLREC + KXNFLRSHATT, common set n=682, 14 games",
-  "series": [
-    {"name": "model", "ece": 0.0764,
-     "bins": [{"lo": 0.0, "hi": 0.1, "n": 148, "mean_forecast": 0.049,
-               "realized": 0.122, "wilson": [0.078, 0.184]}]},
-    {"name": "market", "ece": 0.0387, "bins": []}
-  ],
-  "brier": {"model": 0.1957, "market": 0.1682, "naive": 0.1924,
-            "model_minus_market": {"estimate": 0.0275,
-                                   "interval": [0.0117, 0.0410]}}
-}
+{"schema_version": 2, "generated_at": "...", "kind": "player_summary", "sport": "nfl",
+ "identity": {"id": "00-0036223", "slug": "jonathan-taylor", "name": "Jonathan Taylor",
+              "position": "RB", "team": "IND",
+              "ids": {"gsis": "...", "pfr": "...", "espn": "...", "sleeper": null, "yahoo": null, "pff": "..."},
+              "aliases": ["j taylor"]},
+ "seasons": [{"season": 2025, "teams": ["IND"], "games": 17, "key": "nfl/players/00-0036223/2025.json"}],
+ "season_totals": [{"season": 2025, "season_type": "REG", "games": 17,
+                    "stats": {"rush_att": 0, "rush_yds": 0, "rec": 0, "snap_share_mean": 0.61}}],
+ "career": {"season_type": "REG", "games": 85, "stats": {"rush_yds": 7696}},
+ "market": {"key": "nfl/market/00-0036223/2026-2.json"}}
 ```
 
-- Bins with n < 30 are flagged on the page as not a data point.
-- Wilson intervals only.
+`market` is `null` when there is no current-period market.
 
-## research/execution.json
+## {sport}/players/{id}/{season}.json — kind `player_season`
 
 ```json
-{
-  "schema_version": 1, "generated_at": "...", "kind": "research.execution",
-  "source": "research/sweep/h3_lifecycle.py (brief 022)",
-  "series": [
-    {"series": "KXNFLREC",
-     "by_time_to_kickoff": [{"bucket": ">72h", "median_spread_c": 9,
-                             "median_touch": 50}]}
-  ],
-  "spread_to_volatility": [{"series": "KXNFLREC", "ratio": 1.05}],
-  "rule": "Cross game lines 1-6h before kickoff; never cross a prop in-game."
-}
+{"schema_version": 2, "generated_at": "...", "kind": "player_season", "sport": "nfl",
+ "identity": {"id": "00-0036223", "slug": "jonathan-taylor", "name": "Jonathan Taylor"},
+ "season": 2025,
+ "periods": [
+   {"season": 2025, "index": 3, "label": "Week 3", "season_type": "REG",
+    "game_id": "2025_03_IND_TEN", "date": "2025-09-21", "team": "IND",
+    "opponent": "TEN", "home": false,
+    "stats": {"snaps": 49, "snap_share": 0.67, "targets": 3, "target_share": 0.09,
+              "rec": 2, "rec_yds": 14, "rec_td": 0, "rush_att": 26, "rush_yds": 101,
+              "rush_td": 1, "pass_att": 0, "pass_cmp": 0, "pass_yds": 0, "pass_td": 0,
+              "int": 0, "fum_lost": null, "two_pt": null}}
+ ]}
 ```
+
+- Regular season and postseason are included, in chronological order.
+- NFL postseason labels come from the game type: Wild Card, Divisional,
+  Conference, Super Bowl.
+- `snaps` and `snap_share` are null before 2013.
+
+## {sport}/teams/{slug}.json — kind `team`
+
+```json
+{"schema_version": 2, "generated_at": "...", "kind": "team", "sport": "nfl",
+ "identity": {"slug": "buf", "abbr": "BUF", "name": "Buffalo Bills"},
+ "seasons": [1999, "...", 2026],
+ "schedule": [{"season": 2026, "index": 1, "label": "Week 1", "game_type": "REG",
+               "game_id": "2026_01_BUF_HOU", "date": "2026-09-13", "kickoff_ts": 1789318800,
+               "home": false, "opponent": "hou", "opponent_abbr": "HOU",
+               "points_for": 36, "points_against": 31, "result": "W",
+               "spread": 1.5, "total": 44.5, "coach": "...", "opponent_coach": "..."}],
+ "splits": [{"season": 2026, "season_type": "REG", "games": 1,
+             "offense": {"points": 36, "pass_yds": 334, "rush_yds": 86, "...": "stat keys"},
+             "defense": {"points_allowed": 31, "def_sacks": 3, "...": "stat keys"}}],
+ "roster": [{"season": 2026, "id": "00-0034857", "slug": "josh-allen", "name": "Josh Allen",
+             "position": "QB", "games": 1, "snap_share": 1.0, "target_share": 0.0,
+             "carry_share": 0.2857, "has_page": true}],
+ "coaches": [{"season": 2026, "head_coach": "Sean McDermott"}]}
+```
+
+- `opponent` is the opponent's team slug.
+- `spread` is from this team's perspective; positive means this team is
+  favoured.
+- Team slugs are lower-case abbreviations of the current franchise:
+  `lv`, `lac`, `la`.
+- Every key in `offense` and `defense` must be defined in `stat_definitions`.
+
+## {sport}/market/{id}/{period_key}.json — kind `market`
+
+Same content as v1's market file, with `sport`, `identity` and `period` added.
+Distributions are still precomputed per preset in v2. §3.2 replaces them with
+marginals plus a correlation matrix sampled in the browser, which is what makes
+custom scoring possible. The basis labels (MARKET / DERIVED / ANCHORED) and the
+validation note remain mandatory.
+
+```json
+{"schema_version": 2, "generated_at": "...", "kind": "market", "sport": "nfl",
+ "identity": {"id": "...", "slug": "...", "name": "...", "position": "WR", "team": "buf"},
+ "period": {"season": 2026, "index": 2, "label": "Week 2", "key": "2026-2"},
+ "game_id": "...", "opponent": "det", "kickoff_ts": 0, "as_of": "...",
+ "source": {"venue": "kalshi", "method": "...", "n_sims": 4000},
+ "components": [{"stat": "rec", "basis": "MARKET", "rungs": []}],
+ "game_lines": {"total": 51.5, "spread": 3.0, "source": "nflverse games"},
+ "distributions": {"ppr": {"cdf": [], "thresholds": [], "quantiles": {}}},
+ "validation": {"status": "...", "source": "..."}}
+```
+
+## research/*.json
+
+The v1 kinds are unchanged (`research.hypotheses`, `research.calibration`,
+`research.execution`), with `schema_version: 2` and `sport: null`. Research is
+cross-sport and served at `/research`.
 
 ## Refresh
 
-`python -m jobs.weekly_refresh` is the one entry point, and it logs to
+`python -m jobs.weekly_refresh` logs to
 `config.storage_path("logs", "weekly_refresh.log")`:
 
 1. nflverse ingest;
-2. `jobs.map_markets --venue kalshi`;
-3. `jobs.export_web`;
-4. `npm run check` in the web repo, as a gate;
-5. commit `public/data` if anything changed;
-6. push, which makes Cloudflare Pages rebuild.
+2. `map_markets --venue kalshi`;
+3. export to `WEB_EXPORT_DIR`;
+4. upload changed keys to R2, where changed means the content hash differs from
+   the last upload record;
+5. fetch `/data/{sport}/manifest.json` from the live site and confirm its
+   `generated_at`.
 
-When nflverse is late, the export still runs, `manifest.current.stale` is set
-with the reason, the log records a WARN, and the next scheduled run picks up
-the late data. An unchanged export makes no commit.
+**A data refresh commits nothing and triggers no build.** When nflverse is late,
+the export still runs and sets `current.stale`.

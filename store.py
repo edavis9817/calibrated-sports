@@ -311,6 +311,7 @@ CREATE INDEX IF NOT EXISTS ix_mo_unmapped ON market_outcome(venue, unmapped_reas
 -- Identity, resolved AT INGEST. Analysis code joins on gsis_id and never sees
 -- a name; that is the whole point of crosswalking here rather than there.
 CREATE TABLE IF NOT EXISTS player_xwalk (
+    sport         TEXT NOT NULL DEFAULT 'nfl',   -- invariant 7; see MIGRATIONS
     gsis_id       TEXT PRIMARY KEY,
     display_name  TEXT,
     first_name    TEXT,
@@ -331,6 +332,7 @@ CREATE INDEX IF NOT EXISTS ix_xwalk_pfr ON player_xwalk(pfr_id);
 -- Normalized name -> gsis_id. Many aliases per player; a name that maps to more
 -- than one ACTIVE player is ambiguous and must not be guessed.
 CREATE TABLE IF NOT EXISTS player_alias (
+    sport        TEXT NOT NULL DEFAULT 'nfl',   -- invariant 7; see MIGRATIONS
     alias        TEXT NOT NULL,      -- normalized, see venues/mapping.norm_name
     gsis_id      TEXT NOT NULL,
     source       TEXT NOT NULL,      -- display | short | first_last | ...
@@ -498,6 +500,13 @@ MIGRATIONS = [
     # 171/161 across two builds were averaged into one number because nothing
     # in the row said they were different models.
     ("paper_ledger", "model_version", "TEXT"),
+    # Invariant 7 - "sport discriminator on every entity from row one" - was
+    # never applied to the identity tables. Found by the site-architecture §1.4
+    # check ("verify, don't assume"). The PRIMARY KEYs stay sport-less for now:
+    # ids only collide once a second sport is ingested, and that ingestion is
+    # the moment to rebuild the keys as (sport, id).
+    ("player_xwalk", "sport", "TEXT NOT NULL DEFAULT 'nfl'"),
+    ("player_alias", "sport", "TEXT NOT NULL DEFAULT 'nfl'"),
     ("nfl_games", "home_coach", "TEXT"),
     ("nfl_games", "away_coach", "TEXT"),
 ] + [("nfl_player_week", c, "REAL") for c in DEF_COLS]
