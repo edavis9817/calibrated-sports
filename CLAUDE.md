@@ -916,6 +916,84 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
   was refused - after an unattended Windows Update reboot nothing starts until
   someone logs in.
 
+- **THE SWEEP FOUND NOTHING THAT CLEARS THE BAR** (brief 022, `research/sweep/`,
+  pre-registered at `ae3895b`, candidates frozen at `7e18ce3` before any CFB
+  row was read). Search set NFL week 1; holdouts CFB (opened) and NFL week 2
+  (does not exist yet - `python -m research.sweep.replicate_week2` refuses until
+  every week-2 game has a final score). `python -m research.sweep.summarize`
+  re-derives every count below.
+
+      search tests registered 396 (328 estimable); nominal p<0.05: 230
+      expected false positives at alpha=0.05: 16.4
+      BH q=0.10 survivors 223 = 13 money-positive (all NFL H1)
+                              + 83 significant on the LOSING side + 127 statistical
+      replication records 122; invalid by construction 64; descriptive 589
+      candidates 101 -> FINDINGS 0   (failed at bar 1: 36, bar 2: 42, bar 4: 23)
+
+  - **H1, settlement/determination lag - the one thing that is real and it is
+    tiny.** NFL receptions rungs already reached mid-game still offer YES at
+    0.96-0.99: +1.81pp/contract [+1.24, +2.47] at 120s after the play, 10
+    contracts depth-confirmed, persisting ~250s, on 16 of 247 decided markets
+    over 8 games - about $17 for the week with capital locked a median 34 min.
+    It passes bars 1, 3, 4 and 5 and fails ONLY bar 2: player props replicate
+    only on week 2. Rush attempts: same sign but persists ~13s (a race).
+    Totals, spreads and moneylines: nothing executable - once decided, nobody
+    offers the true side.
+    - **Final stats are look-ahead against the live feed.** Devaughn Vele 8+
+      receptions traded at 0.99 YES after the whistle and settled NO on a final
+      of 7 - one such loss (-99pp) erases ~55 of the wins. Any live version must
+      decide on the feed traders see, not on nflverse.
+    - Kalshi settlement agreed with the box score on **0 disagreements of 1,839
+      NFL and 0 of 4,423 CFB** markets.
+    - nflverse `time_of_day` is the SNAP, so a guard of 0s measures a play
+      still running (NO@DET quoted 0.55 at the final snap). Use >= 60s.
+    - **The CFB H1 run is invalid by construction.** My own pre-registered
+      D = "first moneyline >= 0.97" lands a median 141 min before the moneyline
+      closes, so spread/total "truth" from the final score was selection on the
+      known winner (+15 to +33pp, flat across guards). Marked `invalid`, out of
+      BH and out of bar 2.
+  - **H2, order book imbalance - real, replicates, never pays.** In-game on
+    team markets the next move goes toward the thin side (SPREAD 60s +0.30pp
+    per unit I, replicated on CFB +0.15; TOTAL +0.34 / +0.19; GAME +0.55 /
+    +0.32). Top-decile move minus half-spread and fee is negative in all 30 NFL
+    and all 16 estimable CFB cells; the largest gross move is ~1.1pp against
+    1.5-24pp of cost. Pre-kickoff slopes are resolution artifacts (95%+ of 10s
+    lookups hit the same quote row). In-game prop "imbalance" is one stale
+    1-2 contract order; its positive 10s slope was depth fresher than the quote.
+  - **H3, the execution map - use it.** Median quoted spread by time to kickoff
+    (>72h / 24-72h / 6-24h / 1-6h / 0-1h / in-game): REC 9/4/3/3/2/**16c**,
+    RSHATT 6/13/10/9/9/**63c**, SPREAD and TOTAL 2/1/1/1/1/1c, GAME 1c. Touch
+    size 1-6h -> in-game: REC 50 -> 2, RSHATT 3 -> 1, SPREAD 7,943 -> 89.
+    **Cross game lines 1-6h before kickoff; never cross a prop in-game.**
+    In-game and 24-72h / 6-24h widening replicate on CFB; hour-of-day
+    contrasts do not (they are the in-game samples leaking into 09-16 ET).
+    Spread / 60-min volatility, the maker's screen: CHAMP 3.88, WINSWEEK 2.76,
+    RSHATT 2.51, WINS 2.13, DIVISION 1.18, REC 1.05, TOTAL 0.31, SPREAD 0.30,
+    GAME 0.30.
+  - **Open scan.** Price-path reversal (slopes -0.04 to -0.48) replicates on
+    CFB for 8 of 9 team records, and every top-decile net of cost is negative -
+    it is mid-quote bounce, with no one to trade against at the mid. Large prop
+    prints carry information (REC +1.9pp continuation at 10 min) and lose
+    1.8-2.9pp net. Key-number pricing of the unmatched rungs: Kalshi sits below
+    a shifted historical margin distribution on far rungs (-0.4 to -0.9pp), but
+    trading it loses on totals (-25.5pp) and the close moves against the model
+    - model tails, not mispricing. C1/C2 constraints are the arithmetic of
+    P(margin = 1) ~2.1%; the in-game C1 violation rate replicates on CFB
+    (0.75% of instants) and 0 of 43 were fillable at 10 contracts. The four C01
+    CFB relations, as tests: all null.
+  - Not testable: `KXNFLRECYDS`, any team passing total and `KXMVE` are not
+    tracked by the logger, so those cross-market constraints have 0 tests.
+    **673 week-1 prop markets have no `market_outcome` mapping.**
+  - **Grading lessons, encoded in `research/sweep/common.py`:** a
+    percentile-bootstrap p floors at 1/draws and can never survive BH over
+    hundreds of tests - use z = est / bootstrap SE; a zero-variance bootstrap is
+    p = 1, not p = 0 (a 5-market constant was briefly the most significant test
+    in the sweep); an interval on < 5 games enters BH at p = 1; a share of
+    markets that is >= 0 by construction has no null and is descriptive; BH
+    survivors must be split by sign, because most of them were "significant"
+    losses. Registry records carry their compute time, so "mechanism before the
+    holdout" is checked against the commit, not remembered.
+
 **Anything quoted as a finding must have a committed script in `research/`.**
 Numbers reached `CLAUDE.md` once without one; the reference then could not be
 reproduced, and separating a data change from a methodology change cost a
