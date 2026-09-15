@@ -217,6 +217,22 @@ async def snapshot_worker(client):
                 markets = found
             last_discovery = now
 
+        client.remember(markets)
+        if client.halftime_due():
+            t0 = time.time()
+            ids = client.halftime_events()
+            try:
+                rows = await client.fetch_halftime()
+                n = store.write_quotes(rows)
+                store.log_poll(client.name, "halftime", len(ids), n, True, None,
+                               time.time() - t0)
+                log(f"{client.name:11s} halftime {len(ids):4d} games -> {n:4d} quotes "
+                    f"(cost {client.last_cost}, left {client.remaining})")
+            except Exception as e:
+                store.log_poll(client.name, "halftime", len(ids), 0, False, e,
+                               time.time() - t0)
+                log(f"{client.name:11s} halftime ERROR {type(e).__name__}: {e}")
+
         due = client.due_snapshots(markets) if markets else []
         if due:
             t0 = time.time()
@@ -231,9 +247,12 @@ async def snapshot_worker(client):
                                time.time() - t0)
                 log(f"{client.name:11s} snapshot ERROR {type(e).__name__}: {e}")
 
+        # 30s only while a halftime window is open AND capture is enabled;
+        # otherwise the ladder check keeps its 60s timer.
+        wait = (config.ODDS_HALFTIME_EVERY if client.halftime_active()
+                else config.ODDS_CHECK_EVERY)
         try:
-            await asyncio.wait_for(_stop.wait(),
-                                   timeout=config.ODDS_CHECK_EVERY)
+            await asyncio.wait_for(_stop.wait(), timeout=wait)
         except asyncio.TimeoutError:
             pass
 
@@ -582,6 +601,12 @@ async def main():
             f"| futures {config.POLL_FUTURES}s")
         log(f"tiering on {'KICKOFF' if config.TIER_ON_KICKOFF else 'close_ts'}"
             f", close_ts as fallback")
+        log("halftime capture: " + (
+            f"ON - {config.ODDS_HALFTIME_MARKETS} every {config.ODDS_HALFTIME_EVERY:g}s "
+            f"from kickoff+{config.ODDS_HALFTIME_FROM_MIN:g} to +{config.ODDS_HALFTIME_TO_MIN:g} min, "
+            f"cap {config.ODDS_HALFTIME_DAILY_CAP} credits/day"
+            if config.ODDS_HALFTIME_ENABLED else
+            "OFF (ODDS_HALFTIME_ENABLED=0) - no halftime spend"))
         await asyncio.gather(*(venue_worker(c) for c in polled),
                              *(snapshot_worker(c) for c in snapshot),
                              watchdog(http, names), maintenance(),

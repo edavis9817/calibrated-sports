@@ -60,7 +60,13 @@ class OddsApiClient(VenueClient):
         super().__init__(http, limiter)
         self.remaining = None
         self.used = None
+        self.last_cost = None           # x-requests-last: what the last call billed
         self._snapshots_taken = {}      # (event_id, target_min) -> ts
+        # Halftime capture state. Kickoffs are REMEMBERED across discoveries so
+        # a game that has started is not forgotten if the event list drops it.
+        self._kickoffs = {}             # event_id -> scheduled kickoff ts
+        self._halftime_last = 0.0
+        self._halftime_day = (None, 0)  # (UTC date, credits spent that day)
 
     # ---- credit accounting -------------------------------------------------
 
@@ -72,6 +78,7 @@ class OddsApiClient(VenueClient):
         # capture quota headers even on an error response
         self.remaining = _int(r.headers.get("x-requests-remaining"), self.remaining)
         self.used = _int(r.headers.get("x-requests-used"), self.used)
+        self.last_cost = _int(r.headers.get("x-requests-last"), None)
         r.raise_for_status()
         payload = r.json()
         store.archive_raw(self.name, archive_as, payload)
@@ -159,9 +166,60 @@ class OddsApiClient(VenueClient):
                 continue
         return rows
 
+    # ---- halftime capture (brief 021 B2) ------------------------------------
+
+    def remember(self, markets, now=None):
+        now = time.time() if now is None else now
+        for m in markets or []:
+            if m.get("event_id") and m.get("close_ts"):
+                self._kickoffs[m["event_id"]] = m["close_ts"]
+        horizon = config.ODDS_HALFTIME_TO_MIN * 60 + 3600
+        self._kickoffs = {e: k for e, k in self._kickoffs.items() if now - k < horizon}
+
+    def halftime_events(self, now=None) -> list[str]:
+        """Events whose halftime window contains `now`."""
+        now = time.time() if now is None else now
+        lo, hi = config.ODDS_HALFTIME_FROM_MIN * 60, config.ODDS_HALFTIME_TO_MIN * 60
+        return sorted(e for e, k in self._kickoffs.items() if lo <= now - k <= hi)
+
+    def halftime_active(self, now=None) -> bool:
+        return config.ODDS_HALFTIME_ENABLED and bool(self.halftime_events(now))
+
+    def _halftime_spent(self, now):
+        day = datetime.fromtimestamp(now, timezone.utc).date()
+        d, spent = self._halftime_day
+        return 0 if d != day else spent
+
+    def halftime_due(self, now=None) -> bool:
+        now = time.time() if now is None else now
+        return (self.halftime_active(now)
+                and now - self._halftime_last >= config.ODDS_HALFTIME_EVERY - 1
+                and self.budget_ok()
+                and self._halftime_spent(now) < config.ODDS_HALFTIME_DAILY_CAP)
+
+    async def fetch_halftime(self, now=None) -> list[dict]:
+        """One bulk spreads+totals call for the events in a halftime window.
+        Every row carries the book's own `last_update` as `source_ts`."""
+        now = time.time() if now is None else now
+        if not self.halftime_due(now):
+            return []
+        ids = self.halftime_events(now)
+        self._halftime_last = now
+        payload = await self._get(f"/sports/{config.ODDS_SPORT}/odds",
+                                  {"regions": config.ODDS_REGIONS,
+                                   "markets": config.ODDS_HALFTIME_MARKETS,
+                                   "oddsFormat": "american",
+                                   "eventIds": ",".join(ids)}, "odds_halftime")
+        cost = self.last_cost
+        if cost is None:   # header missing: bill the documented price, never zero
+            cost = len(config.ODDS_HALFTIME_MARKETS.split(",")) * len(config.ODDS_REGIONS.split(","))
+        day = datetime.fromtimestamp(now, timezone.utc).date()
+        self._halftime_day = (day, self._halftime_spent(now) + cost)
+        return self._parse_events(payload, "game", tag="halftime")
+
     # ---- parsing -----------------------------------------------------------
 
-    def _parse_events(self, events, kind) -> list[dict]:
+    def _parse_events(self, events, kind, tag=None) -> list[dict]:
         rows, now = [], time.time()
         if isinstance(events, dict):
             events = [events]
@@ -175,6 +233,11 @@ class OddsApiClient(VenueClient):
                     pass
                 for mkt in bk.get("markets", []) or []:
                     mkey = mkt.get("key")
+                    # The BOOK's clock, per market, falling back to the book's.
+                    # Brief 020: books on one line disagreed by up to ~35pp
+                    # in-game because one was live and one stale; without this
+                    # the two cannot be told apart.
+                    source_ts = _iso(mkt.get("last_update") or bk.get("last_update"))
                     for oc in mkt.get("outcomes", []) or []:
                         price = american_to_prob(oc.get("price"))
                         rows.append({
@@ -189,7 +252,8 @@ class OddsApiClient(VenueClient):
                             "mid": price,        # vig-inclusive; de-vig in analysis
                             "last": _f(oc.get("price")),
                             "volume": None, "open_interest": None,
-                            "raw_ref": f"oddsapi/{kind}",
+                            "raw_ref": f"oddsapi/{tag or kind}",
+                            "source_ts": source_ts,
                         })
         return rows
 

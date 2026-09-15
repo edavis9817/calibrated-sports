@@ -477,6 +477,11 @@ MIGRATIONS = [
     ("quotes", "source", "TEXT DEFAULT 'live'"),
     ("quotes", "prob_devig", "REAL"),
     ("quotes", "ingest_ts", "REAL"),
+    # When the VENUE says the price was last updated - the Odds API's per-book
+    # `last_update`. A third clock beside `ts` (captured) and `ingest_ts`
+    # (written): brief 020 could not separate a stale book from a disagreeing
+    # one without it. NULL for venues that do not report one.
+    ("quotes", "source_ts", "REAL"),
     # Hashed when the shard's hour CLOSES, not when it is rotated. See
     # seal_shards(): rotation's own hash is taken seven days later and proves
     # only that the transfer was faithful, never that the bytes were.
@@ -1232,7 +1237,7 @@ def write_quotes(rows, dedupe=True):
         return 0
     cols = ("ts","sport","venue","event_id","market_id","market_type","subject",
             "line","side","best_bid","best_ask","mid","last","volume",
-            "open_interest","raw_ref","source","prob_devig","ingest_ts")
+            "open_interest","raw_ref","source","prob_devig","ingest_ts","source_ts")
     # Stamped here from the wall clock, never taken from the caller. A row that
     # could name its own ingestion time could name one in the past, and then a
     # retention window would delete it - the whole point of the column is that

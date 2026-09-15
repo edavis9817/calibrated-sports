@@ -855,6 +855,60 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
     measurement. 33 pre-registered intervals, 31 estimable, 2 readable ones
     exclude zero (both L2).
 
+- **THE MODEL IS WORSE THAN THE MARKET, AND POWERED TO SAY SO** (brief 021
+  Part A, `research/score.py`, pre-registered at `93ac88d`). Week 1, 935
+  predictions: 907 settle (28 players with no stat row), 682 on the common set
+  where Kalshi was two-sided at entry, 131 fits, 14 games. Market = Kalshi mid,
+  no de-vig. Naive = the player's own Laplace-smoothed 2025 hit rate.
+
+      Brier  model 0.1957   market 0.1682   naive 0.1924
+      model - market   +0.0275 [+0.0117, +0.0410]   log loss +0.0747 [+0.0266, +0.1168]
+      model - naive    +0.0032 [-0.0057, +0.0121]
+      market - naive   -0.0242 [-0.0364, -0.0112]
+
+  - **Minimum detectable Brier difference at 80% power is 0.021** (bootstrap
+    SE 0.0075; cluster-robust 0.0213). The observed gap is above it: this is a
+    powered result, not noise. A model EDGE smaller than ~0.02 could not have
+    been seen in one week, and 0.005 would take ~244 games (~1 season), 0.002
+    ~5.6 seasons.
+  - **The model does not beat a smoothed 2025 frequency.** Everything the
+    usage fit adds over "how often did he clear this last year" is invisible.
+  - Calibration: ECE model 0.0764, market 0.0387. The model is too LOW on thin
+    rungs (0.0-0.1 bin forecasts 0.049, realizes 0.122 [0.078, 0.184]; 0.1-0.2
+    forecasts 0.147, realizes 0.252) and too HIGH near 0.75 (0.750 vs 0.581).
+    No market bin with n>=30 excludes its forecast.
+  - **Subsets cannot rescue it.** 19 estimable cells (series, prior games,
+    price bucket, ladder position), 12 exclude zero and ALL 12 say the model
+    is worse; none favours it. "Books contributing to the fit" is not
+    definable - the fit has no book input. Thick history (25+ games) is empty:
+    `prior_games` maxes at 18.
+  - Consequence, per the brief's own logic: no subset of players, teams or
+    situations can be positive EV off this forecast. Every execution study from
+    S00 to 020 was measuring a forecast that loses to the price it trades
+    against.
+  - The multi-season version (Odds API closes in `outcome_close`, ~816 games,
+    MDE ~0.003) is scoped, not started. Blockers: shrinkage constants were fitted
+    on 2023-25 so a backtest there is in-sample; position/role come from the
+    current crosswalk, not as-of.
+- **Halftime capture is built and OFF** (brief 021 Part B). `ODDS_HALFTIME_*`
+  in `config.py`, bulk `spreads,totals` every 30s only inside
+  kickoff+66..+123 min, per UTC-day credit cap from `x-requests-last`, and
+  `quotes.source_ts` = each book's own `last_update` on every Odds API row.
+  - **Halftime is not where the median says.** Over 1,086 REG games 2022-25,
+    last Q2 play lands p5 76 / p50 86 / p95 98 min after SCHEDULED kickoff,
+    first Q3 play p5 90 / p50 101 / p95 113, halftime a steady 14 min. A window
+    on the median covers the whole halftime+-10 in 2% of games; p5-p95 covers
+    90%. `jobs/halftime_plan.py` re-derives it.
+  - Cost at 2 credits/call: ~1,224 credits for a full week, ~2,448 to the end
+    of September, against 24,582 spendable above the 20,000 reserve (2026-09-15).
+  - `/sports` reports the balance for 0 credits - read it there, not by
+    spending.
+- **The logger now restarts at LOGON, not at boot.** Task
+  `CalibratedSports Logger (logon)` calls `start_logger.ps1`; run by hand it
+  refuses a duplicate (verified). An AT-STARTUP task needs an elevated shell and
+  was refused - after an unattended Windows Update reboot nothing starts until
+  someone logs in.
+
 **Anything quoted as a finding must have a committed script in `research/`.**
 Numbers reached `CLAUDE.md` once without one; the reference then could not be
 reproduced, and separating a data change from a methodology change cost a

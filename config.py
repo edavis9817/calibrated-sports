@@ -297,6 +297,23 @@ KICKOFF_MAP_EVERY = float(os.getenv("KICKOFF_MAP_EVERY", 300))
 # "1 markets -> 0 quotes" 1,173 times. Check its ladder on its own timer.
 ODDS_CHECK_EVERY = float(os.getenv("ODDS_CHECK_EVERY", 60))
 
+# Halftime capture (brief 021 B2). Dense bulk polls of full-game spreads and
+# totals ONLY inside each game's halftime window, keyed to SCHEDULED kickoff.
+# Offsets come from `jobs/halftime_plan.py` over 1,086 regular-season games
+# 2022-25: last Q2 play p5 76 min after scheduled kickoff, first Q3 play p95
+# 113 min, halftime a steady ~14 min. [p5 end-Q2 - 10, p95 Q3 start + 10] =
+# 66..123 min covers the whole halftime-plus-margin in 90% of games; a window
+# on the MEDIAN covers it in 2%. OFF by default: it spends credits, and the
+# spend is approved by a human before it is switched on.
+ODDS_HALFTIME_ENABLED = os.getenv("ODDS_HALFTIME_ENABLED", "0") == "1"
+ODDS_HALFTIME_MARKETS = os.getenv("ODDS_HALFTIME_MARKETS", "spreads,totals")
+ODDS_HALFTIME_EVERY = float(os.getenv("ODDS_HALFTIME_EVERY", 30))
+ODDS_HALFTIME_FROM_MIN = float(os.getenv("ODDS_HALFTIME_FROM_MIN", 66))
+ODDS_HALFTIME_TO_MIN = float(os.getenv("ODDS_HALFTIME_TO_MIN", 123))
+# Hard stop per UTC day, counted from the API's own x-requests-last. A wrong
+# kickoff or a stuck window must not be able to drain the month.
+ODDS_HALFTIME_DAILY_CAP = int(os.getenv("ODDS_HALFTIME_DAILY_CAP", 1200))
+
 # How often the venue worker wakes to check whether any tier is due. It bounds
 # the resolution of every cadence above: a 5s tick cannot honour a 3s tier, and
 # it adds up to half a tick of jitter to the 10s `live` one. The loop body is
