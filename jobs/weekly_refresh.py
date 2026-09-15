@@ -1,27 +1,29 @@
-"""The weekly site refresh - one entry point, one log (brief W02 A4).
+"""The weekly site refresh - one entry point, one log (contract v2).
 
     python -m jobs.weekly_refresh
-    python -m jobs.weekly_refresh --skip-ingest --no-push
+    python -m jobs.weekly_refresh --skip-ingest
 
 Steps, in order, each logged with a timestamp to
 config.storage_path("logs", "weekly_refresh.log"):
 
-  1. nflverse ingest     jobs.ingest_nflverse --tier live --season <season>
-                         (a failure DEGRADES: logged WARN, the export still runs
-                         and marks the data stale)
-  2. market mapping      jobs.map_markets --venue kalshi   (failure: WARN)
-  3. export              jobs.export_web                   (failure: ERROR, stop)
-  4. gate                npm run check in WEB_REPO_DIR     (failure: ERROR, stop,
-                         nothing committed - a broken site is never pushed)
-  5. commit              git add public/data; commit ONLY if there is a diff
-  6. push                git push origin main - Cloudflare Pages rebuilds on push
+  1. nflverse ingest   jobs.ingest_nflverse --tier live --season <season>
+                       (a failure DEGRADES: WARN, the export still runs and
+                       marks the data stale)
+  2. market mapping    jobs.map_markets --venue kalshi       (failure: WARN)
+  3. export            jobs.export_web                       (failure: ERROR, stop)
+  4. upload            jobs.export_web --upload-only         (failure: ERROR, stop;
+                       unconfigured R2 credentials log a line and exit 0)
+  5. validate          GET {WEB_SITE_URL}/data/nfl/manifest.json and compare its
+                       generated_at with the local export (mismatch or an
+                       unreachable site: WARN - the site may not be on v2 yet)
 
-Late nflverse is not an error: the export sets manifest.current.stale with the
-reason, the log records a WARN, and the next scheduled run picks the data up.
+A data refresh commits nothing and builds nothing: the site reads R2 at runtime.
+Late nflverse is not an error: the export sets current.stale with the reason, the
+log records a WARN, and the next scheduled run picks the data up.
 
 ACCEPTED DEBT (brief W02): this runs on the home PC, so the PC must be on.
-Nothing here assumes the machine - every path comes from config - so moving it
-to a cloud job against a hosted DB copy changes where it runs, not what it does.
+Every path comes from config, so moving it to a cloud job changes where it runs,
+not what it does.
 """
 import argparse
 import json
@@ -34,10 +36,9 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config  # noqa: E402
-from jobs.export_web import ConfigError, require_setting  # noqa: E402
+from jobs.export_web import SPORT, ConfigError, local_path, require_setting  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NPM = "npm.cmd" if os.name == "nt" else "npm"
 
 
 class Log:
@@ -57,24 +58,30 @@ def season_now(now=None):
     return now.year if now.month >= 3 else now.year - 1
 
 
-def run(skip_ingest=False, no_push=False, runner=subprocess.run, log=None, now=None):
-    """Returns the process exit code: 0 ok (including stale), 1 export failed,
-    2 gate failed, 3 git failed, 4 configuration missing."""
+def fetch_json(url, timeout=20):
+    import httpx
+    r = httpx.get(url, timeout=timeout, headers={"Cache-Control": "no-cache"})
+    r.raise_for_status()
+    return r.json()
+
+
+def run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fetch_json):
+    """Exit code: 0 ok (including stale and validation warnings), 1 export failed,
+    2 upload failed, 4 configuration missing."""
     log = log or Log()
     try:
-        repo = require_setting("WEB_REPO_DIR")
-        data = require_setting("WEB_DATA_DIR")
+        dest = require_setting("WEB_EXPORT_DIR")
     except ConfigError as e:
         log("ERROR", str(e))
         return 4
     py = sys.executable
     season = season_now(now)
     t0 = time.time()
-    log("INFO", f"refresh start: season {season}, repo {repo}")
+    log("INFO", f"refresh start: season {season}, export {dest}")
 
-    def step(name, cmd, cwd, fatal):
+    def step(name, cmd, fatal):
         log("INFO", f"step {name}: {' '.join(cmd)}")
-        r = runner(cmd, cwd=cwd, capture_output=True, text=True)
+        r = runner(cmd, cwd=ROOT, capture_output=True, text=True)
         tail = ((r.stdout or "") + (r.stderr or "")).strip().splitlines()[-5:]
         for t in tail:
             log("INFO", f"  {name} | {t}")
@@ -86,50 +93,49 @@ def run(skip_ingest=False, no_push=False, runner=subprocess.run, log=None, now=N
         log("INFO", "step ingest: skipped (--skip-ingest)")
     else:
         step("ingest", [py, "-m", "jobs.ingest_nflverse", "--tier", "live", "--season", str(season)],
-             ROOT, fatal=False)
-    step("map", [py, "-m", "jobs.map_markets", "--venue", "kalshi"], ROOT, fatal=False)
-    if step("export", [py, "-m", "jobs.export_web"], ROOT, fatal=True).returncode != 0:
+             fatal=False)
+    step("map", [py, "-m", "jobs.map_markets", "--venue", "kalshi"], fatal=False)
+    if step("export", [py, "-m", "jobs.export_web"], fatal=True).returncode != 0:
         return 1
 
-    stale, label = False, f"season {season}"
+    local = None
     try:
-        with open(os.path.join(data, "manifest.json"), encoding="utf-8") as f:
-            cur = json.load(f)["current"]
-        label = f"{cur['season']} week {cur['week']}"
-        stale = bool(cur.get("stale"))
-        if stale:
+        with open(local_path(dest, f"{SPORT}/manifest.json"), encoding="utf-8") as f:
+            local = json.load(f)
+        cur = local["current"]
+        if cur.get("stale"):
             log("WARN", f"nflverse is late: {cur.get('stale_reason')} - exported anyway, "
                         "marked stale; the next run picks it up")
     except (OSError, ValueError, KeyError) as e:
-        log("WARN", f"could not read manifest after export: {e}")
+        log("WARN", f"could not read the local manifest after export: {e}")
 
-    if step("gate", [NPM, "run", "check"], repo, fatal=True).returncode != 0:
-        log("ERROR", "site check failed - nothing committed, nothing pushed")
+    if step("upload", [py, "-m", "jobs.export_web", "--upload-only"], fatal=True).returncode != 0:
         return 2
 
-    if step("stage", ["git", "add", "public/data"], repo, fatal=True).returncode != 0:
-        return 3
-    diff = runner(["git", "diff", "--cached", "--quiet"], cwd=repo, capture_output=True, text=True)
-    if diff.returncode == 0:
-        log("INFO", f"no data change - no commit ({time.time() - t0:.0f}s)")
-        return 0
-    msg = f"data: {label}" + (" (nflverse stale)" if stale else "")
-    if step("commit", ["git", "commit", "-m", msg], repo, fatal=True).returncode != 0:
-        return 3
-    if no_push:
-        log("INFO", "push skipped (--no-push)")
-    elif step("push", ["git", "push", "origin", "main"], repo, fatal=True).returncode != 0:
-        return 3
-    log("INFO", f"refresh done in {time.time() - t0:.0f}s ({msg})")
+    site = getattr(config, "WEB_SITE_URL", None)
+    if not site:
+        log("WARN", "validate: WEB_SITE_URL is not set - skipped")
+    elif local is not None:
+        url = f"{site.rstrip('/')}/data/{SPORT}/manifest.json"
+        try:
+            remote = fetch(url)
+            if remote.get("generated_at") == local.get("generated_at"):
+                log("INFO", f"validate: live manifest matches the export ({local['generated_at']})")
+            else:
+                log("WARN", f"validate: live manifest generated_at {remote.get('generated_at')} "
+                            f"!= local {local.get('generated_at')} - upload not configured, or the "
+                            "site is not reading v2 yet")
+        except Exception as e:  # noqa: BLE001 - any failure here is a warning, never fatal
+            log("WARN", f"validate: {url} unreachable or not v2 ({type(e).__name__}: {e})")
+    log("INFO", f"refresh done in {time.time() - t0:.0f}s")
     return 0
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--skip-ingest", action="store_true")
-    ap.add_argument("--no-push", action="store_true")
     a = ap.parse_args()
-    sys.exit(run(skip_ingest=a.skip_ingest, no_push=a.no_push))
+    sys.exit(run(skip_ingest=a.skip_ingest))
 
 
 if __name__ == "__main__":

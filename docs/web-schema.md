@@ -142,11 +142,25 @@ directly (§1.4).
 ```
 
 **Slugs** are lower-case, ASCII-folded and hyphenated from the display name, and
-unique within the sport. When names collide, the player with the earliest
-`first_season` keeps the bare slug (ties broken by id), and each other player
-gets `-{first_season}`, then `-{last 4 of id}` if still ambiguous. A newcomer
-therefore never renames an existing page. v1 scope stands: players with
-offensive usage (3,971).
+unique within the sport. **They are assigned once and recorded in a committed
+registry, `web/slugs/{sport}.json` in this repo (id → slug).** The export only
+ever appends to it: an existing entry is never changed.
+
+When a registry is first seeded and namesakes collide:
+- the **most regular-season career games** keeps the bare slug;
+- ties go to the earliest `first_season`, then the lowest id;
+- every other namesake gets `-{first_season}`, then `-{last 4 of id}` if that is
+  still ambiguous.
+
+After seeding, a new player gets the bare slug only if it is free, and otherwise
+takes a suffix. Stability comes from the registry, not the rule, so a later
+player overtaking on career games never moves a URL.
+
+This replaces the first v2 rule, "earliest first_season keeps the bare slug",
+before any URL was published. That rule gave `adrian-peterson` to the 2002
+Bears back and suffixed the Hall of Famer.
+
+v1 scope stands: players with offensive usage (3,971).
 
 ## {sport}/players/{id}/summary.json — kind `player_summary`
 

@@ -1,27 +1,40 @@
-"""Export the website's data (brief W02) - one job, one schema, one destination.
+"""Export the website's data - contract v2 (docs/web-schema.md).
 
-    python -m jobs.export_web                  # everything
-    python -m jobs.export_web --only players   # players | teams | market | research | manifest
-    python -m jobs.export_web --dry-run        # build and count, write nothing
+    python -m jobs.export_web                   # export everything to WEB_EXPORT_DIR
+    python -m jobs.export_web --only players    # players | teams | market | research | manifest
+    python -m jobs.export_web --dry-run         # build and count, write nothing
+    python -m jobs.export_web --upload          # export, then upload changed keys to R2
+    python -m jobs.export_web --upload-only     # upload the existing local export
 
-The contract is docs/web-schema.md (schema_version 1). The destination is
-config.WEB_DATA_DIR and nothing else; there is no default and no literal path.
+Keys are sport-first (`nfl/players/{id}/summary.json`, ...) and the local export
+directory mirrors them exactly, so the R2 upload is a straight copy of changed
+files. The contract's rules, enforced here:
 
-Reads the store read-only. Writes are atomic (temp file + rename) and happen
-only when a file's content changed, ignoring `generated_at`, so an unchanged
-refresh produces no git diff. Files that fall out of scope are deleted; the
-four legacy root files (calibration/bias/liquidity/site.json) are never touched.
+  * stat_definitions live ONLY in the sport manifest, and every stat key used
+    in any file must be defined there (asserted at export)
+  * no fantasy points are stored - components only; scoring_presets are data
+  * period_type replaces "week"; postseason periods are labelled from game_type
+  * slugs are stable within the sport: a newcomer never renames an existing page
+
+Reads the store read-only. Writes are atomic and happen only when content
+changed (ignoring generated_at). Keys that fall out of scope are deleted locally
+and, on the next upload, remotely. Missing R2 credentials skip the upload with a
+log line and exit 0 - a pending token must not break the weekly job.
 """
 import argparse
+import bisect
 import hashlib
 import json
 import os
 import random
+import re
 import sqlite3
 import statistics
 import sys
 import time
+import unicodedata
 from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -29,12 +42,18 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+SPORT = "nfl"
+SPORT_NAME = "NFL"
+PERIOD_TYPE = "week"
 PARTS = ("players", "teams", "market", "research", "manifest")
-LEGACY = frozenset({"calibration.json", "bias.json", "liquidity.json", "site.json"})
+STATE_FILE = ".upload_state.json"
+# The committed slug registry (docs/web-schema.md): id -> slug, append-only.
+SLUG_DIR = os.path.join(ROOT, "web", "slugs")
+UPLOAD_WORKERS = 8
 
 # nflverse keeps the abbreviation of the era in nfl_games; player-weeks already
-# use the franchise's current one. Team files are keyed by the current one.
+# use the franchise's current one. Team keys use the current one, lower-cased.
 FRANCHISE = {"OAK": "LV", "SD": "LAC", "STL": "LA"}
 TEAM_NAMES = {
     "ARI": "Arizona Cardinals", "ATL": "Atlanta Falcons", "BAL": "Baltimore Ravens",
@@ -49,23 +68,80 @@ TEAM_NAMES = {
     "SEA": "Seattle Seahawks", "SF": "San Francisco 49ers", "TB": "Tampa Bay Buccaneers",
     "TEN": "Tennessee Titans", "WAS": "Washington Commanders",
 }
+POST_LABELS = {"WC": "Wild Card", "DIV": "Divisional", "CON": "Conference", "SB": "Super Bowl"}
 
-STATS = ("targets", "receptions", "receiving_yards", "receiving_tds", "carries",
-         "rushing_yards", "rushing_tds", "attempts", "completions", "passing_yards",
-         "passing_tds", "interceptions")
-DEF_COLUMNS = {
-    "tackles_solo": "def_tackles_solo", "tackles_with_assist": "def_tackles_with_assist",
-    "tackle_assists": "def_tackle_assists", "tackles_for_loss": "def_tackles_for_loss",
-    "sacks": "def_sacks", "qb_hits": "def_qb_hits", "interceptions": "def_interceptions",
-    "pass_defended": "def_pass_defended", "fumbles_forced": "def_fumbles_forced",
-    "def_tds": "def_tds", "safeties": "def_safeties",
+# nfl_player_week column -> contract stat key
+STAT_MAP = (("targets", "targets"), ("receptions", "rec"), ("receiving_yards", "rec_yds"),
+            ("receiving_tds", "rec_td"), ("carries", "rush_att"), ("rushing_yards", "rush_yds"),
+            ("rushing_tds", "rush_td"), ("attempts", "pass_att"), ("completions", "pass_cmp"),
+            ("passing_yards", "pass_yds"), ("passing_tds", "pass_td"), ("interceptions", "int"))
+MISSING_COMPONENTS = ("fum_lost", "two_pt")     # not projected by nfl_player_week
+COUNT_KEYS = tuple(k for _, k in STAT_MAP) + MISSING_COMPONENTS
+PERIOD_KEYS = ("snaps", "snap_share", "targets", "target_share", "rec", "rec_yds", "rec_td",
+               "rush_att", "rush_yds", "rush_td", "pass_att", "pass_cmp", "pass_yds", "pass_td",
+               "int", "fum_lost", "two_pt")
+DEF_COLUMNS = (("def_tkl_solo", "def_tackles_solo"), ("def_tkl_with_assist", "def_tackles_with_assist"),
+               ("def_tkl_ast", "def_tackle_assists"), ("def_tfl", "def_tackles_for_loss"),
+               ("def_sacks", "def_sacks"), ("def_qb_hits", "def_qb_hits"),
+               ("def_int", "def_interceptions"), ("def_pd", "def_pass_defended"),
+               ("def_ff", "def_fumbles_forced"), ("def_td", "def_tds"),
+               ("def_safeties", "def_safeties"))
+
+
+def _d(label, fmt, group, higher=True):
+    return {"label": label, "format": fmt, "group": group, "higher_is_better": higher}
+
+
+STAT_DEFINITIONS = {
+    "snaps": _d("Snaps", "int", "usage"),
+    "snap_share": _d("Snap %", "pct", "usage"),
+    "snap_share_mean": _d("Avg snap %", "pct", "usage"),
+    "targets": _d("Tgt", "int", "receiving"),
+    "target_share": _d("Tgt %", "pct", "usage"),
+    "rec": _d("Rec", "int", "receiving"),
+    "rec_yds": _d("Rec Yds", "int", "receiving"),
+    "rec_td": _d("Rec TD", "int", "receiving"),
+    "rush_att": _d("Car", "int", "rushing"),
+    "rush_yds": _d("Rush Yds", "int", "rushing"),
+    "rush_td": _d("Rush TD", "int", "rushing"),
+    "pass_att": _d("Att", "int", "passing"),
+    "pass_cmp": _d("Cmp", "int", "passing"),
+    "pass_yds": _d("Pass Yds", "int", "passing"),
+    "pass_td": _d("Pass TD", "int", "passing"),
+    "int": _d("INT", "int", "passing", higher=False),
+    "fum_lost": _d("Fum Lost", "int", "misc", higher=False),
+    "two_pt": _d("2-Pt", "int", "misc"),
+    "td": _d("TD", "int", "scoring"),
+    # team offense
+    "points": _d("Pts", "int", "team_offense"),
+    "int_thrown": _d("INT Thrown", "int", "team_offense", higher=False),
+    # team defense
+    "points_allowed": _d("Pts Allowed", "int", "team_defense", higher=False),
+    "def_tkl_solo": _d("Solo Tkl", "int", "team_defense"),
+    "def_tkl_with_assist": _d("Tkl w/ Ast", "int", "team_defense"),
+    "def_tkl_ast": _d("Ast Tkl", "int", "team_defense"),
+    "def_tfl": _d("TFL", "int", "team_defense"),
+    "def_sacks": _d("Sacks", "dec1", "team_defense"),
+    "def_qb_hits": _d("QB Hits", "int", "team_defense"),
+    "def_int": _d("INT", "int", "team_defense"),
+    "def_pd": _d("PD", "int", "team_defense"),
+    "def_ff": _d("FF", "int", "team_defense"),
+    "def_td": _d("Def TD", "int", "team_defense"),
+    "def_safeties": _d("Safeties", "int", "team_defense"),
 }
 
-_BASE = {"rec": 1.0, "rec_yd": 0.1, "rush_yd": 0.1, "td": 6, "pass_yd": 0.04,
-         "pass_td": 4, "int": -2, "fumble_lost": -2, "two_pt": 2}
-SCORING = {"ppr": dict(_BASE), "half": dict(_BASE, rec=0.5), "standard": dict(_BASE, rec=0.0)}
-SCORING_NOTE = ("Computed once at export. fumbles_lost and two_point_conversions are not in "
-                "the source table (nfl_player_week), so they are null and score 0.")
+_BASE_WEIGHTS = {"rec": 1, "rec_yds": 0.1, "rec_td": 6, "rush_yds": 0.1, "rush_td": 6,
+                 "pass_yds": 0.04, "pass_td": 4, "int": -2, "fum_lost": -2, "two_pt": 2}
+SCORING_PRESETS = {
+    "ppr": {"label": "PPR", "weights": dict(_BASE_WEIGHTS), "bonuses": []},
+    "half": {"label": "Half PPR", "weights": dict(_BASE_WEIGHTS, rec=0.5), "bonuses": []},
+    "standard": {"label": "Standard", "weights": dict(_BASE_WEIGHTS, rec=0), "bonuses": []},
+}
+# research/implied.py names its scorings differently; the distributions keep the
+# manifest's preset keys.
+IMPLIED_SCORING = {"ppr": "ppr", "half": "half_ppr", "standard": "standard"}
+SCORING_NOTE_BASE = ("Scored from the components present. fum_lost and two_pt are null in the "
+                     "NFL source table (nfl_player_week) and score 0.")
 
 SNAP_FIRST_SEASON = 2013
 CDF_X = tuple(range(0, 51))
@@ -95,9 +171,26 @@ EXEC_RATIO = {"CHAMP": 3.88, "WINSWEEK": 2.76, "KXNFLRSHATT": 2.51, "WINS": 2.13
               "KXNFLGAME": 0.30}
 EXEC_RULE = "Cross game lines 1-6h before kickoff; never cross a prop in-game."
 
+KIND_BY_KEY = (  # (regex on the key, kind, sport)
+    (re.compile(r"^sports\.json$"), "sports", None),
+    (re.compile(r"^[a-z0-9]+/manifest\.json$"), "sport_manifest", "sport"),
+    (re.compile(r"^[a-z0-9]+/players/index\.json$"), "player_index", "sport"),
+    (re.compile(r"^[a-z0-9]+/players/[^/]+/summary\.json$"), "player_summary", "sport"),
+    (re.compile(r"^[a-z0-9]+/players/[^/]+/\d{4}\.json$"), "player_season", "sport"),
+    (re.compile(r"^[a-z0-9]+/teams/[a-z0-9]+\.json$"), "team", "sport"),
+    (re.compile(r"^[a-z0-9]+/market/[^/]+/\d{4}-\d+\.json$"), "market", "sport"),
+    (re.compile(r"^research/hypotheses\.json$"), "research.hypotheses", None),
+    (re.compile(r"^research/calibration\.json$"), "research.calibration", None),
+    (re.compile(r"^research/execution\.json$"), "research.execution", None),
+)
+
 
 class ConfigError(RuntimeError):
-    """A required setting is missing. Refuse rather than guess a path."""
+    """A required setting is missing. Refuse rather than guess."""
+
+
+class StatDefinitionError(AssertionError):
+    """A stat key is used in a file but not defined in the sport manifest."""
 
 
 # =============================================================================
@@ -108,7 +201,7 @@ def require_setting(name):
     value = getattr(config, name, None)
     if not value:
         raise ConfigError(f"config.{name} is not set - put {name}=... in .env. "
-                          "The web export has no default destination, by design.")
+                          "The web export has no defaults, by design.")
     return value
 
 
@@ -117,8 +210,9 @@ def iso(ts=None):
     return datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def envelope(kind, generated_at):
-    return {"schema_version": SCHEMA_VERSION, "generated_at": generated_at, "kind": kind}
+def envelope(kind, generated_at, sport=SPORT):
+    return {"schema_version": SCHEMA_VERSION, "generated_at": generated_at, "kind": kind,
+            "sport": sport}
 
 
 def rnd(x, dp=4):
@@ -140,18 +234,8 @@ def intish(x):
     return int(x) if float(x).is_integer() else round(float(x), 2)
 
 
-def fantasy_points(row, scoring):
-    w = SCORING[scoring]
-    return round(
-        w["rec"] * num(row.get("receptions"))
-        + w["rec_yd"] * num(row.get("receiving_yards"))
-        + w["rush_yd"] * num(row.get("rushing_yards"))
-        + w["td"] * (num(row.get("receiving_tds")) + num(row.get("rushing_tds")))
-        + w["pass_yd"] * num(row.get("passing_yards"))
-        + w["pass_td"] * num(row.get("passing_tds"))
-        + w["int"] * num(row.get("interceptions"))
-        + w["fumble_lost"] * num(row.get("fumbles_lost"))
-        + w["two_pt"] * num(row.get("two_point_conversions")), 2)
+def team_slug(abbr):
+    return None if abbr is None else FRANCHISE.get(abbr, abbr).lower()
 
 
 def team_spread(spread_line, home):
@@ -168,11 +252,113 @@ def result_of(points_for, points_against):
     return "W" if points_for > points_against else "L" if points_for < points_against else "T"
 
 
+def period_label(game_type, index, season_type=None):
+    if game_type in POST_LABELS:
+        return POST_LABELS[game_type]
+    if game_type == "REG" or (game_type is None and season_type == "REG"):
+        return f"Week {index}"
+    return f"Postseason week {index}"
+
+
+def period_key(season, index):
+    return f"{season}-{index}"
+
+
+def slugify(text):
+    if not text:
+        return None
+    s = unicodedata.normalize("NFKD", str(text)).encode("ascii", "ignore").decode().lower()
+    s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
+    return s or None
+
+
+class SlugRegistryError(RuntimeError):
+    """The committed slug registry is corrupt (a slug assigned to two ids)."""
+
+
+def slug_registry_path(sport=SPORT):
+    """web/slugs/{sport}.json in this repo. Read at call time so tests can point
+    SLUG_DIR elsewhere."""
+    return os.path.join(SLUG_DIR, f"{sport}.json")
+
+
+def check_registry(registry):
+    seen = {}
+    for pid, slug in registry.items():
+        if slug in seen:
+            raise SlugRegistryError(f"slug {slug!r} is assigned to both {seen[slug]} and {pid}")
+        seen[slug] = pid
+
+
+def load_slug_registry(path):
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as f:
+        registry = json.load(f)
+    check_registry(registry)
+    return registry
+
+
+def write_slug_registry(path, registry):
+    """One entry per line, sorted by id, so a diff shows exactly what was added."""
+    check_registry(registry)
+    lines = [f"{json.dumps(pid)}: {json.dumps(registry[pid], ensure_ascii=False)}"
+             for pid in sorted(registry)]
+    body = "{\n" + ",\n".join(lines) + ("\n" if lines else "") + "}\n"
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+        f.write(body)
+    os.replace(tmp, path)
+
+
+def assign_slugs(entries, registry=None):
+    """{id: {"name", "first_season", "reg_games"}} + registry -> (registry', added).
+
+    Registry entries are NEVER changed. Only ids absent from the registry get a
+    slug. Namesakes arriving together are ranked by most regular-season career
+    games, then earliest first_season, then lowest id: the top one takes the
+    bare slug if it is free; everyone else gets `-{first_season}`, then
+    `-{last 4 of id}`. Every bare slug that is about to be handed out is
+    reserved before any suffix, so a suffix never equals another player's bare
+    or suffixed slug. Seeding is this same function on an empty registry."""
+    registry = dict(registry or {})
+    check_registry(registry)
+    used = set(registry.values())
+    groups = defaultdict(list)
+    for pid, e in entries.items():
+        if pid in registry:
+            continue
+        base = slugify(e.get("name")) or slugify(pid)
+        groups[base].append((-(e.get("reg_games") or 0), e.get("first_season") or 9999, pid))
+    added = {}
+    for base in sorted(groups):
+        groups[base].sort()
+        if base not in used:
+            pid = groups[base][0][2]
+            added[pid] = base
+            used.add(base)
+    for base in sorted(groups):
+        for _neg_games, fs, pid in groups[base]:
+            if pid in added:
+                continue
+            pslug = slugify(pid) or "x"
+            for cand in (f"{base}-{fs}", f"{base}-{pslug[-4:]}", f"{base}-{pslug}"):
+                if cand not in used:
+                    used.add(cand)
+                    added[pid] = cand
+                    break
+            else:
+                raise SlugRegistryError(f"no free slug for {pid} ({base})")
+    registry.update(added)
+    check_registry(registry)
+    return registry, added
+
+
 def distribution_summary(sims):
     """Sorted simulated totals -> cdf / thresholds / quantiles, per the contract."""
     s = sorted(sims)
     n = len(s)
-    import bisect
     cdf = [{"x": x, "p_at_most": rnd(bisect.bisect_right(s, x) / n)} for x in CDF_X]
     thr = [{"points": t, "p_at_least": rnd((n - bisect.bisect_left(s, t)) / n)} for t in THRESHOLDS]
 
@@ -181,6 +367,51 @@ def distribution_summary(sims):
     return {"cdf": cdf, "thresholds": thr,
             "quantiles": {"q10": q(0.10), "q25": q(0.25), "q50": q(0.50),
                           "q75": q(0.75), "q90": q(0.90)}}
+
+
+def kind_for_key(key):
+    for rx, kind, sport in KIND_BY_KEY:
+        if rx.match(key):
+            return kind, sport
+    return None, None
+
+
+def stat_keys_used(obj):
+    """Every stat key a contract file uses, by kind."""
+    kind = obj.get("kind")
+    keys = set()
+    if kind == "player_season":
+        for p in obj.get("periods", []):
+            keys |= set(p.get("stats", {}))
+    elif kind == "player_summary":
+        for t in obj.get("season_totals", []):
+            keys |= set(t.get("stats", {}))
+        keys |= set((obj.get("career") or {}).get("stats", {}))
+    elif kind == "team":
+        for s in obj.get("splits", []):
+            keys |= set(s.get("offense", {})) | set(s.get("defense", {}))
+    elif kind == "market":
+        keys |= {c["stat"] for c in obj.get("components", [])}
+    elif kind == "sport_manifest":
+        for p in obj.get("scoring_presets", {}).values():
+            keys |= set(p.get("weights", {}))
+            keys |= {b["stat"] for b in p.get("bonuses", [])}
+    return keys
+
+
+def assert_stats_defined(files, definitions):
+    missing = defaultdict(set)
+    for key, obj in files.items():
+        for k in stat_keys_used(obj) - set(definitions):
+            missing[k].add(key)
+    if missing:
+        detail = "; ".join(f"{k} (e.g. {sorted(v)[0]})" for k, v in sorted(missing.items()))
+        raise StatDefinitionError(f"stat keys used but not in stat_definitions: {detail}")
+
+
+def cache_control(key):
+    short = key == "sports.json" or key.endswith("/manifest.json") or key.endswith("/index.json")
+    return "public, max-age=60" if short else "public, max-age=300"
 
 
 # =============================================================================
@@ -226,9 +457,11 @@ def load_player_weeks(con):
 
 
 def load_xwalk(con):
-    xw = {r["gsis_id"]: r for r in _dicts(con.execute("SELECT * FROM player_xwalk"))}
+    xw = {r["gsis_id"]: r for r in _dicts(con.execute(
+        "SELECT * FROM player_xwalk WHERE sport = ?", (SPORT,)))}
     aliases = defaultdict(set)
-    for alias, gsis in con.execute("SELECT alias, gsis_id FROM player_alias"):
+    for alias, gsis in con.execute("SELECT alias, gsis_id FROM player_alias WHERE sport = ?",
+                                   (SPORT,)):
         aliases[gsis].add(alias)
     return xw, aliases
 
@@ -250,13 +483,13 @@ def load_snaps(con, xwalk):
     return snaps, unresolved
 
 
-def current_week(games, weeks, now_ts=None):
-    """season/week now, what the stats reach, and whether nflverse is late."""
+def current_period(games, weeks, now_ts=None):
+    """The current period, what the stats reach, and whether nflverse is late."""
     now_ts = time.time() if now_ts is None else now_ts
     season = max(g["season"] for g in games.values())
     this = [g for g in games.values() if g["season"] == season and g["week"] is not None]
     unplayed = [g for g in this if g["home_score"] is None]
-    week = min(g["week"] for g in unplayed) if unplayed else max(g["week"] for g in this)
+    index = min(g["week"] for g in unplayed) if unplayed else max(g["week"] for g in this)
     by_week = defaultdict(list)
     for g in this:
         by_week[g["week"]].append(g)
@@ -274,139 +507,175 @@ def current_week(games, weeks, now_ts=None):
         have = f"week {through[1]}" if through[0] == season else "no weeks"
         reason = (f"week {last_completed} of {season} is complete but nflverse player stats "
                   f"reach {have}")
-    return {"season": season, "week": week,
-            "data_through": {"season": through[0], "week": through[1]},
-            "stale": stale, "stale_reason": reason, "last_completed_week": last_completed}
+    gtype = next((g.get("game_type") for g in by_week.get(index, [])), "REG")
+    return {"season": season,
+            "period": {"index": index, "label": period_label(gtype, index),
+                       "key": period_key(season, index)},
+            "data_through": {"season": through[0], "index": through[1]},
+            "stale": stale, "stale_reason": reason, "last_completed": last_completed}
 
 
 def player_scope(weeks):
-    """v1: any regular-season week with offensive usage."""
+    """v1 scope, kept: any regular-season week with offensive usage."""
     return {r["gsis_id"] for r in weeks if r["season_type"] == "REG"
             and num(r["targets"]) + num(r["carries"]) + num(r["attempts"]) > 0}
+
+
+def players_by_id(weeks, scope):
+    by = defaultdict(list)
+    for r in weeks:
+        if r["gsis_id"] in scope:
+            by[r["gsis_id"]].append(r)
+    for rows in by.values():
+        rows.sort(key=lambda r: (r["season"], r["week"]))
+    return by
+
+
+def slug_entries(by_player, xwalk):
+    return {gsis: {"name": (xwalk.get(gsis) or {}).get("display_name") or rows[-1].get("player_name"),
+                   "first_season": rows[0]["season"],
+                   "reg_games": sum(1 for r in rows if r["season_type"] == "REG")}
+            for gsis, rows in by_player.items()}
+
+
+def scope_slugs(by_player, xwalk, registry_path=None, dry_run=False):
+    """Load the registry, append slugs for new ids, write it back (unless dry-run).
+    -> (slugs for the ids in scope, ids added this run)."""
+    path = registry_path or slug_registry_path()
+    registry, added = assign_slugs(slug_entries(by_player, xwalk), load_slug_registry(path))
+    if added and not dry_run:
+        write_slug_registry(path, registry)
+    return {gsis: registry[gsis] for gsis in by_player}, added
 
 
 # =============================================================================
 # builders
 # =============================================================================
 
-def _stat_block(rows):
-    out = {k: intish(sum(num(r.get(k)) for r in rows)) for k in STATS}
-    out["fumbles_lost"] = None
-    out["two_point_conversions"] = None
-    return out
+def _count(r, col):
+    return intish(r.get(col)) if r.get(col) is not None else 0
 
 
-def build_players(games, weeks, snaps, xwalk, aliases, scope, market_ids, generated_at):
+def _totals(periods):
+    shares = [p["stats"]["snap_share"] for p in periods if p["stats"]["snap_share"] is not None]
+    stats = {}
+    for k in COUNT_KEYS:
+        stats[k] = None if k in MISSING_COMPONENTS else intish(sum(num(p["stats"][k]) for p in periods))
+    stats["snap_share_mean"] = rnd(statistics.fmean(shares)) if shares else None
+    return stats
+
+
+def build_players(games, by_player, snaps, xwalk, aliases, slugs, market_keys, generated_at):
+    """-> ({key: obj} for summaries and season files, [index entries], unresolved)."""
     gidx = game_index(games)
-    by_player = defaultdict(list)
-    for r in weeks:
-        if r["gsis_id"] in scope:
-            by_player[r["gsis_id"]].append(r)
-    files, ppr_diff, unresolved = {}, [], []
+    files, index, unresolved = {}, [], []
     for gsis, rows in by_player.items():
-        rows.sort(key=lambda r: (r["season"], r["week"]))
         xw = xwalk.get(gsis)
         latest = rows[-1]
         if xw is None:
             unresolved.append({"id": gsis, "name": latest.get("player_name"),
                                "reason": "not in player_xwalk"})
-        games_out = []
+        x = xw or {}
+        slug = slugs[gsis]
+        name = x.get("display_name") or latest.get("player_name")
+        position = x.get("position") or latest.get("position")
+        periods = []
         for r in rows:
             g = gidx.get((r["season"], r["week"], r["team"]))
             home = None if g is None else (r["team"] == g["home_team"])
             opp = r.get("opponent") if g is None else (g["away_team"] if home else g["home_team"])
-            snap = snaps.get((gsis, g["game_id"])) if g is not None else None
-            if r["season"] < SNAP_FIRST_SEASON:
-                snap = None
-            row = {"season": r["season"], "week": r["week"], "season_type": r["season_type"],
-                   "game_id": None if g is None else g["game_id"],
-                   "date": None if g is None else g["gameday"],
-                   "team": r["team"], "opponent": opp, "home": home,
-                   "snaps": None if snap is None else intish(snap[0]),
+            snap = (snaps.get((gsis, g["game_id"]))
+                    if g is not None and r["season"] >= SNAP_FIRST_SEASON else None)
+            raw = {"snaps": None if snap is None else intish(snap[0]),
                    "snap_share": None if snap is None else rnd(snap[1]),
                    "target_share": rnd(r.get("target_share"))}
-            for k in STATS:
-                row[k] = intish(r.get(k)) if r.get(k) is not None else 0
-            row["fumbles_lost"] = None
-            row["two_point_conversions"] = None
-            row["fantasy"] = {s: fantasy_points(row, s) for s in SCORING}
-            if r.get("fantasy_points_ppr") is not None:
-                ppr_diff.append(abs(row["fantasy"]["ppr"] - r["fantasy_points_ppr"]))
-            # key order as the contract lists it
-            games_out.append({k: row[k] for k in (
-                "season", "week", "season_type", "game_id", "date", "team", "opponent", "home",
-                "snaps", "snap_share", "targets", "target_share", "receptions",
-                "receiving_yards", "receiving_tds", "carries", "rushing_yards", "rushing_tds",
-                "attempts", "completions", "passing_yards", "passing_tds", "interceptions",
-                "fumbles_lost", "two_point_conversions", "fantasy")})
+            for col, key in STAT_MAP:
+                raw[key] = _count(r, col)
+            for key in MISSING_COMPONENTS:
+                raw[key] = None
+            periods.append({
+                "season": r["season"], "index": r["week"],
+                "label": period_label(None if g is None else g.get("game_type"), r["week"],
+                                      r["season_type"]),
+                "season_type": r["season_type"],
+                "game_id": None if g is None else g["game_id"],
+                "date": None if g is None else g["gameday"],
+                "team": r["team"], "opponent": opp, "home": home,
+                "stats": {k: raw[k] for k in PERIOD_KEYS}})
+
+        by_season = defaultdict(list)
+        for p in periods:
+            by_season[p["season"]].append(p)
+        season_entries = []
+        for season in sorted(by_season):
+            ps = by_season[season]
+            key = f"{SPORT}/players/{gsis}/{season}.json"
+            files[key] = {**envelope("player_season", generated_at),
+                          "identity": {"id": gsis, "slug": slug, "name": name},
+                          "season": season, "periods": ps}
+            teams = []
+            for p in ps:
+                if p["team"] not in teams:
+                    teams.append(p["team"])
+            season_entries.append({"season": season, "teams": teams, "games": len(ps), "key": key})
 
         totals = []
-        by_season = defaultdict(list)
-        for g in games_out:
-            by_season[(g["season"], g["season_type"])].append(g)
-        for (season, stype), gs in sorted(by_season.items(), key=lambda kv: (kv[0][0], kv[0][1] != "REG")):
-            totals.append(_season_total(season, stype, gs))
-        reg = [g for g in games_out if g["season_type"] == "REG"]
-        career = _season_total(None, "REG", reg)
-        career.pop("season")
-        career.pop("season_type")
+        grouped = defaultdict(list)
+        for p in periods:
+            grouped[(p["season"], p["season_type"])].append(p)
+        for (season, stype) in sorted(grouped, key=lambda k: (k[0], k[1] != "REG")):
+            ps = grouped[(season, stype)]
+            totals.append({"season": season, "season_type": stype, "games": len(ps),
+                           "stats": _totals(ps)})
+        reg = [p for p in periods if p["season_type"] == "REG"]
 
-        files[gsis] = {
-            **envelope("player", generated_at),
-            "id": gsis,
-            "name": (xw or {}).get("display_name") or latest.get("player_name"),
-            "position": (xw or {}).get("position") or latest.get("position"),
-            "team": latest.get("team"),
-            "ids": {"gsis": gsis,
-                    "pfr": (xw or {}).get("pfr_id"), "espn": (xw or {}).get("espn_id"),
-                    "sleeper": (xw or {}).get("sleeper_id"), "yahoo": (xw or {}).get("yahoo_id"),
-                    "pff": (xw or {}).get("pff_id")},
-            "aliases": sorted(aliases.get(gsis, ())),
-            "seasons": sorted({g["season"] for g in games_out}),
-            "has_market": gsis in market_ids,
-            "games": games_out,
+        files[f"{SPORT}/players/{gsis}/summary.json"] = {
+            **envelope("player_summary", generated_at),
+            "identity": {"id": gsis, "slug": slug, "name": name, "position": position,
+                         "team": latest.get("team"),
+                         "ids": {"gsis": gsis, "pfr": x.get("pfr_id"), "espn": x.get("espn_id"),
+                                 "sleeper": x.get("sleeper_id"), "yahoo": x.get("yahoo_id"),
+                                 "pff": x.get("pff_id")},
+                         "aliases": sorted(aliases.get(gsis, ()))},
+            "seasons": season_entries,
             "season_totals": totals,
-            "career": career,
-            "usage": [{"season": g["season"], "week": g["week"], "snap_share": g["snap_share"],
-                       "target_share": g["target_share"]} for g in reg],
-            "fantasy_scoring": {**{s: dict(w) for s, w in SCORING.items()}, "note": None},
+            "career": {"season_type": "REG", "games": len(reg), "stats": _totals(reg)},
+            "market": {"key": market_keys[gsis]} if gsis in market_keys else None,
         }
-    return files, ppr_diff, unresolved
+        index.append({"id": gsis, "slug": slug, "name": name, "position": position,
+                      "team": latest.get("team"), "first_season": rows[0]["season"],
+                      "last_season": rows[-1]["season"],
+                      "aliases": sorted(aliases.get(gsis, ())),
+                      "has_market": gsis in market_keys})
+    index.sort(key=lambda p: (p["name"] or "", p["id"]))
+    return files, index, unresolved
 
 
-def _season_total(season, stype, gs):
-    shares = [g["snap_share"] for g in gs if g["snap_share"] is not None]
-    n = len(gs)
-    fant = {}
-    for s in SCORING:
-        tot = round(sum(g["fantasy"][s] for g in gs), 2)
-        fant[s] = {"total": tot, "per_game": round(tot / n, 2) if n else None}
-    return {"season": season, "season_type": stype, "games": n, **_stat_block(gs),
-            "snap_share_mean": rnd(statistics.fmean(shares)) if shares else None,
-            "fantasy": fant}
-
-
-def build_teams(games, weeks, snaps, scope, xwalk, generated_at):
+def build_teams(games, weeks, snaps, scope, xwalk, slugs, generated_at):
     files = {}
     by_team_week = defaultdict(list)
     for r in weeks:
         by_team_week[(r["team"], r["season"], r["season_type"])].append(r)
     gidx = game_index(games)
-    for team, name in TEAM_NAMES.items():
-        tgames = sorted((g for g in games.values() if team in (g["home_team"], g["away_team"])),
+    for abbr, name in TEAM_NAMES.items():
+        slug = team_slug(abbr)
+        tgames = sorted((g for g in games.values() if abbr in (g["home_team"], g["away_team"])),
                         key=lambda g: (g["season"], g["week"] or 0))
         schedule, coaches = [], defaultdict(Counter)
         for g in tgames:
-            home = g["home_team"] == team
+            home = g["home_team"] == abbr
             pf = g["home_score"] if home else g["away_score"]
             pa = g["away_score"] if home else g["home_score"]
             coach = g["home_coach"] if home else g["away_coach"]
             if coach:
                 coaches[g["season"]][coach] += 1
+            opp = g["away_team"] if home else g["home_team"]
             schedule.append({
-                "season": g["season"], "week": g["week"], "game_type": g["game_type"],
-                "game_id": g["game_id"], "date": g["gameday"], "kickoff_ts": g["kickoff_ts"],
-                "home": home, "opponent": g["away_team"] if home else g["home_team"],
+                "season": g["season"], "index": g["week"],
+                "label": period_label(g["game_type"], g["week"]),
+                "game_type": g["game_type"], "game_id": g["game_id"], "date": g["gameday"],
+                "kickoff_ts": g["kickoff_ts"], "home": home,
+                "opponent": team_slug(opp), "opponent_abbr": opp,
                 "points_for": intish(pf), "points_against": intish(pa),
                 "result": result_of(pf, pa),
                 "spread": team_spread(g["spread_line"], home), "total": g["total_line"],
@@ -420,32 +689,30 @@ def build_teams(games, weeks, snaps, scope, xwalk, generated_at):
                 played = [s for s in schedule if s["season"] == season
                           and (s["game_type"] == "REG") == (stype == "REG")
                           and s["points_for"] is not None]
-                prows = by_team_week.get((team, season, stype), [])
+                prows = by_team_week.get((abbr, season, stype), [])
                 if not played and not prows:
                     continue
+
+                def tot(col):
+                    return intish(sum(num(r[col]) for r in prows))
                 off = {"points": intish(sum(s["points_for"] for s in played)),
-                       "passing_yards": intish(sum(num(r["passing_yards"]) for r in prows)),
-                       "rushing_yards": intish(sum(num(r["rushing_yards"]) for r in prows)),
-                       "receiving_yards": intish(sum(num(r["receiving_yards"]) for r in prows)),
-                       "pass_attempts": intish(sum(num(r["attempts"]) for r in prows)),
-                       "completions": intish(sum(num(r["completions"]) for r in prows)),
-                       "passing_tds": intish(sum(num(r["passing_tds"]) for r in prows)),
-                       "rushing_tds": intish(sum(num(r["rushing_tds"]) for r in prows)),
-                       "receiving_tds": intish(sum(num(r["receiving_tds"]) for r in prows)),
-                       "interceptions_thrown": intish(sum(num(r["interceptions"]) for r in prows)),
-                       "targets": intish(sum(num(r["targets"]) for r in prows)),
-                       "carries": intish(sum(num(r["carries"]) for r in prows))}
+                       "pass_yds": tot("passing_yards"), "rush_yds": tot("rushing_yards"),
+                       "rec_yds": tot("receiving_yards"), "pass_att": tot("attempts"),
+                       "pass_cmp": tot("completions"), "pass_td": tot("passing_tds"),
+                       "rush_td": tot("rushing_tds"), "rec_td": tot("receiving_tds"),
+                       "int_thrown": tot("interceptions"), "targets": tot("targets"),
+                       "rush_att": tot("carries")}
                 de = {"points_allowed": intish(sum(s["points_against"] for s in played))}
-                for k, col in DEF_COLUMNS.items():
-                    de[k] = intish(sum(num(r[col]) for r in prows))
+                for key, col in DEF_COLUMNS:
+                    de[key] = tot(col)
                 splits.append({"season": season, "season_type": stype, "games": len(played),
                                "offense": off, "defense": de})
 
         roster = []
-        with_data = sorted({s for (t, s, st) in by_team_week if t == team and st == "REG"})
+        with_data = sorted({s for (t, s, st) in by_team_week if t == abbr and st == "REG"})
         if with_data:
             season = with_data[-1]
-            prows = by_team_week[(team, season, "REG")]
+            prows = by_team_week[(abbr, season, "REG")]
             team_tgt = sum(num(r["targets"]) for r in prows)
             team_car = sum(num(r["carries"]) for r in prows)
             per = defaultdict(list)
@@ -454,13 +721,13 @@ def build_teams(games, weeks, snaps, scope, xwalk, generated_at):
             for gsis, rs in per.items():
                 shares = []
                 for r in rs:
-                    g = gidx.get((r["season"], r["week"], team))
+                    g = gidx.get((r["season"], r["week"], abbr))
                     sn = snaps.get((gsis, g["game_id"])) if g else None
                     if sn and sn[1] is not None:
                         shares.append(sn[1])
                 xw = xwalk.get(gsis) or {}
                 roster.append({
-                    "season": season, "id": gsis,
+                    "season": season, "id": gsis, "slug": slugs.get(gsis),
                     "name": xw.get("display_name") or rs[-1].get("player_name"),
                     "position": xw.get("position") or rs[-1].get("position"),
                     "games": len(rs),
@@ -470,36 +737,39 @@ def build_teams(games, weeks, snaps, scope, xwalk, generated_at):
                     "has_page": gsis in scope})
             roster.sort(key=lambda p: (-(p["snap_share"] or 0), p["name"] or ""))
 
-        files[team] = {**envelope("team", generated_at), "team": team, "name": name,
-                       "seasons": seasons, "schedule": schedule, "splits": splits,
-                       "roster": roster,
-                       "coaches": [{"season": s, "head_coach": c.most_common(1)[0][0]}
-                                   for s, c in sorted(coaches.items())]}
+        files[f"{SPORT}/teams/{slug}.json"] = {
+            **envelope("team", generated_at),
+            "identity": {"slug": slug, "abbr": abbr, "name": name},
+            "seasons": seasons, "schedule": schedule, "splits": splits, "roster": roster,
+            "coaches": [{"season": s, "head_coach": c.most_common(1)[0][0]}
+                        for s, c in sorted(coaches.items())]}
     return files
 
 
-def build_market(con, games, weeks, xwalk, current, now_ts, generated_at, n_sims=N_SIMS):
-    """Current-week market-implied fantasy distributions (research/implied.py arm A)."""
+def build_market(con, games, weeks, xwalk, slugs, current, now_ts, generated_at, n_sims=N_SIMS):
+    """Current-period market-implied fantasy distributions (research/implied.py arm A).
+    -> ({key: obj}, {gsis: key}, census)."""
     from research import implied as I
 
-    season, week = current["season"], current["week"]
+    season, index = current["season"], current["period"]["index"]
+    pkey = current["period"]["key"]
     wk_games = {gid: g for gid, g in games.items()
-                if g["season"] == season and g["week"] == week and g["home_score"] is None
+                if g["season"] == season and g["week"] == index and g["home_score"] is None
                 and g["kickoff_ts"] and g["kickoff_ts"] > now_ts}
     if not wk_games:
-        return {}, {"reason": "no unplayed games in the current week"}
+        return {}, {}, {"reason": "no unplayed games in the current period"}
     rows = con.execute(
         "SELECT o.entity_id, o.stat, o.line, o.event_id, mo.market_id FROM outcomes o "
         "JOIN market_outcome mo ON mo.outcome_id = o.outcome_id AND mo.venue = 'kalshi' "
-        "WHERE o.season = ? AND o.week = ? AND o.entity_type = 'player' AND o.side = 'over' "
-        "AND o.line IS NOT NULL AND o.stat IN ('receptions', 'rush_attempts')",
-        (season, week)).fetchall()
+        "WHERE o.sport = ? AND o.season = ? AND o.week = ? AND o.entity_type = 'player' "
+        "AND o.side = 'over' AND o.line IS NOT NULL AND o.stat IN ('receptions', 'rush_attempts')",
+        (SPORT, season, index)).fetchall()
     ladders = defaultdict(list)
     census = Counter()
     for gsis, stat, line, game_id, market_id in rows:
         g = wk_games.get(game_id)
         if g is None:
-            census["market not in an unplayed current-week game"] += 1
+            census["market not in an unplayed current-period game"] += 1
             continue
         if not market_id.startswith(MARKET_STATS[stat] + "-"):
             census["market series does not match stat"] += 1
@@ -515,7 +785,7 @@ def build_market(con, games, weeks, xwalk, current, now_ts, generated_at, n_sims
         ladders[(gsis, game_id)].append({"stat": stat, "line": line, "bid": bid, "ask": ask,
                                          "ts": ts})
     if not ladders:
-        return {}, dict(census, reason="no priced current-week ladders")
+        return {}, {}, dict(census, reason="no priced current-period ladders")
 
     anchor, ypc, ypr, cop = I.fit_td_anchor(), I.fit_ypc(), I.fit_ypr(), I.fit_copula()
     history = defaultdict(list)
@@ -523,9 +793,10 @@ def build_market(con, games, weeks, xwalk, current, now_ts, generated_at, n_sims
     for r in weeks:
         latest_team[r["gsis_id"]] = r["team"]
         if r["season_type"] == "REG" and season - 3 <= r["season"] <= season:
-            history[r["gsis_id"]].append(1.0 if num(r["receiving_tds"]) + num(r["rushing_tds"]) > 0 else 0.0)
+            history[r["gsis_id"]].append(
+                1.0 if num(r["receiving_tds"]) + num(r["rushing_tds"]) > 0 else 0.0)
 
-    files = {}
+    files, keys = {}, {}
     for (gsis, game_id), rungs in ladders.items():
         by_stat = defaultdict(list)
         for x in rungs:
@@ -556,10 +827,10 @@ def build_market(con, games, weeks, xwalk, current, now_ts, generated_at, n_sims
         rho = cop.get(pos, {}).get("rho", {}).get(("receptions", "receiving_yards"), 0.75)
         seed = int(hashlib.sha1(f"{gsis}|{game_id}".encode()).hexdigest()[:8], 16)
         dists = {}
-        for key, imp in (("ppr", "ppr"), ("half", "half_ppr"), ("standard", "standard")):
+        for preset, imp in IMPLIED_SCORING.items():
             sims = I.simulate_player_game(fits, real, anchor, ypc, rho, random.Random(seed),
                                           n_sims, imp, ypr=ypr)
-            dists[key] = distribution_summary(sims)
+            dists[preset] = distribution_summary(sims)
 
         def rung_list(stat):
             return [{"line": x["line"], "p_over": rnd((x["bid"] + x["ask"]) / 2.0),
@@ -567,21 +838,23 @@ def build_market(con, games, weeks, xwalk, current, now_ts, generated_at, n_sims
                     for x in sorted(by_stat.get(stat, []), key=lambda x: x["line"])]
         rush = rung_list("rush_attempts")
         components = [
-            {"stat": "receptions", "basis": "MARKET", "rungs": rung_list("receptions")},
-            {"stat": "receiving_yards", "basis": "DERIVED",
-             "note": "receptions × yards per catch by position"},
-            {"stat": "rush_attempts", "basis": "MARKET", "rungs": rush,
+            {"stat": "rec", "basis": "MARKET", "rungs": rung_list("receptions")},
+            {"stat": "rec_yds", "basis": "DERIVED", "note": "receptions × yards per catch by position"},
+            {"stat": "rush_att", "basis": "MARKET", "rungs": rush,
              **({} if rush else {"note": "no rush-attempts ladder listed; contributes 0"})},
-            {"stat": "rushing_yards", "basis": "DERIVED",
-             "note": "attempts × yards per carry by position"},
-            {"stat": "touchdowns", "basis": "ANCHORED",
-             "note": "player TD rate scaled by the game total and spread"},
+            {"stat": "rush_yds", "basis": "DERIVED", "note": "attempts × yards per carry by position"},
+            {"stat": "td", "basis": "ANCHORED", "note": "player TD rate scaled by the game total and spread"},
         ]
-        files[gsis] = {
+        key = f"{SPORT}/market/{gsis}/{pkey}.json"
+        keys[gsis] = key
+        files[key] = {
             **envelope("market", generated_at),
-            "id": gsis, "name": xw.get("display_name"), "position": xw.get("position"),
-            "team": team, "season": season, "week": week, "game_id": game_id,
-            "opponent": g["away_team"] if home else g["home_team"], "kickoff_ts": g["kickoff_ts"],
+            "identity": {"id": gsis, "slug": slugs.get(gsis), "name": xw.get("display_name"),
+                         "position": xw.get("position"), "team": team_slug(team)},
+            "period": dict(current["period"], season=season),
+            "game_id": game_id,
+            "opponent": team_slug(g["away_team"] if home else g["home_team"]),
+            "kickoff_ts": g["kickoff_ts"],
             "as_of": iso(max(x["ts"] for x in rungs)),
             "source": dict(MARKET_SOURCE, n_sims=n_sims),
             "components": components,
@@ -590,15 +863,15 @@ def build_market(con, games, weeks, xwalk, current, now_ts, generated_at, n_sims
             "distributions": dists,
             "validation": dict(VALIDATION),
         }
-    return files, dict(census)
+    return files, keys, dict(census)
 
 
 def build_research(generated_at):
     out = {}
     with open(os.path.join(ROOT, "docs", "hypotheses.json"), encoding="utf-8") as f:
         src = json.load(f)
-    out["hypotheses.json"] = {**envelope("research.hypotheses", generated_at),
-                              "hypotheses": src["hypotheses"]}
+    out["research/hypotheses.json"] = {**envelope("research.hypotheses", generated_at, None),
+                                       "hypotheses": src["hypotheses"]}
 
     from research import score as SC
     rows, *_ = SC.load(2026, 1)
@@ -616,8 +889,8 @@ def build_research(generated_at):
     head = SC.boot_mean(common, lambda r: SC.brier(r["model"], r["y"]) - SC.brier(r["market_p"], r["y"]))
     brier["model_minus_market"] = {"estimate": rnd(head["est"]),
                                    "interval": [rnd(head["lo"]), rnd(head["hi"])]}
-    out["calibration.json"] = {
-        **envelope("research.calibration", generated_at),
+    out["research/calibration.json"] = {
+        **envelope("research.calibration", generated_at, None),
         "source": "research/score.py (brief 021)",
         "population": (f"NFL week 1 2026, KXNFLREC + KXNFLRSHATT, common set n={len(common)}, "
                        f"{len({r['game'] for r in common})} games"),
@@ -630,8 +903,8 @@ def build_research(generated_at):
             r = json.loads(line)
             if r.get("family") == "H3 median spread" and r.get("estimable"):
                 med[r["name"]] = r.get("est")
-    out["execution.json"] = {
-        **envelope("research.execution", generated_at),
+    out["research/execution.json"] = {
+        **envelope("research.execution", generated_at, None),
         "source": "research/sweep/h3_lifecycle.py (brief 022)",
         "series": [{"series": s, "by_time_to_kickoff": [
             {"bucket": b, "median_spread_c": med.get(f"{s}|ttk|{b}"),
@@ -642,26 +915,54 @@ def build_research(generated_at):
     return out
 
 
-def build_manifest(games, current, players, scope_files, xwalk, market_ids, unresolved,
-                   nflverse_version, generated_at):
+def build_manifest(games, current, index, market_keys, unresolved, source_version, scoring_note,
+                   generated_at):
     return {
-        **envelope("manifest", generated_at),
-        "current": {"season": current["season"], "week": current["week"],
+        **envelope("sport_manifest", generated_at),
+        "name": SPORT_NAME,
+        "period_type": PERIOD_TYPE,
+        "current": {"season": current["season"], "period": current["period"],
                     "data_through": current["data_through"],
-                    "nflverse_version": nflverse_version,
+                    "source_version": source_version,
                     "stale": current["stale"], "stale_reason": current["stale_reason"]},
         "seasons": sorted({g["season"] for g in games.values()}),
-        "teams": [{"team": t, "name": n} for t, n in TEAM_NAMES.items()],
-        "players": sorted(players, key=lambda p: (p["name"] or "", p["id"])),
-        "counts": {"players": len(players), "teams": len(TEAM_NAMES),
-                   "market": len(market_ids)},
+        "stat_definitions": STAT_DEFINITIONS,
+        "scoring_presets": SCORING_PRESETS,
+        "scoring_note": scoring_note,
+        "teams": [{"slug": team_slug(a), "abbr": a, "name": n} for a, n in TEAM_NAMES.items()],
+        "counts": {"players": len(index), "teams": len(TEAM_NAMES), "market": len(market_keys)},
         "unresolved_ids": unresolved,
     }
+
+
+def build_sports(generated_at):
+    return {**envelope("sports", generated_at, None),
+            "sports": [{"sport": SPORT, "name": SPORT_NAME, "manifest": f"{SPORT}/manifest.json"}]}
+
+
+def ppr_check(weeks, scope):
+    """Our preset PPR from components against nflverse's own fantasy_points_ppr.
+    Stored nowhere - it only calibrates the scoring note."""
+    w = SCORING_PRESETS["ppr"]["weights"]
+    diffs = []
+    for r in weeks:
+        if r["gsis_id"] not in scope or r.get("fantasy_points_ppr") is None:
+            continue
+        ours = sum(w.get(key, 0) * num(r.get(col)) for col, key in STAT_MAP)
+        diffs.append(abs(round(ours, 2) - r["fantasy_points_ppr"]))
+    diffs.sort()
+    if not diffs:
+        return None, None, 0
+    return statistics.median(diffs), diffs[min(len(diffs) - 1, int(0.99 * len(diffs)))], len(diffs)
 
 
 # =============================================================================
 # writing
 # =============================================================================
+
+def local_path(dest, key):
+    return os.path.join(dest, *key.split("/"))
+
 
 def _canonical(obj):
     return json.dumps({k: v for k, v in obj.items() if k != "generated_at"},
@@ -687,23 +988,39 @@ def write_if_changed(path, obj, dry_run=False):
     return True
 
 
-def sync_dir(dirpath, wanted, dry_run=False):
-    """Write {name: obj} into dirpath and delete *.json no longer wanted."""
+def local_keys(dest):
+    out = {}
+    if not os.path.isdir(dest):
+        return out
+    for root, _dirs, files in os.walk(dest):
+        for fn in files:
+            if not fn.endswith(".json") or fn == STATE_FILE:
+                continue
+            path = os.path.join(root, fn)
+            out[os.path.relpath(path, dest).replace(os.sep, "/")] = path
+    return out
+
+
+def sync_keys(dest, wanted, prefixes, dry_run=False):
+    """Write {key: obj}; delete local *.json under `prefixes` no longer wanted."""
     written = deleted = 0
-    for name, obj in wanted.items():
-        written += write_if_changed(os.path.join(dirpath, f"{name}.json"), obj, dry_run)
-    if os.path.isdir(dirpath):
-        keep = {f"{n}.json" for n in wanted}
-        for fn in os.listdir(dirpath):
-            if fn.endswith(".json") and fn not in keep and fn not in LEGACY:
+    for key, obj in wanted.items():
+        written += write_if_changed(local_path(dest, key), obj, dry_run)
+    if prefixes:
+        for key, path in local_keys(dest).items():
+            if key not in wanted and any(key.startswith(p) for p in prefixes):
                 if not dry_run:
-                    os.remove(os.path.join(dirpath, fn))
+                    os.remove(path)
                 deleted += 1
+        if not dry_run:
+            for root, dirs, files in os.walk(dest, topdown=False):
+                if root != dest and not dirs and not files:
+                    os.rmdir(root)
     return written, deleted
 
 
-def export(only=None, dry_run=False, now_ts=None, dest=None, log=print):
-    dest = dest or require_setting("WEB_DATA_DIR")
+def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry_path=None):
+    dest = dest or require_setting("WEB_EXPORT_DIR")
     parts = set(only or PARTS)
     now_ts = time.time() if now_ts is None else now_ts
     generated_at = iso(now_ts)
@@ -713,80 +1030,174 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print):
     weeks = load_player_weeks(con)
     xwalk, aliases = load_xwalk(con)
     snaps, snap_unresolved = load_snaps(con, xwalk)
-    current = current_week(games, weeks, now_ts)
+    current = current_period(games, weeks, now_ts)
     scope = player_scope(weeks)
-    summary = {"current": current}
+    by_player = players_by_id(weeks, scope)
+    slugs, slugs_added = scope_slugs(by_player, xwalk, registry_path, dry_run)
+    summary = {"current": current, "slugs_added": len(slugs_added)}
 
-    market_ids = None
     if "market" in parts:
-        market, census = build_market(con, games, weeks, xwalk, current, now_ts, generated_at)
-        market_ids = set(market)
-        summary["market"] = sync_dir(os.path.join(dest, "market"), market, dry_run)
+        market, market_keys, census = build_market(con, games, weeks, xwalk, slugs, current,
+                                                   now_ts, generated_at)
+        assert_stats_defined(market, STAT_DEFINITIONS)
+        summary["market"] = sync_keys(dest, market, [f"{SPORT}/market/"], dry_run)
         summary["market_census"] = census
-        summary["market_players"] = sorted((m["name"] or m["id"]) for m in market.values())
-    if market_ids is None:
-        mdir = os.path.join(dest, "market")
-        market_ids = ({fn[:-5] for fn in os.listdir(mdir) if fn.endswith(".json")}
-                      if os.path.isdir(mdir) else set())
-
-    players, ppr_diff, unresolved = build_players(games, weeks, snaps, xwalk, aliases, scope,
-                                                  market_ids, generated_at)
-    ppr_diff.sort()
-    if ppr_diff:
-        med = statistics.median(ppr_diff)
-        p99 = ppr_diff[min(len(ppr_diff) - 1, int(0.99 * len(ppr_diff)))]
-        note = (f"{SCORING_NOTE} Against nflverse's own fantasy_points_ppr (which includes them) "
-                f"the PPR total differs by median {med:.2f} and p99 {p99:.2f} points per game "
-                f"over {len(ppr_diff):,} player-games.")
+        summary["market_players"] = sorted((m["identity"]["name"] or m["identity"]["id"])
+                                           for m in market.values())
     else:
-        med = p99 = None
-        note = SCORING_NOTE
-    for p in players.values():
-        p["fantasy_scoring"]["note"] = note
-    summary["ppr_check"] = {"median_abs_diff": med, "p99_abs_diff": p99, "n": len(ppr_diff)}
+        pkey = current["period"]["key"]
+        market_keys = {}
+        for key in local_keys(dest):
+            parts_k = key.split("/")
+            if len(parts_k) == 4 and parts_k[:2] == [SPORT, "market"] and parts_k[3] == f"{pkey}.json":
+                market_keys[parts_k[2]] = key
+
+    player_files, index, unresolved = build_players(games, by_player, snaps, xwalk, aliases, slugs,
+                                                    market_keys, generated_at)
+    med, p99, n = ppr_check(weeks, scope)
+    note = SCORING_NOTE_BASE if med is None else (
+        f"{SCORING_NOTE_BASE} Against nflverse's own fantasy_points_ppr (which includes them) the "
+        f"PPR preset differs by median {med:.2f} and p99 {p99:.2f} points per game over {n:,} "
+        f"player-games.")
+    summary["ppr_check"] = {"median_abs_diff": med, "p99_abs_diff": p99, "n": n}
     unresolved += [{"id": pfr, "name": name, "reason": "snap-count pfr id not in player_xwalk"}
                    for pfr, name in sorted(snap_unresolved.items())]
     summary["unresolved"] = unresolved
+    collisions = {gsis: s for gsis, s in slugs.items() if slugify((xwalk.get(gsis) or {}).get("display_name")
+                  or by_player[gsis][-1].get("player_name")) != s}
+    summary["slug_collisions"] = collisions
 
     if "players" in parts:
-        summary["players"] = sync_dir(os.path.join(dest, "players"), players, dry_run)
+        assert_stats_defined(player_files, STAT_DEFINITIONS)
+        index_obj = {**envelope("player_index", generated_at), "players": index}
+        summary["players"] = sync_keys(dest, {**player_files, f"{SPORT}/players/index.json": index_obj},
+                                       [f"{SPORT}/players/"], dry_run)
     if "teams" in parts:
-        teams = build_teams(games, weeks, snaps, scope, xwalk, generated_at)
-        summary["teams"] = sync_dir(os.path.join(dest, "teams"), teams, dry_run)
+        teams = build_teams(games, weeks, snaps, scope, xwalk, slugs, generated_at)
+        assert_stats_defined(teams, STAT_DEFINITIONS)
+        summary["teams"] = sync_keys(dest, teams, [f"{SPORT}/teams/"], dry_run)
     if "research" in parts:
         research = build_research(generated_at)
-        summary["research"] = sum(write_if_changed(os.path.join(dest, "research", n), o, dry_run)
-                                  for n, o in research.items())
+        summary["research"] = sync_keys(dest, research, ["research/"], dry_run)
     if "manifest" in parts:
-        nfv = con.execute("SELECT MAX(data_version) FROM nflverse_versions "
+        src = con.execute("SELECT MAX(data_version) FROM nflverse_versions "
                           "WHERE dataset = 'weekly_stats'").fetchone()[0]
-        plist = [{"id": gsis, "name": p["name"], "position": p["position"], "team": p["team"],
-                  "first_season": p["seasons"][0], "last_season": p["seasons"][-1],
-                  "has_market": p["has_market"]} for gsis, p in players.items()]
-        manifest = build_manifest(games, current, plist, players, xwalk, market_ids, unresolved,
-                                  nfv, generated_at)
-        summary["manifest"] = write_if_changed(os.path.join(dest, "manifest.json"), manifest, dry_run)
+        manifest = build_manifest(games, current, index, market_keys, unresolved, src, note,
+                                  generated_at)
+        assert_stats_defined({f"{SPORT}/manifest.json": manifest}, STAT_DEFINITIONS)
+        summary["manifest"] = sync_keys(dest, {f"{SPORT}/manifest.json": manifest,
+                                               "sports.json": build_sports(generated_at)},
+                                        [], dry_run)
     con.close()
-    summary["counts"] = {"players": len(players), "teams": len(TEAM_NAMES),
-                         "market": len(market_ids)}
+    summary["counts"] = {"players": len(index), "teams": len(TEAM_NAMES), "market": len(market_keys)}
     summary["runtime_s"] = round(time.time() - t0, 1)
     if current["stale"]:
         log(f"WARN nflverse is late: {current['stale_reason']}")
     return summary
 
 
-def main():
+# =============================================================================
+# upload
+# =============================================================================
+
+def r2_client():
+    if not config.R2_ENDPOINT:
+        raise ConfigError("R2_ENDPOINT (or R2_ACCOUNT_ID) is not set - the R2 endpoint comes "
+                          "from the logger's R2 account settings")
+    import boto3
+    from botocore.config import Config
+    return boto3.client(
+        "s3", endpoint_url=config.R2_ENDPOINT, region_name="auto",
+        aws_access_key_id=config.WEB_R2_ACCESS_KEY_ID,
+        aws_secret_access_key=config.WEB_R2_SECRET_ACCESS_KEY,
+        config=Config(signature_version="s3v4", retries={"max_attempts": 5, "mode": "standard"},
+                      max_pool_connections=UPLOAD_WORKERS * 2))
+
+
+def _save_state(path, state):
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(state, f, sort_keys=True, separators=(",", ":"))
+    os.replace(tmp, path)
+
+
+def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORKERS):
+    """Upload keys whose sha256 differs from the local upload record, delete keys
+    that were removed. The record (.upload_state.json) is never uploaded."""
+    dest = dest or require_setting("WEB_EXPORT_DIR")
+    if not (config.WEB_R2_ACCESS_KEY_ID and config.WEB_R2_SECRET_ACCESS_KEY):
+        log("R2 upload not configured (WEB_R2_ACCESS_KEY_ID / WEB_R2_SECRET_ACCESS_KEY unset) - "
+            "local export only")
+        return {"configured": False}
+    bucket = require_setting("WEB_R2_BUCKET")
+    client = client or r2_client()
+    state_path = os.path.join(dest, STATE_FILE)
+    try:
+        with open(state_path, encoding="utf-8") as f:
+            state = json.load(f)
+    except (OSError, ValueError):
+        state = {}
+
+    local = local_keys(dest)
+    todo = []
+    for key, path in sorted(local.items()):
+        with open(path, "rb") as f:
+            data = f.read()
+        sha = hashlib.sha256(data).hexdigest()
+        if state.get(key) != sha:
+            todo.append((key, data, sha))
+    removed = sorted(set(state) - set(local))
+    result = {"configured": True, "bucket": bucket, "considered": len(local),
+              "changed": len(todo), "uploaded": 0, "deleted": 0, "bytes": 0,
+              "removed": len(removed)}
+    if dry_run:
+        return result
+
+    def put(item):
+        key, data, sha = item
+        client.put_object(Bucket=bucket, Key=key, Body=data, ContentType="application/json",
+                          CacheControl=cache_control(key))
+        return key, sha, len(data)
+
+    try:
+        with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+            for i, (key, sha, size) in enumerate(pool.map(put, todo), 1):
+                state[key] = sha
+                result["uploaded"] += 1
+                result["bytes"] += size
+                if i % 500 == 0:
+                    _save_state(state_path, state)
+                    log(f"  uploaded {i:,}/{len(todo):,}")
+        for key in removed:
+            client.delete_object(Bucket=bucket, Key=key)
+            state.pop(key, None)
+            result["deleted"] += 1
+    finally:
+        _save_state(state_path, state)
+    return result
+
+
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--only", action="append", choices=PARTS)
     ap.add_argument("--dry-run", action="store_true")
-    a = ap.parse_args()
-    s = export(only=a.only, dry_run=a.dry_run)
-    printable = {k: v for k, v in s.items() if k not in ("unresolved", "market_players")}
-    print(json.dumps(printable, indent=1, default=str))
-    print(f"unresolved ids: {len(s['unresolved'])}")
-    if s.get("market_players") is not None:
-        print(f"market players ({len(s['market_players'])}): {', '.join(s['market_players'][:40])}")
+    ap.add_argument("--upload", action="store_true", help="export, then upload changed keys to R2")
+    ap.add_argument("--upload-only", action="store_true",
+                    help="upload the existing local export without exporting again")
+    a = ap.parse_args(argv)
+    if not a.upload_only:
+        s = export(only=a.only, dry_run=a.dry_run)
+        printable = {k: v for k, v in s.items()
+                     if k not in ("unresolved", "market_players", "slug_collisions")}
+        print(json.dumps(printable, indent=1, default=str))
+        print(f"unresolved ids: {len(s['unresolved'])}; slug collisions resolved: "
+              f"{len(s['slug_collisions'])}")
+        if s.get("market_players") is not None:
+            print(f"market players ({len(s['market_players'])}): {', '.join(s['market_players'][:40])}")
+    if a.upload or a.upload_only:
+        print(json.dumps(upload(dry_run=a.dry_run), indent=1))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

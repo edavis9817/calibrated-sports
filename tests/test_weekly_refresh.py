@@ -1,5 +1,6 @@
-"""Brief W02 A4: the weekly refresh runs its steps in order, gates on the site
-build, commits only on a diff, and treats late nflverse as a warning."""
+"""Contract v2: the weekly refresh runs ingest -> map -> export -> upload ->
+validate, never touches git or npm, and treats late nflverse and an unreachable
+site as warnings."""
 import json
 import os
 from types import SimpleNamespace
@@ -11,24 +12,25 @@ from jobs import weekly_refresh as W
 
 
 class Runner:
-    def __init__(self, fail=(), diff=True):
-        self.calls, self.fail, self.diff = [], set(fail), diff
+    def __init__(self, fail=()):
+        self.calls, self.fail = [], set(fail)
 
     def __call__(self, cmd, cwd=None, capture_output=True, text=True):
         self.calls.append(cmd)
-        name = self.name(cmd)
-        if name == "diff":
-            return SimpleNamespace(returncode=1 if self.diff else 0, stdout="", stderr="")
-        return SimpleNamespace(returncode=1 if name in self.fail else 0, stdout="ok", stderr="")
+        return SimpleNamespace(returncode=1 if self.name(cmd) in self.fail else 0,
+                               stdout="ok", stderr="")
 
     @staticmethod
     def name(cmd):
         s = " ".join(cmd)
-        for key, n in (("ingest_nflverse", "ingest"), ("map_markets", "map"),
-                       ("export_web", "export"), ("run check", "gate"), ("git add", "stage"),
-                       ("diff --cached", "diff"), ("git commit", "commit"), ("git push", "push")):
-            if key in s:
-                return n
+        if "ingest_nflverse" in s:
+            return "ingest"
+        if "map_markets" in s:
+            return "map"
+        if "export_web" in s and "--upload-only" in s:
+            return "upload"
+        if "export_web" in s:
+            return "export"
         return s
 
     def names(self):
@@ -37,77 +39,91 @@ class Runner:
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
-    data = tmp_path / "web" / "public" / "data"
-    data.mkdir(parents=True)
-    monkeypatch.setattr(config, "WEB_REPO_DIR", str(tmp_path / "web"))
-    monkeypatch.setattr(config, "WEB_DATA_DIR", str(data))
-    (data / "manifest.json").write_text(json.dumps(
-        {"current": {"season": 2026, "week": 2, "stale": False, "stale_reason": None}}))
-    return tmp_path, data
+    dest = tmp_path / "export"
+    (dest / "nfl").mkdir(parents=True)
+    monkeypatch.setattr(config, "WEB_EXPORT_DIR", str(dest))
+    monkeypatch.setattr(config, "WEB_SITE_URL", "https://site.example")
+    (dest / "nfl" / "manifest.json").write_text(json.dumps(
+        {"generated_at": "2026-09-15T18:00:00Z",
+         "current": {"season": 2026, "stale": False, "stale_reason": None}}))
+    return tmp_path, dest
 
 
 def log_to(tmp_path):
     return W.Log(str(tmp_path / "refresh.log"))
 
 
-def test_steps_run_in_order_and_push(env):
+def read_log(tmp_path):
+    return open(tmp_path / "refresh.log", encoding="utf-8").read()
+
+
+def matching_fetch(url):
+    assert url == "https://site.example/data/nfl/manifest.json"
+    return {"generated_at": "2026-09-15T18:00:00Z"}
+
+
+def test_steps_run_in_order_and_never_touch_git_or_npm(env):
     tmp, _ = env
     r = Runner()
-    assert W.run(runner=r, log=log_to(tmp)) == 0
-    assert r.names() == ["ingest", "map", "export", "gate", "stage", "diff", "commit", "push"]
-    commit = [c for c in r.calls if Runner.name(c) == "commit"][0]
-    assert commit[-1] == "data: 2026 week 2"
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    assert r.names() == ["ingest", "map", "export", "upload"]
+    flat = [" ".join(c).lower() for c in r.calls]
+    assert not any("git" in c.split() or "npm" in c or "npm.cmd" in c for c in flat)
+    assert "live manifest matches" in read_log(tmp)
 
 
-def test_gate_failure_commits_and_pushes_nothing(env):
-    tmp, _ = env
-    r = Runner(fail={"gate"})
-    assert W.run(runner=r, log=log_to(tmp)) == 2
-    assert "commit" not in r.names() and "push" not in r.names()
-    assert "ERROR" in open(tmp / "refresh.log", encoding="utf-8").read()
-
-
-def test_export_failure_stops_before_the_gate(env):
+def test_export_failure_stops_before_upload(env):
     tmp, _ = env
     r = Runner(fail={"export"})
-    assert W.run(runner=r, log=log_to(tmp)) == 1
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 1
     assert r.names() == ["ingest", "map", "export"]
 
 
-def test_ingest_failure_degrades_rather_than_dies(env):
+def test_upload_failure_is_an_error(env):
     tmp, _ = env
-    r = Runner(fail={"ingest"})
-    assert W.run(runner=r, log=log_to(tmp)) == 0
-    assert "push" in r.names()
+    r = Runner(fail={"upload"})
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 2
+    assert "ERROR" in read_log(tmp)
 
 
-def test_no_diff_means_no_commit(env):
+def test_ingest_and_map_failures_degrade_rather_than_die(env):
     tmp, _ = env
-    r = Runner(diff=False)
-    assert W.run(runner=r, log=log_to(tmp)) == 0
-    assert "commit" not in r.names()
+    r = Runner(fail={"ingest", "map"})
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    assert "upload" in r.names()
 
 
 def test_stale_nflverse_is_a_warning_not_an_error(env):
-    tmp, data = env
-    (data / "manifest.json").write_text(json.dumps(
-        {"current": {"season": 2026, "week": 3, "stale": True, "stale_reason": "week 2 missing"}}))
-    r = Runner()
-    assert W.run(runner=r, log=log_to(tmp)) == 0
-    log = open(tmp / "refresh.log", encoding="utf-8").read()
+    tmp, dest = env
+    (dest / "nfl" / "manifest.json").write_text(json.dumps(
+        {"generated_at": "2026-09-15T18:00:00Z",
+         "current": {"season": 2026, "stale": True, "stale_reason": "week 2 missing"}}))
+    assert W.run(runner=Runner(), log=log_to(tmp), fetch=matching_fetch) == 0
+    log = read_log(tmp)
     assert "WARN" in log and "week 2 missing" in log
-    assert [c for c in r.calls if Runner.name(c) == "commit"][0][-1].endswith("(nflverse stale)")
 
 
-def test_flags_skip_ingest_and_push(env):
+def test_validation_mismatch_and_unreachable_site_are_warnings(env):
+    tmp, _ = env
+    assert W.run(runner=Runner(), log=log_to(tmp),
+                 fetch=lambda url: {"generated_at": "2026-01-01T00:00:00Z"}) == 0
+    assert "!= local" in read_log(tmp)
+
+    def boom(url):
+        raise ConnectionError("no route")
+    assert W.run(runner=Runner(), log=log_to(tmp), fetch=boom) == 0
+    assert "unreachable" in read_log(tmp)
+
+
+def test_skip_ingest(env):
     tmp, _ = env
     r = Runner()
-    assert W.run(skip_ingest=True, no_push=True, runner=r, log=log_to(tmp)) == 0
-    assert "ingest" not in r.names() and "push" not in r.names()
+    assert W.run(skip_ingest=True, runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    assert "ingest" not in r.names()
 
 
 def test_refuses_without_config(monkeypatch, tmp_path):
-    monkeypatch.setattr(config, "WEB_REPO_DIR", None)
+    monkeypatch.setattr(config, "WEB_EXPORT_DIR", None)
     r = Runner()
-    assert W.run(runner=r, log=log_to(tmp_path)) == 4
+    assert W.run(runner=r, log=log_to(tmp_path), fetch=matching_fetch) == 4
     assert r.calls == []

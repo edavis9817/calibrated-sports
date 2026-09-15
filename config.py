@@ -145,12 +145,16 @@ def storage_path(*parts) -> str:
     return os.path.join(STORAGE_DIR, *parts)
 
 
-# The website (brief W02). NO DEFAULTS, deliberately: the export writes into
-# another repository, and a guessed path is how 6e42f09's stray database on the
-# wrong disk happened. jobs/export_web.py and jobs/weekly_refresh.py refuse to
-# run when either is unset.
-WEB_REPO_DIR = os.getenv("WEB_REPO_DIR")
-WEB_DATA_DIR = os.getenv("WEB_DATA_DIR")
+# The website (contract v2, docs/web-schema.md). NO DEFAULTS, deliberately: a
+# guessed path is how 6e42f09's stray database on the wrong disk happened, and a
+# guessed bucket would publish into the wrong one. jobs/export_web.py refuses to
+# export without WEB_EXPORT_DIR and to upload without WEB_R2_BUCKET; missing R2
+# credentials skip the upload (logged) rather than failing the export.
+WEB_EXPORT_DIR = os.getenv("WEB_EXPORT_DIR")              # local mirror of the R2 keys
+WEB_R2_BUCKET = os.getenv("WEB_R2_BUCKET")                # calibrated-sports-site, NOT the raw bucket
+WEB_R2_ACCESS_KEY_ID = os.getenv("WEB_R2_ACCESS_KEY_ID")  # token scoped to WEB_R2_BUCKET
+WEB_R2_SECRET_ACCESS_KEY = os.getenv("WEB_R2_SECRET_ACCESS_KEY")
+WEB_SITE_URL = os.getenv("WEB_SITE_URL")                  # used only to validate a refresh
 
 
 QUOTES_RETENTION_DAYS = float(os.getenv("QUOTES_RETENTION_DAYS", 14))
