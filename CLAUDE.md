@@ -1077,8 +1077,25 @@ session.
 
 ## The website (brief W02)
 
-calibratedsports.com is `calibratedsports-web`: a Next 14 static export on
-Cloudflare Pages that rebuilds on every push to `main`.
+The site is `calibratedsports-web`, a Next 14 static export served as
+**Cloudflare Workers static assets**, not Pages: Cloudflare routed the Git
+connection to Workers Builds. It lives at
+https://calibratedsports-web.ethanad17.workers.dev, and **there is no custom
+domain by decision**.
+- **Deploy.** Workers Builds runs `npm run build` and then `npx wrangler deploy`
+  on every push to `main`.
+- **`wrangler.jsonc`.** It is assets-only (`./out`, `not_found_handling`
+  `404-page`). `workers_dev: true` is explicit, because workers.dev is the only
+  address. `preview_urls: false` is explicit, because per-version preview URLs
+  are public.
+- **The first deploy used 12,076 of the 20,000-asset cap with one sport.**
+  That is why the next restructure moves player and team pages to edge
+  rendering.
+- **`wrangler deploy --dry-run` output.** "Read N files" counts directories
+  too: 16,113 entries against 12,077 real files.
+- **Weekly refresh.** The task `CalibratedSports Weekly Refresh` runs
+  `python -m jobs.weekly_refresh` at 09:00 Tue/Wed/Thu. It needs the PC on and
+  the user logged on.
 
 **v1 scope.** Team and player pages, and market-derived fantasy distributions.
 **No login, paywall, betting recommendations or "best bets" - by decision, not
@@ -1098,8 +1115,9 @@ brief 023 confirmed it against the book close in every season.
   - Their HTML is a shell; all other data is fetched at runtime.
   - A data refresh needs no code change. A rebuild matters only when a player is
     added.
-- **The file budget sets player scope.** Cloudflare Pages' free plan caps a site
-  at 20,000 files (25 MiB each, 20-minute builds, 500 builds a month).
+- **The file budget sets player scope.** Cloudflare caps a free site at 20,000
+  files. That is 20,000 static assets on Workers, the same number as Pages'
+  file cap, at 25 MiB each.
   - A static player route costs three files (`index.html`, `index.txt` and its
     JSON).
   - So v1 player pages cover only players with offensive usage: 3,971, for a
@@ -1125,8 +1143,9 @@ brief 023 confirmed it against the book close in every season.
 - **Fantasy points omit fumbles lost and two-point conversions,** which
   `nfl_player_week` does not project. Against nflverse's own PPR the median
   difference is 0.00 and the p99 is 2.00 over 193,354 player-games.
-- **`/build.json` names the commit a deployment was built from**
-  (`CF_PAGES_COMMIT_SHA`). Check it after a push; a local `npm run build` passing
+- **`/build.json` names the commit a deployment was built from.** It reads
+  `WORKERS_CI_COMMIT_SHA` on Workers Builds, falls back to `CF_PAGES_COMMIT_SHA`,
+  then to `git rev-parse`. Check it after a push; a local `npm run build` passing
   is not evidence the deploy works.
 - **Git history grows with the data.** The site repo commits ~132 MB of JSON, and
   roughly 30 MB changes weekly in season. Moving the data out of git is a later
