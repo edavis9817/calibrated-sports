@@ -38,7 +38,9 @@ def grade(cand, index, doc_ts):
     """Five bars -> (list of booleans/None, first failed bar or None)."""
     st = index.get(tuple(cand["search_test"]))
     rep = index.get(tuple(cand["replication_test"])) if cand.get("replication_test") else None
-    b1 = bool(cand.get("mechanism") and cand.get("other_side")) and (
+    other = (cand.get("other_side") or "").strip()
+    # "none - ..." names no counterparty, whatever else it says.
+    b1 = bool(cand.get("mechanism") and other and not other.lower().startswith("none")) and (
         rep is None or (doc_ts is not None and rep.get("ts", 0) > doc_ts))
     b2 = bool(rep and rep.get("estimable") and rep.get("excludes_zero")
               and st and (rep["est"] > 0) == (st["est"] > 0))
@@ -67,8 +69,10 @@ def main():
         by_pop[(r["role"], r["population"])] += 1
     print("  records by role x population:", dict(sorted(by_pop.items())))
     surv = [r for r in recs if r.get("bh_survives")]
-    print(f"\nBH SURVIVORS (q=0.10) - {len(surv)}")
-    for r in sorted(surv, key=lambda r: r["p"]):
+    print(f"\nBH SURVIVORS (q=0.10) - {len(surv)}; money-positive ones listed first, "
+          f"then the rest by p (money- = significant on the LOSING side)")
+    for r in sorted(surv, key=lambda r: (S.money_direction(r) != "money+", S.bh_p(r), r["p"])):
+        print(f"  [{S.money_direction(r):<6}]", end="")
         print(f"  {r['family']:<22} {r['name'][:46]:<46} est {r['est']:+.4f} "
               f"[{r['lo']:+.4f}, {r['hi']:+.4f}] p={r['p']:.2e} n={r['n']} games={r['games']}"
               + ("" if r.get("readable") else "  (too few games to read)"))

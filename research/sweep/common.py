@@ -196,7 +196,11 @@ def boot(rows, stat, block="game", n=BOOT, seed=SEED):
         return None
     draws.sort()
     se = statistics.pstdev(draws)
-    p = norm_p(est / se) if se > 0 else (0.0 if est != 0 else 1.0)
+    # A zero-variance bootstrap is a statistic that cannot move under
+    # resampling (every value identical, or one block) - no evidence either
+    # way, so p = 1. It used to be 0, which put a 5-market constant into BH as
+    # the most significant test in the sweep.
+    p = norm_p(est / se) if se > 0 else 1.0
     return {"est": est, "lo": draws[int(0.025 * len(draws))],
             "hi": draws[int(0.975 * len(draws)) - 1], "se": se, "p": p,
             "n": len(rows), "games": len(keys)}
@@ -280,9 +284,28 @@ def load_registries(paths):
     return out
 
 
+def bh_p(r):
+    """The p-value BH sees. The pre-registered 'not read' rule applied
+    mechanically: an interval on < MIN_GAMES_TO_READ games, or with zero
+    bootstrap variance, enters BH at p = 1. Raw `p` is kept for display.
+    This can only make BH stricter."""
+    if r.get("se") in (None, 0) or r.get("games", 0) < MIN_GAMES_TO_READ:
+        return 1.0
+    return r["p"]
+
+
+def money_direction(r):
+    """'money+' / 'money-' for tests whose estimate IS a net or PnL per contract,
+    'stat' for everything else (slopes, deviations, contrasts)."""
+    name = (r.get("family", "") + " " + r.get("name", "")).lower()
+    if any(k in name for k in ("net", "pnl", "economic")):
+        return "money+" if r.get("est", 0) > 0 else "money-"
+    return "stat"
+
+
 def summarize(records, q=0.10, alpha=0.05):
     search = [r for r in records if r["role"] == "search" and r["estimable"]]
-    keep = bh([r["p"] for r in search], q)
+    keep = bh([bh_p(r) for r in search], q)
     for r, k in zip(search, keep):
         r["bh_survives"] = k
     return {"search_tests": len(search),
@@ -290,5 +313,9 @@ def summarize(records, q=0.10, alpha=0.05):
             "nominal_p_below_alpha": sum(1 for r in search if r["p"] < alpha),
             "expected_false_positives": alpha * len(search),
             "bh_survivors": sum(keep),
+            "bh_survivors_money_positive": sum(1 for r, k in zip(search, keep) if k and money_direction(r) == "money+"),
+            "bh_survivors_money_negative": sum(1 for r, k in zip(search, keep) if k and money_direction(r) == "money-"),
+            "bh_survivors_statistical": sum(1 for r, k in zip(search, keep) if k and money_direction(r) == "stat"),
+            "search_unreadable_or_zero_var": sum(1 for r in search if bh_p(r) == 1.0 and r["p"] < 1.0),
             "replication_tests": sum(1 for r in records if r["role"] == "replication"),
             "descriptive": sum(1 for r in records if r["role"] == "descriptive")}

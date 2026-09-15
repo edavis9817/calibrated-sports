@@ -89,6 +89,7 @@ def test_week2_population_swaps_the_fence_and_refuses_until_committed_and_settle
     assert S.in_search_set("KXNFLWINS-MIA-9", S.UNDATED_CUTOFF_TS + 1)
     assert not S.in_search_set("KXNFLWINS-MIA-9", S.UNDATED_CUTOFF_TS - 1)
     assert S.registry_path("h1").endswith("h1_wk2.jsonl")
+    monkeypatch.setattr(S, "CANDIDATES_DOC", "docs/briefs/does-not-exist-022.md")
     with pytest.raises(S.HoldoutViolation):          # candidates not committed
         S.open_population(require=S.require_committed, settled=lambda: True)
     with pytest.raises(S.HoldoutViolation):          # committed but not settled
