@@ -1106,6 +1106,25 @@ domain by decision**.
   - **`npm run check:clean` is the guard:** clone the committed HEAD, `npm ci`,
     `npm run build`. CI runs the same job. A local build against the working
     tree cannot see a file the build needs that git does not track.
+- **A contract type that lies is a production outage, and `curl` finds only
+  half of it.** `lib/schema.ts` typed `Identity.name` and `IndexPlayer.name`
+  as `string`; the exporter emits `null` for a player with no `player_xwalk`
+  row. Exactly one of 3,971 exported players is one (`00-0005532`: three 1999
+  rows for NO). TypeScript believed the type, so nothing was guarded:
+  - `initials()` called `.trim()` on it and `/nfl/player/00-0005532` returned
+    **500** - worse than the broken image the monogram fallback exists to
+    prevent;
+  - `fold()` called `.normalize()` on it inside `searchPlayers`, which runs
+    over **every** player on **every** keystroke including the empty query, so
+    that one row threw inside the whole 3,971-row players index.
+  - **The index failure was invisible to a status check**: `/nfl/players`
+    returned 200 because that view is a client shell and the throw happened in
+    the browser. Verify a client view by what it renders, not by its code.
+  - Fixed by typing both `string | null` and rendering every player name
+    through `displayName()` (name, else slug). Roster rows were checked and are
+    not affected: 32 team files, 1,117 rows, 0 null names.
+  - **The real gap is that nothing validates the export against the site's own
+    schema.** The fallback is the symptom's fix, not the cause's.
 - **`wrangler deploy --dry-run` output.** "Read N files" counts directories
   too: 16,113 entries against 12,077 real files.
 - **Weekly refresh.** The task `CalibratedSports Weekly Refresh` runs
