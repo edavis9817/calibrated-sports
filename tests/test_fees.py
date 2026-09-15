@@ -144,7 +144,10 @@ def test_division_and_conference_series_match_by_prefix(ticker):
 
 
 @pytest.mark.parametrize("ticker", [
-    "KXNFLREC", "KXNFLRSHATT", "KXNFLTOTAL", "KXNFLSPREAD", "KXNFLFFPTS",
+    # Brief 019 removed KXNFLTOTAL and KXNFLSPREAD from this list. They were
+    # pinned here as maker-free in brief 016 on the strength of the PDF table,
+    # and Kalshi's /series endpoint says `quadratic_with_maker_fees` for both.
+    "KXNFLREC", "KXNFLRSHATT", "KXNFLFFPTS",
 ])
 def test_player_prop_series_are_UNLISTED_so_makers_are_free(ticker):
     """The load-bearing fact from the schedule: no NFL player-prop series
@@ -228,3 +231,27 @@ def test_a_fee_free_maker_order_keeps_its_whole_edge():
 
 def test_a_coin_flip_at_fair_value_loses_exactly_the_fee():
     assert edge_after_fees(0.50, 0.50, 100) == pytest.approx(-0.0175)
+
+
+# =============================================================================
+# brief 019: the exchange's own fee_type field is the authority
+# =============================================================================
+
+@pytest.mark.parametrize("ticker", [
+    "KXNFLSPREAD", "KXNFLTOTAL", "KXNFLFIRSTTD", "KXNFLANYTD", "KXNFL2TD",
+])
+def test_series_the_API_marks_quadratic_with_maker_fees_pay_a_maker_fee(ticker):
+    """Kalshi's /series endpoint lists these five as
+    `fee_type=quadratic_with_maker_fees`; the PDF's Non-Standard Fees table
+    omitted them, and brief 016 pinned SPREAD and TOTAL as maker-free on the
+    PDF's word. The API is what the exchange bills from."""
+    maker_m, taker_m = series_multiplier(ticker)
+    assert (maker_m, taker_m) == (Decimal(1), Decimal(1))
+    assert kalshi_fee(0.50, 100, side="maker", multiplier=maker_m) > Decimal("0")
+
+
+def test_receptions_and_rush_attempts_stay_maker_free():
+    """The two series every result from S01 to 018 was measured on. The API
+    marks both `fee_type=quadratic` - no maker fee - so those results stand."""
+    for t in ("KXNFLREC", "KXNFLRSHATT"):
+        assert series_multiplier(t)[0] == Decimal(0)

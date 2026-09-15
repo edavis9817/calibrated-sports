@@ -153,7 +153,10 @@ def targets(season, week, model_version=None):
         "AND p.model_version=? ORDER BY 1", (season, week, mv))]
 
 
-def control_frame(season, week, model_version=None):
+PROP_SERIES = ("KXNFLREC", "KXNFLRSHATT")
+
+
+def control_frame(season, week, model_version=None, series=PROP_SERIES):
     """BRIEF 018 ITEM 1 - every prop market in the SAME kalshi events as the
     predictions, whether or not a prediction touched it.
 
@@ -176,18 +179,31 @@ def control_frame(season, week, model_version=None):
         "WHERE mo.venue='kalshi' AND o.season=? AND o.week=? AND p.model_version=?",
         (season, week, mv))]
     events = {m.split("-")[1] for m in pred if len(m.split("-")) > 1}
-    allm = [m for (m,) in c.execute(
-        "SELECT market_id FROM markets WHERE venue='kalshi' AND "
-        "(market_id LIKE 'KXNFLREC-%' OR market_id LIKE 'KXNFLRSHATT-%')")]
+    # BRIEF 019 ITEM 3: any series, not just the two props. The events still
+    # come from the predictions ONLY to fix the window - same 14 games - so a
+    # per-series capture comparison differs by series and nothing else.
+    allm = []
+    for s in series:
+        allm += [m for (m,) in c.execute(
+            "SELECT market_id FROM markets WHERE venue='kalshi' "
+            "AND market_id >= ? AND market_id < ?", (s + "-", s + "."))]
     return sorted(m for m in allm
                   if len(m.split("-")) > 1 and m.split("-")[1] in events)
 
 
-def fetch_one(client, ticker):
-    """Every print for one ticker. Returns (pages, payloads, status, note)."""
+def fetch_one(client, ticker, window=None):
+    """Every print for one ticker. Returns (pages, payloads, status, note).
+
+    `window=(min_ts, max_ts)` bounds the tape. The endpoint pages NEWEST FIRST,
+    so an unbounded fetch of a game-level market spends all MAX_PAGES on
+    in-game prints and never reaches the entry->kickoff window a maker
+    simulation reads - 22 of 28 KXNFLGAME tapes did exactly that (brief 019).
+    """
     payloads, cursor, code, note = [], None, 200, ""
     for page in range(MAX_PAGES):
         params = {"ticker": ticker, "limit": 1000}
+        if window:
+            params["min_ts"], params["max_ts"] = int(window[0]), int(window[1])
         if cursor:
             params["cursor"] = cursor
         for attempt, wait in enumerate([0] + BACKOFF):
@@ -232,9 +248,10 @@ def parse(c, ticker, payloads):
     return len(rows)
 
 
-def run(season, week, limit=None, frame=False):
+def run(season, week, limit=None, frame=False, series=None):
     c = conn()
-    tick = control_frame(season, week) if frame else targets(season, week)
+    tick = (control_frame(season, week, series=series or PROP_SERIES)
+            if frame else targets(season, week))
     if limit:
         tick = tick[:limit]
     print(f"{len(tick)} markets, {RPS} req/s -> {M01_DB}")
@@ -282,6 +299,73 @@ def run(season, week, limit=None, frame=False):
                       f"failed={fails}")
     c.commit()
     status(c)
+
+
+def refetch_capped(c, windows_path):
+    """Re-fetch every market whose tape hit MAX_PAGES, bounded to its own
+    entry->kickoff window. Additive: prints already stored stay (ON CONFLICT
+    DO NOTHING), and the simulation filters to the window anyway. A window that
+    STILL hits the cap is recorded as such, not silently accepted."""
+    with open(windows_path, encoding="utf-8") as f:
+        windows = json.load(f)
+    capped = [m for (m,) in c.execute(
+        "SELECT market_id FROM market_trades_fetch WHERE venue='kalshi' "
+        "AND note LIKE '%hit MAX_PAGES%'")]
+    print(f"  {len(capped)} capped tapes to re-fetch inside entry->kickoff")
+    with httpx.Client(timeout=45, headers={"User-Agent": config.USER_AGENT},
+                      follow_redirects=True) as client:
+        for ticker in capped:
+            w = windows.get(ticker.split("-")[1])
+            if not w:
+                print(f"    {ticker}: NO WINDOW for its event - left capped")
+                continue
+            pages, n, code, note = walk_window(
+                lambda win: _fetch_archived(c, client, ticker, win), w)
+            c.execute(
+                "UPDATE market_trades_fetch SET fetched_ts=?, pages=?, n_trades=?, "
+                "status=?, note=? WHERE venue='kalshi' AND market_id=?",
+                (time.time(), pages, n, code, note, ticker))
+            c.commit()
+            print(f"    {ticker:<34} {n:>6} prints in window  {note}")
+
+
+def _fetch_archived(c, client, ticker, win):
+    time.sleep(1.0 / RPS)
+    pages, payloads, code, note = fetch_one(client, ticker, window=win)
+    for d in payloads:
+        store.archive_raw(VENUE, f"trades:{ticker}:window", d)
+    n = parse(c, ticker, payloads) if payloads else 0
+    tss = [_ts(t.get("created_time")) for d in payloads for t in d.get("trades") or []]
+    tss = [t for t in tss if t is not None]
+    return pages, n, code, note, (min(tss) if tss else None)
+
+
+MAX_ROUNDS = 10
+
+
+def walk_window(fetch, window):
+    """Page a (min_ts, max_ts) window to its START. The tape is newest first,
+    so a pass that hits MAX_PAGES has the kickoff end and is missing the entry
+    end - which is where a resting order would fill first. Each capped pass
+    moves max_ts back to the earliest print it returned (inclusive, since
+    several prints share a second; ON CONFLICT drops the overlap) and goes
+    again. `fetch(win) -> (pages, n, status, note, earliest_ts)`."""
+    lo, hi = window
+    pages = n = rounds = 0
+    code, note = 200, ""
+    while rounds < MAX_ROUNDS:
+        rounds += 1
+        p, k, code, note, earliest = fetch((lo, hi))
+        pages += p
+        n += k
+        if code != 200 or note != "hit MAX_PAGES" or earliest is None \
+                or earliest <= lo or earliest >= hi:
+            break
+        hi = earliest
+    capped = code == 200 and note == "hit MAX_PAGES"
+    return pages, n, code, (f"window {int(lo)}-{int(window[1])} rounds={rounds}"
+                            + (" STILL hit MAX_PAGES" if capped else
+                               f" {note}" if note else ""))
 
 
 def from_archive(c):
@@ -332,6 +416,11 @@ def main():
     ap.add_argument("--frame", action="store_true",
                     help="brief 018: every prop market in the predictions' "
                          "events, not just the predicted ones")
+    ap.add_argument("--series", help="brief 019: comma-separated series for --frame, "
+                    "e.g. KXNFLSPREAD,KXNFLTOTAL,KXNFLGAME")
+    ap.add_argument("--refetch-capped", metavar="WINDOWS_JSON",
+                    help="brief 019: re-fetch tapes that hit MAX_PAGES inside "
+                         "{event: [entry_ts, kickoff_ts]}")
     ap.add_argument("--from-archive", action="store_true")
     ap.add_argument("--status", action="store_true")
     a = ap.parse_args()
@@ -345,11 +434,15 @@ def main():
     c = conn()
     if a.status:
         status(c)
+    elif a.refetch_capped:
+        refetch_capped(c, a.refetch_capped)
+        status(c)
     elif a.from_archive:
         from_archive(c)
         status(c)
     else:
-        run(a.season, a.week, a.limit, a.frame)
+        run(a.season, a.week, a.limit, a.frame,
+            tuple(x.strip() for x in a.series.split(",")) if a.series else None)
 
 
 if __name__ == "__main__":

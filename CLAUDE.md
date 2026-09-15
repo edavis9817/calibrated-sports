@@ -716,6 +716,105 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
 - **Liquidity cannot be stratified on this slate**: 910 of 935 predictions sit
   in `thin`, 24 in `medium`, 1 in `deep`.
 
+- **Kalshi's `/series` endpoint is the fee authority, not the PDF.** Each
+  series row carries `fee_type`: `quadratic_with_maker_fees` charges makers,
+  `quadratic` does not. 23 of 358 NFL series charge makers. The PDF's
+  Non-Standard Fees table omitted five of them - **`KXNFLSPREAD`,
+  `KXNFLTOTAL`, `KXNFLFIRSTTD`, `KXNFLANYTD`, `KXNFL2TD`** - and brief 016
+  pinned SPREAD and TOTAL as maker-free on its word. Fixed in
+  `core/fees.SERIES_M`. `KXNFLREC` and `KXNFLRSHATT` are genuinely
+  `quadratic`, so every result from S01 through 018 stands.
+- **Ladder monotonicity is violated on the touch, and none of it is money**
+  (brief 019 H1, `research/structural.py --monotonicity`). Condition derived,
+  not assumed: buy YES on the lower rung at `ask_i`, NO on the higher at
+  `1 - bid_j`, payoff never below 1, so the arbitrage exists iff
+  `ask_i < bid_j`. Over the logged history (09-09 to 09-14) across REC, RSHATT,
+  SPREAD, TOTAL, WINS, WINSWEEK and WINSTREAK:
+  - **892 episodes** (1,502 violating poll instants, 799 with both legs in the
+    same poll). Gap at the start: median **1c**, p90 3c, max 12c.
+  - **846 of 892 (95%) are in-game** - rungs of one ladder updating out of
+    step after kickoff. 42 are season futures, 4 pre-game.
+  - 232 survive taker fees on both legs; 215 / 227 / 232 at 10 / 50 / 100
+    contracts with the rounded fee.
+  - **Depth could be checked on only 17 of the 232, and none had even 10
+    contracts at the touch on both legs - the thinner leg carried a median of
+    1 contract, max 2.** The other 215 are unverifiable,
+    not infeasible - 128 had no depth snapshot within 60s, 87 had one showing
+    a different book, which in-game is expected.
+  - Persistence is mostly one poll: 67% of fee-survivors were seen once
+    (0 to ~60s), 11% lasted 1-5 min, 4% 5-30 min, max ~10 min. The poll floor
+    is ~10s in-game, so anything faster was never seen.
+  - Verdict on the brief's own standard: this is a latency race on a thin
+    touch, not a business.
+- **First-TD-scorer partitions are incomplete, so the sum test cannot run**
+  (brief 019 H2, `research/structural.py --partition`). `KXNFLFIRSTTD` is the
+  player partition; `KXNFLANYTD` and the `KXNFLTD` 1+/2+ ladder are not
+  partitions. **16 of 18 listed events fail completeness**: 13 of 16 settled
+  week-1 events had NO "No Touchdown" leg, SF@LA listed it TWICE (`-NONE` and
+  `-LARNONE`, both "No Touchdown" - overlapping legs), and the open week-2
+  DET@BUF event lists two D/STs and No Touchdown with no players. **ARI@LAC
+  settled with no listed leg resolving yes** - the outcome that happened was
+  not on the board. The two that pass on composition have no logged book
+  (the series is untracked), so H2 was NOT tested.
+  - Classify legs by `yes_sub_title`, not by ticker. A ticker regex caught
+    `-LARNONE` only because the pattern happened to be end-anchored.
+  - Settled markets quote 0/1, so a completeness check that also tests
+    tradeability calls every settled event incomplete for the wrong reason.
+    Composition only, and say tradeability is unknowable.
+- **The NFL board, catalogued** (brief 019 item 0, `research/structural.py
+  --catalogue`, snapshot `jobs/snapshot_kalshi_series.py` -> `board_019.db`,
+  Mon 09-14 23:08 ET). 358 NFL series listed, 154 with open markets, 10,631
+  open markets; 53 match the logger's allowlist. Of the 154: 70 partitions, 41
+  ladders, 27 multi-binary, 16 standalone. **The tight books are the ones we
+  do not model**: futures partitions (division, conference, MVP, awards) and
+  game lines quote 1c (`KXNFLGAME`, `KXNFLSPREAD`), `KXNFLTOTAL` 2c. Untracked
+  props run 4-12c (`KXNFLTD` ladder 4c on 58k volume, PASSYDS 5c, RECYDS 12c).
+  Our two series are the widest on the board: REC 13c at snapshot (6c over
+  logged history), RSHATT 60c at snapshot (14c history). Median prints per
+  market: GAME at least 20,000 (22 of 28 tapes hit the fetch cap, so this is
+  a floor, not a median), SPREAD 735, TOTAL 600, REC 40, RSHATT 14.
+  - **The CLAUDE.md line "no anytime-TD series" is stale.** `KXNFLANYTD`
+    exists (0 open at snapshot) and `KXNFLTD` is a 1+/2+/3+/4+ player ladder.
+- **The trades tape pages NEWEST FIRST, so a capped fetch keeps the wrong
+  end.** `MAX_PAGES=20` x 1000 was sized for props; 22 of 28 `KXNFLGAME` tapes
+  and 2 `KXNFLSPREAD` tapes hit it, and every one of the 22 GAME tapes kept
+  only in-game prints - the earliest retained print was after kickoff. A maker
+  simulation reading entry->kickoff saw an EMPTY tape and called it "never
+  filled", which is a plausible number. Fetch with `min_ts`/`max_ts` bounded to
+  the window, and when a bounded pass still caps, walk `max_ts` back to the
+  earliest print returned (`walk_window`). DAL@NYG needed 4 rounds, 62,619
+  prints. A tape whose note says `hit MAX_PAGES` is not a tape.
+- **Both-sides spread capture is negative on every tight series and zero on
+  ours - and the fee explains that ordering as well as the spread does**
+  (brief 019 H3, `research/structural.py --capture`). The 018 both-sides maker
+  simulation per series, 100 contracts, same 14 events and entry instant,
+  behind the queue, 14-game block bootstrap:
+
+      series   spread  M   fill                 conditional            gap
+      REC       7.0c   0   18.9% [15.2, 22.8]   +0.24 [-0.31, +0.86]   +3.92 [+3.21, +4.72]
+      RSHATT    6.0c   0   25.5% [20.1, 33.3]   +0.85 [-0.45, +1.98]   +4.96 [+2.95, +7.15]
+      SPREAD    2.0c   1   28.2% [23.9, 32.9]   -0.83 [-1.67, -0.29]   +1.84 [+1.09, +3.02]
+      TOTAL     2.0c   1   18.8% [14.5, 24.2]   -0.50 [-0.94, -0.15]   +1.21 [+0.84, +1.72]
+      GAME      1.0c   1   46.4% [39.3, 50.0]   -1.32 [-2.59, -0.37]   +2.65 [+0.86, +5.07]
+
+  - The standing prediction (tighter captures worse) HELD as an ordering:
+    corr(spread, conditional capture) = +0.90 over 5 series. **Five points is
+    an ordering, not a test.**
+  - **Spread and maker fee are perfectly collinear here.** Every tight series
+    charges makers (`quadratic_with_maker_fees`), every wide one is free, so
+    this sample cannot say which of the two did it. Adding back a maker fee of
+    ~0.44pp at p~0.5 leaves SPREAD ~-0.4, TOTAL ~-0.1, GAME ~-0.9 gross -
+    still at or below zero, but TOTAL's loss is mostly the fee.
+  - Adverse selection is visible on the tight books as an actual LOSS on the
+    fills, where on the props it was fills worth nothing. The selection gap
+    excludes zero everywhere.
+  - **The GAME row was first computed on truncated tapes** (see above): fill
+    19.6%, conditional -1.17, never-filled +0.42, gap +1.59. On the complete
+    tapes it is 46.4% / -1.32 / +1.34 / +2.65. The fill rate more than doubled
+    and the sign did not move. The other four rows did not change.
+  - Test count for brief 019: H1 1, H2 0 (not runnable), H3 5 x 4 intervals
+    + 1 ordering = **22**.
+
 **Anything quoted as a finding must have a committed script in `research/`.**
 Numbers reached `CLAUDE.md` once without one; the reference then could not be
 reproduced, and separating a data change from a methodology change cost a

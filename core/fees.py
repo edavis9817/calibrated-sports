@@ -56,6 +56,14 @@ SERIES_M = {
     "KXNCAAFGAME": (1, 1),      # College Football Game
     "KXSB": (1, 1),             # Super Bowl
     "KXMVE": (2, 1),            # Combos - the one entry where maker > taker
+    # BRIEF 019: Kalshi's own `/series` endpoint marks these five
+    # `fee_type=quadratic_with_maker_fees`, and the PDF's Non-Standard Fees
+    # table omits them. The API is the authority - it is what the exchange
+    # bills from - so they carry a maker fee. REC and RSHATT are
+    # `fee_type=quadratic` and genuinely maker-free, so briefs 016-018, which
+    # were measured only on those two, are unaffected.
+    "KXNFLSPREAD": (1, 1), "KXNFLTOTAL": (1, 1), "KXNFLFIRSTTD": (1, 1),
+    "KXNFLANYTD": (1, 1), "KXNFL2TD": (1, 1),
     # AP awards
     "KXNFLMVP": (1, 1), "KXNFLCOTY": (1, 1), "KXNFLOPOTY": (1, 1),
     "KXNFLDPOTY": (1, 1), "KXNFLOROTY": (1, 1), "KXNFLDROTY": (1, 1),

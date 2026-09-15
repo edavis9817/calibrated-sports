@@ -201,7 +201,7 @@ def drift_after_fill(r, sim, mid_at):
 # loading
 # =============================================================================
 
-def load_control(season=2026, week=1, ticket=TICKET, model_version=None,
+def load_control(season=2026, week=1, ticket=TICKET, model_version=None, series=None,
                  disjoint=False):
     """BRIEF 018 ITEM 1 - the same simulation on a population the model never
     touched.
@@ -244,7 +244,8 @@ def load_control(season=2026, week=1, ticket=TICKET, model_version=None,
                                     override=model_version)
     live = S00.db()
     td = trades_db()
-    frame = control_frame(season, week, model_version)
+    frame = control_frame(season, week, model_version,
+                          series=series or ("KXNFLREC", "KXNFLRSHATT"))
 
     predicted = {r[0] for r in live.execute(
         "SELECT mo.market_id FROM predictions p JOIN outcomes o USING (outcome_id) "
