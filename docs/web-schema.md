@@ -172,7 +172,8 @@ game logs.
  "identity": {"id": "00-0036223", "slug": "jonathan-taylor", "name": "Jonathan Taylor",
               "position": "RB", "team": "IND",
               "ids": {"gsis": "...", "pfr": "...", "espn": "...", "sleeper": null, "yahoo": null, "pff": "..."},
-              "aliases": ["j taylor"]},
+              "aliases": ["j taylor"],
+              "headshot_url": "https://static.www.nfl.com/image/upload/..."},
  "seasons": [{"season": 2025, "teams": ["IND"], "games": 17, "key": "nfl/players/00-0036223/2025.json"}],
  "season_totals": [{"season": 2025, "season_type": "REG", "games": 17,
                     "stats": {"rush_att": 0, "rush_yds": 0, "rec": 0, "snap_share_mean": 0.61}}],
@@ -181,6 +182,8 @@ game logs.
 ```
 
 `market` is `null` when there is no current-period market.
+
+`identity.headshot_url`: optional-in-meaning, always-present key; https URL hotlinked from the source (NFL: static.www.nfl.com); never stored in R2; null when unknown.
 
 ## {sport}/players/{id}/{season}.json — kind `player_season`
 

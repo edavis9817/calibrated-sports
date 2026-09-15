@@ -26,6 +26,8 @@ class Runner:
         s = " ".join(cmd)
         if "ingest_nflverse" in s:
             return "ingest"
+        if "ingest_headshots" in s:
+            return "headshots"
         if "map_markets" in s:
             return "map"
         if "export_web" in s and "--upload-only" in s:
@@ -72,7 +74,8 @@ def test_steps_run_in_order_and_touch_git_only_for_the_slug_registry(env):
     assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
     # python steps only: `git commit -m <message>` also contains "-m"
     py_steps = [c[c.index("-m") + 1] for c in r.calls if c and c[0] != "git" and "-m" in c]
-    assert py_steps == ["jobs.ingest_nflverse", "jobs.map_markets", "jobs.export_web", "jobs.export_web"]
+    assert py_steps == ["jobs.ingest_nflverse", "jobs.ingest_headshots", "jobs.map_markets",
+                        "jobs.export_web", "jobs.export_web"]
     git_calls = [c for c in r.calls if c and c[0] == "git"]
     assert git_calls, "the refresh should check the slug registry"
     assert all(c[-1] == W.SLUG_PATH and c[-2] == "--" for c in git_calls)
@@ -85,7 +88,7 @@ def test_export_failure_stops_before_upload(env):
     tmp, _ = env
     r = Runner(fail={"export"})
     assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 1
-    assert r.names() == ["ingest", "map", "export"]
+    assert r.names() == ["ingest", "headshots", "map", "export"]
 
 
 def test_upload_failure_is_an_error(env):
@@ -95,9 +98,9 @@ def test_upload_failure_is_an_error(env):
     assert "ERROR" in read_log(tmp)
 
 
-def test_ingest_and_map_failures_degrade_rather_than_die(env):
+def test_ingest_headshot_and_map_failures_degrade_rather_than_die(env):
     tmp, _ = env
-    r = Runner(fail={"ingest", "map"})
+    r = Runner(fail={"ingest", "headshots", "map"})
     assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
     assert "upload" in r.names()
 
@@ -128,7 +131,7 @@ def test_skip_ingest(env):
     tmp, _ = env
     r = Runner()
     assert W.run(skip_ingest=True, runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
-    assert "ingest" not in r.names()
+    assert "ingest" not in r.names() and "headshots" in r.names()   # archive-only, still runs
 
 
 def test_refuses_without_config(monkeypatch, tmp_path):

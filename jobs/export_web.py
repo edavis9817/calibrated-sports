@@ -466,6 +466,37 @@ def load_xwalk(con):
     return xw, aliases
 
 
+def valid_headshot(url):
+    """https with a non-empty host, or None. Hotlinked only - never fetched."""
+    if not url or not isinstance(url, str):
+        return None
+    from urllib.parse import urlparse
+    try:
+        p = urlparse(url.strip())
+    except ValueError:
+        return None
+    return url.strip() if p.scheme == "https" and p.netloc else None
+
+
+def load_headshots(con):
+    """gsis -> the most recent VALID headshot URL (latest season, then week).
+    An invalid latest URL falls back to the newest valid one."""
+    try:
+        rows = con.execute(
+            "SELECT gsis_id, season, week, headshot_url FROM player_headshot WHERE sport = ? "
+            "ORDER BY gsis_id, season DESC, week DESC", (SPORT,)).fetchall()
+    except sqlite3.OperationalError:          # table absent on an old store
+        return {}
+    out = {}
+    for gsis, _season, _week, url in rows:
+        if gsis in out:
+            continue
+        ok = valid_headshot(url)
+        if ok:
+            out[gsis] = ok
+    return out
+
+
 def load_snaps(con, xwalk):
     pfr_to_gsis = {r["pfr_id"]: g for g, r in xwalk.items() if r.get("pfr_id")}
     snaps, unresolved = {}, {}
@@ -565,8 +596,10 @@ def _totals(periods):
     return stats
 
 
-def build_players(games, by_player, snaps, xwalk, aliases, slugs, market_keys, generated_at):
+def build_players(games, by_player, snaps, xwalk, aliases, slugs, market_keys, generated_at,
+                  headshots=None):
     """-> ({key: obj} for summaries and season files, [index entries], unresolved)."""
+    headshots = headshots or {}
     gidx = game_index(games)
     files, index, unresolved = {}, [], []
     for gsis, rows in by_player.items():
@@ -636,7 +669,8 @@ def build_players(games, by_player, snaps, xwalk, aliases, slugs, market_keys, g
                          "ids": {"gsis": gsis, "pfr": x.get("pfr_id"), "espn": x.get("espn_id"),
                                  "sleeper": x.get("sleeper_id"), "yahoo": x.get("yahoo_id"),
                                  "pff": x.get("pff_id")},
-                         "aliases": sorted(aliases.get(gsis, ()))},
+                         "aliases": sorted(aliases.get(gsis, ())),
+                         "headshot_url": headshots.get(gsis)},
             "seasons": season_entries,
             "season_totals": totals,
             "career": {"season_type": "REG", "games": len(reg), "stats": _totals(reg)},
@@ -1052,8 +1086,11 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
             if len(parts_k) == 4 and parts_k[:2] == [SPORT, "market"] and parts_k[3] == f"{pkey}.json":
                 market_keys[parts_k[2]] = key
 
+    headshots = load_headshots(con)
     player_files, index, unresolved = build_players(games, by_player, snaps, xwalk, aliases, slugs,
-                                                    market_keys, generated_at)
+                                                    market_keys, generated_at, headshots)
+    summary["headshots"] = {"with_url": sum(1 for g in by_player if g in headshots),
+                            "players": len(by_player)}
     med, p99, n = ppr_check(weeks, scope)
     note = SCORING_NOTE_BASE if med is None else (
         f"{SCORING_NOTE_BASE} Against nflverse's own fantasy_points_ppr (which includes them) the "

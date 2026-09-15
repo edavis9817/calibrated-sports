@@ -341,6 +341,21 @@ CREATE TABLE IF NOT EXISTS player_alias (
 );
 CREATE INDEX IF NOT EXISTS ix_alias ON player_alias(alias);
 
+-- A player's headshot URL per roster week, from nflverse roster_weekly. A FACT
+-- about where the source hosts the image - the image itself is never stored
+-- anywhere (the site hotlinks it). Re-derived from the raw archive by
+-- jobs/ingest_headshots.py; a restated URL overwrites in place.
+CREATE TABLE IF NOT EXISTS player_headshot (
+    sport          TEXT NOT NULL DEFAULT 'nfl',
+    gsis_id        TEXT NOT NULL,
+    season         INTEGER NOT NULL,
+    week           INTEGER NOT NULL,
+    headshot_url   TEXT NOT NULL,
+    source_version TEXT,
+    ingested_ts    REAL,
+    PRIMARY KEY (sport, gsis_id, season, week)
+);
+
 -- Settlement is a FACT (invariant #6). Beliefs never land in this table, and a
 -- correction restates it under a new data_version rather than editing history.
 -- ==================== beliefs (brief 004) ====================

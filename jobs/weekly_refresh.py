@@ -9,6 +9,8 @@ config.storage_path("logs", "weekly_refresh.log"):
   1. nflverse ingest   jobs.ingest_nflverse --tier live --season <season>
                        (a failure DEGRADES: WARN, the export still runs and
                        marks the data stale)
+  1b. headshots        jobs.ingest_headshots --season <season> (archive only;
+                       failure: WARN)
   2. market mapping    jobs.map_markets --venue kalshi       (failure: WARN)
   3. export            jobs.export_web                       (failure: ERROR, stop)
   3b. slug registry    if the export appended to web/slugs/, commit ONLY that path
@@ -128,6 +130,8 @@ def run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fetc
     else:
         step("ingest", [py, "-m", "jobs.ingest_nflverse", "--tier", "live", "--season", str(season)],
              fatal=False)
+    # Archive-only re-derivation, so it runs even with --skip-ingest.
+    step("headshots", [py, "-m", "jobs.ingest_headshots", "--season", str(season)], fatal=False)
     step("map", [py, "-m", "jobs.map_markets", "--venue", "kalshi"], fatal=False)
     if step("export", [py, "-m", "jobs.export_web"], fatal=True).returncode != 0:
         return 1
