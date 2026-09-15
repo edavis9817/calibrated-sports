@@ -88,7 +88,16 @@ def live_ro():
 
 
 def cfb_ro():
+    """CFB is holdout B. ALL CFB access - population runs included - waits for
+    the candidates doc, because a population run of H2 before the candidates
+    are frozen would be an unlabelled look at H2's own replication."""
+    require_committed(CANDIDATES_DOC)
     return sqlite3.connect(f"file:{CFB_DB}?mode=ro", uri=True)
+
+
+def cfb_raw_dir():
+    require_committed(CANDIDATES_DOC)
+    return os.path.join(config.RAW_DIR, "cfb_kalshi")
 
 
 # =============================================================================
@@ -185,8 +194,12 @@ class Registry:
             note="", scale=1.0):
         if role not in ROLES:
             raise ValueError(role)
+        # `ts` is when the interval was COMPUTED. Bar 1 compares it with the
+        # commit time of the candidates doc: a replication record older than
+        # that commit is a look at the holdout before the mechanism was frozen.
         rec = {"family": family, "name": name, "role": role, "unit": unit,
-               "population": population, "note": note, "estimable": bool(res)}
+               "population": population, "note": note, "estimable": bool(res),
+               "ts": __import__("time").time()}
         if res:
             rec.update({k: (res[k] * scale if k in ("est", "lo", "hi", "se") else res[k])
                         for k in ("est", "lo", "hi", "se", "p", "n", "games")})

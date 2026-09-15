@@ -80,3 +80,11 @@ def test_registry_and_summary(tmp_path):
 def test_holdout_is_closed_until_the_candidates_doc_is_committed(tmp_path, monkeypatch):
     with pytest.raises(S.HoldoutViolation):
         S.require_committed("docs/briefs/does-not-exist-022.md")
+
+
+def test_every_cfb_accessor_goes_through_the_guard(monkeypatch):
+    monkeypatch.setattr(S, "CANDIDATES_DOC", "docs/briefs/does-not-exist-022.md")
+    with pytest.raises(S.HoldoutViolation):
+        S.cfb_ro()
+    with pytest.raises(S.HoldoutViolation):
+        S.cfb_raw_dir()
