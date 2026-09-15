@@ -1003,6 +1003,35 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
     losses. Registry records carry their compute time, so "mechanism before the
     holdout" is checked against the commit, not remembered.
 
+- **THE MODEL LOSES TO THE SPORTSBOOK CLOSE IN EVERY SEASON, WALK-FORWARD**
+  (brief 023 Part 1, `research/walkforward.py`, pre-registered at `fd0a57b`).
+  Receptions and rush attempts, over side; every fitted constant refit on
+  seasons <= T-1 (a `Constants` object refuses prediction if any fit season
+  >= T); features strictly as-of. Close = `outcome_close.p_bench`, the
+  de-vigged DK/FD/MGM median within 15 min of kickoff. Game block bootstrap:
+
+      season  n      games  Brier model / close / naive   model - close           MDE
+      2023    4,441  270    0.2735 / 0.2463 / 0.2768      +0.0272 [+0.0216,+0.0333]  0.0083
+      2024    4,842  272    0.2711 / 0.2446 / 0.2795      +0.0265 [+0.0210,+0.0318]  0.0077
+      2025    5,574  271    0.2668 / 0.2450 / 0.2766      +0.0218 [+0.0162,+0.0277]  0.0082
+
+  - **Powered, and robust to everything we could not pin down.**
+    `SHRINK_GAMES_VMR`, `TEAM_CHANGE_KEEP` and `COACH_CHANGE_KEEP` are
+    judgment calls with no fitting script; k=6 was kept after a 2023-25 check;
+    `MEAN_DRIFT_VAR` has no reproducible measurement (about 500 procedure
+    variants failed to reproduce 8.56 / 1.12). All were bracketed with
+    alternatives declared before the run - 13 variants per season, 60 intervals
+    - and every one has the model worse with the interval excluding zero (range
+    +0.0211 to +0.0295). Receptions and rush attempts both lose separately.
+  - Settling played-with-no-stat-row at 0 (~7% of outcomes, priced like normal
+    props) narrows the gap by only 0.002-0.004: +0.0231 / +0.0237 / +0.0195.
+  - The model beats the naive prior-season hit rate by only 0.003-0.010.
+  - **This closes the model-versus-close question.** The brief's rule was that
+    beating neither end closes Part 1; the close is beaten by 0.022-0.027 against
+    an MDE of ~0.008. The OPEN is not on disk (the backfill bought closes only),
+    so "beats the open, not the close" is untested: one kickoff -48h snapshot is
+    ~17,100 credits for 2 markets or ~42,750 for all 5 (spendable 24,582 on
+    2026-09-15). Pilot one week (~320 credits) before any buy.
 - **Book versus book: prop arbitrage is real, about 1pp, and not a business;
   every middle loses** (brief 023 Part 2, `research/bookvbook.py`,
   pre-registered at `fd0a57b`). Pre-kickoff, freshness-filtered (quote
