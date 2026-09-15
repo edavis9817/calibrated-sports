@@ -1088,14 +1088,30 @@ domain by decision**.
   `404-page`). `workers_dev: true` is explicit, because workers.dev is the only
   address. `preview_urls: false` is explicit, because per-version preview URLs
   are public.
-- **The first deploy used 12,076 of the 20,000-asset cap with one sport.**
-  That is why the next restructure moves player and team pages to edge
-  rendering.
+- **Static assets went 12,076 -> 36 when player and team pages moved to edge
+  rendering** (site-architecture §2, live 2026-09-15). The v1 static export
+  used 60% of the 20,000-asset cap with ONE sport; the OpenNext build never
+  reads data, so the count no longer scales with players. Verified live: every
+  `/nfl/...` route 200, undeclared pages and unknown players 404, and every v1
+  URL 404 (a trailing slash redirects 308 first, then 404).
+- **Two things killed the first OpenNext deploy, and both are now guarded.**
+  - `prebuild` wrote `public/build.json`, but §2 deleted `public/data` and git
+    does not track empty directories - so a CLEAN CLONE, which is what Workers
+    Builds checks out, had no `public/` and the build died in 3s on ENOENT. Every
+    local build passed because the working tree still had the directory. Fixed
+    with `mkdirSync(..., {recursive: true})` AND a committed `public/.gitkeep`.
+  - `.node-version` said 20; wrangler, miniflare and `@cloudflare/kv-asset-handler`
+    all require **node >= 22**. Next 15 runs on 20, the Cloudflare tooling does
+    not, and that is what runs at the deploy step.
+  - **`npm run check:clean` is the guard:** clone the committed HEAD, `npm ci`,
+    `npm run build`. CI runs the same job. A local build against the working
+    tree cannot see a file the build needs that git does not track.
 - **`wrangler deploy --dry-run` output.** "Read N files" counts directories
   too: 16,113 entries against 12,077 real files.
 - **Weekly refresh.** The task `CalibratedSports Weekly Refresh` runs
   `python -m jobs.weekly_refresh` at 09:00 Tue/Wed/Thu. It needs the PC on and
-  the user logged on.
+  the user logged on. It uploads to R2 and commits only `web/slugs`; it never
+  pushes the site, so a data refresh cannot deploy code.
 
 **v1 scope.** Team and player pages, and market-derived fantasy distributions.
 **No login, paywall, betting recommendations or "best bets" - by decision, not
