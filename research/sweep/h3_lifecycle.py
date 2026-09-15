@@ -24,6 +24,7 @@ Tests (search), mean spread contrasts per series: each time-to-kickoff bucket
 minus 1-6h (dated only); 00-08 ET minus 09-16; 17-23 minus 09-16; Sunday minus
 Mon-Fri (Saturday is in neither side). Medians are descriptive.
 """
+import functools
 import os
 import sys
 from collections import Counter, defaultdict
@@ -51,7 +52,9 @@ PRE_STEP, IN_STEP = 60, 10
 NC = 101                      # spread in whole cents 0..100
 EDT = 4 * 3600                # every date here (Sep 9-15) is EDT; asserted in tests
 SIZE_BINS = np.arange(0.0, 9.0001, 0.05)
-REG_PATH = os.path.join(S.ROOT, "research", "sweep", "results", "h3.jsonl")
+# Population-aware: results/h3.jsonl for week 1, h3_wk2.jsonl for week 2.
+REG_PATH = S.registry_path("h3")
+CFB_REG_PATH = os.path.join(S.ROOT, "research", "sweep", "results", "h3_cfb.jsonl")
 
 
 # =============================================================================
@@ -161,6 +164,22 @@ def contrast_stat(rows):
     return sum(r["sa"] for r in rows) / wa - sum(r["sb"] for r in rows) / wb
 
 
+def contrast_tests(name, acc):
+    """The pre-registered contrasts, as (series, label, array, group A, group B).
+    ONE definition, so the CFB replication records carry exactly the labels the
+    week-1 candidates name."""
+    tests = []
+    if acc.ttk is not None:
+        for i, lab in enumerate(BUCKETS):
+            if i == REF_BUCKET:
+                continue
+            tests.append((name, f"ttk {lab} - 1-6h", acc.ttk, (i,), (REF_BUCKET,)))
+    tests.append((name, "hour 00-08 - 09-16", acc.hour, tuple(HOUR_GROUPS["00-08"]), tuple(HOUR_GROUPS["09-16"])))
+    tests.append((name, "hour 17-23 - 09-16", acc.hour, tuple(HOUR_GROUPS["17-23"]), tuple(HOUR_GROUPS["09-16"])))
+    tests.append((name, "Sunday - Mon-Fri", acc.dow, (6,), (0, 1, 2, 3, 4)))
+    return tests
+
+
 # =============================================================================
 # collection
 # =============================================================================
@@ -249,15 +268,16 @@ def collect_dated(c, games):
 def collect_futures(c):
     accs, census = {}, Counter()
     day0 = None
+    lo, hi = S.undated_window()          # week 1: (-inf, cutoff); week 2: its own week
     for name, prefixes in FUTURES.items():
         rows_by_market = []
         for p in prefixes:
             for mid, in c.execute("SELECT DISTINCT market_id FROM markets WHERE venue='kalshi' "
                                   "AND market_id >= ? AND market_id < ?", (p + "-", p + ".")):
                 q = c.execute("SELECT ts, best_bid, best_ask FROM quotes WHERE venue='kalshi' "
-                              "AND market_id=? AND source='live' AND ts < ? AND best_bid IS NOT NULL "
-                              "AND best_ask IS NOT NULL ORDER BY ts",
-                              (mid, S.UNDATED_CUTOFF_TS)).fetchall()
+                              "AND market_id=? AND source='live' AND ts >= ? AND ts < ? "
+                              "AND best_bid IS NOT NULL AND best_ask IS NOT NULL ORDER BY ts",
+                              (mid, max(lo, -1e18), hi)).fetchall()
                 if q:
                     S.assert_search_set(mid, q[-1][0])
                     rows_by_market.append((mid, q))
@@ -267,11 +287,11 @@ def collect_futures(c):
         days = sorted({int(d) for _m, q in rows_by_market
                        for d in hour_dow_et([q[0][0], q[-1][0]])[2]})
         day0 = min(days)
-        n_blocks = int(hour_dow_et([S.UNDATED_CUTOFF_TS])[2][0]) - day0 + 1
+        n_blocks = int(hour_dow_et([hi])[2][0]) - day0 + 1
         acc = accs[name] = SeriesAcc(n_blocks, dated=False)
         for mid, q in rows_by_market:
             qts, bids, asks = zip(*q)
-            g, w, spread, _mid = sample_grid(qts, bids, asks, end_cap=S.UNDATED_CUTOFF_TS)
+            g, w, spread, _mid = sample_grid(qts, bids, asks, end_cap=hi)
             if len(g) == 0:
                 continue
             acc.markets += 1
@@ -281,7 +301,7 @@ def collect_futures(c):
             blk = day - day0
             acc.add("hour", hour, blk, cents, w)
             acc.add("dow", dow, blk, cents, w)
-            _vol(acc, qts, bids, asks, None, S.UNDATED_CUTOFF_TS)
+            _vol(acc, qts, bids, asks, None, hi)
     return accs, census
 
 
@@ -301,7 +321,9 @@ def fmt(res):
 def run():
     if os.path.exists(REG_PATH):
         os.remove(REG_PATH)
+    S.open_population()                 # no-op for week 1; refuses week 2 until settled
     reg = S.Registry(REG_PATH)
+    add = functools.partial(reg.add, population=S.POPULATION)
     c = S.live_ro()
     games = load_games(c)
     dated, census_d = collect_dated(c, games)
@@ -328,7 +350,7 @@ def run():
             parts = []
             for i, lab in enumerate(labels):
                 res = hist_boot_median(arr[i])
-                reg.add("H3 median spread", f"{name}|{dim}|{lab}", res, role="descriptive", unit="c",
+                add("H3 median spread", f"{name}|{dim}|{lab}", res, role="descriptive", unit="c",
                         note="time-weighted; blocks=" + ("games" if acc.ttk is not None else "calendar days"))
                 parts.append(f"{lab} {res['est']:.0f} [{res['lo']:.0f},{res['hi']:.0f}]" if res else f"{lab} -")
             print(f"    {name:<12} {dim:<4} " + "  ".join(parts))
@@ -348,19 +370,12 @@ def run():
     print("\n  CONTRASTS - mean spread difference in cents (search tests; + = wider than the reference)")
     tests = []
     for name, acc in allacc.items():
-        if acc.ttk is not None:
-            for i, lab in enumerate(BUCKETS):
-                if i == REF_BUCKET:
-                    continue
-                tests.append((name, f"ttk {lab} - 1-6h", acc.ttk, (i,), (REF_BUCKET,)))
-        tests.append((name, "hour 00-08 - 09-16", acc.hour, tuple(HOUR_GROUPS["00-08"]), tuple(HOUR_GROUPS["09-16"])))
-        tests.append((name, "hour 17-23 - 09-16", acc.hour, tuple(HOUR_GROUPS["17-23"]), tuple(HOUR_GROUPS["09-16"])))
-        tests.append((name, "Sunday - Mon-Fri", acc.dow, (6,), (0, 1, 2, 3, 4)))
+        tests += contrast_tests(name, acc)
     for name, label, arr, a, b in tests:
         res = S.boot(contrast_rows(arr, a, b), contrast_stat)
         block = "games" if name in dated else "calendar days"
         note = f"blocks={block}" + ("; futures Sunday is ONE calendar day" if name in futures and "Sunday" in label else "")
-        reg.add("H3 contrast", f"{name}|{label}", res, unit="c", note=note)
+        add("H3 contrast", f"{name}|{label}", res, role=S.ROLE, unit="c", note=note)
         print(f"    {name:<12} {label:<22} {fmt(res)}{'   [' + note + ']' if 'ONE' in note else ''}")
 
     print("\n  RANKING - median spread / sd of 60-minute mid changes (descriptive; higher = wider"
@@ -378,5 +393,122 @@ def run():
     print(f"\n  registry: {REG_PATH}")
 
 
+# =============================================================================
+# CFB replication (brief 022 phase 2 - holdout B)
+# =============================================================================
+# Quotes from cfb_probe.db, written live by the probe and untouched by the raw
+# shard corruption. Two probe processes wrote duplicate rows for part of the
+# window; a time grid is indifferent to duplicates, which is one more reason the
+# grid is the right estimator. Blocks are CFB games (CFBD-matched). The capture
+# ran Thu-Sat ET, so "Sunday - Mon-Fri" is registered not estimable.
+
+CFB_SERIES = ("KXNCAAFSPREAD", "KXNCAAFTOTAL", "KXNCAAFGAME", "KXNCAAFTEAMTOTAL")
+
+
+def collect_cfb(c, kicks):
+    from research.sweep.h2_imbalance import CFB_VENUE
+    gidx = {g: i for i, g in enumerate(sorted(kicks))}
+    accs, census = {}, Counter()
+    for s in CFB_SERIES:
+        acc = accs[s] = SeriesAcc(len(gidx), dated=True)
+        for mid, in c.execute("SELECT DISTINCT market_id FROM markets WHERE venue=? "
+                              "AND market_id >= ? AND market_id < ?", (CFB_VENUE, s + "-", s + ".")):
+            gkey = mid.split("-")[1] if mid.count("-") >= 2 else None
+            if gkey not in kicks:
+                census[f"{s}: market with no matched CFBD game"] += 1
+                continue
+            kick = kicks[gkey]
+            q = c.execute("SELECT ts, best_bid, best_ask FROM quotes WHERE venue=? AND market_id=? "
+                          "AND best_bid IS NOT NULL AND best_ask IS NOT NULL ORDER BY ts",
+                          (CFB_VENUE, mid)).fetchall()
+            if not q:
+                census[f"{s}: market with no two-sided quote"] += 1
+                continue
+            qts, bids, asks = zip(*q)
+            g, w, spread, _mid = sample_grid(qts, bids, asks, kick=kick)
+            if len(g) == 0:
+                continue
+            acc.markets += 1
+            acc.samples += len(g)
+            cents = np.clip(np.rint(spread * 100).astype(np.int64), 0, NC - 1)
+            blk = np.full(len(g), gidx[gkey], dtype=np.int64)
+            hour, dow, _day = hour_dow_et(g)
+            acc.add("ttk", ttk_bucket(g, kick), blk, cents, w)
+            acc.add("hour", hour, blk, cents, w)
+            acc.add("dow", dow, blk, cents, w)
+            _vol(acc, qts, bids, asks, kick, None)
+    return accs, census
+
+
+def run_cfb():
+    from research.sweep.h2_imbalance import cfb_games, nfl_analogue, _nfl_signs
+    c = S.cfb_ro()                       # refuses until the candidates doc is committed
+    kicks, unmatched = cfb_games(c)
+    accs, census = collect_cfb(c, kicks)
+    nfl = _nfl_signs(os.path.join(S.ROOT, "research", "sweep", "results", "h3.jsonl"))
+    if os.path.exists(CFB_REG_PATH):
+        os.remove(CFB_REG_PATH)
+    reg = S.Registry(CFB_REG_PATH)
+
+    print("=" * 100)
+    print("H3 - SPREAD LIFECYCLE, CFB (holdout B: replication + population)")
+    print("=" * 100)
+    print(f"  CFBD-matched game keys {len(kicks)}; unmatched moneylines {len(unmatched)}")
+    for name, acc in accs.items():
+        live = int((acc.hour.sum(axis=(0, 2)) > 0).sum())
+        print(f"  {name:<18} markets {acc.markets:>5}  grid samples {acc.samples:>10,}  games with samples {live}")
+    for k, v in sorted(census.items()):
+        print(f"  census: {k:<56}{v:>6}")
+
+    print("\n  MEDIAN SPREAD (cents), descriptive")
+    for name, acc in accs.items():
+        for dim, labels in (("ttk", BUCKETS), ("dow", DOW), ("hour", [f"{h:02d}" for h in range(24)])):
+            arr = getattr(acc, dim)
+            parts = []
+            for i, lab in enumerate(labels):
+                res = hist_boot_median(arr[i])
+                reg.add("H3 median spread cfb", f"{name}|{dim}|{lab}", res, role="descriptive",
+                        unit="c", population="cfb", note="time-weighted; blocks=CFB games")
+                if res:
+                    parts.append(f"{lab} {res['est']:.0f} [{res['lo']:.0f},{res['hi']:.0f}]")
+            print(f"    {name:<18} {dim:<4} " + ("  ".join(parts) or "-"))
+
+    print("\n  CONTRASTS - mean spread difference in cents (+ = wider than the reference)"
+          "\n  NFL column = sign of the week-1 search estimate on the analogous series, * if it excluded zero.")
+    for name, acc in accs.items():
+        an = nfl_analogue(name)
+        for _n, label, arr, a, b in contrast_tests(name, acc):
+            if label == "Sunday - Mon-Fri":
+                res, note = None, "not estimable: the CFB capture ran Thu-Sat ET"
+            else:
+                res, note = S.boot(contrast_rows(arr, a, b), contrast_stat), "blocks=CFB games"
+            reg.add("H3 contrast", f"{name}|{label}", res, role="replication", unit="c",
+                    population="cfb", note=note)
+            reg.add("H3 contrast cfb population", f"{name}|{label}", res, role="search", unit="c",
+                    population="cfb", note=note)
+            nsign = nfl.get(("H3 contrast", f"{an}|{label}"), "-") if an else "n/a"
+            print(f"    {name:<18} {label:<22} {fmt(res) if res else 'NOT ESTIMABLE (' + note + ')':<62} NFL {nsign}")
+
+    print("\n  RANKING - median spread / sd of 60-minute mid changes (descriptive)")
+    ranking = []
+    for name, acc in accs.items():
+        med = weighted_median_from_hist(acc.ttk.sum(axis=(0, 1)))
+        if acc.vol_n > 1 and med is not None:
+            mean = acc.vol_s / acc.vol_n
+            sd = (acc.vol_ss / acc.vol_n - mean * mean) ** 0.5
+            ranking.append((med / sd if sd > 0 else float("inf"), name, med, sd, acc.vol_n))
+    for ratio, name, med, sd, n in sorted(ranking, reverse=True):
+        print(f"    {name:<18} median spread {med:>3}c  sd(60-min dmid) {sd:6.2f}pp  ratio {ratio:7.2f}  (n={n:,})")
+    print(f"\n  registry: {CFB_REG_PATH}")
+
+
+def main():
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--cfb", action="store_true", help="holdout B: replicate on college football")
+    a = ap.parse_args()
+    run_cfb() if a.cfb else run()
+
+
 if __name__ == "__main__":
-    run()
+    main()

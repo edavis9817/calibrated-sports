@@ -26,9 +26,12 @@ per-game sufficient statistics, so a resample never touches a raw row.
 """
 import bisect
 import functools
+import glob
+import json
 import math
 import os
 import sys
+import zlib
 from array import array
 from collections import Counter, defaultdict
 from datetime import datetime
@@ -47,7 +50,9 @@ HORIZONS = (10, 60, 300)
 MAX_AGE = 660.0
 LIVE_WINDOW = 4 * 3600
 TOP_DECILE = 0.90
-REG_PATH = os.path.join(S.ROOT, "research", "sweep", "results", "h2.jsonl")
+# Population-aware: results/h2.jsonl for week 1, h2_wk2.jsonl for week 2.
+REG_PATH = S.registry_path("h2")
+CFB_REG_PATH = os.path.join(S.ROOT, "research", "sweep", "results", "h2_cfb.jsonl")
 
 
 # =============================================================================
@@ -74,7 +79,7 @@ def asof_index(qts, t, max_age=MAX_AGE):
     return i if i >= 0 and t - qts[i] <= max_age else None
 
 
-def load_games(c, season=2026, week=1):
+def load_games(c, season=S.SEASON, week=S.WEEK):
     """game_id -> (kickoff_ts, home, away) at the latest data_version."""
     g = {}
     for gid, _dv, k, home, away in c.execute(
@@ -252,7 +257,9 @@ def fmt(res, scale=100.0):
 def run():
     if os.path.exists(REG_PATH):
         os.remove(REG_PATH)
+    S.open_population()                 # no-op for week 1; refuses week 2 until settled
     reg = S.Registry(REG_PATH)
+    add = functools.partial(reg.add, role=S.ROLE, population=S.POPULATION)
     c = S.live_ro()
     games = load_games(c)
     cells, census, n_games = collect(c, games)
@@ -282,7 +289,7 @@ def run():
             for h in HORIZONS:
                 name = f"{s}|{tr}|{h}s"
                 if cell is None or len(cell.I) == 0:
-                    reg.add("H2 slope", name, None, unit="pp per unit I")
+                    add("H2 slope", name, None, unit="pp per unit I")
                     print(f"    {name:<24} n/a")
                     continue
                 I = np.frombuffer(cell.I, dtype=float)
@@ -294,7 +301,7 @@ def run():
                 if res:
                     res = dict(res, n=int(ok.sum()))
                 slopes[name] = res
-                reg.add("H2 slope", name, res, unit="pp per unit I", scale=100.0)
+                add("H2 slope", name, res, unit="pp per unit I", scale=100.0)
                 print(f"    {name:<24} {fmt(res)}")
 
     print("\n  ECONOMICS - top decile of |I| per series x tier:"
@@ -307,7 +314,7 @@ def run():
             for h in HORIZONS:
                 name = f"{s}|{tr}|{h}s"
                 if cell is None or len(cell.I) == 0:
-                    reg.add("H2 economic", name, None)
+                    add("H2 economic", name, None)
                     print(f"    {name:<24} n/a")
                     continue
                 I = np.frombuffer(cell.I, dtype=float)
@@ -321,7 +328,7 @@ def run():
                 res = S.boot(mean_rows(g[m], net, n_games), mean_stat)
                 if res:
                     res = dict(res, n=int(m.sum()))
-                reg.add("H2 economic", name, res, scale=100.0,
+                add("H2 economic", name, res, scale=100.0,
                         note=f"|I| >= {cut:.3f}; gross {100 * signed.mean():+.3f}pp cost {100 * cost[m].mean():.3f}pp")
                 if res and res["lo"] > 0:
                     any_pays.append(name)
@@ -334,5 +341,372 @@ def run():
     return slopes
 
 
+# =============================================================================
+# CFB replication (brief 022 phase 2 - holdout B)
+# =============================================================================
+#
+# SOURCE. The NFL imbalance came from market_depth, which is the /orderbooks L2
+# touch. CFB has no depth table, but the raw cfb_kalshi archive holds the same
+# /orderbooks payloads, polled every ~60s per ticker. The /markets payloads also
+# carry yes_bid_size_fp / yes_ask_size_fp, but a ticker appears there only every
+# ~950s (discovery cadence), which cannot feed a 60s or 300s horizon. So I comes
+# from /orderbooks touch levels, and the future mid from cfb_probe.db quotes
+# as-of - the same split as NFL (depth for I, quotes for the mid).
+#
+# RECOVERY. 33 of 57 cfb_kalshi shards fail `gzip -t` (two probe processes
+# appended to one file). archive_raw opens the file per record, so every record
+# is its own gzip member, and zlib's gzip mode verifies each member's CRC32 and
+# length. Scanning for member headers and keeping only members that decompress
+# to EOF recovers exactly the bytes that were written intact - nothing is
+# imputed; a torn member is counted and dropped.
+#
+# DUPLICATE POLLS. While two processes ran, each ticker was polled ~twice per
+# minute. Imbalance instants are thinned to one per ticker per CFB_THIN seconds
+# so those hours do not count double against single-process hours.
+
+CFB_SERIES = ("KXNCAAFSPREAD", "KXNCAAFTOTAL", "KXNCAAFGAME", "KXNCAAFTEAMTOTAL")
+CFB_THIN = 55.0
+CFB_VENUE = "cfb_kalshi"
+GZ_MAGIC = b"\x1f\x8b\x08"
+
+
+def recover_members(data, stats, max_span=4):
+    """Yield the decompressed bytes of every intact gzip member in `data`.
+
+    A candidate member starts at a magic header and is tried against the next
+    1..max_span headers as its end (magic bytes can occur inside compressed
+    data). zlib raises or stops short on a torn member and checks the CRC32 +
+    ISIZE trailer on a complete one, so only verified members are yielded."""
+    mv = memoryview(data)
+    heads, pos = [], 0
+    while True:
+        i = data.find(GZ_MAGIC, pos)
+        if i < 0:
+            break
+        heads.append(i)
+        pos = i + 1
+    heads.append(len(data))
+    stats["size"] += len(data)
+    k = 0
+    while k < len(heads) - 1:
+        h, done = heads[k], False
+        for span in range(1, max_span + 1):
+            if k + span >= len(heads):
+                break
+            d = zlib.decompressobj(31)
+            try:
+                out = d.decompress(mv[h:heads[k + span]])
+            except zlib.error:
+                continue
+            if d.eof:
+                used = heads[k + span] - h - len(d.unused_data)
+                stats["members"] += 1
+                stats["bytes"] += used
+                end = h + used
+                while k < len(heads) - 1 and heads[k] < end:
+                    k += 1
+                done = True
+                yield out
+                break
+        if not done:
+            stats["failed_starts"] += 1
+            k += 1
+
+
+def book_touch(book):
+    """(yes_bid, yes_bid_size, yes_ask, yes_ask_size) from one /orderbooks book.
+    Both ladders are BIDS: the YES ask is 1 - best NO bid, and the size resting
+    there is the NO bid's size."""
+    ob = book.get("orderbook_fp") or {}
+    yes, no = ob.get("yes_dollars") or [], ob.get("no_dollars") or []
+    if not yes or not no:
+        return None
+    yb = max(yes, key=lambda lvl: float(lvl[0]))
+    nb = max(no, key=lambda lvl: float(lvl[0]))
+    return float(yb[0]), float(yb[1]), 1.0 - float(nb[0]), float(nb[1])
+
+
+def extract_shard(path, series=CFB_SERIES):
+    """One raw shard -> per-ticker (ts, I) arrays plus recovery statistics."""
+    prefixes = tuple(s + "-" for s in series)
+    stats = Counter()
+    with open(path, "rb") as f:
+        data = f.read()
+    idx, tick, ts, imb = {}, array("i"), array("d"), array("f")
+    for raw in recover_members(data, stats):
+        for line in raw.decode("utf-8", "replace").splitlines():
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                stats["bad_json_lines"] += 1
+                continue
+            if not rec.get("endpoint", "").startswith("orderbooks"):
+                continue
+            stats["orderbook_records"] += 1
+            t = rec.get("ts")
+            for b in (rec.get("payload") or {}).get("orderbooks") or []:
+                tk = b.get("ticker") or ""
+                if not tk.startswith(prefixes):
+                    continue
+                stats["books"] += 1
+                touch = book_touch(b)
+                I = None if touch is None else imbalance(touch[1], touch[3])
+                if I is None:
+                    stats["books_one_sided"] += 1
+                    continue
+                tick.append(idx.setdefault(tk, len(idx)))
+                ts.append(t)
+                imb.append(I)
+    names = [None] * len(idx)
+    for k, v in idx.items():
+        names[v] = k
+    rel = os.path.relpath(path, os.path.dirname(os.path.dirname(path))).replace(os.sep, "/")
+    return rel, names, tick.tobytes(), ts.tobytes(), imb.tobytes(), dict(stats)
+
+
+def thin(ts, I, min_gap=CFB_THIN):
+    """Sort by time and keep one instant per `min_gap` seconds."""
+    order = np.argsort(ts, kind="stable")
+    ts, I = ts[order], I[order]
+    keep, last = [], -np.inf
+    for i, t in enumerate(ts):
+        if t - last >= min_gap:
+            keep.append(i)
+            last = t
+    keep = np.asarray(keep, dtype=np.int64)
+    return ts[keep], I[keep]
+
+
+def extract_all(raw_dir, workers=6):
+    from concurrent.futures import ProcessPoolExecutor
+    paths = sorted(glob.glob(os.path.join(raw_dir, "*", "*.jsonl.gz")))
+    per_ticker = defaultdict(lambda: ([], []))
+    shard_stats = []
+    with ProcessPoolExecutor(max_workers=workers) as ex:
+        for rel, names, tick, ts, imb, st in ex.map(extract_shard, paths):
+            shard_stats.append((rel, st))
+            tick = np.frombuffer(tick, dtype=np.int32)
+            ts = np.frombuffer(ts, dtype=float)
+            imb = np.frombuffer(imb, dtype=np.float32)
+            for j, name in enumerate(names):
+                m = tick == j
+                per_ticker[name][0].append(ts[m])
+                per_ticker[name][1].append(imb[m])
+    samples = {}
+    for name, (tl, il) in per_ticker.items():
+        samples[name] = thin(np.concatenate(tl), np.concatenate(il).astype(float))
+    return samples, shard_stats
+
+
+def save_cache(path, samples, shard_stats):
+    names = sorted(samples)
+    np.savez_compressed(
+        path, names=np.array(names),
+        lengths=np.array([len(samples[n][0]) for n in names]),
+        ts=np.concatenate([samples[n][0] for n in names]) if names else np.array([]),
+        I=np.concatenate([samples[n][1] for n in names]) if names else np.array([]),
+        shard_stats=np.array(json.dumps(shard_stats)))
+
+
+def load_cache(path):
+    z = np.load(path, allow_pickle=False)
+    samples, off = {}, 0
+    for name, n in zip(z["names"], z["lengths"]):
+        samples[str(name)] = (z["ts"][off:off + n], z["I"][off:off + n])
+        off += n
+    return samples, json.loads(str(z["shard_stats"]))
+
+
+def cfb_games(c):
+    """Kalshi CFB game key (26SEP10FAMUMIA) -> CFBD scheduled start_ts, through
+    the matcher brief C01 validated (120 of 120)."""
+    from research.cfb_calibration import match
+    games, unmatched = match(c)
+    return {k: g["start_ts"] for k, g in games.items()}, unmatched
+
+
+def nfl_analogue(cfb_series):
+    return {"KXNCAAFSPREAD": "KXNFLSPREAD", "KXNCAAFTOTAL": "KXNFLTOTAL",
+            "KXNCAAFGAME": "KXNFLGAME"}.get(cfb_series)
+
+
+def collect_cfb(c, samples, kicks):
+    gidx = {g: i for i, g in enumerate(sorted(kicks))}
+    cells, census = defaultdict(Cell), Counter()
+    for tk in sorted(samples):
+        s = tk.split("-")[0]
+        gkey = tk.split("-")[1] if tk.count("-") >= 2 else None
+        if gkey not in kicks:
+            census["ticker: no matched CFBD game"] += 1
+            continue
+        kick = kicks[gkey]
+        _maker, taker = series_multiplier(s)
+        q = c.execute("SELECT ts, best_bid, best_ask FROM quotes WHERE venue=? AND market_id=? "
+                      "AND best_bid IS NOT NULL AND best_ask IS NOT NULL ORDER BY ts",
+                      (CFB_VENUE, tk)).fetchall()
+        if not q:
+            census["ticker: no two-sided quote"] += 1
+            continue
+        qts = [r[0] for r in q]
+        census["tickers"] += 1
+        ts, I = samples[tk]
+        for t, x in zip(ts.tolist(), I.tolist()):
+            tr = tier(t, kick)
+            if tr is None:
+                census["instant: after the in-game window"] += 1
+                continue
+            i0 = asof_index(qts, t)
+            if i0 is None:
+                census[f"instant: no fresh quote at t ({tr})"] += 1
+                continue
+            bid, ask = q[i0][1], q[i0][2]
+            m0 = (bid + ask) / 2
+            if ask < bid or not (0 < m0 < 1):
+                census["instant: crossed book or mid at 0/1"] += 1
+                continue
+            cell = cells[(s, tr)]
+            cell.game.append(gidx[gkey])
+            cell.I.append(x)
+            cell.cost.append((ask - bid) / 2 + crossing_fee(round(m0, 4), taker))
+            for h in HORIZONS:
+                i1 = asof_index(qts, t + h)
+                if i1 is None:
+                    cell.d[h].append(math.nan)
+                    cell.same[h].append(0)
+                else:
+                    cell.d[h].append((q[i1][1] + q[i1][2]) / 2 - m0)
+                    cell.same[h].append(1 if i1 == i0 else 0)
+            census[f"instant kept ({tr})"] += 1
+    return cells, census, len(gidx)
+
+
+def cell_tests(cell, h, n_games):
+    """(slope result, economic result, top-decile cut, gross, cost) - the same
+    arithmetic as the NFL run."""
+    I = np.frombuffer(cell.I, dtype=float)
+    d = np.frombuffer(cell.d[h], dtype=float)
+    g = np.frombuffer(cell.game, dtype=np.int32)
+    cost = np.frombuffer(cell.cost, dtype=float)
+    ok = ~np.isnan(d)
+    slope = S.boot(slope_rows(game_suffstats(g[ok], I[ok], d[ok], n_games)), slope_stat)
+    if slope:
+        slope = dict(slope, n=int(ok.sum()))
+    cut = float(np.quantile(np.abs(I), TOP_DECILE))
+    m = (np.abs(I) >= cut) & ok
+    if not m.any():
+        return slope, None, cut, float("nan"), float("nan")
+    signed = np.sign(I[m]) * d[m]
+    econ = S.boot(mean_rows(g[m], signed - cost[m], n_games), mean_stat)
+    if econ:
+        econ = dict(econ, n=int(m.sum()))
+    return slope, econ, cut, float(signed.mean()), float(cost[m].mean())
+
+
+def _nfl_signs(path):
+    out = {}
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                r = json.loads(line)
+                if r.get("estimable"):
+                    sig = r["lo"] > 0 or r["hi"] < 0
+                    out[(r["family"], r["name"])] = ("+" if r["est"] > 0 else "-") + ("*" if sig else "")
+    return out
+
+
+def run_cfb(cache=None, workers=6):
+    c = S.cfb_ro()                       # refuses until the candidates doc is committed
+    raw_dir = S.cfb_raw_dir()
+    if cache and os.path.exists(cache):
+        samples, shard_stats = load_cache(cache)
+    else:
+        samples, shard_stats = extract_all(raw_dir, workers)
+        if cache:
+            save_cache(cache, samples, shard_stats)
+    kicks, unmatched = cfb_games(c)
+    cells, census, n_games = collect_cfb(c, samples, kicks)
+    nfl = _nfl_signs(os.path.join(S.ROOT, "research", "sweep", "results", "h2.jsonl"))
+
+    if os.path.exists(CFB_REG_PATH):
+        os.remove(CFB_REG_PATH)
+    reg = S.Registry(CFB_REG_PATH)
+
+    def add2(family, name, res, **kw):
+        reg.add(family, name, res, role="replication", population="cfb", **kw)
+        reg.add(f"{family} cfb population", name, res, role="search", population="cfb", **kw)
+
+    print("=" * 100)
+    print("H2 - ORDER BOOK IMBALANCE, CFB (holdout B: replication + population)")
+    print("=" * 100)
+    strict = sum(1 for _, st in shard_stats if st.get("failed_starts", 0) == 0)
+    tot = Counter()
+    for _, st in shard_stats:
+        tot.update(st)
+    print(f"  raw shards {len(shard_stats)}; with no torn member (gzip-readable) {strict} "
+          f"({100 * strict / max(1, len(shard_stats)):.0f}%)")
+    print(f"  member recovery: {tot['members']:,} intact members, {tot['failed_starts']:,} torn starts "
+          f"dropped, {100 * tot['bytes'] / max(1, tot['size']):.2f}% of bytes recovered")
+    print(f"  orderbook records {tot['orderbook_records']:,}; series books {tot['books']:,}; one-sided "
+          f"{tot['books_one_sided']:,}; bad json lines {tot['bad_json_lines']}")
+    per_hour = sorted((rel, st.get("failed_starts", 0), st.get("members", 0)) for rel, st in shard_stats)
+    torn = [f"{rel}({f})" for rel, f, _m in per_hour if f]
+    print(f"  shards with torn members (count): {', '.join(torn) if torn else 'none'}")
+    print(f"  CFBD-matched game keys {len(kicks)}; unmatched moneylines {len(unmatched)}")
+    for k, v in sorted(census.items()):
+        print(f"  {k:<48}{v:>12,}")
+
+    print("\n  RESOLUTION: same-quote-row share of the as-of lookup at t+h")
+    for (s, tr), cell in sorted(cells.items()):
+        parts = []
+        for h in HORIZONS:
+            d = np.frombuffer(cell.d[h], dtype=float)
+            ok = ~np.isnan(d)
+            same = np.frombuffer(cell.same[h], dtype=np.int8)[ok]
+            parts.append(f"{h:>3}s same-row {100 * same.mean():5.1f}%" if ok.any() else f"{h}s -")
+        print(f"    {s:<18} {tr:<3} " + " | ".join(parts))
+
+    print("\n  SLOPE (pp per unit I) and ECONOMICS (top-decile signed move minus cost, pp)"
+          "\n  NFL column = sign of the week-1 search estimate, * if its interval excluded zero.")
+    for s in CFB_SERIES:
+        for tr in TIERS:
+            for h in HORIZONS:
+                name = f"{s}|{tr}|{h}s"
+                an = nfl_analogue(s)
+                ns = nfl.get(("H2 slope", f"{an}|{tr}|{h}s"), "-") if an else "n/a"
+                ne = nfl.get(("H2 economic", f"{an}|{tr}|{h}s"), "-") if an else "n/a"
+                cell = cells.get((s, tr))
+                if h == 10:
+                    note = "not estimable: CFB poll cadence ~60s per ticker"
+                    add2("H2 slope", name, None, unit="pp per unit I", note=note)
+                    add2("H2 economic", name, None, note=note)
+                    print(f"    {name:<28} NOT ESTIMABLE (cadence)          NFL slope {ns:<3} econ {ne}")
+                    continue
+                if cell is None or len(cell.I) == 0:
+                    add2("H2 slope", name, None, unit="pp per unit I")
+                    add2("H2 economic", name, None)
+                    print(f"    {name:<28} n/a                               NFL slope {ns:<3} econ {ne}")
+                    continue
+                slope, econ, cut, gross, cost = cell_tests(cell, h, n_games)
+                add2("H2 slope", name, slope, unit="pp per unit I", scale=100.0)
+                add2("H2 economic", name, econ, scale=100.0,
+                     note=f"|I| >= {cut:.3f}; gross {100 * gross:+.3f}pp cost {100 * cost:.3f}pp")
+                print(f"    {name:<28} slope {fmt(slope)}   NFL {ns}")
+                print(f"    {'':<28} econ  {fmt(econ)}  gross {100 * gross:+.3f} cost {100 * cost:.3f}   NFL {ne}")
+    print(f"\n  registry: {CFB_REG_PATH}")
+
+
+def main():
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--cfb", action="store_true", help="holdout B: replicate on college football")
+    ap.add_argument("--cache", help="npz of extracted CFB imbalance samples (read if present, else written)")
+    ap.add_argument("--workers", type=int, default=6)
+    a = ap.parse_args()
+    if a.cfb:
+        run_cfb(a.cache, a.workers)
+    else:
+        run()
+
+
 if __name__ == "__main__":
-    run()
+    main()

@@ -98,3 +98,104 @@ def test_hist_median_and_contrast():
     assert H3.contrast_stat(rows) == pytest.approx(-2.0)
     res = H3.hist_boot_median(h[0])
     assert res["est"] == 1 and res["games"] == 3
+
+
+# ---- brief 022 phase 2: CFB replication and week-2 readiness ---------------
+
+import gzip
+import io
+import json
+import os
+import subprocess
+import sys
+from collections import Counter
+
+from research.sweep import h2_imbalance as _H2
+from research.sweep import h3_lifecycle as _H3
+
+
+def _member(obj, fname=None):
+    buf = io.BytesIO()
+    with gzip.GzipFile(filename=fname or "", mode="wb", fileobj=buf) as g:
+        g.write((json.dumps(obj) + "\n").encode())
+    return buf.getvalue()
+
+
+def test_member_recovery_keeps_intact_members_and_drops_a_torn_one():
+    a = _member({"n": 1}, "a.jsonl")
+    b = _member({"n": 2, "pad": list(range(3000))}, "b.jsonl")
+    c = _member({"n": 3}, "c.jsonl")
+    data = a + b[: len(b) // 2] + c                  # b torn by an interleaved writer
+    stats = Counter()
+    got = [json.loads(x) for x in _H2.recover_members(data, stats)]
+    assert [g["n"] for g in got] == [1, 3]
+    assert stats["failed_starts"] >= 1 and stats["members"] == 2
+
+
+def test_member_recovery_on_a_clean_stream_recovers_everything():
+    data = b"".join(_member({"n": i}) for i in range(20))
+    stats = Counter()
+    assert len(list(_H2.recover_members(data, stats))) == 20
+    assert stats["failed_starts"] == 0 and stats["bytes"] == len(data)
+
+
+def test_book_touch_takes_the_best_level_on_both_bid_ladders():
+    book = {"orderbook_fp": {"yes_dollars": [["0.40", "7"], ["0.45", "30"], ["0.10", "999"]],
+                             "no_dollars": [["0.50", "11"], ["0.52", "4"]]}}
+    yb, ybs, ya, yas = _H2.book_touch(book)
+    assert (yb, ybs) == (0.45, 30.0)
+    assert ya == pytest.approx(0.48) and yas == 4.0
+    assert _H2.book_touch({"orderbook_fp": {"yes_dollars": [["0.4", "1"]]}}) is None
+
+
+def test_thinning_keeps_one_instant_per_window():
+    ts = np.array([0.0, 30.0, 56.0, 60.0, 200.0])
+    I = np.arange(5, dtype=float)
+    t2, i2 = _H2.thin(ts[::-1].copy(), I[::-1].copy())
+    assert list(t2) == [0.0, 56.0, 200.0] and list(i2) == [0.0, 2.0, 4.0]
+
+
+def test_cfb_contrast_labels_are_exactly_the_week1_labels():
+    path = os.path.join(S.ROOT, "research", "sweep", "results", "h3.jsonl")
+    with open(path, encoding="utf-8") as f:
+        wk1 = {json.loads(l)["name"].split("|", 1)[1] for l in f
+               if json.loads(l)["family"] == "H3 contrast" and json.loads(l)["name"].startswith("KXNFLSPREAD|")}
+    acc = _H3.SeriesAcc(3, dated=True)
+    assert {label for _n, label, *_ in _H3.contrast_tests("KXNCAAFSPREAD", acc)} == wk1
+
+
+def test_nfl_analogues():
+    assert _H2.nfl_analogue("KXNCAAFSPREAD") == "KXNFLSPREAD"
+    assert _H2.nfl_analogue("KXNCAAFTEAMTOTAL") is None
+
+
+def test_week1_defaults_are_unchanged():
+    assert _H2.REG_PATH == os.path.join(S.ROOT, "research", "sweep", "results", "h2.jsonl")
+    assert _H3.REG_PATH == os.path.join(S.ROOT, "research", "sweep", "results", "h3.jsonl")
+    assert S.POPULATION == "nfl_wk1" and S.ROLE == "search"
+    assert (S.SEASON, S.WEEK) == (2026, 1)
+    assert S.undated_window()[1] == S.UNDATED_CUTOFF_TS
+    import inspect
+    d = inspect.signature(_H2.load_games).parameters
+    assert (d["season"].default, d["week"].default) == (2026, 1)
+    assert _H2.CFB_REG_PATH.endswith(os.path.join("results", "h2_cfb.jsonl"))
+    assert _H3.CFB_REG_PATH.endswith(os.path.join("results", "h3_cfb.jsonl"))
+
+
+def test_week2_population_moves_paths_and_role_without_touching_week1(monkeypatch):
+    """A week-2 IMPORT refuses until week 2 settles (common.open_population runs
+    at import), so this checks the switch in-process: the registry path and role
+    come from common at call time, and both modules delegate to it rather than
+    hard-coding week 1."""
+    import inspect
+    monkeypatch.setattr(S, "POPULATION", "nfl_wk2")
+    assert S.registry_path("h2").endswith("h2_wk2.jsonl")
+    assert S.registry_path("h3").endswith("h3_wk2.jsonl")
+    for mod, name in ((_H2, "h2"), (_H3, "h3")):
+        src = inspect.getsource(mod)
+        assert f'REG_PATH = S.registry_path("{name}")' in src
+        assert "S.open_population()" in src
+        assert "\nREG_PATH = os.path.join" not in src      # week-1 path not hard-coded (CFB_REG_PATH is)
+    assert "role=S.ROLE, population=S.POPULATION" in inspect.getsource(_H2.run)
+    assert "role=S.ROLE" in inspect.getsource(_H3.run)
+    assert "S.undated_window()" in inspect.getsource(_H3.collect_futures)
