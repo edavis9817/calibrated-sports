@@ -1102,13 +1102,44 @@ domain by decision**.
 omission.** Brief 021 showed the model forecasts worse than the market, and
 brief 023 confirmed it against the book close in every season.
 
-- **The contract is `docs/web-schema.md`, currently schema_version 1.**
-  - Every file carries `schema_version`, `generated_at` and `kind`, and the site
-    renders an explicit "data format changed" state on any mismatch.
-  - Changing or removing a field bumps the version; adding an optional field
-    does not.
-  - `jobs/export_web.py` writes it into `config.WEB_DATA_DIR`, which has NO
-    default, so the export refuses rather than guessing a path.
+- **The architecture is `calibratedsports-web/docs/site-architecture.md`.** It is
+  worked in order: §1 contracts, §2 edge rendering, then §3 data system. §3
+  (components tables, custom scoring, client-side distributions, incremental
+  export, content-hash keys) is deliberately NOT started.
+- **The contract is `docs/web-schema.md`, currently schema_version 2.**
+  - **R2 was brought forward from §3:** the `calibrated-sports-site` bucket,
+    separate from the logger's `calibrated-sports-raw`. The Worker reads it
+    through the `SITE_DATA` binding, and browsers read the same keys at the
+    same-origin `/data/{key}`. The bucket is not public.
+  - **Keys are sport-first:** `sports.json`, `{sport}/manifest.json`,
+    `{sport}/players/index.json`, `{sport}/players/{id}/summary.json` plus
+    `{sport}/players/{id}/{season}.json`, `{sport}/teams/{slug}.json`,
+    `{sport}/market/{id}/{season}-{index}.json`, `research/*`.
+  - **`stat_definitions` and `scoring_presets` live ONLY in the sport
+    manifest.** `period_type` replaces a hardcoded week.
+  - **No fantasy points are stored.** The site scores components with one
+    function for every preset.
+  - Every file carries `schema_version`, `generated_at`, `kind` and `sport`; the
+    site renders an explicit "data format changed" state on any mismatch.
+  - **Config has no defaults:** `WEB_EXPORT_DIR`, `WEB_R2_BUCKET`,
+    `WEB_R2_ACCESS_KEY_ID`, `WEB_R2_SECRET_ACCESS_KEY`, `WEB_SITE_URL`. The export
+    refuses rather than guessing a path.
+  - **The real v2 export is 22,927 keys, 94.7 MB,** including 18,907 season
+    files. That alone is over the 20,000-asset cap, which is why R2 could not
+    wait for §3.
+- **Slugs are assigned once and recorded in `web/slugs/{sport}.json`,** which is
+  committed and append-only.
+  - When a registry is first seeded, the namesake with the most regular-season
+    career games gets the bare slug. A later arrival only gets a bare slug if
+    it is free.
+  - The first v2 rule, "earliest first_season wins", was replaced before any URL
+    was published: it gave `adrian-peterson` to the 2002 Bears back instead of
+    the 184-game Hall of Famer.
+  - `weekly_refresh` commits `web/slugs` (that pathspec only) whenever the
+    export appends.
+- **`player_xwalk` and `player_alias` now carry `sport`** (`TEXT NOT NULL DEFAULT
+  'nfl'`). Invariant 7 had never been applied to them. Their primary keys stay
+  sport-less until a second sport is ingested.
 - **Only the manifest is read at build.**
   - Player and team routes are generated from `manifest.json` as real,
     indexable URLs.
@@ -1124,10 +1155,17 @@ brief 023 confirmed it against the book close in every season.
     build of ~12,100 files.
   - Defenders appear on team pages. Widening scope is an export filter plus the
     paid plan (100,000 files), not a redesign.
-- **The weekly refresh is `python -m jobs.weekly_refresh`**, logged to
+- **The weekly refresh is `python -m jobs.weekly_refresh` (v2)**, logged to
   `storage_path("logs", "weekly_refresh.log")`.
-  - Steps: nflverse ingest, `map_markets --venue kalshi`, export, `npm run check`
-    as a gate, commit only on a diff, push.
+  - Steps: nflverse ingest, `map_markets --venue kalshi`, export, commit the slug
+    registry if it changed, upload changed keys to R2, then check the live
+    `/data/nfl/manifest.json`.
+  - **It builds nothing and commits no data.**
+  - A no-change export takes ~47s and writes 0 keys.
+  - Until the bucket token exists, the upload logs "not configured" and exits
+    0.
+  - The scheduled task is DISABLED while the v2 site lands, because the v1 job
+    would have written `public/data` and pushed. Re-enable it once §2 is live.
   - **`jobs/map_markets.py` must run before the market export.** Nothing else
     maps new Kalshi markets: week-2 props sat at 0 of 89 mapped until it ran.
   - **When nflverse is late,** the export still runs,
