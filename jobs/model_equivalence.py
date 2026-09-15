@@ -59,9 +59,18 @@ def verify(old_commit, new_commit, old_version, new_version):
     print(f"  removed           {ev['ast_removed'] or 'none'}")
     print(f"  added             {ev['ast_added'] or 'none'}")
     print(f"  diff              {len(ev['diff']):,} bytes stored as evidence")
-    print("\n  ASSERTION PASSES: the only constructs that moved are fee "
-          "symbols, and\n  nothing changed in place. No predicted quantity "
-          "can have moved.")
+    inplace = sorted({n for v in ev["ast_changed_in_place"].values() for n in v})
+    print("\n  ASSERTION PASSES.")
+    print("    every construct that moved is a FEE symbol (trading cost) or an")
+    print("    IDENTITY symbol (what the model is called) - never a predicted")
+    print("    quantity.")
+    if inplace:
+        print(f"    changed IN PLACE: {', '.join(inplace)} - allowed only because")
+        print("    these are identity symbols; normalising a hash means editing")
+        print("    the hash function. A fee or prediction symbol changing in")
+        print("    place would have failed.")
+    else:
+        print("    nothing changed in place.")
     return ev
 
 

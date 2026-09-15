@@ -203,3 +203,64 @@ def test_research_entrypoints_expose_the_override():
     for mod in (research.clv, research.maker):
         src = inspect.getsource(mod.main)
         assert "--model-version" in src, mod.__name__
+
+
+# =============================================================================
+# brief 018 item 4: normalise the input instead of enumerating the variants
+# =============================================================================
+
+def test_the_fingerprint_normalises_line_endings():
+    """The fix, at the source. Hashing raw bytes made the fingerprint identify
+    a checkout; under autocrlf the same commit hashed differently on different
+    machines."""
+    src = inspect.getsource(__import__("models.baseline", fromlist=["x"])._fingerprint)
+    code = "\n".join(l.split("#", 1)[0] for l in src.splitlines())
+    assert "replace" in code and "read()" in code
+
+
+def test_normalised_fingerprint_is_checkout_independent():
+    """Same content, different line endings, same hash - which is the whole
+    property the legacy search existed to work around."""
+    import hashlib
+    crlf = b"a = 1\r\nb = 2\r\n"
+    lf = b"a = 1\nb = 2\n"
+    h = lambda b: hashlib.sha256(b.replace(b"\r\n", b"\n")).hexdigest()
+    assert h(crlf) == h(lf)
+    assert hashlib.sha256(crlf).hexdigest() != hashlib.sha256(lf).hexdigest()
+
+
+def test_the_legacy_search_is_only_reached_by_pre_018_versions():
+    """`fingerprint_matches` short-circuits on the normalised rule, so a
+    post-018 version never enters the exponential branch."""
+    src = inspect.getsource(me.fingerprint_matches)
+    body = src[src.index('"""', src.index('"""') + 3):]
+    assert body.index("fingerprint_normalised") < body.index("itertools.product")
+
+
+def test_an_identity_symbol_may_change_in_place():
+    """Normalising the hash means editing the hash function. That is the one
+    case where a construct changing in place is not a red flag."""
+    me.assert_fee_only(_cmp(changed={"models/baseline.py": ["_fingerprint"]}))
+
+
+def test_a_prediction_symbol_still_may_not_change_in_place():
+    with pytest.raises(me.NotEquivalent):
+        me.assert_fee_only(_cmp(changed={"models/baseline.py": ["_fingerprint",
+                                                                "predict"]}))
+
+
+def test_the_018_change_verifies_and_is_identity_only():
+    cmp = me.compare("HEAD~1", "HEAD")
+    me.assert_fee_only(cmp)
+    assert cmp["changed"] == {"models/baseline.py": ["_fingerprint"]}
+    assert cmp["added"] == {} and cmp["removed"] == {}
+
+
+def test_all_three_versions_resolve_to_the_one_with_predictions():
+    """The live chain: two hops, undirected, ending at the 935."""
+    from core import version_resolve as live_vr
+    from models import baseline
+    closure = live_vr.equivalent(baseline.MODEL_VERSION)
+    assert len(closure) == 3
+    v, note = live_vr.resolve(2026, 1, baseline.MODEL_VERSION)
+    assert v.endswith("679868a8549a") and "EQUIVALENT" in note

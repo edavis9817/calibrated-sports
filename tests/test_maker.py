@@ -199,3 +199,38 @@ def test_drift_is_absent_for_an_unfilled_order():
     r = row(side="yes", q_yes=1e9)
     s = maker.simulate(r, prints((10.0, "no", 0.40, 1)), ticket=100)
     assert maker.drift_after_fill(r, s, lambda m, t: 0.5) is None
+
+
+# =============================================================================
+# brief 018: the control arms
+# =============================================================================
+
+def test_flipping_the_side_changes_only_the_side():
+    """The sharpest control available once it turned out the model had priced
+    every quoted prop: identical books, identical prints, one bit changed."""
+    base = [row(side="yes", q_yes=0.0, q_no=0.0, market_id="KXNFLREC-E-A1")]
+    base[0]["prints"] = prints((10.0, "no", 0.40, 999))
+    base[0]["sim"] = maker.simulate(base[0], base[0]["prints"], 100)
+    flip = maker.flip_sides(base, 100)
+    assert flip[0]["side"] == "no"
+    for k in ("entry_bid", "entry_ask", "close_mid", "market_id", "game"):
+        assert flip[0][k] == base[0][k]
+
+
+def test_both_sides_of_one_book_sum_to_the_spread():
+    """The identity the both-sides control rests on: a maker resting on both
+    sides collects exactly the spread, so everything interesting is how FILLS
+    deviate from half of it."""
+    r = row(side="yes", q_yes=0.0, q_no=0.0, market_id="KXNFLREC-E-A1")
+    sims = {s: maker.simulate(r, [], 100, side=s) for s in ("yes", "no")}
+    total = sum(maker.maker_clv(r, sims[s], net=False) for s in ("yes", "no"))
+    assert total == pytest.approx(r["entry_ask"] - r["entry_bid"])
+
+
+def test_a_one_sided_book_cannot_be_simulated_on_either_side():
+    """229 of M01's 231 exclusions are this: an ask with no bid. The guard has
+    to refuse both sides, not just the one that reads the missing field."""
+    r = row(side="yes", q_yes=0.0, q_no=0.0)
+    r["entry_bid"] = None
+    assert maker.simulate(r, [], 100, side="yes") is None
+    assert maker.simulate(r, [], 100, side="no") is None

@@ -532,6 +532,18 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
   half of a one-sided tightening whatever the model knew. On the ask leg
   alone the interval touches zero. The 14.14pp gap between mid and executable
   is the book crossed twice.
+- **The fingerprint now NORMALISES line endings before hashing**, so it
+  identifies a commit rather than a checkout (brief 018). Raw bytes made the
+  same commit hash differently under different `autocrlf` settings, and
+  verifying a historical version needed a search over 2^n conventions - which
+  was the right diagnosis and the wrong fix. `fingerprint_matches` is retained
+  ONLY for pre-018 versions, tries the normalised rule first, and must not
+  grow. Equivalence chain: `679868a8549a == a307952813e6 == 03571d4710af`.
+- **An IDENTITY symbol may change in place; nothing else may.** `_fingerprint`,
+  `model_version` and `MODEL_VERSION` compute what the model is CALLED, so
+  editing them cannot move a forecast - and normalising a hash means editing
+  the hash function. A fee or prediction symbol changing in place still fails
+  the equivalence assertion.
 - **A fingerprint over raw file bytes identifies a CHECKOUT, not a commit.**
   `models/baseline._fingerprint()` hashes worktree bytes, and under
   `core.autocrlf=true` line endings are not a property of the commit -
@@ -588,6 +600,42 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
   right - it is what stopped two builds both calling themselves
   "baseline-usage-0.2" - but a consumer asking to score last week wants the
   version the predictions were written under.
+- **At the entry instant the model had priced EVERY prop that existed**, so a
+  control cannot differ in market selection. The intended frame was all 1,487
+  `KXNFLREC`/`KXNFLRSHATT` markets in the predictions' 14 events, of which 552
+  carried no prediction - but **542 of those 552 had no quote at all at 15:03
+  Thursday**; Kalshi listed those rungs later in the week. Market selection
+  cannot be the artifact because there was no market selection to make. What
+  is testable is SIDE selection.
+- **Conditional maker CLV falls with how much of the model is in it** (100
+  contracts, same 14-game block bootstrap): model's own side +0.67pp
+  [+0.05, +1.39]; both sides pooled +0.37pp [-0.20, +0.99]; the model's side
+  FLIPPED +0.07pp [-0.69, +0.93]. Only the first excludes zero. Fill rate is
+  flat across all three (18.0 / 20.0 / 18.1%), which is the check that the
+  arms differ in side and nothing else.
+- **The weekly product has an interior maximum and it is small.** `markets x
+  fill rate x contracts x CLV`, measured rather than interpolated: the model
+  arm peaks at **250 contracts, ~$113/week**; both-sides at 100 (~$46); flipped
+  at 50 (~$14). Fill rate and conditional CLV both fall with size, so the
+  product turns over - but every rung's CLV interval overlaps its neighbours,
+  so the location is far less certain than the existence.
+- **M01's 231 exclusions were NOT a depth-allowlist artifact** - that caveat
+  was wrong. **229 of 231 have no BID at all at entry**: one-sided books, ask
+  only. Depth exists for them. Their mid and spread are undefined, which is
+  the characterisation; on the ask they are the expensive tail and they print
+  a fifth as often (median 11 prints vs 51).
+  - **The bias is measurable, not just a direction.** A no-bid book still
+    supports a passive NO buy at `1 - ask`, so the same simulation runs on it:
+    fill rate 6.55% against 18.04% on the simulable, giving 15.22% population
+    wide. **The 18% is optimistic by 2.8pp.** Two effects oppose - no queue to
+    clear helps, printing a fifth as often hurts more.
+- **THE SPREAD WALL.** Entry spread over the 706 two-sided markets: p10 1.0c,
+  p25 2.0c, median 5.0c, p75 10.0c, p90 13.0c, max 58.0c. The gate sits at 6c
+  and 45% of two-sided markets are wider; counting the 229 one-sided books,
+  **59% of the board is at or beyond the gate**. A taker pays half the spread
+  each way, so a median book costs 2.50pp to enter before fees and before
+  being wrong. This is the ceiling on any crossing strategy and it is a
+  property of the venue, not of the model.
 - **The maker path is starved, and the fills that happen are worth nothing.**
   Measured 2026-09-14 on 65,467 Kalshi trade prints for the 935 week-1 markets
   (`research/maker.py`, prints from `jobs/ingest_kalshi_trades.py`). A passive
