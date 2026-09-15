@@ -157,14 +157,24 @@ def test_maker_clv_beats_the_taker_price_by_the_spread():
         == pytest.approx(r["entry_ask"] - r["entry_bid"])
 
 
-def test_the_maker_fee_is_charged_and_is_smaller_than_the_taker_fee():
-    from core.distributions import kalshi_fee
-    r = row(side="yes", q_yes=0.0)
-    s = maker.simulate(r, prints((10.0, "no", 0.40, 999)), ticket=100)
-    net = maker.maker_clv(r, s, net=True)
-    gross = maker.maker_clv(r, s, net=False)
-    assert gross - net == pytest.approx(
+def test_the_maker_fee_comes_from_the_SERIES_not_from_a_pin():
+    """BRIEF 017 ITEM 5. A resting order's fee depends on whether its series
+    appears in the Non-Standard Fees table. Our props do not, so they are
+    free; `KXNFLGAME` does, at maker M=1, so it is charged. Pinning
+    multiplier=1 for everything charged a fee Kalshi does not levy."""
+    from core.fees import kalshi_fee
+
+    prop = row(side="yes", q_yes=0.0, market_id="KXNFLREC-26SEP13X-Y5")
+    s = maker.simulate(prop, prints((10.0, "no", 0.40, 999)), ticket=100)
+    assert maker.maker_clv(prop, s, net=True) == \
+        maker.maker_clv(prop, s, net=False), "an unlisted series must be free"
+
+    game = row(side="yes", q_yes=0.0, market_id="KXNFLGAME-26SEP13DALNYG-DAL")
+    s2 = maker.simulate(game, prints((10.0, "no", 0.40, 999)), ticket=100)
+    charged = maker.maker_clv(game, s2, net=False) - maker.maker_clv(game, s2, net=True)
+    assert charged == pytest.approx(
         float(kalshi_fee(0.40, 100, side="maker", multiplier=1)) / 100)
+    assert charged > 0
     assert (kalshi_fee(0.40, 100, side="maker", multiplier=1)
             < kalshi_fee(0.40, 100, side="taker"))
 

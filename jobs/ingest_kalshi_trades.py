@@ -137,11 +137,12 @@ def _ts(v):
 def targets(season, week, model_version=None):
     """The markets the 935 predictions point at. Exactly the M01 population.
     Read from the LIVE database, read-only."""
+    from core import version_resolve
     from models import baseline
-    mv, note = store.latest_model_version(
-        season, week, model_version or baseline.MODEL_VERSION)
+    mv, note = version_resolve.resolve(
+        season, week, baseline.MODEL_VERSION, override=model_version)
     if note:
-        print(f"  NOTE: {note}")
+        print(f"  {note}")
     c = live_ro()
     return [r[0] for r in c.execute(
         "SELECT DISTINCT mo.market_id FROM predictions p "

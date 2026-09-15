@@ -70,7 +70,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 from core.fees import fee_per_contract
 from jobs.paper_trade import evaluate
-import store
+from core import version_resolve
 from models import baseline
 from research.longshot import wilson
 
@@ -129,13 +129,13 @@ def depth_at(c, market_id, side, ts, strict, col):
 
 
 def build(season=2026, week=1, stake=1000, model_version=None):
-    # Resolve rather than assume. See store.latest_model_version: brief 016
+    # Resolve rather than assume. See core/version_resolve.py: brief 016
     # moved the fee out of `core/distributions.py`, which is hashed into the
     # model fingerprint, so MODEL_VERSION moved without the model moving.
-    mv, note = store.latest_model_version(
-        season, week, model_version or baseline.MODEL_VERSION)
+    mv, note = version_resolve.resolve(
+        season, week, baseline.MODEL_VERSION, override=model_version)
     if note:
-        print(f"  NOTE: {note}")
+        print(f"  {note}")
     c = db()
     col = STAKE_COL[stake]
     raw = c.execute(PRED_SQL, (season, week, mv)).fetchall()
@@ -713,11 +713,14 @@ def main():
                     choices=sorted(STAKE_COL))
     ap.add_argument("--season", type=int, default=2026)
     ap.add_argument("--week", type=int, default=1)
+    ap.add_argument("--model-version", dest="model_version",
+                    help="analyse this version explicitly; the resolver "
+                         "RAISES rather than falling back without it")
     a = ap.parse_args()
     if not (a.census or a.placebo or a.clv or a.convention or a.capacity
             or a.strata):
         a.all = True
-    rows, drops, mv = build(a.season, a.week, a.stake)
+    rows, drops, mv = build(a.season, a.week, a.stake, a.model_version)
     if not rows:
         raise SystemExit("no predictions matched")
     print(f"CLV  season {a.season} week {a.week}  stake {a.stake}  "

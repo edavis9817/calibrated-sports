@@ -532,6 +532,31 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
   half of a one-sided tightening whatever the model knew. On the ask leg
   alone the interval touches zero. The 14.14pp gap between mid and executable
   is the book crossed twice.
+- **A fingerprint over raw file bytes identifies a CHECKOUT, not a commit.**
+  `models/baseline._fingerprint()` hashes worktree bytes, and under
+  `core.autocrlf=true` line endings are not a property of the commit -
+  `core/distributions.py` was LF on disk before brief 016 and CRLF after. No
+  single convention reproduces both fingerprints, so
+  `core/model_equivalence.fingerprint_matches()` tries all of them.
+- **Two model versions can be recorded EQUIVALENT, but only with machine-checked
+  evidence.** `model_version_equivalence` holds
+  `679868a8549a == a307952813e6` (brief 016 moved the fee out of a hashed file
+  without changing a predicted quantity). The evidence is a structural AST
+  comparison of every top-level construct in the hashed fileset: a construct
+  that is not a fee symbol must exist in both and unparse identically, and
+  ANY construct changed in place fails - including a fee one. Comparing
+  unparsed ASTs ignores comments and formatting, which cannot move a
+  prediction, and catches a flipped sign inside an untouched-looking function,
+  which a diff of hunk headers would not. The objection to an equivalence
+  table is that a human can assert into it; the assertion is the answer.
+- **A resolver that cannot find predictions RAISES.** `core/version_resolve.py`
+  follows equivalence links transitively and symmetrically, and refuses
+  otherwise - naming the versions that DO have rows. This project has shipped
+  four bugs whose symptom was a plausible empty or degenerate result (C01's
+  gate sweep printing four identical rows, F01's Part 5 simulating one
+  component, S01's one-crossing arm reproducing mid-to-mid, 016's series audit
+  returning zero rows). A printed warning inside a twelve-minute run is a
+  warning nobody reads. Override with `--model-version`, typed.
 - **The Kalshi fee is charged on the WHOLE ORDER, and the defaults are taker
   M=1, maker M=0.** `fee = ceil_to_cent(M x rate x C x P x (1-P))`, rate 0.07
   taker and 0.0175 maker. `core/fees.py`, sourced from

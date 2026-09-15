@@ -169,13 +169,14 @@ def maker_clv(r, sim, net=True):
     # `kalshi_fee(p, 1)` bills the cent-rounding to every contract and turns a
     # 0.42c maker fee into 1.00c.
     n = sim["ticket"]
-    # EXPLICIT multiplier=1, so M01's published conditional CLV does not move
-    # under brief 016's new maker default. It is also the conservative choice:
-    # every series behind these 935 predictions is UNLISTED in the fee
-    # schedule, so the published default is maker M=0 and a resting order on
-    # them is free. Dropping the fee would IMPROVE every maker number here by
-    # about 0.4pp and would not change the verdict, which is about fill rate.
-    return v - fee_per_contract(sim["price"], n, "maker", multiplier=1)
+    # BRIEF 017 ITEM 5: the multiplier now comes from the SERIES, not from a
+    # pin. 016's audit established that all 935 predictions sit on KXNFLREC and
+    # KXNFLRSHATT, neither of which appears in the schedule's Non-Standard Fees
+    # table - so the published default applies and maker M = 0. A resting order
+    # on these markets is free, and pinning multiplier=1 was charging a fee
+    # Kalshi does not charge.
+    maker_m, _ = series_multiplier(r["market_id"])
+    return v - fee_per_contract(sim["price"], n, "maker", multiplier=maker_m)
 
 
 def drift_after_fill(r, sim, mid_at):
@@ -200,8 +201,8 @@ def drift_after_fill(r, sim, mid_at):
 # loading
 # =============================================================================
 
-def load(season=2026, week=1, ticket=TICKET):
-    rows, drops, mv = S00.build(season, week)
+def load(season=2026, week=1, ticket=TICKET, model_version=None):
+    rows, drops, mv = S00.build(season, week, model_version=model_version)
     live = S00.db()
     td = trades_db()
 
@@ -534,10 +535,11 @@ def main():
     ap.add_argument("--size", type=int, default=TICKET)
     ap.add_argument("--season", type=int, default=2026)
     ap.add_argument("--week", type=int, default=1)
+    ap.add_argument("--model-version", dest="model_version")
     a = ap.parse_args()
     if not (a.census or a.fills or a.clv or a.sweep):
         a.all = True
-    rows, drops, mv, mid_at = load(a.season, a.week, a.size)
+    rows, drops, mv, mid_at = load(a.season, a.week, a.size, a.model_version)
     print(f"M01 maker reconstruction  ticket {a.size} contracts  model {mv}")
     sims = report_census(rows, a.size)
     filled = allb = fb = ub = da = None
