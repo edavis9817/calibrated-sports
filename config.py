@@ -145,6 +145,14 @@ def storage_path(*parts) -> str:
     return os.path.join(STORAGE_DIR, *parts)
 
 
+# The website (brief W02). NO DEFAULTS, deliberately: the export writes into
+# another repository, and a guessed path is how 6e42f09's stray database on the
+# wrong disk happened. jobs/export_web.py and jobs/weekly_refresh.py refuse to
+# run when either is unset.
+WEB_REPO_DIR = os.getenv("WEB_REPO_DIR")
+WEB_DATA_DIR = os.getenv("WEB_DATA_DIR")
+
+
 QUOTES_RETENTION_DAYS = float(os.getenv("QUOTES_RETENTION_DAYS", 14))
 # Retention prunes LIVE capture only. Backfilled rows carry the timestamp of
 # the event they describe, not of when they were fetched, so a 14-day window on
