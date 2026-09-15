@@ -514,12 +514,25 @@ def q(v, p):
     return v[min(len(v) - 1, int(p * len(v)))] if v else float("nan")
 
 
+MIN_GAMES_TO_READ = 5
+
+
+def readable(res):
+    """An interval resampled over fewer than MIN_GAMES_TO_READ games is not
+    read, whatever it excludes. Added AFTER the first run (labelling only - no
+    number changes): the pre-kickoff arms rested on 2-3 games that all won, and
+    a bootstrap over three identical wins returns a tight interval that
+    'excludes zero' and means nothing."""
+    return bool(res) and res["games"] >= MIN_GAMES_TO_READ
+
+
 def fmt_iv(res, scale=100.0, unit="pp"):
     if not res:
         return "n/a (fewer than 2 games)"
     star = "*" if res["lo"] > 0 or res["hi"] < 0 else " "
+    tail = "" if readable(res) else f"  <- {res['games']} games: too few to read"
     return (f"{scale * res['est']:+6.2f}{unit} [{scale * res['lo']:+6.2f}, "
-            f"{scale * res['hi']:+6.2f}]{star} n={res['n']} games={res['games']}")
+            f"{scale * res['hi']:+6.2f}]{star} n={res['n']} games={res['games']}{tail}")
 
 
 def dist_line(vals):
@@ -529,6 +542,32 @@ def dist_line(vals):
     return (f"n={len(v):>6}  p10 {q(v, .1):+5.2f}  p25 {q(v, .25):+5.2f}  median "
             f"{statistics.median(v):+5.2f}  p75 {q(v, .75):+5.2f}  p90 {q(v, .9):+5.2f}  "
             f"|gap|>2.5pp {100 * sum(abs(x) > 2.5 for x in v) / len(v):5.1f}%")
+
+
+def book_lag_by_phase(snaps, games):
+    """Book staleness split by phase, plus how far books quoting ONE line at
+    ONE fetch disagree with each other. Added after the first run: in-game,
+    books on the same line differed by up to ~35pp, which is one book live and
+    another stale - a clock, not a price."""
+    lag, spread = defaultdict(list), defaultdict(list)
+    for s in snaps:
+        k = games[s["game"]]["kick"]
+        ph = "pre" if s["T"] < k else "in" if s["T"] <= k + LIVE_WINDOW else None
+        if ph is None:
+            continue
+        lag[ph] += [s["T"] - p[4] for p in s["pairs"] if p[4]]
+        by = defaultdict(list)
+        for key, py, pn, _b, _lu in s["pairs"]:
+            by[key].append(devig(py, pn, "multiplicative"))
+        spread[ph] += [max(v) - min(v) for v in by.values() if len(v) >= 2]
+    out = []
+    for ph, label in (("pre", "pre-kickoff"), ("in", "in-game")):
+        L, S = lag[ph], [100 * x for x in spread[ph]]
+        if L:
+            out.append(f"      {label:<12} book lag median {statistics.median(L):.0f}s p90 {q(L, .9):.0f}s"
+                       f"  | max-min across books on one line: median {statistics.median(S):.1f}pp"
+                       f" p90 {q(S, .9):.1f}pp  n={len(S)}")
+    return "\n".join(out)
 
 
 def report(season, week):
@@ -567,6 +606,7 @@ def report(season, week):
       (an UPPER bound - quotes are written on change plus a 5-min heartbeat,
        so an unchanged book reads older than it is)
     fetch minus each book's last_update   median {statistics.median(lag):.0f}s  p90 {q(lag, .9):.0f}s  max {lag[-1]:.0f}s
+{book_lag_by_phase(snaps, games)}
     spacing between consensus snapshots   median {statistics.median(spacing) / 60:.1f} min  p10 {q(spacing, .1) / 60:.1f}  p90 {q(spacing, .9) / 60:.1f}
   No lead-lag below the snapshot spacing is resolvable, whatever the clocks say.""")
 
@@ -730,11 +770,16 @@ def report(season, week):
 
     _hdr("HYPOTHESIS COUNT")
     ran = sum(1 for _, r in tests if r)
+    excl = [(n, r) for n, r in tests if r and (r["lo"] > 0 or r["hi"] < 0)]
     print(f"  pre-registered intervals {len(tests)} (33 planned); estimable {ran}; "
-          f"excluding zero {sum(1 for _, r in tests if r and (r['lo'] > 0 or r['hi'] < 0))}")
+          f"excluding zero {len(excl)}, of which on >= {MIN_GAMES_TO_READ} games "
+          f"{sum(1 for _, r in excl if readable(r))}")
     for name, r in tests:
         if not r:
             print(f"    not estimable: {name}")
+    for name, r in excl:
+        print(f"    excludes zero: {name:<34} games={r['games']}"
+              + ("" if readable(r) else "  (too few to read)"))
 
 
 def main():

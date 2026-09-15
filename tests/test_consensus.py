@@ -105,6 +105,16 @@ def test_bootstrap_resamples_games_not_rows():
     assert (dup["hi"] - dup["lo"]) >= 0.9 * (wide["hi"] - wide["lo"])
 
 
+def test_an_interval_on_three_games_that_all_won_is_labelled_unreadable():
+    rows = [{"game": g, "pnl": 0.53} for g in "abc" for _ in range(7)]
+    res = C.boot(rows, C.mean_of("pnl"))
+    assert res["lo"] > 0                                  # it DOES exclude zero...
+    assert not C.readable(res)                            # ...and must not be read
+    assert "too few to read" in C.fmt_iv(res)
+    many = C.boot([{"game": g, "pnl": 0.53} for g in "abcdef"], C.mean_of("pnl"))
+    assert C.readable(many) and "too few" not in C.fmt_iv(many)
+
+
 def test_ttk_buckets():
     assert C.ttk_bucket(-1) == "in-game"
     assert C.ttk_bucket(30 * 60) == "0-1h"

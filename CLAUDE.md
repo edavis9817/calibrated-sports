@@ -815,6 +815,46 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
   - Test count for brief 019: H1 1, H2 0 (not runnable), H3 5 x 4 intervals
     + 1 ordering = **22**.
 
+- **Kalshi's team lines do not lag the retail book consensus by more than it
+  costs to cross, and where they seem to, it is three bets** (brief 020,
+  `research/consensus.py`, pre-registered at `72d05e7`). Week 1, KXNFLSPREAD
+  and KXNFLTOTAL against 13 `us` books (no Pinnacle), exact lines only,
+  moneyline excluded (books void on a tie; Kalshi has no tie leg).
+  - Matching: 125 of 768 Kalshi rungs ever meet an exact book line - books
+    hang the main line and a half-point, Kalshi hangs a ladder. 1,060
+    observations (945 pre-kickoff, 115 in-game), 16 games.
+  - Gap (Kalshi mid - consensus): median -0.32pp, p10 -1.86, p90 +1.42; mean
+    -0.19pp [-0.39, +0.01]. **6.2% beyond 2.5pp overall, 2.2% pre-kickoff (21 of 945),
+    0% beyond 72h and 0% in the last hour.** Multiplicative and Shin agree to
+    a median 0.006pp near 50c - no material de-vig disagreement on these lines.
+  - **Lead-lag: books lead, weakly.** Share of the gap closed by the next
+    snapshot (~70 min): Kalshi toward books 0.05 [0.03, 0.10], books toward
+    Kalshi 0.01 [-0.00, 0.02]. Same-interval change correlation +0.24; books
+    one interval earlier +0.09, later -0.02. Nothing below the ~70-min
+    snapshot spacing is resolvable.
+  - **Pre-kickoff gaps above 2.5pp are PERSISTENT, not a latency race** - 84%
+    still open at the next snapshot ~80 min later, depth ~150k contracts at
+    the touch - **and there are only three of them**: BAL -3.5, WAS@PHI over
+    44.5, CHI@CAR over 47.5. Each is the minority half-point that 2-7 books
+    left up after the market moved to the key number, at 2.5-3.2pp, i.e. at
+    the cost line. All three bought YES and all three won: +51.5pp/contract
+    on 2-3 games, which is a coin flip landing, not an edge. **CLV to Kalshi's
+    own close was -0.9pp** - the close moved AWAY from the books.
+  - **An interval over <5 games is not read, whatever it excludes.** A block
+    bootstrap over three identical wins returns a tight interval that
+    "excludes zero"; 15 of the 17 zero-excluding intervals were that. The
+    script now labels them. The 2.0pp curve point (51 triggers, 11 games)
+    reads +23.65pp [-19.60, +47.07].
+  - **In-game the consensus is a clock, not a price.** 39% of in-game
+    observations exceed 2.5pp, but books on ONE line disagree by median 2.2pp,
+    p90 6.7pp, max ~35pp (one live, one stale), and book lag p90 doubles to
+    235s. In-game PnL +7.17pp [-9.76, +20.56] on 12 games contains zero, and
+    no in-game gap can be attributed to Kalshi.
+  - Verdict on the brief's own terms: null. Pre-kickoff gaps that clear cost
+    are too rare to trade and did not beat Kalshi's close; in-game ones are
+    measurement. 33 pre-registered intervals, 31 estimable, 2 readable ones
+    exclude zero (both L2).
+
 **Anything quoted as a finding must have a committed script in `research/`.**
 Numbers reached `CLAUDE.md` once without one; the reference then could not be
 reproduced, and separating a data change from a methodology change cost a
