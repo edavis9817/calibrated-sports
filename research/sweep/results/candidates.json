@@ -1,0 +1,2030 @@
+[
+ {
+  "id": "H1 KXNFLREC yes_midgame G0 C10",
+  "search_test": [
+   "H1_net_mean",
+   "KXNFLREC|yes_midgame|G0|C10"
+  ],
+  "mechanism": "None credible: nflverse time_of_day is the SNAP, so at G=0 the play is still running and the price has not yet had a chance to move - a latency race by construction.",
+  "other_side": null,
+  "microstructure": false,
+  "replication": "week2 (player props and a play clock: CFB has neither)",
+  "replication_test": null,
+  "cost": {
+   "value": 19.746666666666666,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "mean executable net per contract after fee, depth-confirmed >= order size within 60s"
+  },
+  "persistence_s": 0.0,
+  "persistence_note": "0 by construction at G=0"
+ },
+ {
+  "id": "H1 KXNFLREC yes_midgame G0 C100",
+  "search_test": [
+   "H1_net_mean",
+   "KXNFLREC|yes_midgame|G0|C100"
+  ],
+  "mechanism": "None credible: nflverse time_of_day is the SNAP, so at G=0 the play is still running and the price has not yet had a chance to move - a latency race by construction.",
+  "other_side": null,
+  "microstructure": false,
+  "replication": "week2 (player props and a play clock: CFB has neither)",
+  "replication_test": null,
+  "cost": {
+   "value": 23.583809523809528,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "mean executable net per contract after fee, depth-confirmed >= order size within 60s"
+  },
+  "persistence_s": 0.0,
+  "persistence_note": "0 by construction at G=0"
+ },
+ {
+  "id": "H1 KXNFLREC yes_midgame G60 C10",
+  "search_test": [
+   "H1_net_mean",
+   "KXNFLREC|yes_midgame|G60|C10"
+  ],
+  "mechanism": "Stale resting YES asks at 0.96-0.99 on rungs already reached: the k-th catch/carry happens and nobody cancels. The 1-4c left is too small for attentive makers against 20-35 min of capital lock, the fee and correction risk. RISK THE SCREEN CANNOT SEE: determination uses FINAL nflverse stats, but a trader acts on the LIVE feed. KXNFLREC-26SEP13NODET-NODVELE14-8 traded at 0.99 YES after the whistle (live feed apparently 8) and settled NO on a final of 7 - one such loss (-99pp) erases ~55 of these +1.8pp wins.",
+  "other_side": "market makers / NO-side lottery holders who do not cancel resting YES asks when the rung is reached",
+  "microstructure": false,
+  "replication": "week2 (player props and a play clock: CFB has neither)",
+  "replication_test": null,
+  "cost": {
+   "value": 1.4000000000000012,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "mean executable net per contract after fee, depth-confirmed >= order size within 60s"
+  },
+  "persistence_s": 250.0,
+  "persistence_note": "executable-row median"
+ },
+ {
+  "id": "H1 KXNFLREC yes_midgame G120 C10",
+  "search_test": [
+   "H1_net_mean",
+   "KXNFLREC|yes_midgame|G120|C10"
+  ],
+  "mechanism": "Stale resting YES asks at 0.96-0.99 on rungs already reached: the k-th catch/carry happens and nobody cancels. The 1-4c left is too small for attentive makers against 20-35 min of capital lock, the fee and correction risk. RISK THE SCREEN CANNOT SEE: determination uses FINAL nflverse stats, but a trader acts on the LIVE feed. KXNFLREC-26SEP13NODET-NODVELE14-8 traded at 0.99 YES after the whistle (live feed apparently 8) and settled NO on a final of 7 - one such loss (-99pp) erases ~55 of these +1.8pp wins.",
+  "other_side": "market makers / NO-side lottery holders who do not cancel resting YES asks when the rung is reached",
+  "microstructure": false,
+  "replication": "week2 (player props and a play clock: CFB has neither)",
+  "replication_test": null,
+  "cost": {
+   "value": 1.8125000000000016,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "mean executable net per contract after fee, depth-confirmed >= order size within 60s"
+  },
+  "persistence_s": 250.0,
+  "persistence_note": "executable-row median"
+ },
+ {
+  "id": "H1 KXNFLREC yes_midgame G300 C10",
+  "search_test": [
+   "H1_net_mean",
+   "KXNFLREC|yes_midgame|G300|C10"
+  ],
+  "mechanism": "Stale resting YES asks at 0.96-0.99 on rungs already reached: the k-th catch/carry happens and nobody cancels. The 1-4c left is too small for attentive makers against 20-35 min of capital lock, the fee and correction risk. RISK THE SCREEN CANNOT SEE: determination uses FINAL nflverse stats, but a trader acts on the LIVE feed. KXNFLREC-26SEP13NODET-NODVELE14-8 traded at 0.99 YES after the whistle (live feed apparently 8) and settled NO on a final of 7 - one such loss (-99pp) erases ~55 of these +1.8pp wins.",
+  "other_side": "market makers / NO-side lottery holders who do not cancel resting YES asks when the rung is reached",
+  "microstructure": false,
+  "replication": "week2 (player props and a play clock: CFB has neither)",
+  "replication_test": null,
+  "cost": {
+   "value": 1.8117647058823545,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "mean executable net per contract after fee, depth-confirmed >= order size within 60s"
+  },
+  "persistence_s": 250.0,
+  "persistence_note": "executable-row median"
+ },
+ {
+  "id": "H1 KXNFLREC yes_midgame G300 C100",
+  "search_test": [
+   "H1_net_mean",
+   "KXNFLREC|yes_midgame|G300|C100"
+  ],
+  "mechanism": "Stale resting YES asks at 0.96-0.99 on rungs already reached: the k-th catch/carry happens and nobody cancels. The 1-4c left is too small for attentive makers against 20-35 min of capital lock, the fee and correction risk. RISK THE SCREEN CANNOT SEE: determination uses FINAL nflverse stats, but a trader acts on the LIVE feed. KXNFLREC-26SEP13NODET-NODVELE14-8 traded at 0.99 YES after the whistle (live feed apparently 8) and settled NO on a final of 7 - one such loss (-99pp) erases ~55 of these +1.8pp wins.",
+  "other_side": "market makers / NO-side lottery holders who do not cancel resting YES asks when the rung is reached",
+  "microstructure": false,
+  "replication": "week2 (player props and a play clock: CFB has neither)",
+  "replication_test": null,
+  "cost": {
+   "value": 1.5112500000000015,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "mean executable net per contract after fee, depth-confirmed >= order size within 60s"
+  },
+  "persistence_s": 250.0,
+  "persistence_note": "executable-row median"
+ },
+ {
+  "id": "H1 KXNFLREC at_end G0 C10",
+  "search_test": [
+   "H1_net_mean",
+   "KXNFLREC|at_end|G0|C10"
+  ],
+  "mechanism": "None credible: nflverse time_of_day is the SNAP, so at G=0 the play is still running and the price has not yet had a chance to move - a latency race by construction.",
+  "other_side": null,
+  "microstructure": false,
+  "replication": "week2 (player props and a play clock: CFB has neither)",
+  "replication_test": null,
+  "cost": {
+   "value": 4.816000000000002,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "mean executable net per contract after fee, depth-confirmed >= order size within 60s"
+  },
+  "persistence_s": 0.0,
+  "persistence_note": "0 by construction at G=0"
+ },
+ {
+  "id": "H1 KXNFLREC at_end G60 C10",
+  "search_test": [
+   "H1_net_mean",
+   "KXNFLREC|at_end|G60|C10"
+  ],
+  "mechanism": "Post-whistle prices on an at-end REC rung: driven by the live-stat vs final-stat disagreement (the Vele market) - dispute risk, not free money. RISK THE SCREEN CANNOT SEE: determination uses FINAL nflverse stats, but a trader acts on the LIVE feed. KXNFLREC-26SEP13NODET-NODVELE14-8 traded at 0.99 YES after the whistle (live feed apparently 8) and settled NO on a final of 7 - one such loss (-99pp) erases ~55 of these +1.8pp wins.",
+  "other_side": "traders pricing off the live stat feed before corrections",
+  "microstructure": false,
+  "replication": "week2 (player props and a play clock: CFB has neither)",
+  "replication_test": null,
+  "cost": {
+   "value": 5.206666666666668,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "mean executable net per contract after fee, depth-confirmed >= order size within 60s"
+  },
+  "persistence_s": null,
+  "persistence_note": "no executable-row persistence measured (quote-based 783s only)"
+ },
+ {
+  "id": "H1 KXNFLREC at_end G300 C10",
+  "search_test": [
+   "H1_net_mean",
+   "KXNFLREC|at_end|G300|C10"
+  ],
+  "mechanism": "Post-whistle prices on an at-end REC rung: driven by the live-stat vs final-stat disagreement (the Vele market) - dispute risk, not free money. RISK THE SCREEN CANNOT SEE: determination uses FINAL nflverse stats, but a trader acts on the LIVE feed. KXNFLREC-26SEP13NODET-NODVELE14-8 traded at 0.99 YES after the whistle (live feed apparently 8) and settled NO on a final of 7 - one such loss (-99pp) erases ~55 of these +1.8pp wins.",
+  "other_side": "traders pricing off the live stat feed before corrections",
+  "microstructure": false,
+  "replication": "week2 (player props and a play clock: CFB has neither)",
+  "replication_test": null,
+  "cost": {
+   "value": 13.487500000000002,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "mean executable net per contract after fee, depth-confirmed >= order size within 60s"
+  },
+  "persistence_s": null,
+  "persistence_note": "no executable-row persistence measured (quote-based 783s only)"
+ },
+ {
+  "id": "H1 KXNFLRSHATT yes_midgame G0 C10",
+  "search_test": [
+   "H1_net_mean",
+   "KXNFLRSHATT|yes_midgame|G0|C10"
+  ],
+  "mechanism": "None credible: nflverse time_of_day is the SNAP, so at G=0 the play is still running and the price has not yet had a chance to move - a latency race by construction.",
+  "other_side": null,
+  "microstructure": false,
+  "replication": "week2 (player props and a play clock: CFB has neither)",
+  "replication_test": null,
+  "cost": {
+   "value": 5.530769230769231,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "mean executable net per contract after fee, depth-confirmed >= order size within 60s"
+  },
+  "persistence_s": 0.0,
+  "persistence_note": "0 by construction at G=0"
+ },
+ {
+  "id": "H1 KXNFLRSHATT yes_midgame G60 C10",
+  "search_test": [
+   "H1_net_mean",
+   "KXNFLRSHATT|yes_midgame|G60|C10"
+  ],
+  "mechanism": "Stale resting YES asks at 0.96-0.99 on rungs already reached: the k-th catch/carry happens and nobody cancels. The 1-4c left is too small for attentive makers against 20-35 min of capital lock, the fee and correction risk. RISK THE SCREEN CANNOT SEE: determination uses FINAL nflverse stats, but a trader acts on the LIVE feed. KXNFLREC-26SEP13NODET-NODVELE14-8 traded at 0.99 YES after the whistle (live feed apparently 8) and settled NO on a final of 7 - one such loss (-99pp) erases ~55 of these +1.8pp wins.",
+  "other_side": "market makers / NO-side lottery holders who do not cancel resting YES asks when the rung is reached",
+  "microstructure": false,
+  "replication": "week2 (player props and a play clock: CFB has neither)",
+  "replication_test": null,
+  "cost": {
+   "value": 1.1571428571428581,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "mean executable net per contract after fee, depth-confirmed >= order size within 60s"
+  },
+  "persistence_s": 13.0,
+  "persistence_note": "executable-row median"
+ },
+ {
+  "id": "H1 KXNFLRSHATT yes_midgame G120 C10",
+  "search_test": [
+   "H1_net_mean",
+   "KXNFLRSHATT|yes_midgame|G120|C10"
+  ],
+  "mechanism": "Stale resting YES asks at 0.96-0.99 on rungs already reached: the k-th catch/carry happens and nobody cancels. The 1-4c left is too small for attentive makers against 20-35 min of capital lock, the fee and correction risk. RISK THE SCREEN CANNOT SEE: determination uses FINAL nflverse stats, but a trader acts on the LIVE feed. KXNFLREC-26SEP13NODET-NODVELE14-8 traded at 0.99 YES after the whistle (live feed apparently 8) and settled NO on a final of 7 - one such loss (-99pp) erases ~55 of these +1.8pp wins.",
+  "other_side": "market makers / NO-side lottery holders who do not cancel resting YES asks when the rung is reached",
+  "microstructure": false,
+  "replication": "week2 (player props and a play clock: CFB has neither)",
+  "replication_test": null,
+  "cost": {
+   "value": 1.4400000000000013,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "mean executable net per contract after fee, depth-confirmed >= order size within 60s"
+  },
+  "persistence_s": 13.0,
+  "persistence_note": "executable-row median"
+ },
+ {
+  "id": "H1 KXNFLRSHATT yes_midgame G300 C10",
+  "search_test": [
+   "H1_net_mean",
+   "KXNFLRSHATT|yes_midgame|G300|C10"
+  ],
+  "mechanism": "Stale resting YES asks at 0.96-0.99 on rungs already reached: the k-th catch/carry happens and nobody cancels. The 1-4c left is too small for attentive makers against 20-35 min of capital lock, the fee and correction risk. RISK THE SCREEN CANNOT SEE: determination uses FINAL nflverse stats, but a trader acts on the LIVE feed. KXNFLREC-26SEP13NODET-NODVELE14-8 traded at 0.99 YES after the whistle (live feed apparently 8) and settled NO on a final of 7 - one such loss (-99pp) erases ~55 of these +1.8pp wins.",
+  "other_side": "market makers / NO-side lottery holders who do not cancel resting YES asks when the rung is reached",
+  "microstructure": false,
+  "replication": "week2 (player props and a play clock: CFB has neither)",
+  "replication_test": null,
+  "cost": {
+   "value": 1.200000000000001,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "mean executable net per contract after fee, depth-confirmed >= order size within 60s"
+  },
+  "persistence_s": 13.0,
+  "persistence_note": "executable-row median"
+ },
+ {
+  "id": "H1 KXNFLTOTAL yes_midgame G0 C10",
+  "search_test": [
+   "H1_net_mean",
+   "KXNFLTOTAL|yes_midgame|G0|C10"
+  ],
+  "mechanism": "None credible: nflverse time_of_day is the SNAP, so at G=0 the play is still running and the price has not yet had a chance to move - a latency race by construction.",
+  "other_side": null,
+  "microstructure": false,
+  "replication": "week2 (player props and a play clock: CFB has neither)",
+  "replication_test": null,
+  "cost": {
+   "value": 6.747727272727275,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "mean executable net per contract after fee, depth-confirmed >= order size within 60s"
+  },
+  "persistence_s": 0.0,
+  "persistence_note": "0 by construction at G=0"
+ },
+ {
+  "id": "H1 KXNFLTOTAL yes_midgame G0 C100",
+  "search_test": [
+   "H1_net_mean",
+   "KXNFLTOTAL|yes_midgame|G0|C100"
+  ],
+  "mechanism": "None credible: nflverse time_of_day is the SNAP, so at G=0 the play is still running and the price has not yet had a chance to move - a latency race by construction.",
+  "other_side": null,
+  "microstructure": false,
+  "replication": "week2 (player props and a play clock: CFB has neither)",
+  "replication_test": null,
+  "cost": {
+   "value": 5.942857142857144,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "mean executable net per contract after fee, depth-confirmed >= order size within 60s"
+  },
+  "persistence_s": 0.0,
+  "persistence_note": "0 by construction at G=0"
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLREC|pre|10s"
+  ],
+  "cost": {
+   "value": -4.180284765265281,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 10.0,
+  "id": "H2 KXNFLREC pre 10s",
+  "microstructure": true,
+  "mechanism": "No credible mechanism: <=0.08pp per unit I, 95%+ of 10s lookups return the same quote row, n ~900k - a resolution artifact of a huge sample.",
+  "other_side": null,
+  "replication": "none (no mechanism)",
+  "replication_test": null
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLREC|pre|300s"
+  ],
+  "cost": {
+   "value": -4.093625093136878,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 300.0,
+  "id": "H2 KXNFLREC pre 300s",
+  "microstructure": true,
+  "mechanism": "No credible mechanism: <=0.08pp per unit I, 95%+ of 10s lookups return the same quote row, n ~900k - a resolution artifact of a huge sample.",
+  "other_side": null,
+  "replication": "none (no mechanism)",
+  "replication_test": null
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLREC|in|10s"
+  ],
+  "cost": {
+   "value": -7.140085514381965,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 10.0,
+  "id": "H2 KXNFLREC in-game 10s",
+  "microstructure": true,
+  "mechanism": "No tradable mechanism: the in-game prop touch is 1-2 contracts, so 'imbalance' is one stale order; the 10s positive slope comes from rows where depth was fresher than the quote (look-ahead) and reverses at 60/300s.",
+  "other_side": null,
+  "replication": "week2 (no CFB props)",
+  "replication_test": null
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLREC|in|60s"
+  ],
+  "cost": {
+   "value": -7.476960352422908,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 60.0,
+  "id": "H2 KXNFLREC in-game 60s",
+  "microstructure": true,
+  "mechanism": "No tradable mechanism: the in-game prop touch is 1-2 contracts, so 'imbalance' is one stale order; the 10s positive slope comes from rows where depth was fresher than the quote (look-ahead) and reverses at 60/300s.",
+  "other_side": null,
+  "replication": "week2 (no CFB props)",
+  "replication_test": null
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLREC|in|300s"
+  ],
+  "cost": {
+   "value": -8.1535605079036,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 300.0,
+  "id": "H2 KXNFLREC in-game 300s",
+  "microstructure": true,
+  "mechanism": "No tradable mechanism: the in-game prop touch is 1-2 contracts, so 'imbalance' is one stale order; the 10s positive slope comes from rows where depth was fresher than the quote (look-ahead) and reverses at 60/300s.",
+  "other_side": null,
+  "replication": "week2 (no CFB props)",
+  "replication_test": null
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLRSHATT|pre|10s"
+  ],
+  "cost": {
+   "value": -8.509483560493518,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 10.0,
+  "id": "H2 KXNFLRSHATT pre 10s",
+  "microstructure": true,
+  "mechanism": "No credible mechanism: <=0.08pp per unit I, 95%+ of 10s lookups return the same quote row, n ~900k - a resolution artifact of a huge sample.",
+  "other_side": null,
+  "replication": "none (no mechanism)",
+  "replication_test": null
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLRSHATT|pre|300s"
+  ],
+  "cost": {
+   "value": -8.414431561268659,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 300.0,
+  "id": "H2 KXNFLRSHATT pre 300s",
+  "microstructure": true,
+  "mechanism": "No credible mechanism: <=0.08pp per unit I, 95%+ of 10s lookups return the same quote row, n ~900k - a resolution artifact of a huge sample.",
+  "other_side": null,
+  "replication": "none (no mechanism)",
+  "replication_test": null
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLRSHATT|in|10s"
+  ],
+  "cost": {
+   "value": -21.27124887150165,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 10.0,
+  "id": "H2 KXNFLRSHATT in-game 10s",
+  "microstructure": true,
+  "mechanism": "No tradable mechanism: the in-game prop touch is 1-2 contracts, so 'imbalance' is one stale order; the 10s positive slope comes from rows where depth was fresher than the quote (look-ahead) and reverses at 60/300s.",
+  "other_side": null,
+  "replication": "week2 (no CFB props)",
+  "replication_test": null
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLRSHATT|in|60s"
+  ],
+  "cost": {
+   "value": -22.965049653927167,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 60.0,
+  "id": "H2 KXNFLRSHATT in-game 60s",
+  "microstructure": true,
+  "mechanism": "No tradable mechanism: the in-game prop touch is 1-2 contracts, so 'imbalance' is one stale order; the 10s positive slope comes from rows where depth was fresher than the quote (look-ahead) and reverses at 60/300s.",
+  "other_side": null,
+  "replication": "week2 (no CFB props)",
+  "replication_test": null
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLRSHATT|in|300s"
+  ],
+  "cost": {
+   "value": -24.075492025278358,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 300.0,
+  "id": "H2 KXNFLRSHATT in-game 300s",
+  "microstructure": true,
+  "mechanism": "No tradable mechanism: the in-game prop touch is 1-2 contracts, so 'imbalance' is one stale order; the 10s positive slope comes from rows where depth was fresher than the quote (look-ahead) and reverses at 60/300s.",
+  "other_side": null,
+  "replication": "week2 (no CFB props)",
+  "replication_test": null
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLSPREAD|pre|10s"
+  ],
+  "cost": {
+   "value": -1.9323252679647729,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 10.0,
+  "id": "H2 KXNFLSPREAD pre 10s",
+  "microstructure": true,
+  "mechanism": "No credible mechanism: <=0.08pp per unit I, 95%+ of 10s lookups return the same quote row, n ~900k - a resolution artifact of a huge sample.",
+  "other_side": null,
+  "replication": "none (no mechanism)",
+  "replication_test": null
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLSPREAD|pre|60s"
+  ],
+  "cost": {
+   "value": -1.9288448975709118,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 60.0,
+  "id": "H2 KXNFLSPREAD pre 60s",
+  "microstructure": true,
+  "mechanism": "No credible mechanism: <=0.08pp per unit I, 95%+ of 10s lookups return the same quote row, n ~900k - a resolution artifact of a huge sample.",
+  "other_side": null,
+  "replication": "none (no mechanism)",
+  "replication_test": null
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLSPREAD|pre|300s"
+  ],
+  "cost": {
+   "value": -1.9089695249572218,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 300.0,
+  "id": "H2 KXNFLSPREAD pre 300s",
+  "microstructure": true,
+  "mechanism": "No credible mechanism: <=0.08pp per unit I, 95%+ of 10s lookups return the same quote row, n ~900k - a resolution artifact of a huge sample.",
+  "other_side": null,
+  "replication": "none (no mechanism)",
+  "replication_test": null
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLSPREAD|in|10s"
+  ],
+  "cost": {
+   "value": -2.3768579177967872,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 10.0,
+  "id": "H2 KXNFLSPREAD in-game 10s",
+  "microstructure": true,
+  "mechanism": "In-game the thin side of the touch is consumed as game state changes, so the next move is toward it; about half the slope survives restricting to instants where depth and quote touches agree.",
+  "other_side": "the maker on the thin side who is slow to re-quote",
+  "replication": "cfb",
+  "replication_test": [
+   "H2 slope",
+   "KXNCAAFSPREAD|in|10s"
+  ]
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLSPREAD|in|60s"
+  ],
+  "cost": {
+   "value": -2.013828499895681,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 60.0,
+  "id": "H2 KXNFLSPREAD in-game 60s",
+  "microstructure": true,
+  "mechanism": "In-game the thin side of the touch is consumed as game state changes, so the next move is toward it; about half the slope survives restricting to instants where depth and quote touches agree.",
+  "other_side": "the maker on the thin side who is slow to re-quote",
+  "replication": "cfb",
+  "replication_test": [
+   "H2 slope",
+   "KXNCAAFSPREAD|in|60s"
+  ]
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLSPREAD|in|300s"
+  ],
+  "cost": {
+   "value": -1.699828917170874,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 300.0,
+  "id": "H2 KXNFLSPREAD in-game 300s",
+  "microstructure": true,
+  "mechanism": "In-game the thin side of the touch is consumed as game state changes, so the next move is toward it; about half the slope survives restricting to instants where depth and quote touches agree.",
+  "other_side": "the maker on the thin side who is slow to re-quote",
+  "replication": "cfb",
+  "replication_test": [
+   "H2 slope",
+   "KXNCAAFSPREAD|in|300s"
+  ]
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLTOTAL|pre|10s"
+  ],
+  "cost": {
+   "value": -1.9052316960148334,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 10.0,
+  "id": "H2 KXNFLTOTAL pre 10s",
+  "microstructure": true,
+  "mechanism": "No credible mechanism: <=0.08pp per unit I, 95%+ of 10s lookups return the same quote row, n ~900k - a resolution artifact of a huge sample.",
+  "other_side": null,
+  "replication": "none (no mechanism)",
+  "replication_test": null
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLTOTAL|pre|60s"
+  ],
+  "cost": {
+   "value": -1.9019774201701958,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 60.0,
+  "id": "H2 KXNFLTOTAL pre 60s",
+  "microstructure": true,
+  "mechanism": "No credible mechanism: <=0.08pp per unit I, 95%+ of 10s lookups return the same quote row, n ~900k - a resolution artifact of a huge sample.",
+  "other_side": null,
+  "replication": "none (no mechanism)",
+  "replication_test": null
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLTOTAL|pre|300s"
+  ],
+  "cost": {
+   "value": -1.8906243154435964,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 300.0,
+  "id": "H2 KXNFLTOTAL pre 300s",
+  "microstructure": true,
+  "mechanism": "No credible mechanism: <=0.08pp per unit I, 95%+ of 10s lookups return the same quote row, n ~900k - a resolution artifact of a huge sample.",
+  "other_side": null,
+  "replication": "none (no mechanism)",
+  "replication_test": null
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLTOTAL|in|10s"
+  ],
+  "cost": {
+   "value": -2.2135750827565452,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 10.0,
+  "id": "H2 KXNFLTOTAL in-game 10s",
+  "microstructure": true,
+  "mechanism": "In-game the thin side of the touch is consumed as game state changes, so the next move is toward it; about half the slope survives restricting to instants where depth and quote touches agree.",
+  "other_side": "the maker on the thin side who is slow to re-quote",
+  "replication": "cfb",
+  "replication_test": [
+   "H2 slope",
+   "KXNCAAFTOTAL|in|10s"
+  ]
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLTOTAL|in|60s"
+  ],
+  "cost": {
+   "value": -1.9075263316280475,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 60.0,
+  "id": "H2 KXNFLTOTAL in-game 60s",
+  "microstructure": true,
+  "mechanism": "In-game the thin side of the touch is consumed as game state changes, so the next move is toward it; about half the slope survives restricting to instants where depth and quote touches agree.",
+  "other_side": "the maker on the thin side who is slow to re-quote",
+  "replication": "cfb",
+  "replication_test": [
+   "H2 slope",
+   "KXNCAAFTOTAL|in|60s"
+  ]
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLTOTAL|in|300s"
+  ],
+  "cost": {
+   "value": -1.2978362925067715,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 300.0,
+  "id": "H2 KXNFLTOTAL in-game 300s",
+  "microstructure": true,
+  "mechanism": "In-game the thin side of the touch is consumed as game state changes, so the next move is toward it; about half the slope survives restricting to instants where depth and quote touches agree.",
+  "other_side": "the maker on the thin side who is slow to re-quote",
+  "replication": "cfb",
+  "replication_test": [
+   "H2 slope",
+   "KXNCAAFTOTAL|in|300s"
+  ]
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLGAME|pre|60s"
+  ],
+  "cost": {
+   "value": -2.1057592778334904,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 60.0,
+  "id": "H2 KXNFLGAME pre 60s",
+  "microstructure": true,
+  "mechanism": "No credible mechanism: <=0.08pp per unit I, 95%+ of 10s lookups return the same quote row, n ~900k - a resolution artifact of a huge sample.",
+  "other_side": null,
+  "replication": "none (no mechanism)",
+  "replication_test": null
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLGAME|pre|300s"
+  ],
+  "cost": {
+   "value": -2.096531594784343,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 300.0,
+  "id": "H2 KXNFLGAME pre 300s",
+  "microstructure": true,
+  "mechanism": "No credible mechanism: <=0.08pp per unit I, 95%+ of 10s lookups return the same quote row, n ~900k - a resolution artifact of a huge sample.",
+  "other_side": null,
+  "replication": "none (no mechanism)",
+  "replication_test": null
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLGAME|in|10s"
+  ],
+  "cost": {
+   "value": -1.3199270072992704,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 10.0,
+  "id": "H2 KXNFLGAME in-game 10s",
+  "microstructure": true,
+  "mechanism": "In-game the thin side of the touch is consumed as game state changes, so the next move is toward it; about half the slope survives restricting to instants where depth and quote touches agree.",
+  "other_side": "the maker on the thin side who is slow to re-quote",
+  "replication": "cfb",
+  "replication_test": [
+   "H2 slope",
+   "KXNCAAFGAME|in|10s"
+  ]
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLGAME|in|60s"
+  ],
+  "cost": {
+   "value": -1.0340389294403896,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 60.0,
+  "id": "H2 KXNFLGAME in-game 60s",
+  "microstructure": true,
+  "mechanism": "In-game the thin side of the touch is consumed as game state changes, so the next move is toward it; about half the slope survives restricting to instants where depth and quote touches agree.",
+  "other_side": "the maker on the thin side who is slow to re-quote",
+  "replication": "cfb",
+  "replication_test": [
+   "H2 slope",
+   "KXNCAAFGAME|in|60s"
+  ]
+ },
+ {
+  "search_test": [
+   "H2 slope",
+   "KXNFLGAME|in|300s"
+  ],
+  "cost": {
+   "value": -1.4768613138686135,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile |I| signed move minus half-spread minus taker fee at 100 contracts (net must be > 0)"
+  },
+  "persistence_s": 300.0,
+  "id": "H2 KXNFLGAME in-game 300s",
+  "microstructure": true,
+  "mechanism": "In-game the thin side of the touch is consumed as game state changes, so the next move is toward it; about half the slope survives restricting to instants where depth and quote touches agree.",
+  "other_side": "the maker on the thin side who is slow to re-quote",
+  "replication": "cfb",
+  "replication_test": [
+   "H2 slope",
+   "KXNCAAFGAME|in|300s"
+  ]
+ },
+ {
+  "id": "H3 KXNFLREC ttk >72h - 1-6h",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLREC|ttk >72h - 1-6h"
+  ],
+  "mechanism": "Makers widen and thin out when information risk is high (in-game) and when interest is low (far from kickoff). Execution timing, not an edge.",
+  "other_side": "the taker who crosses at those times",
+  "microstructure": true,
+  "replication": "week2",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLREC ttk 24-72h - 1-6h",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLREC|ttk 24-72h - 1-6h"
+  ],
+  "mechanism": "Makers widen and thin out when information risk is high (in-game) and when interest is low (far from kickoff). Execution timing, not an edge.",
+  "other_side": "the taker who crosses at those times",
+  "microstructure": true,
+  "replication": "week2",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLREC ttk 6-24h - 1-6h",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLREC|ttk 6-24h - 1-6h"
+  ],
+  "mechanism": "Makers widen and thin out when information risk is high (in-game) and when interest is low (far from kickoff). Execution timing, not an edge.",
+  "other_side": "the taker who crosses at those times",
+  "microstructure": true,
+  "replication": "week2",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLREC ttk 0-1h - 1-6h",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLREC|ttk 0-1h - 1-6h"
+  ],
+  "mechanism": "Peak maker attention just before kickoff and on Sunday mornings narrows the book. Execution timing, not an edge.",
+  "other_side": "the taker who crosses at other times",
+  "microstructure": true,
+  "replication": "week2",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLREC ttk in-game - 1-6h",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLREC|ttk in-game - 1-6h"
+  ],
+  "mechanism": "Makers widen and thin out when information risk is high (in-game) and when interest is low (far from kickoff). Execution timing, not an edge.",
+  "other_side": "the taker who crosses at those times",
+  "microstructure": true,
+  "replication": "week2",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLREC hour 00-08 - 09-16",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLREC|hour 00-08 - 09-16"
+  ],
+  "mechanism": "No credible mechanism beyond composition: 09-16 ET and Sunday contain the wide in-game samples; RSHATT >72h reverses sign on the same markets (mix artifact).",
+  "other_side": null,
+  "microstructure": true,
+  "replication": "none (no mechanism)",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLRSHATT ttk >72h - 1-6h",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLRSHATT|ttk >72h - 1-6h"
+  ],
+  "mechanism": "No credible mechanism beyond composition: 09-16 ET and Sunday contain the wide in-game samples; RSHATT >72h reverses sign on the same markets (mix artifact).",
+  "other_side": null,
+  "microstructure": true,
+  "replication": "none (no mechanism)",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLRSHATT ttk 6-24h - 1-6h",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLRSHATT|ttk 6-24h - 1-6h"
+  ],
+  "mechanism": "Makers widen and thin out when information risk is high (in-game) and when interest is low (far from kickoff). Execution timing, not an edge.",
+  "other_side": "the taker who crosses at those times",
+  "microstructure": true,
+  "replication": "week2",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLRSHATT ttk in-game - 1-6h",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLRSHATT|ttk in-game - 1-6h"
+  ],
+  "mechanism": "Makers widen and thin out when information risk is high (in-game) and when interest is low (far from kickoff). Execution timing, not an edge.",
+  "other_side": "the taker who crosses at those times",
+  "microstructure": true,
+  "replication": "week2",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLRSHATT hour 00-08 - 09-16",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLRSHATT|hour 00-08 - 09-16"
+  ],
+  "mechanism": "No credible mechanism beyond composition: 09-16 ET and Sunday contain the wide in-game samples; RSHATT >72h reverses sign on the same markets (mix artifact).",
+  "other_side": null,
+  "microstructure": true,
+  "replication": "none (no mechanism)",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLRSHATT Sunday - Mon-Fri",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLRSHATT|Sunday - Mon-Fri"
+  ],
+  "mechanism": "No credible mechanism beyond composition: 09-16 ET and Sunday contain the wide in-game samples; RSHATT >72h reverses sign on the same markets (mix artifact).",
+  "other_side": null,
+  "microstructure": true,
+  "replication": "none (no mechanism)",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLSPREAD ttk >72h - 1-6h",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLSPREAD|ttk >72h - 1-6h"
+  ],
+  "mechanism": "Makers widen and thin out when information risk is high (in-game) and when interest is low (far from kickoff). Execution timing, not an edge.",
+  "other_side": "the taker who crosses at those times",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "H3 contrast",
+   "KXNCAAFSPREAD|ttk >72h - 1-6h"
+  ],
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLSPREAD ttk 24-72h - 1-6h",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLSPREAD|ttk 24-72h - 1-6h"
+  ],
+  "mechanism": "Makers widen and thin out when information risk is high (in-game) and when interest is low (far from kickoff). Execution timing, not an edge.",
+  "other_side": "the taker who crosses at those times",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "H3 contrast",
+   "KXNCAAFSPREAD|ttk 24-72h - 1-6h"
+  ],
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLSPREAD ttk 6-24h - 1-6h",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLSPREAD|ttk 6-24h - 1-6h"
+  ],
+  "mechanism": "Makers widen and thin out when information risk is high (in-game) and when interest is low (far from kickoff). Execution timing, not an edge.",
+  "other_side": "the taker who crosses at those times",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "H3 contrast",
+   "KXNCAAFSPREAD|ttk 6-24h - 1-6h"
+  ],
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLSPREAD ttk in-game - 1-6h",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLSPREAD|ttk in-game - 1-6h"
+  ],
+  "mechanism": "Makers widen and thin out when information risk is high (in-game) and when interest is low (far from kickoff). Execution timing, not an edge.",
+  "other_side": "the taker who crosses at those times",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "H3 contrast",
+   "KXNCAAFSPREAD|ttk in-game - 1-6h"
+  ],
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLSPREAD Sunday - Mon-Fri",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLSPREAD|Sunday - Mon-Fri"
+  ],
+  "mechanism": "Peak maker attention just before kickoff and on Sunday mornings narrows the book. Execution timing, not an edge.",
+  "other_side": "the taker who crosses at other times",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "H3 contrast",
+   "KXNCAAFSPREAD|Sunday - Mon-Fri"
+  ],
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLTOTAL ttk >72h - 1-6h",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLTOTAL|ttk >72h - 1-6h"
+  ],
+  "mechanism": "Makers widen and thin out when information risk is high (in-game) and when interest is low (far from kickoff). Execution timing, not an edge.",
+  "other_side": "the taker who crosses at those times",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "H3 contrast",
+   "KXNCAAFTOTAL|ttk >72h - 1-6h"
+  ],
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLTOTAL ttk 24-72h - 1-6h",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLTOTAL|ttk 24-72h - 1-6h"
+  ],
+  "mechanism": "Makers widen and thin out when information risk is high (in-game) and when interest is low (far from kickoff). Execution timing, not an edge.",
+  "other_side": "the taker who crosses at those times",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "H3 contrast",
+   "KXNCAAFTOTAL|ttk 24-72h - 1-6h"
+  ],
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLTOTAL ttk 6-24h - 1-6h",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLTOTAL|ttk 6-24h - 1-6h"
+  ],
+  "mechanism": "Makers widen and thin out when information risk is high (in-game) and when interest is low (far from kickoff). Execution timing, not an edge.",
+  "other_side": "the taker who crosses at those times",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "H3 contrast",
+   "KXNCAAFTOTAL|ttk 6-24h - 1-6h"
+  ],
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLTOTAL ttk in-game - 1-6h",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLTOTAL|ttk in-game - 1-6h"
+  ],
+  "mechanism": "Makers widen and thin out when information risk is high (in-game) and when interest is low (far from kickoff). Execution timing, not an edge.",
+  "other_side": "the taker who crosses at those times",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "H3 contrast",
+   "KXNCAAFTOTAL|ttk in-game - 1-6h"
+  ],
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLTOTAL hour 17-23 - 09-16",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLTOTAL|hour 17-23 - 09-16"
+  ],
+  "mechanism": "Peak maker attention just before kickoff and on Sunday mornings narrows the book. Execution timing, not an edge.",
+  "other_side": "the taker who crosses at other times",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "H3 contrast",
+   "KXNCAAFTOTAL|hour 17-23 - 09-16"
+  ],
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLTOTAL Sunday - Mon-Fri",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLTOTAL|Sunday - Mon-Fri"
+  ],
+  "mechanism": "Peak maker attention just before kickoff and on Sunday mornings narrows the book. Execution timing, not an edge.",
+  "other_side": "the taker who crosses at other times",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "H3 contrast",
+   "KXNCAAFTOTAL|Sunday - Mon-Fri"
+  ],
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLGAME ttk >72h - 1-6h",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLGAME|ttk >72h - 1-6h"
+  ],
+  "mechanism": "No mechanism: effects of 0.02-0.06c sit at the 1c tick floor.",
+  "other_side": null,
+  "microstructure": true,
+  "replication": "none (no mechanism)",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 KXNFLGAME ttk in-game - 1-6h",
+  "search_test": [
+   "H3 contrast",
+   "KXNFLGAME|ttk in-game - 1-6h"
+  ],
+  "mechanism": "No mechanism: effects of 0.02-0.06c sit at the 1c tick floor.",
+  "other_side": null,
+  "microstructure": true,
+  "replication": "none (no mechanism)",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 WINS Sunday - Mon-Fri",
+  "search_test": [
+   "H3 contrast",
+   "WINS|Sunday - Mon-Fri"
+  ],
+  "mechanism": "No mechanism claimed: one calendar day of futures.",
+  "other_side": null,
+  "microstructure": true,
+  "replication": "none (no mechanism)",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "H3 DIVISION Sunday - Mon-Fri",
+  "search_test": [
+   "H3 contrast",
+   "DIVISION|Sunday - Mon-Fri"
+  ],
+  "mechanism": "No mechanism claimed: one calendar day of futures.",
+  "other_side": null,
+  "microstructure": true,
+  "replication": "none (no mechanism)",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "c",
+   "basis": "not an edge - a spread contrast carries no executable PnL"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "S3 reversal KXNFLREC pre h=60s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLREC | pre | h=60s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "week2 (no CFB player props)",
+  "replication_test": null,
+  "cost": {
+   "value": -3.8377964393684794,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 60.0
+ },
+ {
+  "id": "S3 reversal KXNFLREC pre h=600s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLREC | pre | h=600s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "week2 (no CFB player props)",
+  "replication_test": null,
+  "cost": {
+   "value": -4.787779997146529,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 600.0
+ },
+ {
+  "id": "S3 reversal KXNFLREC pre h=3600s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLREC | pre | h=3600s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "week2 (no CFB player props)",
+  "replication_test": null,
+  "cost": {
+   "value": -5.584632258064514,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 3600.0
+ },
+ {
+  "id": "S3 reversal KXNFLREC in h=60s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLREC | in | h=60s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "week2 (no CFB player props)",
+  "replication_test": null,
+  "cost": {
+   "value": -10.91092816925439,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 60.0
+ },
+ {
+  "id": "S3 reversal KXNFLREC in h=600s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLREC | in | h=600s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "week2 (no CFB player props)",
+  "replication_test": null,
+  "cost": {
+   "value": -11.374004051316678,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 600.0
+ },
+ {
+  "id": "S3 reversal KXNFLREC in h=3600s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLREC | in | h=3600s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "week2 (no CFB player props)",
+  "replication_test": null,
+  "cost": {
+   "value": -5.200769230769231,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 3600.0
+ },
+ {
+  "id": "S3 reversal KXNFLRSHATT pre h=60s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLRSHATT | pre | h=60s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "week2 (no CFB player props)",
+  "replication_test": null,
+  "cost": {
+   "value": -16.466499599037775,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 60.0
+ },
+ {
+  "id": "S3 reversal KXNFLRSHATT pre h=600s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLRSHATT | pre | h=600s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "week2 (no CFB player props)",
+  "replication_test": null,
+  "cost": {
+   "value": -8.767625580880724,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 600.0
+ },
+ {
+  "id": "S3 reversal KXNFLRSHATT pre h=3600s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLRSHATT | pre | h=3600s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "week2 (no CFB player props)",
+  "replication_test": null,
+  "cost": {
+   "value": -8.930165844912592,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 3600.0
+ },
+ {
+  "id": "S3 reversal KXNFLRSHATT in h=60s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLRSHATT | in | h=60s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "week2 (no CFB player props)",
+  "replication_test": null,
+  "cost": {
+   "value": -21.421215553038902,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 60.0
+ },
+ {
+  "id": "S3 reversal KXNFLRSHATT in h=600s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLRSHATT | in | h=600s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "week2 (no CFB player props)",
+  "replication_test": null,
+  "cost": {
+   "value": -15.578660436137069,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 600.0
+ },
+ {
+  "id": "S3 reversal KXNFLRSHATT in h=3600s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLRSHATT | in | h=3600s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "week2 (no CFB player props)",
+  "replication_test": null,
+  "cost": {
+   "value": -17.867272727272727,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 3600.0
+ },
+ {
+  "id": "S3 reversal KXNFLSPREAD pre h=60s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLSPREAD | pre | h=60s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "cfb_rep_pricepath",
+   "KXNCAAFSPREAD | pre | h=60s | slope"
+  ],
+  "cost": {
+   "value": -1.8683228788378978,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 60.0
+ },
+ {
+  "id": "S3 reversal KXNFLSPREAD pre h=600s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLSPREAD | pre | h=600s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "cfb_rep_pricepath",
+   "KXNCAAFSPREAD | pre | h=600s | slope"
+  ],
+  "cost": {
+   "value": -1.9489368826385398,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 600.0
+ },
+ {
+  "id": "S3 reversal KXNFLSPREAD pre h=3600s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLSPREAD | pre | h=3600s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "cfb_rep_pricepath",
+   "KXNCAAFSPREAD | pre | h=3600s | slope"
+  ],
+  "cost": {
+   "value": -1.9959621136590244,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 3600.0
+ },
+ {
+  "id": "S3 reversal KXNFLSPREAD in h=60s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLSPREAD | in | h=60s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "cfb_rep_pricepath",
+   "KXNCAAFSPREAD | in | h=60s | slope"
+  ],
+  "cost": {
+   "value": -3.1429739932885887,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 60.0
+ },
+ {
+  "id": "S3 reversal KXNFLTOTAL pre h=60s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLTOTAL | pre | h=60s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "cfb_rep_pricepath",
+   "KXNCAAFTOTAL | pre | h=60s | slope"
+  ],
+  "cost": {
+   "value": -1.7926738319807096,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 60.0
+ },
+ {
+  "id": "S3 reversal KXNFLTOTAL pre h=600s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLTOTAL | pre | h=600s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "cfb_rep_pricepath",
+   "KXNCAAFTOTAL | pre | h=600s | slope"
+  ],
+  "cost": {
+   "value": -1.8701602136181579,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 600.0
+ },
+ {
+  "id": "S3 reversal KXNFLTOTAL pre h=3600s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLTOTAL | pre | h=3600s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "cfb_rep_pricepath",
+   "KXNCAAFTOTAL | pre | h=3600s | slope"
+  ],
+  "cost": {
+   "value": -1.8238899933730945,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 3600.0
+ },
+ {
+  "id": "S3 reversal KXNFLTOTAL in h=60s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLTOTAL | in | h=60s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "cfb_rep_pricepath",
+   "KXNCAAFTOTAL | in | h=60s | slope"
+  ],
+  "cost": {
+   "value": -2.8054525014052842,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 60.0
+ },
+ {
+  "id": "S3 reversal KXNFLGAME pre h=600s",
+  "search_test": [
+   "axis3_pricepath",
+   "KXNFLGAME | pre | h=600s | slope"
+  ],
+  "mechanism": "Mid-quote bounce: on a thin book the touch flickers as resting size is lifted and refilled, so successive mid changes are negatively autocorrelated.",
+  "other_side": "the market maker re-quoting the touch; there is no counterparty at the mid, so the bounce is not tradeable by crossing",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "cfb_rep_pricepath",
+   "KXNCAAFGAME | pre | h=600s | slope"
+  ],
+  "cost": {
+   "value": -2.2052854122621497,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "top-decile signed next move minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 600.0
+ },
+ {
+  "id": "S5 continuation KXNFLREC h=60s",
+  "search_test": [
+   "axis5_liquidity",
+   "KXNFLREC | h=60s | continuation"
+  ],
+  "mechanism": "Large prop takers carry information (lineup, injury, role news) and their price impact is permanent.",
+  "other_side": "resting makers adversely selected by the informed print; an outsider sees the print only after the move",
+  "microstructure": false,
+  "replication": "week2 (CFB has no trade tape)",
+  "replication_test": null,
+  "cost": {
+   "value": -2.6838235294117645,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "continuation minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 60.0
+ },
+ {
+  "id": "S5 continuation KXNFLREC h=600s",
+  "search_test": [
+   "axis5_liquidity",
+   "KXNFLREC | h=600s | continuation"
+  ],
+  "mechanism": "Large prop takers carry information (lineup, injury, role news) and their price impact is permanent.",
+  "other_side": "resting makers adversely selected by the informed print; an outsider sees the print only after the move",
+  "microstructure": false,
+  "replication": "week2 (CFB has no trade tape)",
+  "replication_test": null,
+  "cost": {
+   "value": -1.8297435897435894,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "continuation minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 600.0
+ },
+ {
+  "id": "S5 continuation KXNFLRSHATT h=60s",
+  "search_test": [
+   "axis5_liquidity",
+   "KXNFLRSHATT | h=60s | continuation"
+  ],
+  "mechanism": "Large prop takers carry information (lineup, injury, role news) and their price impact is permanent.",
+  "other_side": "resting makers adversely selected by the informed print; an outsider sees the print only after the move",
+  "microstructure": false,
+  "replication": "week2 (CFB has no trade tape)",
+  "replication_test": null,
+  "cost": {
+   "value": -2.852272727272726,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "continuation minus half-spread + taker fee (net must be > 0)"
+  },
+  "persistence_s": 60.0
+ },
+ {
+  "id": "S2 far-rung gap KXNFLSPREAD dist 7-10",
+  "search_test": [
+   "axis2_keynumber",
+   "KXNFLSPREAD | dist 7-10 | mean signed gap"
+  ],
+  "mechanism": "Either Kalshi makers sell far rungs cheap (longshot rungs nobody prices), or the shifted historical margin distribution has fat tails from mixing eras and matchups - the second is the prior.",
+  "other_side": "if real: passive far-rung sellers on Kalshi; if model error: nobody",
+  "microstructure": false,
+  "replication": "week2 (football-specific distribution)",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "executable arm for |gap|>2.5pp, PnL/contract after fee (net must be > 0); NOT ESTABLISHED: the arm priced the touch at 10 contracts without verifying recorded depth (bar 4 requires it), and the spread interval is [-16.9, +34.1]",
+   "reported_est": 8.073957016434877
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "S2 far-rung gap KXNFLSPREAD dist 10+",
+  "search_test": [
+   "axis2_keynumber",
+   "KXNFLSPREAD | dist 10+ | mean signed gap"
+  ],
+  "mechanism": "Either Kalshi makers sell far rungs cheap (longshot rungs nobody prices), or the shifted historical margin distribution has fat tails from mixing eras and matchups - the second is the prior.",
+  "other_side": "if real: passive far-rung sellers on Kalshi; if model error: nobody",
+  "microstructure": false,
+  "replication": "week2 (football-specific distribution)",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "executable arm for |gap|>2.5pp, PnL/contract after fee (net must be > 0); NOT ESTABLISHED: the arm priced the touch at 10 contracts without verifying recorded depth (bar 4 requires it), and the spread interval is [-16.9, +34.1]",
+   "reported_est": 8.073957016434877
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "S2 far-rung gap KXNFLTOTAL dist 7-10",
+  "search_test": [
+   "axis2_keynumber",
+   "KXNFLTOTAL | dist 7-10 | mean signed gap"
+  ],
+  "mechanism": "Either Kalshi makers sell far rungs cheap (longshot rungs nobody prices), or the shifted historical margin distribution has fat tails from mixing eras and matchups - the second is the prior.",
+  "other_side": "if real: passive far-rung sellers on Kalshi; if model error: nobody",
+  "microstructure": false,
+  "replication": "week2 (football-specific distribution)",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "executable arm for |gap|>2.5pp, PnL/contract after fee (net must be > 0); NOT ESTABLISHED: the arm priced the touch at 10 contracts without verifying recorded depth (bar 4 requires it), and the spread interval is [-16.9, +34.1]",
+   "reported_est": -25.526875852660307
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "S2 far-rung gap KXNFLTOTAL dist 10+",
+  "search_test": [
+   "axis2_keynumber",
+   "KXNFLTOTAL | dist 10+ | mean signed gap"
+  ],
+  "mechanism": "Either Kalshi makers sell far rungs cheap (longshot rungs nobody prices), or the shifted historical margin distribution has fat tails from mixing eras and matchups - the second is the prior.",
+  "other_side": "if real: passive far-rung sellers on Kalshi; if model error: nobody",
+  "microstructure": false,
+  "replication": "week2 (football-specific distribution)",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "executable arm for |gap|>2.5pp, PnL/contract after fee (net must be > 0); NOT ESTABLISHED: the arm priced the touch at 10 contracts without verifying recorded depth (bar 4 requires it), and the spread interval is [-16.9, +34.1]",
+   "reported_est": -25.526875852660307
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "S1 C1 GAME - SPREAD1.5 | pre | dev",
+  "search_test": [
+   "axis1_constraints",
+   "C1 GAME - SPREAD1.5 | pre | dev"
+  ],
+  "mechanism": "Arithmetic of the claims: P(win) - P(win by over 1.5) is P(margin = 1) ~2.1%, and A+B-1 is -P(|margin| <= 1) ~4.4-4.8% - no mispricing implied.",
+  "other_side": "none - the deviation is the definition of the claims",
+  "microstructure": true,
+  "replication": "none needed",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "no executable violation exists"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "S1 C1 GAME - SPREAD1.5 | in | dev",
+  "search_test": [
+   "axis1_constraints",
+   "C1 GAME - SPREAD1.5 | in | dev"
+  ],
+  "mechanism": "Arithmetic of the claims: P(win) - P(win by over 1.5) is P(margin = 1) ~2.1%, and A+B-1 is -P(|margin| <= 1) ~4.4-4.8% - no mispricing implied.",
+  "other_side": "none - the deviation is the definition of the claims",
+  "microstructure": true,
+  "replication": "none needed",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "no executable violation exists"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "S1 C1 GAME - SPREAD1.5 | in | viol",
+  "search_test": [
+   "axis1_constraints",
+   "C1 GAME - SPREAD1.5 | in | viol"
+  ],
+  "mechanism": "Ladder rungs update out of step in-game (the 019 mechanism): a stale resting quote briefly violates P(win) >= P(win by over 1.5).",
+  "other_side": "a stale resting quote in-game",
+  "microstructure": true,
+  "replication": "cfb",
+  "replication_test": [
+   "cfb_rep_constraints",
+   "C1 CFBGAME - SPREAD1.5 | in | viol"
+  ],
+  "cost": {
+   "value": -1.5749999999999993,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "depth-verified executable net after fees"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "S1 C2 SPREAD1.5 A + B - 1 | pre | dev",
+  "search_test": [
+   "axis1_constraints",
+   "C2 SPREAD1.5 A + B - 1 | pre | dev"
+  ],
+  "mechanism": "Arithmetic of the claims: P(win) - P(win by over 1.5) is P(margin = 1) ~2.1%, and A+B-1 is -P(|margin| <= 1) ~4.4-4.8% - no mispricing implied.",
+  "other_side": "none - the deviation is the definition of the claims",
+  "microstructure": true,
+  "replication": "none needed",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "no executable violation exists"
+  },
+  "persistence_s": null
+ },
+ {
+  "id": "S1 C2 SPREAD1.5 A + B - 1 | in | dev",
+  "search_test": [
+   "axis1_constraints",
+   "C2 SPREAD1.5 A + B - 1 | in | dev"
+  ],
+  "mechanism": "Arithmetic of the claims: P(win) - P(win by over 1.5) is P(margin = 1) ~2.1%, and A+B-1 is -P(|margin| <= 1) ~4.4-4.8% - no mispricing implied.",
+  "other_side": "none - the deviation is the definition of the claims",
+  "microstructure": true,
+  "replication": "none needed",
+  "replication_test": null,
+  "cost": {
+   "value": null,
+   "threshold": 0.0,
+   "unit": "pp",
+   "basis": "no executable violation exists"
+  },
+  "persistence_s": null
+ }
+]

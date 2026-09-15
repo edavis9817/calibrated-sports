@@ -82,6 +82,25 @@ def test_holdout_is_closed_until_the_candidates_doc_is_committed(tmp_path, monke
         S.require_committed("docs/briefs/does-not-exist-022.md")
 
 
+def test_week2_population_swaps_the_fence_and_refuses_until_committed_and_settled(monkeypatch):
+    monkeypatch.setattr(S, "POPULATION", "nfl_wk2")
+    assert S.in_search_set("KXNFLSPREAD-26SEP20NOBAL-BAL4", 0)
+    assert not S.in_search_set("KXNFLSPREAD-26SEP13BUFHOU-BUF4", 0)
+    assert S.in_search_set("KXNFLWINS-MIA-9", S.UNDATED_CUTOFF_TS + 1)
+    assert not S.in_search_set("KXNFLWINS-MIA-9", S.UNDATED_CUTOFF_TS - 1)
+    assert S.registry_path("h1").endswith("h1_wk2.jsonl")
+    with pytest.raises(S.HoldoutViolation):          # candidates not committed
+        S.open_population(require=S.require_committed, settled=lambda: True)
+    with pytest.raises(S.HoldoutViolation):          # committed but not settled
+        S.open_population(require=lambda p: "sha", settled=lambda: False)
+    S.open_population(require=lambda p: "sha", settled=lambda: True)
+
+
+def test_search_population_defaults_are_week1():
+    assert S.POPULATION == "nfl_wk1" and S.WEEK == 1 and S.ROLE == "search"
+    assert S.registry_path("h1").endswith("h1.jsonl")
+
+
 def test_every_cfb_accessor_goes_through_the_guard(monkeypatch):
     monkeypatch.setattr(S, "CANDIDATES_DOC", "docs/briefs/does-not-exist-022.md")
     with pytest.raises(S.HoldoutViolation):

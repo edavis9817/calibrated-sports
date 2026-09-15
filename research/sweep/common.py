@@ -25,6 +25,19 @@ WEEK2_DATES = ("26SEP17", "26SEP18", "26SEP19", "26SEP20", "26SEP21", "26SEP22")
 # After week-1 MNF, before any week-2 game. Fences UNDATED series only.
 UNDATED_CUTOFF_TS = datetime(2026, 9, 15, 2, 0, tzinfo=ET).timestamp()
 CANDIDATES_DOC = "docs/briefs/022-candidates.md"
+
+# Which population a run measures. Default is the search set. `nfl_wk2` is
+# holdout A: selecting it swaps the fences so the SAME module code measures
+# week 2, and it refuses (see `open_population`) until the candidates are
+# committed and week-2 MNF has a final score. Read at import, so set it in the
+# environment before the module is imported.
+POPULATION = os.getenv("SWEEP_POPULATION", "nfl_wk1")
+if POPULATION not in ("nfl_wk1", "nfl_wk2"):
+    raise ValueError(f"SWEEP_POPULATION must be nfl_wk1 or nfl_wk2, got {POPULATION!r}")
+WEEK2_UNDATED_FROM_TS = UNDATED_CUTOFF_TS
+WEEK2_UNDATED_CUTOFF_TS = datetime(2026, 9, 22, 2, 0, tzinfo=ET).timestamp()
+SEASON, WEEK = 2026, (1 if POPULATION == "nfl_wk1" else 2)
+ROLE = "search" if POPULATION == "nfl_wk1" else "replication"
 CFB_DB = os.path.join(os.path.dirname(os.path.abspath(config.DB_PATH)), "cfb_probe.db")
 
 _DATE = re.compile(r"-(\d{2}[A-Z]{3}\d{2})")
@@ -47,24 +60,69 @@ def ticker_date(market_or_event_id):
     return m.group(1) if m else None
 
 
+def population_dates():
+    return WEEK1_DATES if POPULATION == "nfl_wk1" else WEEK2_DATES
+
+
+def undated_window():
+    if POPULATION == "nfl_wk1":
+        return (float("-inf"), UNDATED_CUTOFF_TS)
+    return (WEEK2_UNDATED_FROM_TS, WEEK2_UNDATED_CUTOFF_TS)
+
+
 def in_search_set(market_id, ts):
-    """NFL week 1: dated tickers by date (any ts), undated series by ts."""
+    """The population being measured (week 1 unless SWEEP_POPULATION says
+    otherwise): dated tickers by date at any ts, undated series by window."""
     d = ticker_date(market_id)
     if d is None:
-        return ts < UNDATED_CUTOFF_TS
-    return d in WEEK1_DATES
+        lo, hi = undated_window()
+        return lo <= ts < hi
+    return d in population_dates()
 
 
 def assert_search_set(market_id, ts):
+    """In the search set, a week-2 row is a holdout violation. In the week-2
+    population run the holdout has been opened on purpose, so nothing raises."""
+    if POPULATION != "nfl_wk1":
+        return
     d = ticker_date(market_id)
     if d in WEEK2_DATES or (d is None and ts >= UNDATED_CUTOFF_TS):
         raise HoldoutViolation(f"week-2 holdout row: {market_id} @ {ts}")
 
 
 def week1_filter_sql(col="market_id"):
-    """A SQL predicate selecting week-1 dated tickers. Parameters returned too."""
-    ors = " OR ".join(f"{col} LIKE ?" for _ in WEEK1_DATES)
-    return f"({ors})", [f"%-{d}%" for d in WEEK1_DATES]
+    """SQL predicate selecting the population's dated tickers (the name is
+    historical: in a week-2 run it selects week 2)."""
+    dates = population_dates()
+    ors = " OR ".join(f"{col} LIKE ?" for _ in dates)
+    return f"({ors})", [f"%-{d}%" for d in dates]
+
+
+def registry_path(name):
+    """results/<name>.jsonl for week 1, results/<name>_wk2.jsonl for week 2, so a
+    replication run can never overwrite the search registries."""
+    suffix = "" if POPULATION == "nfl_wk1" else "_wk2"
+    return os.path.join(ROOT, "research", "sweep", "results", f"{name}{suffix}.jsonl")
+
+
+def week2_settled(con=None):
+    """Every week-2 game has a final score in nfl_games (latest data_version)."""
+    con = con or live_ro()
+    rows = con.execute(
+        "SELECT g.game_id, g.home_score FROM nfl_games g WHERE season=? AND week=2 "
+        "AND data_version=(SELECT MAX(data_version) FROM nfl_games h WHERE h.game_id=g.game_id)",
+        (SEASON,)).fetchall()
+    return bool(rows) and all(s is not None for _, s in rows)
+
+
+def open_population(require=None, settled=None):
+    """Holdout A opens only after the candidates are committed AND week 2 has
+    settled. No-op for the search set."""
+    if POPULATION == "nfl_wk1":
+        return
+    (require or require_committed)(CANDIDATES_DOC)
+    if not (settled or week2_settled)():
+        raise HoldoutViolation("week 2 has not settled (a week-2 game has no final score)")
 
 
 def _git(*args):
@@ -208,6 +266,10 @@ class Registry:
         with open(self.path, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec) + "\n")
         return rec
+
+
+if POPULATION == "nfl_wk2":
+    open_population()
 
 
 def load_registries(paths):
