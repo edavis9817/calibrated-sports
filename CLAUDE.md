@@ -297,9 +297,16 @@ not yet measured and the retention arithmetic depends on it.**
 restart on 2026-09-11 left two `cfb_probe.py` instances running — poll rate went
 from 58 game polls/hour to 117, exactly double, from 12:00 EDT onward. Both
 appended to the same hourly `.jsonl.gz`. 43 of 114 CFB shards fail `gunzip -t`,
-and the first corrupt file is the UTC hour the second process started. A 227 MB
-shard yields 688 readable lines before `invalid compressed data--format
-violated` — recovery is not partial, it is nil. **Nothing detected this.**
+and the first corrupt file is the UTC hour the second process started.
+**CORRECTED 2026-09-15 (brief 022): the data is recoverable; the READER was
+what failed.** `archive_raw` writes every record as its own gzip member, so a
+torn append destroys only the member it tore. A streaming reader (`gunzip`,
+`gzip.open`) stops at the first bad member - on `cfb_kalshi/2026-09-11/16`
+(128 MB) it reads 6,937 lines and errors. Decoding member by member, each
+CRC-checked by zlib, recovers 16,550 lines and 99.98% of the bytes, losing one
+torn member. Across the 57 raw CFB shards the H2 sweep recovered 1,091,595
+members (99.97% of bytes), dropping 117. The earlier "688 readable lines,
+recovery nil" measured `gunzip`, not the archive. **Nothing detected this.**
 `audit_shards()` checks that every file on disk has a manifest row; `seal_shards()`
 hashes bytes. Neither opens the stream, so an unreadable archive passes both and
 invariant 2 ("every derivation must be re-runnable from the archive") is

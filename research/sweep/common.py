@@ -241,7 +241,10 @@ def bh(pvals, q=0.10):
 # registry
 # =============================================================================
 
-ROLES = ("search", "replication", "descriptive")
+# `invalid`: a measurement found to be wrong BY CONSTRUCTION (e.g. look-ahead in
+# its own definition). Kept in the registry and counted in the summary, never in
+# BH and never as a replication - whatever its sign.
+ROLES = ("search", "replication", "descriptive", "invalid")
 
 
 class Registry:
@@ -318,4 +321,5 @@ def summarize(records, q=0.10, alpha=0.05):
             "bh_survivors_statistical": sum(1 for r, k in zip(search, keep) if k and money_direction(r) == "stat"),
             "search_unreadable_or_zero_var": sum(1 for r in search if bh_p(r) == 1.0 and r["p"] < 1.0),
             "replication_tests": sum(1 for r in records if r["role"] == "replication"),
+            "invalid_by_construction": sum(1 for r in records if r["role"] == "invalid"),
             "descriptive": sum(1 for r in records if r["role"] == "descriptive")}

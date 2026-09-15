@@ -43,8 +43,20 @@ MAX_STALE = 660.0
 DEPTH_WINDOW = 60.0
 SAME_TOUCH = 0.005
 KINDS = ("yes_midgame", "at_end")
-REGISTRY = os.path.join(S.ROOT, "research", "sweep", "results", "h1.jsonl")
+# The population (week 1 search set, or week 2 holdout A) is chosen in
+# `common` from SWEEP_POPULATION; this module never names a week itself.
+REGISTRY = S.registry_path("h1")
 SETTLED_VENUE = "kalshi_settled_022"
+# Frozen in phase 1: a share of profitable markets is >= 0 by construction, so
+# it is DESCRIPTIVE, never a test - in every population, so week 2 matches.
+SHARE_ROLE = "descriptive"
+
+# --- CFB (holdout B / population run) ----------------------------------------
+CFB_SERIES = ("KXNCAAFGAME", "KXNCAAFSPREAD", "KXNCAAFTOTAL", "KXNCAAFTEAMTOTAL")
+CFB_VENUE = "cfb_kalshi"
+CFB_SETTLED_VENUE = "kalshi_settled_022_cfb"
+CFB_DETERMINE_AT = 0.97
+CFB_REGISTRY = os.path.join(S.ROOT, "research", "sweep", "results", "h1_cfb.jsonl")
 
 
 # =============================================================================
@@ -180,18 +192,19 @@ def load_games(c):
     g = {}
     for gid, kick, home, away, hs, as_ in c.execute(
             "SELECT game_id, kickoff_ts, home_team, away_team, home_score, away_score "
-            "FROM nfl_games WHERE season=2026 AND week=1 ORDER BY data_version"):
+            "FROM nfl_games WHERE season=? AND week=? ORDER BY data_version", (S.SEASON, S.WEEK)):
         g[gid] = {"game": gid, "kick": kick, "home": home, "away": away, "hs": hs, "as": as_}
     return g
 
 
 def load_pbp(games):
     import polars as pl
-    f = sorted(glob.glob(os.path.join(config.RAW_DIR, "nflverse", "*", "play_by_play_2026.parquet")))[-1]
+    f = sorted(glob.glob(os.path.join(config.RAW_DIR, "nflverse", "*",
+                                      f"play_by_play_{S.SEASON}.parquet")))[-1]
     df = (pl.read_parquet(f, columns=["game_id", "week", "play_id", "time_of_day", "complete_pass",
                                       "receiver_player_id", "rush_attempt", "rusher_player_id",
                                       "total_home_score", "total_away_score"])
-          .filter(pl.col("week") == 1).sort(["game_id", "play_id"]))
+          .filter(pl.col("week") == S.WEEK).sort(["game_id", "play_id"]))
     per = {}
     for (gid,), g in df.group_by("game_id", maintain_order=True):
         if gid not in games:
@@ -223,7 +236,8 @@ def verify_counts(c, pbp):
     """pbp counts against nfl_player_week. Mismatched player-stats are excluded."""
     pw = {}
     for g, rec, car in c.execute("SELECT gsis_id, receptions, carries FROM nfl_player_week "
-                                 "WHERE season=2026 AND week=1 AND season_type='REG' ORDER BY data_version"):
+                                 "WHERE season=? AND week=? AND season_type='REG' ORDER BY data_version",
+                                 (S.SEASON, S.WEEK)):
         pw[g] = {"receptions": rec or 0, "rush_attempts": car or 0}
     bad = set()
     for gid, p in pbp.items():
@@ -351,8 +365,14 @@ def depth_window(c, market_id, side, t0, t1):
 # observations
 # =============================================================================
 
-def observe(c, m, q, G, C):
-    """One market at D+G, order size C."""
+def observe(c, m, q, G, C, depth=None, window=None):
+    """One market at D+G, order size C.
+
+    `depth(market, side, t) -> (ts, touch_price, touch_size) | None` and
+    `window(market, side, t0, t1) -> [(ts, price, size)]` default to the NFL
+    `market_depth` table; CFB passes readers over its raw order books."""
+    depth = depth or (lambda mk, sd, t: depth_asof(c, mk, sd, t))
+    window = window or (lambda mk, sd, a, b: depth_window(c, mk, sd, a, b))
     qts = [r[0] for r in q]
     t0 = m["D"] + G
     o = {"game": m["game"], "market": m["market"], "series": m["series"], "kind": m["kind"],
@@ -371,7 +391,7 @@ def observe(c, m, q, G, C):
         return o
     o["qnet"] = net_per_contract(price, C, m["taker_m"])
     side = "buy_yes" if m["truth"] == 1.0 else "buy_no"
-    d = depth_asof(c, m["market"], side, t0)
+    d = depth(m["market"], side, t0)
     if d is None:
         o["status"] = "no depth within 60s"
     elif d[1] is None or abs(d[1] - price) > SAME_TOUCH:
@@ -387,7 +407,7 @@ def observe(c, m, q, G, C):
         o["persist"], o["persist_why"] = dur, why2
         if o["status"] == "executable":
             o["lift"] = d[2]
-            win = depth_window(c, m["market"], side, t0, t0 + dur + DEPTH_WINDOW)
+            win = window(m["market"], side, t0, t0 + dur + DEPTH_WINDOW)
             sizes = [s for ts, p, s in win if p is not None and net_per_contract(p, C, m["taker_m"]) is not None
                      and net_per_contract(p, C, m["taker_m"]) > 0]
             o["lift_max"] = max(sizes) if sizes else d[2]
@@ -399,7 +419,18 @@ def q_(v, p):
     return v[min(len(v) - 1, int(p * len(v)))] if v else float("nan")
 
 
+def register_cell(reg, family, name, rm, rs, role, population, share_family=None):
+    """One (series, kind, G, C) cell: the mean net is a test in `role`, the
+    share of profitable markets is always descriptive."""
+    reg.add(family, name, rm, role=role, unit="pp", scale=100.0, population=population,
+            note="mean executable net per contract over depth-confirmed markets")
+    reg.add(share_family or family.replace("net_mean", "net_share"), name, rs, role=SHARE_ROLE,
+            unit="share", population=population,
+            note="DESCRIPTIVE: a share is >= 0 by construction; not a test")
+
+
 def run():
+    S.open_population()
     if os.path.exists(REGISTRY):
         os.remove(REGISTRY)
     reg = S.Registry(REGISTRY)
@@ -411,7 +442,8 @@ def run():
     markets, drops = load_markets(c, games, settled, pbp, bad)
     quotes = load_quotes(c, markets)
 
-    print("=" * 78 + "\nH1 - DETERMINATION LAG, NFL WEEK 1 (search set)\n" + "=" * 78)
+    print("=" * 78 + f"\nH1 - DETERMINATION LAG, NFL {S.SEASON} WEEK {S.WEEK} "
+          f"(population {S.POPULATION}, role {S.ROLE})\n" + "=" * 78)
     print(f"  games {len(games)}  pbp games {len(pbp)}  Kalshi finalized week-1 markets on disk {len(settled)}")
     print(f"  pbp-vs-nfl_player_week mismatched player-stats excluded: {len(bad)}")
     print(f"  markets determined and kept: {len(markets)}")
@@ -474,17 +506,14 @@ def run():
                     o["win"] = 1.0 if (o["net"] is not None and o["net"] > 0) else 0.0
                 rm = S.boot([o for o in os_ if o["net"] is not None], S.mean_of("net"))
                 rs = S.boot(os_, S.mean_of("win"))
-                reg.add("H1_net_mean", f"{s}|{k}|G{G}|C{C}", rm, role="search", unit="pp", scale=100.0,
-                        note="mean executable net per contract over depth-confirmed markets")
-                reg.add("H1_net_share", f"{s}|{k}|G{G}|C{C}", rs, role="search", unit="share",
-                        note="DEGENERATE NULL: a share is >= 0 by construction, so p against 0 only "
-                             "tests whether ANY market was profitable")
-                n_tests += 2
+                register_cell(reg, "H1_net_mean", f"{s}|{k}|G{G}|C{C}", rm, rs,
+                              role=S.ROLE, population=S.POPULATION)
+                n_tests += 1
                 if C == 10:
                     line += (f" | G{G}: " + ("n/a" if not rm else f"{100 * rm['est']:+.2f}[{100 * rm['lo']:+.2f},{100 * rm['hi']:+.2f}]")
                              + f" / {sum(o['win'] for o in os_):.0f}/{len(os_)}")
         print(line)
-    print(f"\n  registered tests: {n_tests} -> {REGISTRY}")
+    print(f"\n  registered tests: {n_tests} {S.ROLE} + {n_tests} descriptive shares -> {REGISTRY}")
 
     # "Too good is a bug": every executable net above 25pp once the guard is
     # past the play. Not a test - the rows a reader must see before believing
@@ -506,5 +535,304 @@ def run():
     return reg
 
 
+# =============================================================================
+# CFB - post-game determination only (pre-registration H1, "CFB" paragraph)
+# =============================================================================
+#
+# There is no CFB play clock on disk, so D is the first instant AT OR AFTER
+# KICKOFF that the CFBD winner's Kalshi moneyline mid is >= 0.97. "At or after
+# kickoff" is the pre-registered "post-game only" applied as a floor: 20 of 85
+# games first quote >= 0.97 BEFORE kickoff (heavy favourites), which determines
+# nothing. Every market in the game shares that D and is kind "at_end".
+#
+# CFB has no `market_depth`. The touch comes from raw `orderbooks` payloads
+# (median 27s per ticker) rather than raw `/markets` (median 360s per ticker,
+# which would almost never fall within the 60s depth window).
+
+def cfb_truth(series, subject, line, g):
+    """Truth of a CFB market from CFBD final scores. `g` is a cfb_calibration
+    match row (nh/na normalised names, hp/ap points). Returns 1.0/0.0 or raises
+    ValueError when the subject names neither team."""
+    from research import cfb_calibration as CC
+    by_team = {g["nh"]: g["hp"], g["na"]: g["ap"]}
+    if series == "KXNCAAFTOTAL":
+        return 1.0 if g["hp"] + g["ap"] > float(line) else 0.0
+    subj = subject or ""
+    if series == "KXNCAAFGAME":
+        team = CC.norm(subj)
+    elif series == "KXNCAAFSPREAD":
+        team = CC.norm(subj.split(" wins by")[0])
+    elif series == "KXNCAAFTEAMTOTAL":
+        team = CC.norm(subj.split(" over ")[0])
+    else:
+        raise ValueError(series)
+    if team not in by_team:
+        raise ValueError(f"subject {subject!r} names neither {g['nh']!r} nor {g['na']!r}")
+    other = g["na"] if team == g["nh"] else g["nh"]
+    if series == "KXNCAAFGAME":
+        return 1.0 if by_team[team] > by_team[other] else 0.0
+    if series == "KXNCAAFSPREAD":
+        return 1.0 if by_team[team] - by_team[other] > float(line) else 0.0
+    return 1.0 if by_team[team] > float(line) else 0.0
+
+
+def cfb_determination(winner_quotes, loser_quotes, kickoff, at=CFB_DETERMINE_AT):
+    """(D, loser_hit_first). D = first mid >= `at` on the WINNER's leg at/after
+    kickoff, or None. `loser_hit_first` flags a game whose LOSER quoted >= `at`
+    after kickoff before the winner did - a comeback the rule must not call."""
+    def first(q):
+        return next((t for t, b, a in q if t >= kickoff and b is not None and a is not None
+                     and (b + a) / 2 >= at), None)
+    d, lo = first(winner_quotes), first(loser_quotes)
+    return d, (lo is not None and (d is None or lo < d))
+
+
+def book_touch(snapshot, side):
+    """(ts, touch_price, touch_size) for buying `side` from a raw book snapshot
+    (ts, yes_bid, yes_bid_size, no_bid, no_bid_size). A YES buy lifts the best NO
+    bid at 1 - no_bid; a NO buy lifts the best YES bid at 1 - yes_bid."""
+    ts, yb, ys, nb, ns = snapshot
+    if side == "buy_yes":
+        return None if nb is None else (ts, 1.0 - nb, ns)
+    return None if yb is None else (ts, 1.0 - yb, ys)
+
+
+def book_top(levels):
+    """Best (highest) bid level of one side of a Kalshi `orderbook_fp`."""
+    if not levels:
+        return None, None
+    return max(((float(p), float(s)) for p, s in levels), key=lambda x: x[0])
+
+
+def unreadable_at(t, cover):
+    """Is instant `t` inside an hour whose raw shard could not be read up to
+    `t`? `cover`: {hour_start_ts: (last_readable_ts, complete)}."""
+    hour = int(t // 3600) * 3600
+    if hour not in cover:
+        return True
+    last, complete = cover[hour]
+    return (not complete) and (last is None or t > last)
+
+
+def load_cfb_books(series=CFB_SERIES):
+    """Raw cfb_kalshi order books -> ({ticker: [snapshot]}, {hour_ts: (last_ts, complete)},
+    shard census). Reads each shard up to its first corrupt byte and no further."""
+    import zlib
+    root = S.cfb_raw_dir()
+    prefixes = tuple(s + "-" for s in series)
+    books, cover, census = defaultdict(list), {}, []
+    for fn in sorted(glob.glob(os.path.join(root, "*", "*.jsonl.gz"))):
+        day, hh = os.path.basename(os.path.dirname(fn)), os.path.basename(fn)[:2]
+        hour = int(datetime.strptime(f"{day} {hh}", "%Y-%m-%d %H")
+                   .replace(tzinfo=__import__("datetime").timezone.utc).timestamp())
+        n, last, complete = 0, None, True
+        try:
+            with gzip.open(fn, "rt", encoding="utf-8") as fh:
+                for line in fh:
+                    r = json.loads(line)
+                    n += 1
+                    last = r["ts"]
+                    if not r.get("endpoint", "").startswith("orderbooks"):
+                        continue
+                    for b in (r.get("payload") or {}).get("orderbooks") or []:
+                        t = b.get("ticker", "")
+                        if t.startswith(prefixes):
+                            ob = b.get("orderbook_fp") or {}
+                            yb, ys = book_top(ob.get("yes_dollars"))
+                            nb, ns = book_top(ob.get("no_dollars"))
+                            books[t].append((r["ts"], yb, ys, nb, ns))
+        except (OSError, EOFError, zlib.error, json.JSONDecodeError):
+            complete = False
+        cover[hour] = (last, complete)
+        census.append((f"{day}/{hh}", n, complete))
+    for v in books.values():
+        v.sort()
+    return books, cover, census
+
+
+def cfb_depth_readers(books):
+    idx = {t: [s[0] for s in v] for t, v in books.items()}
+
+    def depth(market, side, t):
+        i = bisect.bisect_right(idx.get(market, []), t) - 1
+        if i < 0 or t - idx[market][i] > DEPTH_WINDOW:
+            return None
+        return book_touch(books[market][i], side)
+
+    def window(market, side, t0, t1):
+        v = books.get(market, [])
+        lo, hi = bisect.bisect_left(idx.get(market, []), t0), bisect.bisect_right(idx.get(market, []), t1)
+        return [x for x in (book_touch(s, side) for s in v[lo:hi]) if x is not None]
+    return depth, window
+
+
+def run_cfb():
+    from research import cfb_calibration as CC
+    S.require_committed(S.CANDIDATES_DOC)
+    if os.path.exists(CFB_REGISTRY):
+        os.remove(CFB_REGISTRY)
+    reg = S.Registry(CFB_REGISTRY)
+    c = S.cfb_ro()
+    games, unmatched = CC.match(c)
+    settled = load_settlements(os.path.join(config.RAW_DIR, CFB_SETTLED_VENUE))
+    drops, markets, comebacks, dmins = Counter(), [], 0, []
+    for gkey, g in games.items():
+        if not g["completed"] or g["hp"] is None or g["ap"] is None or g["hp"] == g["ap"]:
+            drops["game: no CFBD final (or tied)"] += 1
+            continue
+        winner = g["nh"] if g["hp"] > g["ap"] else g["na"]
+        legs = {m: CC.norm(s) for m, s in c.execute(
+            "SELECT market_id, subject FROM markets WHERE venue=? AND market_id LIKE ?",
+            (CFB_VENUE, f"KXNCAAFGAME-{gkey}-%"))}
+        wm = [m for m, n in legs.items() if n == winner]
+        lm = [m for m, n in legs.items() if n != winner]
+        if len(wm) != 1 or len(lm) != 1:
+            drops["game: moneyline legs do not resolve to winner/loser"] += 1
+            continue
+        qq = lambda m: c.execute("SELECT ts, best_bid, best_ask FROM quotes WHERE venue=? AND market_id=? "
+                                 "ORDER BY ts", (CFB_VENUE, m)).fetchall()
+        D, loser_first = cfb_determination(qq(wm[0]), qq(lm[0]), g["start_ts"])
+        comebacks += loser_first
+        if D is None:
+            drops["game: winner never >= 0.97 after kickoff"] += 1
+            continue
+        dmins.append((D - g["start_ts"]) / 60)
+        for mid, subject, line in c.execute(
+                "SELECT market_id, subject, line FROM markets WHERE venue=? AND (" +
+                " OR ".join("market_id LIKE ?" for _ in CFB_SERIES) + ")",
+                [CFB_VENUE] + [f"{s}-{gkey}-%" for s in CFB_SERIES]):
+            series = mid.split("-")[0]
+            st = settled.get(mid)
+            if not st or st["status"] not in ("finalized", "settled") or st["result"] not in ("yes", "no"):
+                drops[f"{series}: no finalized Kalshi result"] += 1
+                continue
+            if series != "KXNCAAFGAME" and (st["floor_strike"] is None or line is None
+                                            or abs(float(st["floor_strike"]) - float(line)) > 1e-9):
+                drops[f"{series}: Kalshi floor_strike != stored line"] += 1
+                continue
+            try:
+                truth = cfb_truth(series, subject, line, g)
+            except ValueError:
+                drops[f"{series}: subject names neither team"] += 1
+                continue
+            markets.append({"market": mid, "series": series, "game": gkey, "truth": truth, "D": D,
+                            "kind": "at_end", "kalshi_yes": 1.0 if st["result"] == "yes" else 0.0,
+                            "close_ts": st["close_ts"], "settle_ts": st["settle_ts"],
+                            "kick": g["start_ts"], "taker_m": series_multiplier(mid)[1]})
+    quotes = defaultdict(list)
+    want = {m["market"] for m in markets}
+    for s in CFB_SERIES:
+        for mid, ts, bid, ask in c.execute(
+                "SELECT market_id, ts, best_bid, best_ask FROM quotes WHERE venue=? AND market_id >= ? "
+                "AND market_id < ? ORDER BY market_id, ts", (CFB_VENUE, s + "-", s + ".")):
+            if mid in want:
+                quotes[mid].append((ts, bid, ask))
+    books, cover, census = load_cfb_books()
+    depth, window = cfb_depth_readers(books)
+
+    print("=" * 78 + "\nH1 - DETERMINATION LAG, CFB (holdout B replication + population run)\n" + "=" * 78)
+    n_complete = sum(1 for _, _, ok in census if ok)
+    print(f"  raw cfb_kalshi shards {len(census)}: fully readable {n_complete}, "
+          f"truncated at first corrupt byte {len(census) - n_complete} "
+          f"({100 * n_complete / len(census):.0f}% fully readable)")
+    print(f"  matched games {len(games)} (unmatched {len(unmatched)}); games with D {len({m['game'] for m in markets})}; "
+          f"comebacks (loser >= 0.97 after kickoff first) {comebacks}")
+    qd = sorted(dmins)
+    print("  D minus kickoff, minutes: " + "  ".join(
+        f"p{int(100 * p)} {qd[int(p * (len(qd) - 1))]:.0f}" for p in (0, .1, .25, .5, .75, .9, 1)))
+    print("  (a CFB game runs ~210 min: a D well below that is a BLOWOUT mid-game, when spreads and"
+          " totals are not yet determined - their 'truth' at D is look-ahead)")
+    print(f"  markets kept {len(markets)}")
+    for k, v in sorted(drops.items()):
+        print(f"    dropped  {k:<52} {v:>5}")
+    dis = [m for m in markets if m["kalshi_yes"] != m["truth"]]
+    lo, hi = S.wilson(len(dis), len(markets))
+    print(f"\n  SETTLEMENT vs CFBD: {len(dis)} of {len(markets)} disagree (Wilson {100 * lo:.2f}%-{100 * hi:.2f}%)")
+    for m in dis[:10]:
+        print(f"    {m['market']}  kalshi={m['kalshi_yes']:.0f} cfbd={m['truth']:.0f}")
+
+    obs = {(G, C): [observe(None, m, quotes.get(m["market"], []), G, C, depth, window) for m in markets]
+           for G in GUARDS for C in SIZES}
+    inst = [m["D"] + PRIMARY_G for m in markets]
+    unread = sum(unreadable_at(t, cover) for t in inst)
+    print(f"  H1 instants (D+120s) inside an unreadable raw region: {unread} of {len(inst)} "
+          f"({100 * unread / max(len(inst), 1):.1f}%) - those markets cannot be depth-confirmed; not imputed")
+
+    print("\n  H1 TABLE at D+120s  (net in pp per contract; executable = quote confirmed by raw book)")
+    print("  series | kind | mkts | games | med|mid-truth| | share net>0 C=10 [Wilson] | mean net C=10 | "
+          "mean net C=100 | med persist | med lift | close-D med | settle-D med/p90")
+    fmt = lambda r: "n/a" if not r else (f"{100 * r['est']:+.2f} [{100 * r['lo']:+.2f},{100 * r['hi']:+.2f}] "
+                                         f"p={r['p']:.2g} n={r['n']} g={r['games']}")
+    nan = float("nan")
+    for s in CFB_SERIES:
+        ms = [m for m in markets if m["series"] == s]
+        if not ms:
+            continue
+        o10 = [o for o in obs[(PRIMARY_G, 10)] if o["series"] == s]
+        o100 = [o for o in obs[(PRIMARY_G, 100)] if o["series"] == s]
+        gaps = [o["gap"] for o in o10 if o["gap"] is not None]
+        wins = sum(1 for o in o10 if o["net"] is not None and o["net"] > 0)
+        wl, wh = S.wilson(wins, len(o10))
+        r10 = S.boot([o for o in o10 if o["net"] is not None], S.mean_of("net"))
+        r100 = S.boot([o for o in o100 if o["net"] is not None], S.mean_of("net"))
+        pers = [o["persist"] for o in o10 if o["persist"] is not None]
+        lift = [o["lift"] for o in o10 if o["lift"] is not None]
+        cl = [m["close_ts"] - m["D"] for m in ms if m["close_ts"]]
+        se = [m["settle_ts"] - m["D"] for m in ms if m["settle_ts"]]
+        print(f"  {s} | at_end | {len(ms)} | {len({m['game'] for m in ms})} | "
+              f"{statistics.median(gaps) * 100 if gaps else nan:.1f}pp | "
+              f"{wins}/{len(o10)} [{100 * wl:.1f},{100 * wh:.1f}]% | {fmt(r10)} | {fmt(r100)} | "
+              f"{statistics.median(pers) if pers else nan:.0f}s | {statistics.median(lift) if lift else nan:.0f} | "
+              f"{statistics.median(cl) / 60 if cl else nan:.1f}m | "
+              f"{statistics.median(se) / 60 if se else nan:.1f}m / {q_(se, .9) / 60 if se else nan:.1f}m")
+        print(f"      status at D+120 (C=10): {dict(Counter(o['status'] for o in o10))}")
+
+    n_tests = 0
+    print("\n  G SENSITIVITY (C=10): mean executable net pp [interval] / share net>0")
+    for s in CFB_SERIES:
+        line = f"    {s:<18} at_end"
+        for G in GUARDS:
+            for C in SIZES:
+                os_ = [o for o in obs[(G, C)] if o["series"] == s]
+                if not os_:
+                    continue
+                for o in os_:
+                    o["win"] = 1.0 if (o["net"] is not None and o["net"] > 0) else 0.0
+                rm = S.boot([o for o in os_ if o["net"] is not None], S.mean_of("net"))
+                rs = S.boot(os_, S.mean_of("win"))
+                name = f"{s}|at_end|G{G}|C{C}"
+                register_cell(reg, "H1_net_mean", name, rm, rs, role="replication", population="cfb")
+                register_cell(reg, "H1_net_mean cfb population", name, rm, rs, role="search",
+                              population="cfb", share_family="H1_net_share cfb population")
+                n_tests += 1
+                if C == 10:
+                    line += (f" | G{G}: " + ("n/a" if not rm else
+                             f"{100 * rm['est']:+.2f}[{100 * rm['lo']:+.2f},{100 * rm['hi']:+.2f}]")
+                             + f" / {sum(o['win'] for o in os_):.0f}/{len(os_)}")
+        print(line)
+    print(f"\n  registered: {n_tests} replication + {n_tests} search (cfb population) mean-net records, "
+          f"{2 * n_tests} descriptive share records -> {CFB_REGISTRY}")
+
+    print("\n  ANOMALIES: executable net > 25pp at G >= 60 (C=10) - look-ahead or a stale book, not money")
+    by_mkt = {m["market"]: m for m in markets}
+    seen = set()
+    for G in GUARDS[1:]:
+        for o in obs[(G, 10)]:
+            if o["net"] is not None and o["net"] > 0.25 and o["market"] not in seen:
+                seen.add(o["market"])
+                m = by_mkt[o["market"]]
+                fmt_t = lambda t: datetime.fromtimestamp(t, S.ET).strftime("%a %H:%M:%S") if t else "-"
+                print(f"    {o['market']}  G{G} truth={m['truth']:.0f} net {100 * o['net']:+.1f}pp  "
+                      f"D {fmt_t(m['D'])} (kick+{(m['D'] - m['kick']) / 60:.0f}m)  close {fmt_t(m['close_ts'])}")
+    print(f"    {len(seen)} markets" if seen else "    none")
+    return reg
+
+
 if __name__ == "__main__":
-    run()
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--cfb", action="store_true", help="run H1 on CFB (holdout B) instead of NFL")
+    if ap.parse_args().cfb:
+        run_cfb()
+    else:
+        run()
