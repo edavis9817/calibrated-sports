@@ -98,6 +98,20 @@ def test_team_outcome_orientation():
     assert X.team_outcome({"series": "KXNFLTOTAL", "team": None, "line": 66.5}, g) == 1.0
 
 
+def test_week1_default_population_path_and_role_are_unchanged(tmp_path, monkeypatch):
+    assert S.POPULATION == "nfl_wk1" and S.ROLE == "search" and (S.SEASON, S.WEEK) == (2026, 1)
+    assert X.REG_PATH.replace("\\", "/").endswith("research/sweep/results/scan.jsonl")
+    reg = X.registry(str(tmp_path / "r.jsonl"))
+    rec = reg.add("f", "n", {"est": 1.0, "lo": 0.5, "hi": 1.5, "se": 0.2, "p": 0.01, "n": 9, "games": 9})
+    assert rec["role"] == "search" and rec["population"] == "nfl_wk1"
+    # the population is read at call time, so a week-2 run labels replication
+    monkeypatch.setattr(S, "POPULATION", "nfl_wk2")
+    monkeypatch.setattr(S, "ROLE", "replication")
+    rec2 = reg.add("f", "n2", None)
+    assert rec2["role"] == "replication" and rec2["population"] == "nfl_wk2"
+    assert S.registry_path("scan").endswith("scan_wk2.jsonl")
+
+
 def test_week2_market_raises_through_the_quote_loader():
     with pytest.raises(S.HoldoutViolation):
         X.quotes(None, "KXNFLSPREAD-26SEP17DETBUF-BUF4")

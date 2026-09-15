@@ -38,7 +38,9 @@ import config  # noqa: E402
 from core.fees import fee_per_contract, series_multiplier  # noqa: E402
 from research.sweep import common as S  # noqa: E402
 
-REG_PATH = os.path.join(S.ROOT, "research", "sweep", "results", "scan.jsonl")
+# Population comes from common (SWEEP_POPULATION): results/scan.jsonl for the
+# week-1 search set, results/scan_wk2.jsonl when week 2 is opened.
+REG_PATH = S.registry_path("scan")
 TRADES_DB = os.path.join(os.path.dirname(os.path.abspath(config.DB_PATH)), "trades_m01.db")
 SERIES = ("KXNFLREC", "KXNFLRSHATT", "KXNFLSPREAD", "KXNFLTOTAL", "KXNFLGAME")
 PROPS = ("KXNFLREC", "KXNFLRSHATT")
@@ -261,7 +263,7 @@ def team_of_subject(subject):
 
 def load_games(c):
     from research.consensus import load_games as lg
-    return lg(c, 2026, 1)
+    return lg(c, S.SEASON, S.WEEK)
 
 
 def event_game_map(c, games):
@@ -361,8 +363,8 @@ def prop_outcomes(c, markets):
         if result not in (OVER, UNDER):
             census["prop: unsettled"] += 1
             continue
-        t = c.execute("SELECT team FROM nfl_player_week WHERE gsis_id=? AND season=2026 AND week=1 "
-                      "ORDER BY data_version DESC LIMIT 1", (row[6],)).fetchone()
+        t = c.execute("SELECT team FROM nfl_player_week WHERE gsis_id=? AND season=? AND week=? "
+                      "ORDER BY data_version DESC LIMIT 1", (row[6], S.SEASON, S.WEEK)).fetchone()
         out[mid_] = (1.0 if result == OVER else 0.0, t[0] if t else None)
         census["prop: settled"] += 1
     return out, census
@@ -690,6 +692,21 @@ def fmt(label, rec, unit="pp", n_extra=""):
             + (f"  | {n_extra}" if n_extra else ""))
 
 
+def registry(path=None):
+    """A Registry whose records default to the population's role and name
+    (search / nfl_wk1 for week 1, replication / nfl_wk2 for week 2). Read from
+    common at CALL time, so a test can swap the population."""
+    reg = S.Registry(path or REG_PATH)
+    add = reg.add
+
+    def add_pop(*a, **k):
+        k.setdefault("role", S.ROLE)
+        k.setdefault("population", S.POPULATION)
+        return add(*a, **k)
+    reg.add = add_pop
+    return reg
+
+
 def candidates(records):
     return [r for r in records if r["role"] == "search" and r.get("estimable") and r.get("excludes_zero")
             and r.get("readable")]
@@ -699,15 +716,17 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--axes", default="1,2,3,4,5")
     a = ap.parse_args()
+    S.open_population()                     # no-op for week 1; week 2 refuses until settled
     if os.path.exists(REG_PATH):
         os.remove(REG_PATH)
-    reg = S.Registry(REG_PATH)
+    reg = registry(REG_PATH)
     c = S.live_ro()
     games = load_games(c)
     markets, unmapped = load_markets(c, games)
-    out = [f"BRIEF 022 PART 3 SCAN - NFL week 1 only. games {len(games)}, week-1 Kalshi markets "
+    out = [f"BRIEF 022 PART 3 SCAN - population {S.POPULATION} (season {S.SEASON} week {S.WEEK}, "
+           f"role {S.ROLE}). games {len(games)}, Kalshi markets "
            f"{len(markets)} ({dict(Counter(m['series'] for m in markets.values()))}), unmapped {unmapped}. "
-           "No CFB and no week-2 row is read by this module."]
+           "No CFB row is read by this module."]
     axes = {"1": axis1, "2": axis2, "3": axis3, "4": axis4, "5": axis5}
     for k in a.axes.split(","):
         axes[k](c, reg, games, markets, out)
