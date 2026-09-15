@@ -201,6 +201,112 @@ def drift_after_fill(r, sim, mid_at):
 # loading
 # =============================================================================
 
+def load_control(season=2026, week=1, ticket=TICKET, model_version=None,
+                 disjoint=False):
+    """BRIEF 018 ITEM 1 - the same simulation on a population the model never
+    touched.
+
+    THE SELECTION RULE, in full, so it can be checked rather than trusted:
+
+      1. Take the 14 kalshi events the week-1 predictions cover. This fixes the
+         WINDOW - same games, same slate, same afternoon - and is the only
+         place a prediction enters. Without it the control would differ from
+         M01 in which games it watched as well as which markets, and the
+         comparison would measure both at once.
+      2. Inside those events take EVERY `KXNFLREC` and `KXNFLRSHATT` market.
+         No price filter, no spread filter, no history filter, and nothing
+         downstream of a forecast.
+      3. Rest on BOTH sides of each market, as two separate observations.
+
+    Step 3 is what makes it model-free. M01 chose its side with
+    `evaluate(model_prob, bid, ask)`, so a control that picked a side at all
+    would need a rule, and every rule is an opinion. Taking both sides has no
+    opinion in it - and it is the right null for the specific question, because
+    a maker resting on both sides of a book collects exactly the spread:
+
+        maker_clv(yes) = half_spread + (close_mid - entry_mid)
+        maker_clv(no)  = half_spread - (close_mid - entry_mid)
+
+    so the two legs average to half the spread by construction, and everything
+    interesting is in how FILLS deviate from that. If conditional CLV on the
+    control lands near M01's, the effect is the spread surviving adverse
+    selection and has nothing to do with forecasting.
+
+    `disjoint=True` drops the 935 markets that DID carry a prediction, leaving
+    a population with no overlap at all. That costs sample and buys
+    independence; both are reported.
+    """
+    from jobs.ingest_kalshi_trades import control_frame
+    from core import version_resolve
+    from models import baseline
+
+    mv, _ = version_resolve.resolve(season, week, baseline.MODEL_VERSION,
+                                    override=model_version)
+    live = S00.db()
+    td = trades_db()
+    frame = control_frame(season, week, model_version)
+
+    predicted = {r[0] for r in live.execute(
+        "SELECT mo.market_id FROM predictions p JOIN outcomes o USING (outcome_id) "
+        "JOIN market_outcome mo ON mo.outcome_id = p.outcome_id "
+        "WHERE mo.venue='kalshi' AND o.season=? AND o.week=? AND p.model_version=?",
+        (season, week, mv))}
+    if disjoint:
+        frame = [m for m in frame if m not in predicted]
+
+    # Entry instant and kickoffs come from the M01 rows, so both populations
+    # are clocked identically.
+    base, _drops, _mv = S00.build(season, week, model_version=model_version)
+    entry_ts = base[0]["entry_ts"]
+    kick_by_event, game_by_event = {}, {}
+    for r in base:
+        ev = r["market_id"].split("-")[1]
+        kick_by_event[ev] = r["kickoff"]
+        game_by_event[ev] = r["game"]
+
+    by_market = defaultdict(list)
+    for mid, ts, yp, np_, sz, tk in td.execute(
+            "SELECT market_id, ts, yes_price, no_price, size, taker_side "
+            "FROM market_trades WHERE venue='kalshi' ORDER BY market_id, ts"):
+        by_market[mid].append({"ts": ts, "yes_price": yp, "no_price": np_,
+                               "size": sz, "taker_side": tk})
+
+    rows = []
+    for market_id in frame:
+        ev = market_id.split("-")[1]
+        kickoff = kick_by_event.get(ev)
+        if kickoff is None:
+            continue
+        eq = S00.quote_at(live, market_id, entry_ts, strict=False)
+        cq = S00.quote_at(live, market_id, kickoff, strict=True)
+        if not eq or not cq or eq[1] is None or cq[1] is None:
+            continue
+        assert cq[0] < kickoff, f"{market_id}: close is not before kickoff"
+        touch = {}
+        for s in ("buy_yes", "buy_no"):
+            x = live.execute(
+                "SELECT touch_size FROM market_depth WHERE venue='kalshi' "
+                "AND market_id=? AND side=? AND ts<=? AND touch_size IS NOT NULL "
+                "ORDER BY ts DESC LIMIT 1", (market_id, s, entry_ts)).fetchone()
+            if x:
+                touch[s] = x[0]
+        prints = by_market.get(market_id, [])
+        for side in ("yes", "no"):
+            r = {"market_id": market_id, "game": game_by_event[ev],
+                 "entity": market_id, "stat": market_id.split("-")[0],
+                 "entry_ts": entry_ts, "kickoff": kickoff,
+                 "entry_bid": eq[1], "entry_ask": eq[2],
+                 "close_bid": cq[1], "close_ask": cq[2],
+                 "entry_mid": (eq[1] + eq[2]) / 2.0,
+                 "close_mid": (cq[1] + cq[2]) / 2.0,
+                 "bucket": "control", "side": side,
+                 "touch_size": touch, "prints": prints,
+                 "predicted": market_id in predicted}
+            r["sim"] = simulate(r, prints, ticket, side)
+            rows.append(r)
+    return rows
+
+
 def load(season=2026, week=1, ticket=TICKET, model_version=None):
     rows, drops, mv = S00.build(season, week, model_version=model_version)
     live = S00.db()
@@ -463,6 +569,266 @@ def report_ticket_sweep(rows, sizes=(10, 50, 100, 500, 1000)):
   rise enough to reach the unconditional number.""")
 
 
+def _five(rows, label):
+    """The five M01 metrics for one population."""
+    sims = [r for r in rows if r["sim"]]
+    filled = [r for r in sims if r["sim"]["filled"]]
+    if not sims:
+        return None
+    rate = S00.block_bootstrap(sims, lambda r: float(r["sim"]["filled"]), "game")
+    return {
+        "label": label,
+        "n": len(sims),
+        "markets": len({r["market_id"] for r in sims}),
+        "filled": len(filled),
+        "rate": rate,
+        "uncond": S00.block_bootstrap(sims, lambda r: maker_clv(r, r["sim"]), "game"),
+        "cond": S00.block_bootstrap(filled, lambda r: maker_clv(r, r["sim"]), "game"),
+        "never": S00.block_bootstrap([r for r in sims if not r["sim"]["filled"]],
+                                     lambda r: maker_clv(r, r["sim"]), "game"),
+        "gap": _gap_bootstrap(sims),
+    }
+
+
+def _pp(res):
+    if not res:
+        return "n/a"
+    star = "*" if not (res["lo"] <= 0 <= res["hi"]) else " "
+    return f"{100*res['mean']:+6.2f} [{100*res['lo']:+6.2f},{100*res['hi']:+6.2f}]{star}"
+
+
+def flip_sides(model_rows, ticket=TICKET):
+    """The same markets with the model's side INVERTED.
+
+    Once it turned out that the model had priced every prop quoted at the
+    entry instant, this became the sharpest control available: identical
+    markets, identical books, identical prints, one bit changed. Whatever the
+    model's side choice is worth shows up as the difference between this arm
+    and M01's.
+    """
+    out = []
+    for r in model_rows:
+        rr = dict(r)
+        rr["side"] = "no" if r["side"] == "yes" else "yes"
+        rr["sim"] = simulate(rr, rr.get("prints", []), ticket, rr["side"])
+        out.append(rr)
+    return out
+
+
+def report_control(model_rows, ctrl_rows, ctrl_disjoint=None, flipped=None):
+    """BRIEF 018 ITEM 1 - is the effect microstructure, or the selection?"""
+    _hdr("ITEM 1 - MODEL-SELECTED vs POPULATIONS THE MODEL DID NOT CHOOSE")
+    print("""
+  THE CONTROL COULD NOT BE A DIFFERENT SET OF MARKETS, and finding that out is
+  the first result. The intended frame was every KXNFLREC and KXNFLRSHATT
+  market in the predictions' 14 events - 1,487 of them, of which 552 carried no
+  prediction. But 542 of those 552 HAD NO QUOTE AT ALL at the entry instant:
+  Kalshi listed those rungs later in the week. At 15:03 on the Thursday the
+  model had priced essentially every prop that existed, so there is no
+  unselected market population to compare against. Market selection cannot be
+  the artifact, because there was no market selection to make.
+
+  What remains testable is SIDE selection, and two arms do that:
+
+    both sides   every simulable market, resting on yes AND no as separate
+                 observations. No opinion at all. Resting on both sides of a
+                 book collects exactly the spread, so this is the natural null.
+    flipped      the same markets with the model's own side INVERTED. Identical
+                 books, identical prints, one bit changed.
+
+  Intervals are the same block bootstrap over the same 14 games. A trailing *
+  marks an interval that excludes zero.""")
+    cols = [_five(model_rows, "model side (M01)"),
+            _five(ctrl_rows, "both sides")]
+    if flipped is not None:
+        cols.append(_five(flipped, "flipped side"))
+    if ctrl_disjoint is not None:
+        c = _five(ctrl_disjoint, "never-predicted")
+        if c:
+            cols.append(c)
+    cols = [c for c in cols if c]
+    w = 24
+    print(f"\n    {'':<26}" + "".join(f"{c['label'][:w]:>{w}}" for c in cols))
+    print(f"    {'n observations':<26}" + "".join(f"{c['n']:>{w},}" for c in cols))
+    print(f"    {'n distinct markets':<26}" + "".join(f"{c['markets']:>{w},}" for c in cols))
+    print(f"    {'filled':<26}" + "".join(f"{c['filled']:>{w},}" for c in cols))
+    rates = [f"{c['rate']['mean']:.4f}" if c["rate"] else "n/a" for c in cols]
+    cis = [f"[{c['rate']['lo']:.4f}, {c['rate']['hi']:.4f}]" if c["rate"] else ""
+           for c in cols]
+    print(f"    {'fill rate':<26}" + "".join(f"{x:>{w}}" for x in rates))
+    print(f"    {'  95% block CI':<26}" + "".join(f"{x:>{w}}" for x in cis))
+    for key, lab in (("uncond", "unconditional maker pp"),
+                     ("cond", "CONDITIONAL on fill pp"),
+                     ("never", "never filled pp"),
+                     ("gap", "selection gap pp")):
+        print(f"    {lab:<26}" + "".join(f"{_pp(c[key]):>{w}}" for c in cols))
+    print("""
+  Both numbers are reported; the reading is not drawn here.""")
+    return cols
+
+
+def report_sweep(model_rows, ctrl_rows, flipped=None,
+                 sizes=(10, 50, 100, 250, 500, 1000)):
+    """BRIEF 018 ITEM 2 - fill rate and CLV move against each other, so the
+    weekly product has an interior maximum. Find it by measuring rather than
+    by interpolating between two rungs."""
+    _hdr("ITEM 2 - SIZE SWEEP, and where the weekly product peaks")
+    print("""
+  weekly $ = distinct markets x fill rate x contracts x CLV per contract.
+  A contract settles at $1, so CLV in probability points IS dollars per
+  contract. Fill rate falls with size because the queue ahead is fixed and our
+  ticket has to clear it; conditional CLV falls too, because a bigger order
+  only completes when more volume ran through our price.""")
+    arms = [(model_rows, "MODEL SIDE"), (ctrl_rows, "CONTROL - BOTH SIDES")]
+    if flipped is not None:
+        arms.append((flipped, "FLIPPED SIDE"))
+    for rows, name in arms:
+        if not rows:
+            continue
+        print(f"\n  {name}")
+        print(f"    {'size':>6}{'n':>7}{'filled':>8}{'fill rate':>11}"
+              f"{'95% CI':>20}{'cond CLV pp':>26}{'weekly $':>12}")
+        best = (None, -1e9)
+        for s in sizes:
+            sims = []
+            for r in rows:
+                sim = simulate(r, r["prints"], ticket=s, side=r["side"])
+                if sim:
+                    rr = dict(r)
+                    rr["sim"] = sim
+                    sims.append(rr)
+            if not sims:
+                continue
+            f = [r for r in sims if r["sim"]["filled"]]
+            br = S00.block_bootstrap(sims, lambda r: float(r["sim"]["filled"]), "game")
+            cb = S00.block_bootstrap(f, lambda r: maker_clv(r, r["sim"]), "game")
+            mk = len({r["market_id"] for r in sims})
+            weekly = (mk * br["mean"] * s * cb["mean"]) if (br and cb) else 0.0
+            if weekly > best[1]:
+                best = (s, weekly)
+            ci = f"[{br['lo']:.4f}, {br['hi']:.4f}]"
+            print(f"    {s:>6,}{len(sims):>7,}{len(f):>8,}{br['mean']:>11.4f}"
+                  f"{ci:>20}{_pp(cb):>26}{weekly:>12,.0f}")
+        print(f"\n    weekly product PEAKS at {best[0]:,} contracts: "
+              f"${best[1]:,.0f} per week")
+    print("""
+  Read the peak as a shape, not a target. Every rung's CLV interval is wide
+  enough to overlap its neighbours, so the location of the maximum is far less
+  certain than its existence - and the whole curve is one week of one slate.""")
+
+
+def report_exclusions(rows):
+    """BRIEF 018 ITEM 3 - what the 231 unsimulable markets are, and which way
+    they push the 18% fill rate. "Optimistic" is a caveat; this makes it a
+    number.
+
+    THE EARLIER CAVEAT WAS WRONG ABOUT THE CAUSE. M01 attributed the 231 to the
+    depth-capture allowlist. They are not an allowlist artifact: 229 of 231
+    have NO BID AT ALL at the entry instant. Depth exists for them. They are
+    one-sided books - somebody offers, nobody bids - and a passive buyer has
+    nothing to join.
+
+    That also means mid and spread are UNDEFINED for them, so the honest
+    characterisation uses the ask, which exists for all 231.
+    """
+    _hdr("ITEM 3 - THE EXCLUDED 231, AND THE SPREAD WALL")
+    sim = [r for r in rows if r["sim"]]
+    exc = [r for r in rows if not r["sim"]]
+    nobid = [r for r in exc if r["entry_bid"] is None]
+    print(f"\n{len(sim)} simulable, {len(exc)} excluded, {len(rows)} total")
+    print(f"  of the excluded: {len(nobid)} have NO BID at entry, "
+          f"{len(exc)-len(nobid)} lack a depth snapshot on the needed side")
+
+    def q(v, p):
+        v = sorted(v)
+        return v[min(len(v) - 1, int(p * len(v)))] if v else float("nan")
+
+    def cell(rows_, f):
+        v = [f(r) for r in rows_ if f(r) is not None]
+        if len(v) < 5:
+            return f"n={len(v)} - too few"
+        return f"{q(v,.25):.3f} / {statistics.median(v):.3f} / {q(v,.75):.3f}"
+
+    print(f"\n{'feature (p25/med/p75)':<26}{'simulable':>26}{'excluded':>26}")
+    for name, f in (
+            ("entry ask (defined for all)", lambda r: r["entry_ask"]),
+            ("entry mid", lambda r: r["entry_mid"]),
+            ("entry spread", lambda r: (None if r["entry_bid"] is None
+                                        else r["entry_ask"] - r["entry_bid"])),
+            ("prints in window", lambda r: len(r.get("prints") or [])),
+            ("lead time, hours", lambda r: r["lead_h"])):
+        print(f"    {name:<26}{cell(sim,f):>26}{cell(exc,f):>26}")
+    for label, grp in (("simulable", sim), ("excluded", exc)):
+        c = Counter(r["stat"] for r in grp)
+        print(f"    {label + ' series':<26}"
+              + "  ".join(f"{k}={v}" for k, v in c.most_common()))
+    print("""
+    Mid and spread say "too few" for the excluded because there is no bid to
+    compute them from. That IS the characterisation: these are one-sided
+    books. On the ask they are the expensive tail of the board, and they print
+    a fifth as often as the markets that survived.""")
+
+    # MEASURE the bias rather than reweight it. A no-bid market still supports
+    # a passive NO buy - that side rests at 1 - ask, which is defined - so the
+    # same simulation runs on it with the queue from the yes-ask ladder.
+    ok = fail = 0
+    for r in nobid:
+        qn = (r.get("touch_size") or {}).get("buy_yes")
+        if qn is None or r["entry_ask"] is None:
+            continue
+        price = 1.0 - r["entry_ask"]
+        cum = 0.0
+        hit = False
+        for t in r.get("prints") or []:
+            if not (r["entry_ts"] <= t["ts"] < r["kickoff"]):
+                continue
+            if eligible(t, "no", price):
+                cum += t["size"] or 0.0
+                if cum >= qn + TICKET:
+                    hit = True
+                    break
+        ok += int(hit)
+        fail += 1
+    sim_rate = sum(1 for r in sim if r["sim"]["filled"]) / max(len(sim), 1)
+    if fail:
+        exc_rate = ok / fail
+        blended = (len(sim) * sim_rate + fail * exc_rate) / (len(sim) + fail)
+        print(f"""
+  DIRECTION AND MAGNITUDE OF THE BIAS, measured rather than reweighted
+
+    A one-sided book still supports a passive NO buy: that side rests at
+    1 - ask, which is defined, with the queue taken from the yes-ask ladder.
+    Running the identical simulation on {fail} of the excluded markets:
+
+      fill rate, simulable            {sim_rate:.4f}   (n={len(sim)})
+      fill rate, excluded (no-bid)    {exc_rate:.4f}   (n={fail})
+      whole population                {blended:.4f}
+
+    The measured {100*sim_rate:.1f}% is {'OPTIMISTIC' if blended < sim_rate else 'PESSIMISTIC'} by {abs(blended-sim_rate)*100:.1f} percentage points.
+    Two effects pull against each other and this is their net: a book with no
+    bid has NO QUEUE to clear, which helps a lot, but it prints about a fifth
+    as often, which hurts more.""")
+
+    allsp = sorted(r["entry_ask"] - r["entry_bid"] for r in rows
+                   if r["entry_bid"] is not None)
+    from jobs.paper_trade import MAX_SPREAD
+    over = sum(1 for s in allsp if s > MAX_SPREAD)
+    print(f"""
+  THE SPREAD WALL - the capacity ceiling on any crossing strategy
+
+    entry spread, the {len(allsp)} of {len(rows)} markets that HAVE two sides, in cents
+      p10 {100*q(allsp,.10):5.1f}   p25 {100*q(allsp,.25):5.1f}   median {100*statistics.median(allsp):5.1f}
+      p75 {100*q(allsp,.75):5.1f}   p90 {100*q(allsp,.90):5.1f}   max {100*allsp[-1]:5.1f}
+
+    the gate sits at {100*MAX_SPREAD:.0f}c; {over} of {len(allsp)} two-sided markets ({100*over/len(allsp):.0f}%) are wider
+    and the other {len(rows)-len(allsp)} have no second side to measure at all
+
+  A taker pays half the spread each way, so a median {100*statistics.median(allsp):.1f}c book costs
+  {50*statistics.median(allsp):.2f}pp to enter before fees and before being wrong. Counting the
+  one-sided books, {100*(over + len(rows)-len(allsp))/len(rows):.0f}% of the board is at or beyond the gate. That is
+  the ceiling on any crossing strategy and it is a property of the venue.""")
+
+
 def report_verdict(sims, filled, allb, fb, ub, da):
     _hdr("VERDICT")
     n, k = len(sims), len(filled)
@@ -530,14 +896,16 @@ def report_verdict(sims, filled, allb, fb, ub, da):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    for f in ("census", "fills", "clv", "sweep", "all"):
+    for f in ("census", "fills", "clv", "sweep", "control",
+              "exclusions", "all"):
         ap.add_argument(f"--{f}", action="store_true")
     ap.add_argument("--size", type=int, default=TICKET)
     ap.add_argument("--season", type=int, default=2026)
     ap.add_argument("--week", type=int, default=1)
     ap.add_argument("--model-version", dest="model_version")
     a = ap.parse_args()
-    if not (a.census or a.fills or a.clv or a.sweep):
+    if not (a.census or a.fills or a.clv or a.sweep or a.control
+            or a.exclusions):
         a.all = True
     rows, drops, mv, mid_at = load(a.season, a.week, a.size, a.model_version)
     print(f"M01 maker reconstruction  ticket {a.size} contracts  model {mv}")
@@ -549,6 +917,15 @@ def main():
         allb, fb, ub, da = report_clv(sims, filled, mid_at, a.size)
     if a.sweep or a.all:
         report_ticket_sweep(rows)
+    if a.exclusions or a.all:
+        report_exclusions(rows)
+    if a.control or a.all:
+        ctrl = load_control(a.season, a.week, a.size, a.model_version)
+        ctrl_dj = load_control(a.season, a.week, a.size, a.model_version,
+                               disjoint=True)
+        flipped = flip_sides(rows, a.size)
+        report_control(rows, ctrl, ctrl_dj, flipped)
+        report_sweep(rows, ctrl, flipped=flipped)
     if a.all:
         report_verdict(sims, filled, allb, fb, ub, da)
 

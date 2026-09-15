@@ -140,7 +140,8 @@ def targets(season, week, model_version=None):
     from core import version_resolve
     from models import baseline
     mv, note = version_resolve.resolve(
-        season, week, baseline.MODEL_VERSION, override=model_version)
+        season, week, baseline.MODEL_VERSION, override=model_version,
+        db_path=LIVE_DB)
     if note:
         print(f"  {note}")
     c = live_ro()
@@ -150,6 +151,36 @@ def targets(season, week, model_version=None):
         "JOIN market_outcome mo ON mo.outcome_id = p.outcome_id "
         "WHERE mo.venue='kalshi' AND o.season=? AND o.week=? "
         "AND p.model_version=? ORDER BY 1", (season, week, mv))]
+
+
+def control_frame(season, week, model_version=None):
+    """BRIEF 018 ITEM 1 - every prop market in the SAME kalshi events as the
+    predictions, whether or not a prediction touched it.
+
+    The events come from the predictions only to fix the WINDOW - same games,
+    same slate, same afternoon - so that the control differs from the
+    model-selected population in market choice and nothing else. Which markets
+    are returned inside those events involves no model output at all.
+    """
+    from core import version_resolve
+    from models import baseline
+    mv, note = version_resolve.resolve(
+        season, week, baseline.MODEL_VERSION, override=model_version,
+        db_path=LIVE_DB)
+    if note:
+        print(f"  {note}")
+    c = live_ro()
+    pred = [r[0] for r in c.execute(
+        "SELECT mo.market_id FROM predictions p JOIN outcomes o USING (outcome_id) "
+        "JOIN market_outcome mo ON mo.outcome_id = p.outcome_id "
+        "WHERE mo.venue='kalshi' AND o.season=? AND o.week=? AND p.model_version=?",
+        (season, week, mv))]
+    events = {m.split("-")[1] for m in pred if len(m.split("-")) > 1}
+    allm = [m for (m,) in c.execute(
+        "SELECT market_id FROM markets WHERE venue='kalshi' AND "
+        "(market_id LIKE 'KXNFLREC-%' OR market_id LIKE 'KXNFLRSHATT-%')")]
+    return sorted(m for m in allm
+                  if len(m.split("-")) > 1 and m.split("-")[1] in events)
 
 
 def fetch_one(client, ticker):
@@ -201,9 +232,9 @@ def parse(c, ticker, payloads):
     return len(rows)
 
 
-def run(season, week, limit=None):
+def run(season, week, limit=None, frame=False):
     c = conn()
-    tick = targets(season, week)
+    tick = control_frame(season, week) if frame else targets(season, week)
     if limit:
         tick = tick[:limit]
     print(f"{len(tick)} markets, {RPS} req/s -> {M01_DB}")
@@ -298,6 +329,9 @@ def main():
     ap.add_argument("--season", type=int, default=2026)
     ap.add_argument("--week", type=int, default=1)
     ap.add_argument("--limit", type=int)
+    ap.add_argument("--frame", action="store_true",
+                    help="brief 018: every prop market in the predictions' "
+                         "events, not just the predicted ones")
     ap.add_argument("--from-archive", action="store_true")
     ap.add_argument("--status", action="store_true")
     a = ap.parse_args()
@@ -315,7 +349,7 @@ def main():
         from_archive(c)
         status(c)
     else:
-        run(a.season, a.week, a.limit)
+        run(a.season, a.week, a.limit, a.frame)
 
 
 if __name__ == "__main__":

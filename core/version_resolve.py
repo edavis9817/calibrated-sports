@@ -57,8 +57,12 @@ def ensure_schema(con=None):
             con.close()
 
 
-def _ro():
-    return sqlite3.connect(f"file:{config.DB_PATH}?mode=ro", uri=True)
+def _ro(db_path=None):
+    """Read-only handle. `db_path` is explicit because callers that repoint
+    `config.DB_PATH` at a scratch database - `jobs/ingest_kalshi_trades.py`
+    does, to keep a bulk ingest off the logger's file - would otherwise
+    resolve versions against a database with no `predictions` table at all."""
+    return sqlite3.connect(f"file:{db_path or config.DB_PATH}?mode=ro", uri=True)
 
 
 def record(old_version, new_version, reason, evidence):
@@ -79,14 +83,14 @@ def record(old_version, new_version, reason, evidence):
         con.close()
 
 
-def equivalent(version, con=None) -> set:
+def equivalent(version, con=None, db_path=None) -> set:
     """Transitive closure of `version` under equivalence, including itself.
 
     Undirected: a row `old ≡ new` means asking for either should find the
     other. Recorded direction is provenance, not semantics.
     """
     own = con is None
-    con = con or _ro()
+    con = con or _ro(db_path)
     try:
         try:
             rows = con.execute("SELECT old_version, new_version "
@@ -110,10 +114,10 @@ def equivalent(version, con=None) -> set:
     return seen
 
 
-def counts(season, week, con=None):
+def counts(season, week, con=None, db_path=None):
     """{model_version: n predictions} for a season/week, newest first."""
     own = con is None
-    con = con or _ro()
+    con = con or _ro(db_path)
     try:
         rows = con.execute(
             "SELECT p.model_version, COUNT(*), MAX(p.created_ts) "
@@ -127,14 +131,14 @@ def counts(season, week, con=None):
 
 
 def resolve(season: int, week: int, want: str = None,
-            override: str = None) -> tuple:
+            override: str = None, db_path: str = None) -> tuple:
     """(version, note). Raises ModelVersionError rather than guessing.
 
     `override` is the explicit `--model-version` escape hatch and is used as
     given, including when it has no predictions - if a caller insists on a
     version, the emptiness is theirs to explain.
     """
-    have = dict(counts(season, week))
+    have = dict(counts(season, week, db_path=db_path))
     if override:
         return override, f"model version forced to {override} by --model-version"
     if not have:
@@ -145,7 +149,7 @@ def resolve(season: int, week: int, want: str = None,
         return v, ""
     if have.get(want):
         return want, ""
-    for alt in equivalent(want):
+    for alt in equivalent(want, db_path=db_path):
         if have.get(alt):
             return alt, (f"{want} has no predictions; using {alt}, which is "
                          f"RECORDED EQUIVALENT to it ({have[alt]:,} rows)")

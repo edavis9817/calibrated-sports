@@ -129,7 +129,15 @@ def _fingerprint() -> str:
         path = os.path.join(here, rel)
         if os.path.exists(path):
             h.update(rel.encode())
-            h.update(open(path, "rb").read())
+            # NORMALISE LINE ENDINGS BEFORE HASHING (brief 018 item 4).
+            # Hashing raw bytes made this identify a CHECKOUT, not a commit:
+            # with core.autocrlf=true the same commit hashes differently on
+            # different machines, and `core/distributions.py` went LF -> CRLF
+            # on disk during brief 016 purely because the file was rewritten.
+            # Verifying a historical fingerprint then needed a search over
+            # 2^n line-ending conventions, which is the wrong fix - the right
+            # one is to remove the degree of freedom.
+            h.update(open(path, "rb").read().replace(b"\r\n", b"\n"))
     return h.hexdigest()[:12]
 
 

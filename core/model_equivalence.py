@@ -45,6 +45,15 @@ FEE_SYMBOLS = frozenset({
 })
 
 
+# Symbols that compute the model's NAME rather than its forecasts. A change
+# confined to these cannot move a prediction either - `_fingerprint` hashing
+# its inputs differently changes what the model is CALLED and nothing else.
+# Kept separate from FEE_SYMBOLS because the argument for each is different,
+# and because an identity symbol is the one case where a change IN PLACE has
+# to be allowed: normalising the hash means editing the hash function.
+IDENTITY_SYMBOLS = frozenset({"_fingerprint", "model_version", "MODEL_VERSION"})
+
+
 class NotEquivalent(Exception):
     """Raised when the fileset differs in a way that could move a prediction."""
 
@@ -92,8 +101,36 @@ def fingerprint_at(commit: str) -> str:
     return h.hexdigest()[:12]
 
 
+def fingerprint_normalised(commit: str) -> str:
+    """The fingerprint under the CURRENT rule: line endings normalised first.
+
+    This is exact and cheap, and it is what every version from brief 018
+    onward is. Use it in preference to the legacy search below.
+    """
+    import hashlib
+    h = hashlib.sha256()
+    for rel in FINGERPRINT_FILES:
+        b = blob(commit, rel)
+        if b:
+            h.update(rel.encode())
+            h.update(b.replace(b"\r\n", b"\n"))
+    return h.hexdigest()[:12]
+
+
 def fingerprint_matches(commit: str, want: str) -> bool:
-    """Could this commit have hashed to `want` on SOME checkout?
+    """LEGACY. Could this commit have hashed to `want` on SOME checkout?
+
+    ONLY for verifying versions minted BEFORE brief 018 normalised the hash.
+    Those were taken over raw worktree bytes, so under `core.autocrlf=true`
+    the answer depended on the checkout and not on the commit - which is why
+    this has to search rather than compute.
+
+    IT IS EXPONENTIAL IN THE NUMBER OF HASHED FILES and must not grow. The
+    fix was to remove the degree of freedom, not to enumerate it: see
+    `fingerprint_normalised` and `models.baseline._fingerprint`. If a future
+    fileset makes this slow, that is a signal to stop calling it, not to
+    optimise it. The normalised rule is tried first, so a post-018 version
+    never reaches the search at all.
 
     `_fingerprint()` hashes worktree bytes, so the answer depends on line
     endings - and under `core.autocrlf=true` those are not a property of the
@@ -109,6 +146,8 @@ def fingerprint_matches(commit: str, want: str) -> bool:
     """
     import hashlib
     import itertools
+    if fingerprint_normalised(commit) == want:
+        return True            # post-018: exact, no search needed
     CRLF, LF = bytes([13, 10]), bytes([10])
     raw = [blob(commit, rel) for rel in FINGERPRINT_FILES]
     for combo in itertools.product((False, True), repeat=len(FINGERPRINT_FILES)):
@@ -188,14 +227,20 @@ def assert_fee_only(cmp: dict) -> dict:
     hashed fileset with different behaviour is exactly the case this table
     must not wave through.
     """
+    allowed = FEE_SYMBOLS | IDENTITY_SYMBOLS
     offenders = []
     for rel, names in cmp["changed"].items():
-        offenders += [f"{rel}: {n} CHANGED in place" for n in names]
+        # Only an IDENTITY symbol may change in place. A fee function that
+        # changed behaviour while still living in the hashed fileset is
+        # exactly what this table must not wave through, and a prediction
+        # function obviously is.
+        offenders += [f"{rel}: {n} CHANGED in place" for n in names
+                      if n not in IDENTITY_SYMBOLS]
     for bucket in ("added", "removed"):
         for rel, names in cmp[bucket].items():
             for n in names:
                 bare = n.split(":", 1)[1] if n.startswith("import:") else n
-                if bare not in FEE_SYMBOLS:
+                if bare not in allowed:
                     offenders.append(f"{rel}: {n} {bucket}")
     if offenders:
         raise NotEquivalent(
