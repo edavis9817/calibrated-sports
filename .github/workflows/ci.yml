@@ -8,7 +8,17 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     steps:
+      # FULL history, not the default fetch-depth: 1. The equivalence tests
+      # compare named historical commits (brief 017's table is only as good as
+      # the evidence behind it), and in a shallow clone those objects are simply
+      # absent - `me.compare()` then sees two empty trees, reports no difference,
+      # and NotEquivalent fires with "nothing changed between these commits".
+      # Reproduced in python:3.12-slim: full history 749 passed, --depth 1 three
+      # failed. The tests are right to fail without history; CI was wrong to
+      # withhold it.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -26,8 +36,25 @@ jobs:
       # this job locally, clone to a temp directory (no .env, as here) and run
       # it from such a venv - the working tree hides these two failures because
       # it has a configured store.
+      # Tee the summary into the run page. Log DOWNLOAD needs admin rights, so a
+      # failure was readable only by someone with repo admin - the run page is
+      # public, and $GITHUB_STEP_SUMMARY renders there for anyone.
       - name: the full suite
-        run: python -m pytest -q
+        run: |
+          set -o pipefail
+          python -m pytest -q -rA 2>&1 | tee /tmp/pytest.txt
+        shell: bash
+
+      - name: publish the result to the run page
+        if: always()
+        run: |
+          {
+            echo '## pytest'
+            echo '```'
+            tail -60 /tmp/pytest.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+        shell: bash
 
       # The site vendors this exact file and generates its TypeScript types from
       # it, so a malformed contract breaks the consumer's build, not ours. Fail
