@@ -188,6 +188,35 @@ def test_an_excluded_player_never_enters_the_permanent_slug_registry(nameless):
     assert "00-NONAME" not in E.load_slug_registry(E.slug_registry_path())
 
 
+def test_the_hold_writer_reports_on_every_run_including_a_dry_one(db):
+    """Same rule as the two exclusions: the number prints every run. Silence
+    would make "nothing was published" and "the hold step never ran" identical
+    from the summary, and a hold that silently stops running is how the site
+    ends up drawing prices retention has already deleted."""
+    now = 1_789_500_000.0
+    pub = {("kalshi", "KXNFLREC-X-1.5"), ("kalshi", "KXNFLREC-X-2.5")}
+
+    dry = E.hold_published_markets(pub, now, dry_run=True)
+    assert dry == {"markets": 2, "until": E.iso(now + config.QUOTES_RETENTION_DAYS * 86400),
+                   "written": 0, "would_write": 2}
+    with store.db() as c:
+        assert c.execute("SELECT COUNT(*) FROM quote_retention_hold").fetchone()[0] == 0
+
+    wet = E.hold_published_markets(pub, now, dry_run=False)
+    assert wet["written"] == 2 and wet["would_write"] == 0
+
+    # Renewal updates in place rather than accumulating rows.
+    E.hold_published_markets(pub, now + 3600, dry_run=False)
+    with store.db() as c:
+        rows = c.execute("SELECT until_ts FROM quote_retention_hold").fetchall()
+    assert len(rows) == 2
+    assert all(r[0] == now + 3600 + config.QUOTES_RETENTION_DAYS * 86400 for r in rows)
+
+    empty = E.hold_published_markets(set(), now, dry_run=False)
+    assert empty == {"markets": 0, "until": E.iso(now + config.QUOTES_RETENTION_DAYS * 86400),
+                     "written": 0, "would_write": 0}
+
+
 def test_a_period_row_with_no_team_is_kept_but_left_out_of_the_display_list(db):
     c = sqlite3.connect(config.DB_PATH)
     c.execute("UPDATE nfl_player_week SET team = NULL WHERE gsis_id = '00-A' AND season = 2025 "

@@ -1108,7 +1108,12 @@ def hold_published_markets(published, now_ts, dry_run=False):
     for good.
     """
     until = now_ts + config.QUOTES_RETENTION_DAYS * 86400
-    out = {"markets": len(published), "until": iso(until), "written": 0}
+    # Reported on EVERY run, including a dry run and including zero - the same
+    # rule as the two export exclusions. A dry run says what it WOULD hold;
+    # silence would make "no markets published" and "the hold step never ran"
+    # look identical from the summary.
+    out = {"markets": len(published), "until": iso(until), "written": 0,
+           "would_write": len(published) if dry_run else 0}
     if not published or dry_run:
         return out
     with store.db() as c:
