@@ -59,6 +59,12 @@ SPORT_NAME = "NFL"
 PERIOD_TYPE = "week"
 PARTS = ("players", "teams", "market", "research", "manifest")
 STATE_FILE = ".upload_state.json"
+# The same record, mirrored into the bucket it describes. Local-only meant that
+# losing the machine cost a 22,927-object re-upload instead of one download.
+# The `_state/` prefix is deliberately unreachable through the site's /data/
+# route - sanitizeKey requires every path segment to START with an alphanumeric,
+# so an underscore-led segment is refused (asserted in the site's tests).
+REMOTE_STATE_KEY = "_state/upload_state.json"
 # The committed slug registry (docs/web-schema.md): id -> slug, append-only.
 SLUG_DIR = os.path.join(ROOT, "web", "slugs")
 UPLOAD_WORKERS = 8
@@ -1365,11 +1371,78 @@ def r2_client():
                       max_pool_connections=UPLOAD_WORKERS * 2))
 
 
-def _save_state(path, state):
+def _save_state(path, state, client=None, bucket=None):
+    """Write the upload record locally, and mirror it into the bucket.
+
+    A failed mirror is logged nowhere and raises nothing: the local copy is
+    authoritative for the machine that did the uploading, and an upload must not
+    fail because its bookkeeping could not be copied.
+    """
+    blob = json.dumps(state, sort_keys=True, separators=(",", ":"))
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(state, f, sort_keys=True, separators=(",", ":"))
+        f.write(blob)
     os.replace(tmp, path)
+    if client is not None and bucket:
+        try:
+            client.put_object(Bucket=bucket, Key=REMOTE_STATE_KEY,
+                              Body=blob.encode("utf-8"), ContentType="application/json",
+                              CacheControl="no-store")
+        except Exception:
+            pass
+
+
+def _remote_state(client, bucket):
+    """The record as the bucket last saw it, or None."""
+    try:
+        return json.loads(client.get_object(Bucket=bucket, Key=REMOTE_STATE_KEY)["Body"].read())
+    except Exception:
+        return None
+
+
+def _bucket_keys(client, bucket):
+    """Every key actually in the bucket, or None if it cannot be listed."""
+    try:
+        if hasattr(client, "get_paginator"):
+            keys = set()
+            for page in client.get_paginator("list_objects_v2").paginate(Bucket=bucket):
+                keys |= {o["Key"] for o in page.get("Contents", ())}
+            return keys
+        return {o["Key"] for o in client.list_objects_v2(Bucket=bucket).get("Contents", ())}
+    except Exception:
+        return None
+
+
+def load_upload_state(dest, client, bucket, log=print):
+    """The upload record: local first, else the bucket's copy. -> (state, source).
+
+    A record that does not describe the bucket is WORSE than no record, because
+    every key it wrongly claims is a key that silently never gets uploaded. So a
+    recovered record is reconciled against a listing and anything the bucket
+    does not actually hold is dropped; if the bucket cannot be listed we return
+    nothing and re-upload, which is expensive and correct rather than cheap and
+    wrong.
+    """
+    path = os.path.join(dest, STATE_FILE)
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f), "local"
+    except (OSError, ValueError):
+        pass
+    remote = _remote_state(client, bucket)
+    if not remote:
+        return {}, "none"
+    present = _bucket_keys(client, bucket)
+    if present is None:
+        log("  found a remote upload record but could not list the bucket - "
+            "re-uploading rather than trusting it")
+        return {}, "unverified"
+    stale = [k for k in remote if k not in present]
+    for k in stale:
+        remote.pop(k)
+    log(f"  recovered the upload record from R2: {len(remote):,} keys"
+        + (f", {len(stale):,} dropped as absent from the bucket" if stale else ""))
+    return remote, "r2"
 
 
 def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORKERS):
@@ -1383,11 +1456,7 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
     bucket = require_setting("WEB_R2_BUCKET")
     client = client or r2_client()
     state_path = os.path.join(dest, STATE_FILE)
-    try:
-        with open(state_path, encoding="utf-8") as f:
-            state = json.load(f)
-    except (OSError, ValueError):
-        state = {}
+    state, state_source = load_upload_state(dest, client, bucket, log)
 
     local = local_keys(dest)
     todo = []
@@ -1400,7 +1469,7 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
     removed = sorted(set(state) - set(local))
     result = {"configured": True, "bucket": bucket, "considered": len(local),
               "changed": len(todo), "uploaded": 0, "deleted": 0, "bytes": 0,
-              "removed": len(removed)}
+              "removed": len(removed), "state_source": state_source}
     if dry_run:
         return result
 
@@ -1417,14 +1486,14 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
                 result["uploaded"] += 1
                 result["bytes"] += size
                 if i % 500 == 0:
-                    _save_state(state_path, state)
+                    _save_state(state_path, state, client, bucket)
                     log(f"  uploaded {i:,}/{len(todo):,}")
         for key in removed:
             client.delete_object(Bucket=bucket, Key=key)
             state.pop(key, None)
             result["deleted"] += 1
     finally:
-        _save_state(state_path, state)
+        _save_state(state_path, state, client, bucket)
     return result
 
 

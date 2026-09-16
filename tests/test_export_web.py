@@ -1,4 +1,5 @@
 """Contract v2: the web export honours docs/web-schema.md."""
+import io
 import json
 import os
 import re
@@ -387,14 +388,35 @@ def test_rewrites_only_on_change_and_deletes_stale_keys(db):
 # ------------------------------------------------------------------ upload
 
 class FakeS3:
-    def __init__(self):
+    """An honest double: it keeps what it was given and serves it back, so the
+    upload record's round trip through the bucket is actually exercised."""
+
+    def __init__(self, objects=None):
         self.puts, self.deletes = {}, []
+        self.objects = dict(objects or {})      # key -> bytes already in the bucket
+        self.listed = 0
 
     def put_object(self, Bucket, Key, Body, ContentType, CacheControl):
         self.puts[Key] = {"bucket": Bucket, "body": Body, "type": ContentType, "cache": CacheControl}
+        self.objects[Key] = Body
 
     def delete_object(self, Bucket, Key):
         self.deletes.append(Key)
+        self.objects.pop(Key, None)
+
+    def get_object(self, Bucket, Key):
+        if Key not in self.objects:
+            raise KeyError(Key)                 # boto3 raises NoSuchKey; any raise is handled
+        return {"Body": io.BytesIO(self.objects[Key])}
+
+    def list_objects_v2(self, Bucket):
+        self.listed += 1
+        return {"Contents": [{"Key": k} for k in sorted(self.objects)]}
+
+
+def _data_puts(s3):
+    """Site data only - the upload record is bookkeeping, not content."""
+    return {k: v for k, v in s3.puts.items() if k != E.REMOTE_STATE_KEY}
 
 
 @pytest.fixture
@@ -422,16 +444,109 @@ def test_upload_sends_only_changed_keys_and_deletes_removed_ones(tmp_path, creds
 
     s3b = FakeS3()
     r2 = E.upload(dest=dest, client=s3b, log=lambda *_: None)
-    assert r2["changed"] == 0 and s3b.puts == {}
+    # No SITE DATA is re-sent. The record itself is mirrored on every run,
+    # including one that uploads nothing - one small PUT, and it keeps the
+    # bucket's copy current against local edits.
+    assert r2["changed"] == 0 and _data_puts(s3b) == {}
+    assert list(s3b.puts) == [E.REMOTE_STATE_KEY]
 
     E.write_if_changed(E.local_path(dest, "nfl/manifest.json"), {"kind": "x", "changed": True})
     os.remove(E.local_path(dest, "nfl/players/00-A/summary.json"))
     s3c = FakeS3()
     r3 = E.upload(dest=dest, client=s3c, log=lambda *_: None)
-    assert list(s3c.puts) == ["nfl/manifest.json"]
+    assert list(_data_puts(s3c)) == ["nfl/manifest.json"]
     assert s3c.deletes == ["nfl/players/00-A/summary.json"] and r3["deleted"] == 1
     state = json.load(open(os.path.join(dest, E.STATE_FILE), encoding="utf-8"))
     assert "nfl/players/00-A/summary.json" not in state
+
+
+def test_the_upload_record_is_mirrored_into_the_bucket_but_is_not_site_data(tmp_path, creds):
+    """Bookkeeping, not content: it must reach the bucket and must never be
+    served as a data key."""
+    dest = str(tmp_path / "exp")
+    _seed(dest)
+    s3 = FakeS3()
+    E.upload(dest=dest, client=s3, log=lambda *_: None)
+
+    assert E.REMOTE_STATE_KEY in s3.puts
+    assert s3.puts[E.REMOTE_STATE_KEY]["cache"] == "no-store"
+    assert json.loads(s3.objects[E.REMOTE_STATE_KEY]) == json.load(
+        open(os.path.join(dest, E.STATE_FILE), encoding="utf-8"))
+    # The LOCAL record's filename never appears as an uploaded key.
+    assert not any(k.endswith(E.STATE_FILE) for k in s3.puts)
+
+
+def test_a_machine_with_no_local_record_recovers_it_from_the_bucket(tmp_path, creds):
+    """Losing the machine used to cost a full re-upload of every object. The
+    record comes back from R2 instead - and nothing re-uploads."""
+    dest = str(tmp_path / "exp")
+    _seed(dest)
+    first = FakeS3()
+    E.upload(dest=dest, client=first, log=lambda *_: None)
+
+    os.remove(os.path.join(dest, E.STATE_FILE))          # the machine is gone
+    second = FakeS3(objects=dict(first.objects))         # the bucket is not
+    r = E.upload(dest=dest, client=second, log=lambda *_: None)
+
+    assert r["state_source"] == "r2"
+    assert r["changed"] == 0 and r["uploaded"] == 0
+    assert _data_puts(second) == {}
+
+
+def test_a_recovered_record_is_reconciled_against_the_bucket(tmp_path, creds):
+    """A record that claims a key the bucket does not have would silently skip
+    uploading it. Anything absent is dropped, so it re-uploads."""
+    dest = str(tmp_path / "exp")
+    _seed(dest)
+    first = FakeS3()
+    E.upload(dest=dest, client=first, log=lambda *_: None)
+
+    os.remove(os.path.join(dest, E.STATE_FILE))
+    objects = dict(first.objects)
+    objects.pop("nfl/manifest.json")                     # never actually landed
+    second = FakeS3(objects=objects)
+    r = E.upload(dest=dest, client=second, log=lambda *_: None)
+
+    assert r["state_source"] == "r2"
+    assert list(_data_puts(second)) == ["nfl/manifest.json"]
+
+
+def test_an_unlistable_bucket_re_uploads_rather_than_trusting_the_record(tmp_path, creds):
+    """Expensive and correct beats cheap and wrong: an unverified record would
+    skip uploads that never happened."""
+    dest = str(tmp_path / "exp")
+    _seed(dest)
+    first = FakeS3()
+    E.upload(dest=dest, client=first, log=lambda *_: None)
+
+    os.remove(os.path.join(dest, E.STATE_FILE))
+    second = FakeS3(objects=dict(first.objects))
+    second.list_objects_v2 = lambda **kw: (_ for _ in ()).throw(RuntimeError("no listing"))
+    lines = []
+    r = E.upload(dest=dest, client=second, log=lines.append)
+
+    assert r["state_source"] == "unverified"
+    assert sorted(_data_puts(second)) == sorted(E.local_keys(dest))
+    assert any("re-uploading rather than trusting it" in ln for ln in lines)
+
+
+def test_a_failed_mirror_does_not_fail_the_upload(tmp_path, creds):
+    """The local record is authoritative for the machine that did the work; an
+    upload must not fail because its bookkeeping could not be copied."""
+    dest = str(tmp_path / "exp")
+    _seed(dest)
+
+    class NoMirror(FakeS3):
+        def put_object(self, Bucket, Key, **kw):
+            if Key == E.REMOTE_STATE_KEY:
+                raise RuntimeError("mirror refused")
+            return super().put_object(Bucket, Key, **kw)
+
+    s3 = NoMirror()
+    r = E.upload(dest=dest, client=s3, log=lambda *_: None)
+
+    assert r["uploaded"] == 3
+    assert os.path.exists(os.path.join(dest, E.STATE_FILE))
 
 
 def test_upload_not_configured_is_logged_and_exits_zero(tmp_path, monkeypatch):
