@@ -1166,8 +1166,27 @@ def count_rungs(market_files):
                for m in market_files.values() for c in m.get("components", []))
 
 
+def load_team_colors(con):
+    """Team colours keyed on the abbreviation AS PUBLISHED.
+
+    NOT folded through FRANCHISE. The whole point of keying on the published
+    abbreviation is that STL and LA are different identities; mapping them to a
+    current franchise here would undo that at the last step.
+
+    Wider than TEAM_NAMES on purpose: 32 current franchises have pages, and the
+    colour map also carries the predecessors (STL, SD, OAK) plus LAR, which
+    nflverse publishes alongside LA for the same club.
+    """
+    rows = con.execute(
+        "SELECT t.team_abbr, t.team_color, t.team_color2 FROM nfl_teams t "
+        "JOIN (SELECT team_abbr, MAX(data_version) dv FROM nfl_teams GROUP BY team_abbr) v "
+        "ON v.team_abbr = t.team_abbr AND v.dv = t.data_version"
+    ).fetchall()
+    return {a: {"primary": c1, "secondary": c2} for a, c1, c2 in rows if c1}
+
+
 def build_manifest(games, current, index, market_keys, unresolved, source_version, scoring_note,
-                   generated_at, rungs):
+                   generated_at, rungs, team_colors):
     return {
         **envelope("sport_manifest", generated_at),
         "name": SPORT_NAME,
@@ -1181,6 +1200,7 @@ def build_manifest(games, current, index, market_keys, unresolved, source_versio
         "scoring_presets": SCORING_PRESETS,
         "scoring_note": scoring_note,
         "teams": [{"slug": team_slug(a), "abbr": a, "name": n} for a, n in TEAM_NAMES.items()],
+        "team_colors": team_colors,
         "counts": {"players": len(index), "teams": len(TEAM_NAMES), "market": len(market_keys),
                    "games": played(games), "rungs": rungs},
         "unresolved_ids": unresolved,
@@ -1400,7 +1420,7 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
                 for k in market_keys.values() if k in on_disk
             })
         manifest = build_manifest(games, current, index, market_keys, unresolved, src, note,
-                                  generated_at, rungs)
+                                  generated_at, rungs, load_team_colors(con))
         assert_stats_defined({f"{SPORT}/manifest.json": manifest}, STAT_DEFINITIONS)
         summary["manifest"] = sync_keys(dest, {f"{SPORT}/manifest.json": manifest,
                                                "sports.json": build_sports(generated_at)},

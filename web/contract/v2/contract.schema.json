@@ -511,6 +511,19 @@
             "additionalProperties": false
           }
         },
+        "team_colors": {
+          "description": "Team colours keyed on the abbreviation AS PUBLISHED, not the current franchise: STL, SD and OAK are separate entries from LA, LAC and LV, so a game keeps the identity it was played under. Colours only - a hex value is a fact about a team, a logo is a trademark. Sourced from the sport's own reference feed, never hand-typed. Wider than `teams`, which lists the current franchises that have pages.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "primary": {"type": "string"},
+              "secondary": {"type": ["string", "null"]}
+            },
+            "required": ["primary", "secondary"],
+            "additionalProperties": false
+          }
+        },
         "counts": {
           "description": "Coverage, computed once at export so a page costs one read. games and rungs exist because the site otherwise had to open 32 team files or all 11 market files to state them, which is the cost the components table exists to remove.",
           "type": "object",
@@ -545,7 +558,7 @@
           }
         }
       },
-      "required": ["schema_version", "generated_at", "kind", "sport", "name", "period_type", "current", "seasons", "stat_definitions", "scoring_presets", "scoring_note", "teams", "counts", "unresolved_ids"],
+      "required": ["schema_version", "generated_at", "kind", "sport", "name", "period_type", "current", "seasons", "stat_definitions", "scoring_presets", "scoring_note", "teams", "team_colors", "counts", "unresolved_ids"],
       "additionalProperties": false
     },
 
