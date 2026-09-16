@@ -5,3 +5,12 @@ __pycache__/
 .env
 *.pem
 *.key
+
+# Design source (W04). NOT ignored for tidiness: this repo is PUBLIC, and these
+# files carry mock figures - Markets priced 1,284 and Ladder rungs 9,418
+# against a real board of 11 and 83, plus blank study rows and invented
+# intervals. On a site whose whole positioning is that every published figure is
+# sourced, those are the worst possible files to publish unlabelled. They may
+# ship later as a deliberate docs/design/ commit with a README stating that the
+# numbers are mock; they must never arrive swept in under an unrelated commit.
+design/
