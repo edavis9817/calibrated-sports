@@ -4,22 +4,8 @@ on:
   push:
   pull_request:
 
-# SCOPE, and why it is not the whole suite yet.
-#
-# 20 of the 46 test modules import numpy transitively. On the Windows dev
-# machine numpy is a MINGW-W64 build on Python 3.14 that takes an access
-# violation on import under pytest ("CRASHES ARE TO BE EXPECTED" is in its own
-# banner), so the full suite cannot be run or verified locally at all. Shipping
-# a full-suite job that has never been observed passing would be a gate nobody
-# trusts by the second red build.
-#
-# So this runs the modules that ARE verified locally, and they happen to be the
-# ones this workflow exists for: the executable web contract and the export held
-# to it. Widening it is a deliberate follow-up - run the full suite on a clean
-# Linux checkout, fix what falls out, then replace the explicit list below.
-
 jobs:
-  contract:
+  tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,8 +15,13 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt pytest
 
-      - name: the contract is a legal schema, and the export is held to it
-        run: python -m pytest -q tests/test_web_contract.py tests/test_export_web.py
+      # The whole suite. It cannot be run on the Windows dev machine, where
+      # numpy is a MINGW-W64 build on Python 3.14 that takes an access violation
+      # on import under pytest - but that is a property of that box, not of the
+      # tests, so it is no reason to narrow what CI covers. Linux with ordinary
+      # wheels is the environment that gets to decide.
+      - name: the full suite
+        run: python -m pytest -q
 
       # The site vendors this exact file and generates its TypeScript types from
       # it, so a malformed contract breaks the consumer's build, not ours. Fail

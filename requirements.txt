@@ -3,6 +3,11 @@ python-dotenv>=1.0
 boto3>=1.34
 polars>=1.0
 tzdata>=2024.1
+# core/distributions.py imports both - the model itself, not test scaffolding.
+# They were undeclared until 2026-09-15, which went unnoticed only because no
+# CI ever installed from this file. A fresh checkout could not import the model.
+numpy>=1.26
+scipy>=1.11
 # The web contract is executable: jobs/export_web.py validates every file it
 # writes against web/contract/v2/*.schema.json, and CI re-validates.
 jsonschema>=4.20
