@@ -24,6 +24,15 @@ import config
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+# A few tests need the REAL store - the logger's database on its own disk - and
+# CI has neither. Without LOGGER_DB, config.DB_PATH falls back to the relative
+# "data/market_log.db", which resolves inside the checkout. Skipping is stated
+# rather than worked around: these are the assertions CI does not cover.
+NO_STORE = os.getenv("LOGGER_DB") is None
+needs_store = pytest.mark.skipif(
+    NO_STORE, reason="LOGGER_DB unset: no configured store, so config.DB_PATH is repo-relative"
+)
+
 # Files that legitimately name a directory: config itself defines the storage
 # root, and the tests construct temporary ones.
 EXEMPT = {"config.py"}
@@ -121,9 +130,16 @@ def test_the_cfb_probe_derives_its_database_from_config():
     assert cfb_probe.CFB_DB != config.DB_PATH, "the probe must not share the logger's file"
 
 
+@needs_store
 def test_the_probe_does_not_write_its_database_into_the_repo():
     """Stated as the consequence rather than the mechanism, because the
-    consequence is what anyone will actually notice."""
+    consequence is what anyone will actually notice.
+
+    Needs a configured store: with LOGGER_DB unset the fallback IS repo-relative,
+    so this would fail on its own default rather than on a regression. The
+    derivation test above still runs everywhere, and that is the part that
+    catches a path literal creeping back in.
+    """
     import cfb_probe
 
     repo = str(ROOT).lower()

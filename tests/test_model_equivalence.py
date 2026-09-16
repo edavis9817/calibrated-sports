@@ -9,6 +9,7 @@ the table stronger than a comment.
 """
 import ast
 import inspect
+import os
 import sqlite3
 
 import pytest
@@ -260,8 +261,17 @@ def test_the_018_change_verifies_and_is_identity_only():
     assert cmp["added"] == {} and cmp["removed"] == {}
 
 
+@pytest.mark.skipif(
+    os.getenv("LOGGER_DB") is None,
+    reason="LOGGER_DB unset: the live chain reads the logger's predictions, which CI has no copy of",
+)
 def test_all_three_versions_resolve_to_the_one_with_predictions():
-    """The live chain: two hops, undirected, ending at the 935."""
+    """The live chain: two hops, undirected, ending at the 935.
+
+    The only test here that touches the database; the rest compare ASTs and run
+    anywhere. Without a store this raised `unable to open database file`, which
+    reads like a broken test rather than absent data - hence the explicit skip.
+    """
     from core import version_resolve as live_vr
     from models import baseline
     closure = live_vr.equivalent(baseline.MODEL_VERSION)

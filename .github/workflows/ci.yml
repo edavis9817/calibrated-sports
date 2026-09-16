@@ -15,11 +15,17 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt pytest
 
-      # The whole suite. It cannot be run on the Windows dev machine, where
+      # The whole suite. 751 tests; 2 skip here because they need the logger's
+      # real database, which CI has no copy of - both say so in their skip
+      # reason rather than being quietly weakened into passing.
+      #
+      # It does NOT run on the Windows dev box's default interpreter, where
       # numpy is a MINGW-W64 build on Python 3.14 that takes an access violation
-      # on import under pytest - but that is a property of that box, not of the
-      # tests, so it is no reason to narrow what CI covers. Linux with ordinary
-      # wheels is the environment that gets to decide.
+      # on import under pytest. That is one bad install, not a property of the
+      # tests: a clean 3.12 venv on the same machine runs all 751. To reproduce
+      # this job locally, clone to a temp directory (no .env, as here) and run
+      # it from such a venv - the working tree hides these two failures because
+      # it has a configured store.
       - name: the full suite
         run: python -m pytest -q
 
