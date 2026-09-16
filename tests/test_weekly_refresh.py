@@ -139,3 +139,62 @@ def test_refuses_without_config(monkeypatch, tmp_path):
     r = Runner()
     assert W.run(runner=r, log=log_to(tmp_path), fetch=matching_fetch) == 4
     assert r.calls == []
+
+
+# ---------------------------------------------------------------- health rows
+
+def test_a_failed_run_records_health_so_it_is_not_silent(env, monkeypatch):
+    """The 09-16 failure: exit 1, no log, no health row, nothing noticed.
+
+    The job renews quote_retention_hold, so a silent failure is a countdown to
+    losing week-2 opening prices - which is exactly what it was until someone
+    looked at the task's result code by hand.
+    """
+    tmp_path, _ = env
+    seen = []
+    monkeypatch.setattr(W.store, "record_health",
+                        lambda source, ok, detail=None, watermark=None:
+                            seen.append((source, ok, detail)))
+    code = W.run(runner=Runner(fail=("export",)), log=log_to(tmp_path))
+    assert code == 1
+    assert seen and seen[-1][0] == "weekly_refresh"
+    assert seen[-1][1] is False
+    assert "export failed" in seen[-1][2]
+
+
+def test_a_good_run_records_health_with_a_watermark(env, monkeypatch):
+    tmp_path, _ = env
+    seen = []
+    monkeypatch.setattr(W.store, "record_health",
+                        lambda source, ok, detail=None, watermark=None:
+                            seen.append((source, ok, detail, watermark)))
+    assert W.run(runner=Runner(), log=log_to(tmp_path), fetch=lambda url: {
+        "generated_at": "2026-09-15T18:00:00Z"}) == 0
+    assert seen[-1][0] == "weekly_refresh" and seen[-1][1] is True
+    assert seen[-1][3] is not None, "a healthy run must advance the watermark"
+
+
+def test_a_missing_dependency_fails_loudly_before_any_step_runs(env, monkeypatch):
+    """The root cause, as a test.
+
+    jsonschema was declared in requirements.txt and absent from the .venv the
+    scheduled task uses, so export_web died at import - before the job could
+    open its own log. Preflight turns that into a named failure.
+    """
+    tmp_path, _ = env
+    seen = []
+    monkeypatch.setattr(W, "preflight", lambda: ["jsonschema"])
+    monkeypatch.setattr(W.store, "record_health",
+                        lambda source, ok, detail=None, watermark=None:
+                            seen.append((source, ok, detail)))
+    r = Runner()
+    assert W.run(runner=r, log=log_to(tmp_path)) == 4
+    assert r.names() == [], "no step may run when a dependency is missing"
+    assert "jsonschema" in seen[-1][2]
+
+
+def test_preflight_names_the_real_imports_the_subprocesses_need():
+    # Not a mock: these are the modules jobs/export_web.py imports at module
+    # scope. If one is dropped from requirements this list is what notices.
+    assert "jsonschema" in W.REQUIRED_IMPORTS
+    assert W.preflight() == [], "this interpreter is missing a declared dependency"

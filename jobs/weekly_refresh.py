@@ -42,9 +42,25 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config  # noqa: E402
+import store  # noqa: E402
 from jobs.export_web import SPORT, ConfigError, local_path, require_setting  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SOURCE = "weekly_refresh"
+
+# Every dependency this job's SUBPROCESSES need. They run in the same
+# interpreter, so an import that fails there fails here first - which is the
+# whole point: jsonschema was declared in requirements.txt from 522cb41 and
+# never installed into the .venv the scheduled task uses, so export_web died at
+# import, the task returned 1, and the job never got far enough to open a log.
+# Nothing noticed for a day, and the retention hold it renews stopped renewing.
+REQUIRED_IMPORTS = ("jsonschema", "polars", "httpx", "boto3")
+
+
+def preflight():
+    """Missing declared dependencies, by import name. Empty when healthy."""
+    import importlib.util
+    return [m for m in REQUIRED_IMPORTS if importlib.util.find_spec(m) is None]
 
 
 class Log:
@@ -101,7 +117,7 @@ def commit_slug_registry(runner, log):
     return True
 
 
-def run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fetch_json):
+def _run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fetch_json):
     """Exit code: 0 ok (including stale and validation warnings), 1 export failed,
     2 upload failed, 4 configuration missing."""
     log = log or Log()
@@ -168,6 +184,40 @@ def run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fetc
             log("WARN", f"validate: {url} unreachable or not v2 ({type(e).__name__}: {e})")
     log("INFO", f"refresh done in {time.time() - t0:.0f}s")
     return 0
+
+
+EXIT_DETAIL = {0: "ok", 1: "export failed", 2: "upload failed", 4: "configuration missing"}
+
+
+def run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fetch_json):
+    """_run, with a health row on EVERY exit.
+
+    Wrapped rather than four sprinkled calls: run() has four returns today and
+    the fifth one somebody adds is the one that would not report. A raised
+    exception is recorded too - it is the shape the jsonschema breakage took,
+    and an unrecorded crash is indistinguishable from a job that never ran.
+
+    This closes the FORENSIC gap, not the notification one: nothing in this
+    project reads source_health and alerts. The dead-man watches venue polls
+    and the healthcheck ping is liveness only, so a failed refresh is now
+    recorded and still not announced.
+    """
+    log = log or Log()
+    missing = preflight()
+    if missing:
+        detail = "missing dependencies: " + ", ".join(missing)
+        log("ERROR", detail + " - declared in requirements.txt but absent from "
+            + sys.executable)
+        store.record_health(SOURCE, False, detail)
+        return 4
+    try:
+        code = _run(skip_ingest=skip_ingest, runner=runner, log=log, now=now, fetch=fetch)
+    except Exception as e:  # noqa: BLE001 - report, then re-raise
+        store.record_health(SOURCE, False, f"{type(e).__name__}: {e}"[:200])
+        raise
+    store.record_health(SOURCE, code == 0, EXIT_DETAIL.get(code, f"exit {code}"),
+                        watermark=time.time() if code == 0 else None)
+    return code
 
 
 def main():
