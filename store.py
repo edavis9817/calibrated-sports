@@ -550,6 +550,16 @@ MIGRATIONS = [
     ("player_alias", "sport", "TEXT NOT NULL DEFAULT 'nfl'"),
     ("nfl_games", "home_coach", "TEXT"),
     ("nfl_games", "away_coach", "TEXT"),
+    # Fumbles lost, two-point conversions and return touchdowns. These are
+    # standard scoring in essentially every fantasy league, and the export has
+    # been publishing fum_lost and two_pt as NULL since v1 with the note "not
+    # projected by nfl_player_week" - true of the table, and misleading as a
+    # reason: nflverse carries all of them upstream and the ingest simply never
+    # mapped them. A custom-scoring product that cannot weight a fumble is
+    # incomplete, so the fix is here rather than dropping them from the spec.
+    ("nfl_player_week", "fumbles_lost", "REAL"),
+    ("nfl_player_week", "two_pt_conversions", "REAL"),
+    ("nfl_player_week", "return_tds", "REAL"),
 ] + [("nfl_player_week", c, "REAL") for c in DEF_COLS]
 
 

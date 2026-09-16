@@ -91,12 +91,23 @@ POST_LABELS = {"WC": "Wild Card", "DIV": "Divisional", "CON": "Conference", "SB"
 STAT_MAP = (("targets", "targets"), ("receptions", "rec"), ("receiving_yards", "rec_yds"),
             ("receiving_tds", "rec_td"), ("carries", "rush_att"), ("rushing_yards", "rush_yds"),
             ("rushing_tds", "rush_td"), ("attempts", "pass_att"), ("completions", "pass_cmp"),
-            ("passing_yards", "pass_yds"), ("passing_tds", "pass_td"), ("interceptions", "int"))
-MISSING_COMPONENTS = ("fum_lost", "two_pt")     # not projected by nfl_player_week
+            ("passing_yards", "pass_yds"), ("passing_tds", "pass_td"), ("interceptions", "int"),
+            # Mapped 2026-09-16. These were published as NULL since v1 under the
+            # note "not projected by nfl_player_week" - true of the table, and
+            # the wrong conclusion: nflverse has carried all three since 1999
+            # and the ingest simply never selected them. Standard scoring in
+            # essentially every league, so a custom-scoring product cannot omit
+            # them.
+            ("fumbles_lost", "fum_lost"), ("two_pt_conversions", "two_pt"),
+            ("return_tds", "ret_td"))
+# Nothing is unmapped any more. Kept as an empty tuple rather than deleted: the
+# concept is real - a source that cannot supply a component must publish null
+# rather than a silent zero - and the next sport will need it.
+MISSING_COMPONENTS = ()
 COUNT_KEYS = tuple(k for _, k in STAT_MAP) + MISSING_COMPONENTS
 PERIOD_KEYS = ("snaps", "snap_share", "targets", "target_share", "rec", "rec_yds", "rec_td",
                "rush_att", "rush_yds", "rush_td", "pass_att", "pass_cmp", "pass_yds", "pass_td",
-               "int", "fum_lost", "two_pt")
+               "int", "fum_lost", "two_pt", "ret_td")
 DEF_COLUMNS = (("def_tkl_solo", "def_tackles_solo"), ("def_tkl_with_assist", "def_tackles_with_assist"),
                ("def_tkl_ast", "def_tackle_assists"), ("def_tfl", "def_tackles_for_loss"),
                ("def_sacks", "def_sacks"), ("def_qb_hits", "def_qb_hits"),
@@ -128,6 +139,11 @@ STAT_DEFINITIONS = {
     "int": _d("INT", "int", "passing", higher=False),
     "fum_lost": _d("Fum Lost", "int", "misc", higher=False),
     "two_pt": _d("2-Pt", "int", "misc"),
+    # special_teams_tds + pt_return_tds. Verified disjoint on 2025: all 15
+    # punt-return touchdowns carry special_teams_tds = 0, so summing does not
+    # double-count - and taking special_teams_tds alone would have silently
+    # dropped every punt return.
+    "ret_td": _d("Ret TD", "int", "scoring"),
     "td": _d("TD", "int", "scoring"),
     # team offense
     "points": _d("Pts", "int", "team_offense"),
@@ -148,7 +164,15 @@ STAT_DEFINITIONS = {
 }
 
 _BASE_WEIGHTS = {"rec": 1, "rec_yds": 0.1, "rec_td": 6, "rush_yds": 0.1, "rush_td": 6,
-                 "pass_yds": 0.04, "pass_td": 4, "int": -2, "fum_lost": -2, "two_pt": 2}
+                 "pass_yds": 0.04, "pass_td": 4, "int": -2, "fum_lost": -2, "two_pt": 2,
+                 # A return touchdown is 6 points in essentially every league,
+                 # and nflverse's own fantasy_points_ppr credits it: measured
+                 # +6.00 exactly on every 2025 row where a receiver or back
+                 # returned one. Mapping ret_td without weighting it would have
+                 # left it silently worth zero, which is the failure mode this
+                 # project keeps finding - a column that exists, flows through,
+                 # and scores nothing.
+                 "ret_td": 6}
 SCORING_PRESETS = {
     "ppr": {"label": "PPR", "weights": dict(_BASE_WEIGHTS), "bonuses": []},
     "half": {"label": "Half PPR", "weights": dict(_BASE_WEIGHTS, rec=0.5), "bonuses": []},
@@ -157,8 +181,8 @@ SCORING_PRESETS = {
 # research/implied.py names its scorings differently; the distributions keep the
 # manifest's preset keys.
 IMPLIED_SCORING = {"ppr": "ppr", "half": "half_ppr", "standard": "standard"}
-SCORING_NOTE_BASE = ("Scored from the components present. fum_lost and two_pt are null in the "
-                     "NFL source table (nfl_player_week) and score 0.")
+SCORING_NOTE_BASE = ("Scored from the components present, which now include fumbles lost, "
+                     "two-point conversions and return touchdowns.")
 
 # Reasons published in the manifest's unresolved_ids. Both are exclusions of a
 # sort, and both are counted in the export summary on every run: an exclusion

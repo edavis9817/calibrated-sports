@@ -42,6 +42,9 @@ def db(tmp_path, monkeypatch):
         ("00-A", 2025, 1, "REG", "Wide One", "WR", "BUF", "MIA", 7, 9, 88, 1, 0, 0, 0, 0, 21.8),
         ("00-A", 2025, 19, "POST", "Wide One", "WR", "BUF", "KC", 4, 6, 40, 0, 0, 0, 0, 0, 8.0),
         ("00-A", 2026, 1, "REG", "Wide One", "WR", "BUF", "HOU", 5, 8, 60, 0, 1, 5, 0, 0, 11.5),
+        # fumbles_lost / two_pt_conversions / return_tds are set on this row via
+        # UPDATE below: they were mapped 2026-09-16 and the fixture must prove
+        # they FLOW THROUGH, not merely that the export tolerates them.
         ("00-D", 2026, 1, "REG", "Line Backer", "LB", "BUF", "HOU", 0, 0, 0, 0, 0, 0, 0, 0, 0.0),
         ("00-S1", 2025, 1, "REG", "Josh Allen", "QB", "BUF", "MIA", 0, 0, 0, 0, 5, 30, 1, 30, 20.0),
         ("00-S2", 2026, 1, "REG", "Josh Allen", "LB", "BUF", "HOU", 1, 1, 5, 0, 0, 0, 0, 0, 1.5),
@@ -51,6 +54,8 @@ def db(tmp_path, monkeypatch):
                   "player_name, position, team, opponent, receptions, targets, receiving_yards, "
                   "receiving_tds, carries, rushing_yards, rushing_tds, attempts, fantasy_points_ppr, "
                   "def_tackles_solo, source, ingested_ts) VALUES (?,?,?,?,'v1',?,?,?,?,?,?,?,?,?,?,?,?,?,3,'t',0)", w)
+    c.execute("UPDATE nfl_player_week SET fumbles_lost=1, two_pt_conversions=2, return_tds=1 "
+              "WHERE gsis_id='00-A' AND season=2026 AND week=1")
     c.execute("INSERT INTO player_xwalk (gsis_id, display_name, position, pfr_id) VALUES ('00-A','Wide One','WR','WideWi00')")
     c.execute("INSERT INTO player_alias (alias, gsis_id, source) VALUES ('w one', '00-A', 'short')")
     c.execute("INSERT INTO nfl_snap_counts (pfr_player_id, game_id, data_version, season, week, player, "
@@ -326,7 +331,12 @@ def test_game_logs_are_split_by_season_and_summary_points_at_them(db):
     assert [p["label"] for p in p25] == ["Week 1", "Wild Card"]
     p26 = files["nfl/players/00-A/2026.json"]["periods"][0]
     assert p26["stats"]["snap_share"] == 0.87 and p26["home"] is False and p26["opponent"] == "HOU"
-    assert p26["stats"]["fum_lost"] is None
+    # Mapped from nflverse 2026-09-16. These were published as NULL since v1
+    # under the note "not projected by nfl_player_week" - true of the table, and
+    # the wrong conclusion. Proof the values reach the file, not just the schema.
+    assert p26["stats"]["fum_lost"] == 1
+    assert p26["stats"]["two_pt"] == 2
+    assert p26["stats"]["ret_td"] == 1
     assert "games" not in summary and "periods" not in summary      # no logs on first paint
     assert summary["identity"]["slug"] == "wide-one" and summary["identity"]["aliases"] == ["w one"]
 

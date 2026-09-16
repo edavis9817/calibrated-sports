@@ -88,6 +88,25 @@ def normalize_weekly_stats(data: bytes, version: str, week=None):
         _col(df, "passing_yards"), _col(df, "passing_tds"),
         _col(df, "passing_interceptions").alias("interceptions"),
         _col(df, "fantasy_points_ppr"),
+        # Standard fantasy scoring that this table published as NULL until
+        # 2026-09-16. nflverse has carried all of it since 1999; nothing here
+        # was ever filtered, it was simply never mapped.
+        #
+        # fumbles_lost_total, NOT the sum of the three component columns:
+        # measured on 2025, 39 of 19,422 rows disagree and the totals are 267
+        # against 228, because a fumble can be lost on a play that is neither a
+        # rush, a reception nor a sack. Summing the parts undercounts by ~15%.
+        _col(df, "fumbles_lost_total").alias("fumbles_lost"),
+        (_col(df, "passing_2pt_conversions", 0).fill_null(0)
+         + _col(df, "rushing_2pt_conversions", 0).fill_null(0)
+         + _col(df, "receiving_2pt_conversions", 0).fill_null(0)).alias("two_pt_conversions"),
+        # DISJOINT, verified: all 15 punt-return touchdowns in 2025 carry
+        # special_teams_tds = 0, and no row has pt_return_tds > special_teams_tds.
+        # So this sums rather than double-counts - and taking special_teams_tds
+        # alone, the cautious-looking choice, would have dropped every
+        # punt-return touchdown on the floor.
+        (_col(df, "special_teams_tds", 0).fill_null(0)
+         + _col(df, "pt_return_tds", 0).fill_null(0)).alias("return_tds"),
         *[_col(df, c).alias(c) for c in store.DEF_COLS],
     ]).drop_nulls("gsis_id")
 
@@ -96,6 +115,7 @@ def normalize_weekly_stats(data: bytes, version: str, week=None):
             "targets", "receiving_yards", "receiving_tds", "target_share",
             "carries", "rushing_yards", "rushing_tds", "attempts", "completions",
             "passing_yards", "passing_tds", "interceptions", "fantasy_points_ppr",
+            "fumbles_lost", "two_pt_conversions", "return_tds",
             *store.DEF_COLS, "source", "ingested_ts")
     rows = [("nfl", r["gsis_id"], r["season"], r["week"], r["season_type"],
              version, r["player_name"], r["position"], r["team"], r["opponent"],
@@ -104,6 +124,7 @@ def normalize_weekly_stats(data: bytes, version: str, week=None):
              _f(r["rushing_yards"]), _f(r["rushing_tds"]), _f(r["attempts"]),
              _f(r["completions"]), _f(r["passing_yards"]), _f(r["passing_tds"]),
              _f(r["interceptions"]), _f(r["fantasy_points_ppr"]),
+             _f(r["fumbles_lost"]), _f(r["two_pt_conversions"]), _f(r["return_tds"]),
              *[_f(r[c]) for c in store.DEF_COLS],
              SOURCE, now)
             for r in out.iter_rows(named=True)]
