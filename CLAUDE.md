@@ -1145,7 +1145,27 @@ domain by decision**.
     additive and went unannounced under the old arrangement.
   - Gates: `npm run check` fails on stale generated types; the web repo's
     `contract-in-sync` job curls the canonical file from this (public) repo and
-    diffs the vendored copy; this repo's `ci.yml` runs the contract tests.
+    diffs the vendored copy; this repo's `ci.yml` runs the FULL suite.
+- **CI runs all 751 tests, and the local numpy crash was never a reason not
+  to.** `.github/workflows/ci.yml` is this repo's first workflow (2026-09-15).
+  Two tests skip, both stating why: they read the logger's own database, which
+  CI has no copy of. `LOGGER_DB is None` is the skip condition and this suite's
+  only skip convention.
+  - **The dev box's default interpreter cannot run the suite; the suite is
+    fine.** numpy there is a MINGW-W64 build on Python 3.14 that takes an
+    access violation on import under pytest, killing 11 modules outright. That
+    is one bad install. **A clean 3.12 venv on the same machine runs all 751 in
+    35s** - `py -3.12 -m venv`, `pip install -r requirements.txt pytest`. Do not
+    conclude from a crash on the default interpreter that anything is broken.
+  - **To reproduce CI locally, clone HEAD to a temp directory and run that venv
+    against the clone.** The working tree has `.env` and a configured store, and
+    it HIDES the two environment-dependent failures - the same shape as the
+    Cloudflare `public/` ENOENT, where the working tree had a file git did not
+    track.
+  - **numpy and scipy were never in `requirements.txt`** despite
+    `core/distributions.py` importing both. Nothing had ever installed from that
+    file, because no CI existed; a fresh checkout could not import the model.
+    Widening CI is what found it.
   - **The site stays lenient where the producer is strict**, deliberately:
     `validateEnvelope` checks the envelope and top-level keys only, so a file
     written before a field existed still renders, while the same file would be
