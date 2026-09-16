@@ -3,3 +3,6 @@ python-dotenv>=1.0
 boto3>=1.34
 polars>=1.0
 tzdata>=2024.1
+# The web contract is executable: jobs/export_web.py validates every file it
+# writes against web/contract/v2/*.schema.json, and CI re-validates.
+jsonschema>=4.20

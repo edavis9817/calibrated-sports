@@ -37,12 +37,22 @@ from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
+from jsonschema import Draft202012Validator
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SCHEMA_VERSION = 2
+# THE contract, and it is executable. This exporter validates everything it
+# writes against it; the site generates its TypeScript types from the same
+# document. docs/web-schema.md is the prose description of this file, not a
+# second source of truth. Missing or unreadable is a hard import failure - an
+# export that cannot check itself must not run.
+CONTRACT_PATH = os.path.join(ROOT, "web", "contract", "v2", "contract.schema.json")
+with open(CONTRACT_PATH, encoding="utf-8") as _f:
+    CONTRACT = json.load(_f)
+SCHEMA_VERSION = CONTRACT["x-contract"]["schema_version"]
 SPORT = "nfl"
 SPORT_NAME = "NFL"
 PERIOD_TYPE = "week"
@@ -143,6 +153,12 @@ IMPLIED_SCORING = {"ppr": "ppr", "half": "half_ppr", "standard": "standard"}
 SCORING_NOTE_BASE = ("Scored from the components present. fum_lost and two_pt are null in the "
                      "NFL source table (nfl_player_week) and score 0.")
 
+# Reasons published in the manifest's unresolved_ids. Both are exclusions of a
+# sort, and both are counted in the export summary on every run: an exclusion
+# nobody can see is indistinguishable from a bug.
+REASON_NO_NAME = "no resolvable name - excluded from the export"
+REASON_NO_TEAM = "period row with no team - dropped from that season's team list"
+
 SNAP_FIRST_SEASON = 2013
 CDF_X = tuple(range(0, 51))
 THRESHOLDS = (5, 10, 15, 20, 25, 30)
@@ -171,18 +187,13 @@ EXEC_RATIO = {"CHAMP": 3.88, "WINSWEEK": 2.76, "KXNFLRSHATT": 2.51, "WINS": 2.13
               "KXNFLGAME": 0.30}
 EXEC_RULE = "Cross game lines 1-6h before kickoff; never cross a prop in-game."
 
-KIND_BY_KEY = (  # (regex on the key, kind, sport)
-    (re.compile(r"^sports\.json$"), "sports", None),
-    (re.compile(r"^[a-z0-9]+/manifest\.json$"), "sport_manifest", "sport"),
-    (re.compile(r"^[a-z0-9]+/players/index\.json$"), "player_index", "sport"),
-    (re.compile(r"^[a-z0-9]+/players/[^/]+/summary\.json$"), "player_summary", "sport"),
-    (re.compile(r"^[a-z0-9]+/players/[^/]+/\d{4}\.json$"), "player_season", "sport"),
-    (re.compile(r"^[a-z0-9]+/teams/[a-z0-9]+\.json$"), "team", "sport"),
-    (re.compile(r"^[a-z0-9]+/market/[^/]+/\d{4}-\d+\.json$"), "market", "sport"),
-    (re.compile(r"^research/hypotheses\.json$"), "research.hypotheses", None),
-    (re.compile(r"^research/calibration\.json$"), "research.calibration", None),
-    (re.compile(r"^research/execution\.json$"), "research.execution", None),
-)
+# (regex on the key, kind, sport) - DERIVED from the contract's own key table.
+# A second hand-maintained copy here would be exactly the drift surface the
+# contract exists to close.
+_SPORTLESS_KINDS = set(CONTRACT["x-contract"]["sportless_kinds"])
+KIND_BY_KEY = tuple((re.compile(k["pattern"]), k["kind"],
+                     None if k["kind"] in _SPORTLESS_KINDS else "sport")
+                    for k in CONTRACT["x-contract"]["keys"])
 
 
 class ConfigError(RuntimeError):
@@ -191,6 +202,10 @@ class ConfigError(RuntimeError):
 
 class StatDefinitionError(AssertionError):
     """A stat key is used in a file but not defined in the sport manifest."""
+
+
+class ContractError(AssertionError):
+    """A file does not match web/contract/v2/contract.schema.json for its kind."""
 
 
 # =============================================================================
@@ -409,6 +424,50 @@ def assert_stats_defined(files, definitions):
         raise StatDefinitionError(f"stat keys used but not in stat_definitions: {detail}")
 
 
+_VALIDATORS = None
+
+
+def contract_validators():
+    """One compiled validator per kind, built once from the contract document."""
+    global _VALIDATORS
+    if _VALIDATORS is None:
+        defs = CONTRACT["$defs"]
+        _VALIDATORS = {kind: Draft202012Validator({"$ref": f"#/$defs/{name}", "$defs": defs})
+                       for kind, name in CONTRACT["x-contract"]["kinds"].items()}
+    return _VALIDATORS
+
+
+def validate_contract(files, limit=12):
+    """Every file must match the contract for the kind its key implies.
+
+    This is what makes the contract executable rather than aspirational. The
+    site's types are generated from the same document, so a field added,
+    dropped or re-typed here fails the export instead of reaching a page as a
+    200 with something broken underneath. The contract closes its objects, so
+    an ADDITIVE field fails too - deliberately: it must be added to the
+    contract in the same commit, which is what regenerates the site's types.
+    """
+    vs = contract_validators()
+    problems = []
+    for key, obj in sorted(files.items()):
+        kind, _ = kind_for_key(key)
+        if kind is None:
+            problems.append(f"{key}: no kind matches this key in the contract's key table")
+            continue
+        if obj.get("kind") != kind:
+            problems.append(f"{key}: the key implies kind {kind!r}, the file says {obj.get('kind')!r}")
+            continue
+        for e in vs[kind].iter_errors(obj):
+            loc = "/".join(str(p) for p in e.absolute_path) or "(root)"
+            problems.append(f"{key}: {loc}: {e.message}")
+    if problems:
+        shown = "\n  ".join(problems[:limit])
+        more = f"\n  ... and {len(problems) - limit} more" if len(problems) > limit else ""
+        raise ContractError(
+            f"{len(problems)} contract violation(s) against "
+            f"{os.path.relpath(CONTRACT_PATH, ROOT).replace(os.sep, '/')}:\n  {shown}{more}")
+
+
 def cache_control(key):
     short = key == "sports.json" or key.endswith("/manifest.json") or key.endswith("/index.json")
     return "public, max-age=60" if short else "public, max-age=300"
@@ -562,8 +621,32 @@ def players_by_id(weeks, scope):
     return by
 
 
+def resolved_name(gsis, rows, xwalk):
+    """The player's display name, or None when no source names them."""
+    return (xwalk.get(gsis) or {}).get("display_name") or rows[-1].get("player_name")
+
+
+def drop_nameless(by_player, xwalk):
+    """Exclude players no source can name. -> (kept, {id: unresolved row}).
+
+    A page titled by a bare source id is not a player page, and a nameless row
+    in the index cannot be searched for. So they are excluded rather than
+    rendered - but the count is REPORTED on every run and the ids are published
+    in the manifest's unresolved_ids, because a silent filter is how a real
+    player disappears without anyone noticing. A count that prints "0" most
+    weeks makes the week it prints "1" visible the day it happens.
+    """
+    kept, dropped = {}, {}
+    for gsis, rows in by_player.items():
+        if resolved_name(gsis, rows, xwalk):
+            kept[gsis] = rows
+        else:
+            dropped[gsis] = {"id": gsis, "name": None, "reason": REASON_NO_NAME}
+    return kept, dropped
+
+
 def slug_entries(by_player, xwalk):
-    return {gsis: {"name": (xwalk.get(gsis) or {}).get("display_name") or rows[-1].get("player_name"),
+    return {gsis: {"name": resolved_name(gsis, rows, xwalk),
                    "first_season": rows[0]["season"],
                    "reg_games": sum(1 for r in rows if r["season_type"] == "REG")}
             for gsis, rows in by_player.items()}
@@ -636,6 +719,9 @@ def build_players(games, by_player, snaps, xwalk, aliases, slugs, market_keys, g
                 "team": r["team"], "opponent": opp, "home": home,
                 "stats": {k: raw[k] for k in PERIOD_KEYS}})
 
+        if any(p["team"] is None for p in periods):
+            unresolved.append({"id": gsis, "name": name, "reason": REASON_NO_TEAM})
+
         by_season = defaultdict(list)
         for p in periods:
             by_season[p["season"]].append(p)
@@ -646,9 +732,13 @@ def build_players(games, by_player, snaps, xwalk, aliases, slugs, market_keys, g
             files[key] = {**envelope("player_season", generated_at),
                           "identity": {"id": gsis, "slug": slug, "name": name},
                           "season": season, "periods": ps}
+            # "Teams played for" is a display list, so a row with no team
+            # contributes nothing to it. The period row itself keeps its null
+            # team - that is the honest record - and the player is counted in
+            # unresolved_ids above rather than quietly cleaned up.
             teams = []
             for p in ps:
-                if p["team"] not in teams:
+                if p["team"] is not None and p["team"] not in teams:
                     teams.append(p["team"])
             season_entries.append({"season": season, "teams": teams, "games": len(ps), "key": key})
 
@@ -1036,7 +1126,13 @@ def local_keys(dest):
 
 
 def sync_keys(dest, wanted, prefixes, dry_run=False):
-    """Write {key: obj}; delete local *.json under `prefixes` no longer wanted."""
+    """Write {key: obj}; delete local *.json under `prefixes` no longer wanted.
+
+    Nothing reaches disk unvalidated: this is the one choke point every
+    exported file passes through, so the contract check lives here rather than
+    at each call site, where a new part could forget it.
+    """
+    validate_contract(wanted)
     written = deleted = 0
     for key, obj in wanted.items():
         written += write_if_changed(local_path(dest, key), obj, dry_run)
@@ -1067,8 +1163,14 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
     current = current_period(games, weeks, now_ts)
     scope = player_scope(weeks)
     by_player = players_by_id(weeks, scope)
+    # Before slugs: an excluded player must not append to the slug registry,
+    # which is permanent.
+    by_player, nameless = drop_nameless(by_player, xwalk)
     slugs, slugs_added = scope_slugs(by_player, xwalk, registry_path, dry_run)
-    summary = {"current": current, "slugs_added": len(slugs_added)}
+    summary = {"current": current, "slugs_added": len(slugs_added),
+               "excluded_no_name": {"count": len(nameless), "ids": sorted(nameless)}}
+    log(f"excluded {len(nameless)} player(s) with no resolvable name"
+        + (": " + ", ".join(sorted(nameless)) if nameless else ""))
 
     if "market" in parts:
         market, market_keys, census = build_market(con, games, weeks, xwalk, slugs, current,
@@ -1099,7 +1201,10 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
     summary["ppr_check"] = {"median_abs_diff": med, "p99_abs_diff": p99, "n": n}
     unresolved += [{"id": pfr, "name": name, "reason": "snap-count pfr id not in player_xwalk"}
                    for pfr, name in sorted(snap_unresolved.items())]
+    unresolved += [nameless[gsis] for gsis in sorted(nameless)]
     summary["unresolved"] = unresolved
+    summary["rows_without_team"] = sum(1 for u in unresolved if u["reason"] == REASON_NO_TEAM)
+    log(f"{summary['rows_without_team']} player(s) had a period row with no team")
     collisions = {gsis: s for gsis, s in slugs.items() if slugify((xwalk.get(gsis) or {}).get("display_name")
                   or by_player[gsis][-1].get("player_name")) != s}
     summary["slug_collisions"] = collisions

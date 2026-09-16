@@ -1,0 +1,812 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/edavis9817/calibrated-sports/main/web/contract/v2/contract.schema.json",
+  "title": "Calibrated Sports web data contract, schema_version 2",
+  "description": "THE executable contract between jobs/export_web.py (producer) and calibratedsports-web (consumer). docs/web-schema.md is the prose; this file is what runs. The exporter validates every file it writes against it, the site generates lib/schema.generated.ts from it, and CI on both sides fails on drift. Before this existed both sides were hand transcriptions of the prose, and they disagreed: identity.name was typed string while the exporter emitted null, which was a 500 on one page and a browser-side throw on another. additionalProperties is false everywhere a shape is closed, ON PURPOSE - an additive field must fail validation until this file is updated in the same commit, which is what forces the site's types to regenerate. Nothing here names a sport: stat keys, groups, period labels and season types are open strings owned by each sport's manifest.",
+
+  "x-contract": {
+    "schema_version": 2,
+    "comment": "Consumed by jobs/export_web.py and scripts/generate-schema-types.mjs. Both derive their kind list from here rather than hardcoding one.",
+    "kinds": {
+      "sports": "SportsFile",
+      "sport_manifest": "SportManifest",
+      "player_index": "PlayerIndex",
+      "player_summary": "PlayerSummary",
+      "player_season": "PlayerSeason",
+      "team": "TeamFile",
+      "market": "MarketFile",
+      "research.hypotheses": "HypothesesFile",
+      "research.calibration": "CalibrationResearchFile",
+      "research.execution": "ExecutionFile"
+    },
+    "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.execution"],
+    "keys": [
+      {"pattern": "^sports\\.json$", "kind": "sports"},
+      {"pattern": "^[a-z0-9]+/manifest\\.json$", "kind": "sport_manifest"},
+      {"pattern": "^[a-z0-9]+/players/index\\.json$", "kind": "player_index"},
+      {"pattern": "^[a-z0-9]+/players/[^/]+/summary\\.json$", "kind": "player_summary"},
+      {"pattern": "^[a-z0-9]+/players/[^/]+/\\d{4}\\.json$", "kind": "player_season"},
+      {"pattern": "^[a-z0-9]+/teams/[a-z0-9]+\\.json$", "kind": "team"},
+      {"pattern": "^[a-z0-9]+/market/[^/]+/\\d{4}-\\d+\\.json$", "kind": "market"},
+      {"pattern": "^research/hypotheses\\.json$", "kind": "research.hypotheses"},
+      {"pattern": "^research/calibration\\.json$", "kind": "research.calibration"},
+      {"pattern": "^research/execution\\.json$", "kind": "research.execution"}
+    ]
+  },
+
+  "$defs": {
+    "Timestamp": {
+      "description": "ISO-8601 UTC to the second, always Z. Unix seconds live in *_ts fields and are plain numbers.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+
+    "Interval": {
+      "description": "A [lo, hi] pair. Exactly two numbers, never a bare array of unknown length.",
+      "type": "array",
+      "prefixItems": [{"type": "number"}, {"type": "number"}],
+      "minItems": 2,
+      "maxItems": 2,
+      "items": false
+    },
+
+    "Stats": {
+      "description": "Stat components, keyed by the sport's own stat keys. The keys are NOT enumerated here - that would name a sport. Every key used must be defined in the sport manifest's stat_definitions, which jobs/export_web.assert_stats_defined enforces separately. null means unknown or not collected, never zero.",
+      "type": "object",
+      "additionalProperties": {"type": ["number", "null"]}
+    },
+
+    "StatFormat": {
+      "type": "string",
+      "enum": ["int", "dec1", "dec2", "pct", "signed_dec1"]
+    },
+
+    "StatDefinition": {
+      "type": "object",
+      "properties": {
+        "label": {"type": "string"},
+        "format": {"$ref": "#/$defs/StatFormat"},
+        "group": {
+          "description": "Free text owned by the sport. The site orders groups from config/sports/{sport}.ts, not from here.",
+          "type": "string"
+        },
+        "higher_is_better": {"type": "boolean"},
+        "description": {"type": "string"}
+      },
+      "required": ["label", "format", "group", "higher_is_better"],
+      "additionalProperties": false
+    },
+
+    "ScoringPreset": {
+      "description": "Scoring is data, not code. The site runs one scoring function over these weights, so a preset and a user's custom scoring share a code path (site-architecture 3.1).",
+      "type": "object",
+      "properties": {
+        "label": {"type": "string"},
+        "weights": {"type": "object", "additionalProperties": {"type": "number"}},
+        "bonuses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "stat": {"type": "string"},
+              "at": {"type": "number"},
+              "points": {"type": "number"}
+            },
+            "required": ["stat", "at", "points"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["label", "weights", "bonuses"],
+      "additionalProperties": false
+    },
+
+    "Period": {
+      "type": "object",
+      "properties": {
+        "index": {"type": "integer"},
+        "label": {"type": "string"},
+        "key": {"type": "string"}
+      },
+      "required": ["index", "label", "key"],
+      "additionalProperties": false
+    },
+
+    "Identity": {
+      "description": "A player as the summary file carries them.",
+      "type": "object",
+      "properties": {
+        "id": {"type": "string"},
+        "slug": {"type": "string"},
+        "name": {
+          "description": "NULLABLE, and this is the field that caused the 9c8f44b outage. A player can appear in the stat rows with no crosswalk row to name them; the site renders every player name through displayName() (name, else slug).",
+          "type": ["string", "null"]
+        },
+        "position": {"type": ["string", "null"]},
+        "team": {"type": ["string", "null"]},
+        "ids": {
+          "description": "Source ids by system. Open map: a sport brings its own set, and an id that is not known is null rather than absent.",
+          "type": "object",
+          "additionalProperties": {"type": ["string", "null"]}
+        },
+        "aliases": {"type": "array", "items": {"type": "string"}},
+        "headshot_url": {
+          "description": "https URL hotlinked from the sport's image host, never stored in R2. null when unknown.",
+          "type": ["string", "null"]
+        }
+      },
+      "required": ["id", "slug", "name", "position", "team", "ids", "aliases", "headshot_url"],
+      "additionalProperties": false
+    },
+
+    "ShortIdentity": {
+      "description": "Player season files carry only enough identity to title a page.",
+      "type": "object",
+      "properties": {
+        "id": {"type": "string"},
+        "slug": {"type": "string"},
+        "name": {"type": ["string", "null"]}
+      },
+      "required": ["id", "slug", "name"],
+      "additionalProperties": false
+    },
+
+    "MarketIdentity": {
+      "description": "Market files carry no ids/aliases/headshot - the summary file is where those live.",
+      "type": "object",
+      "properties": {
+        "id": {"type": "string"},
+        "slug": {"type": ["string", "null"]},
+        "name": {"type": ["string", "null"]},
+        "position": {"type": ["string", "null"]},
+        "team": {"type": ["string", "null"]}
+      },
+      "required": ["id", "slug", "name", "position", "team"],
+      "additionalProperties": false
+    },
+
+    "IndexPlayer": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string"},
+        "slug": {"type": "string"},
+        "name": {"type": ["string", "null"]},
+        "position": {"type": ["string", "null"]},
+        "team": {"type": ["string", "null"]},
+        "first_season": {"type": "integer"},
+        "last_season": {"type": "integer"},
+        "aliases": {"type": "array", "items": {"type": "string"}},
+        "has_market": {"type": "boolean"}
+      },
+      "required": ["id", "slug", "name", "position", "team", "first_season", "last_season", "aliases", "has_market"],
+      "additionalProperties": false
+    },
+
+    "SeasonTotal": {
+      "type": "object",
+      "properties": {
+        "season": {"type": "integer"},
+        "season_type": {"type": "string"},
+        "games": {"type": "integer"},
+        "stats": {"$ref": "#/$defs/Stats"}
+      },
+      "required": ["season", "season_type", "games", "stats"],
+      "additionalProperties": false
+    },
+
+    "PeriodRow": {
+      "description": "One game. `index` is the period number within its season, in whatever unit the sport manifest's period_type declares.",
+      "type": "object",
+      "properties": {
+        "season": {"type": "integer"},
+        "index": {"type": "integer"},
+        "label": {"type": "string"},
+        "season_type": {"type": "string"},
+        "game_id": {"type": ["string", "null"]},
+        "date": {"type": ["string", "null"]},
+        "team": {"type": ["string", "null"]},
+        "opponent": {"type": ["string", "null"]},
+        "home": {"type": ["boolean", "null"]},
+        "stats": {"$ref": "#/$defs/Stats"}
+      },
+      "required": ["season", "index", "label", "season_type", "game_id", "date", "team", "opponent", "home", "stats"],
+      "additionalProperties": false
+    },
+
+    "ScheduleGame": {
+      "type": "object",
+      "properties": {
+        "season": {"type": "integer"},
+        "index": {"type": "integer"},
+        "label": {"type": "string"},
+        "game_type": {"type": "string"},
+        "game_id": {"type": "string"},
+        "date": {"type": ["string", "null"]},
+        "kickoff_ts": {"type": ["number", "null"]},
+        "home": {"type": "boolean"},
+        "opponent": {"description": "The opponent's team slug.", "type": "string"},
+        "opponent_abbr": {"type": "string"},
+        "points_for": {"type": ["number", "null"]},
+        "points_against": {"type": ["number", "null"]},
+        "result": {"enum": ["W", "L", "T", null]},
+        "spread": {
+          "description": "From THIS team's perspective: positive means this team is favoured.",
+          "type": ["number", "null"]
+        },
+        "total": {"type": ["number", "null"]},
+        "coach": {"type": ["string", "null"]},
+        "opponent_coach": {"type": ["string", "null"]}
+      },
+      "required": ["season", "index", "label", "game_type", "game_id", "date", "kickoff_ts", "home", "opponent", "opponent_abbr", "points_for", "points_against", "result", "spread", "total", "coach", "opponent_coach"],
+      "additionalProperties": false
+    },
+
+    "TeamSplit": {
+      "type": "object",
+      "properties": {
+        "season": {"type": "integer"},
+        "season_type": {"type": "string"},
+        "games": {"type": "integer"},
+        "offense": {"$ref": "#/$defs/Stats"},
+        "defense": {"$ref": "#/$defs/Stats"}
+      },
+      "required": ["season", "season_type", "games", "offense", "defense"],
+      "additionalProperties": false
+    },
+
+    "RosterEntry": {
+      "type": "object",
+      "properties": {
+        "season": {"type": "integer"},
+        "id": {"type": "string"},
+        "slug": {
+          "description": "NULLABLE: a roster lists everyone who played, but only players in the export's scope get a page and therefore a slug. 63.5% of roster rows carry null here. lib/schema.ts typed this `string` until this contract was written - the same class of lie as identity.name, not yet fired only because the site dereferences it behind has_page.",
+          "type": ["string", "null"]
+        },
+        "name": {"type": ["string", "null"]},
+        "position": {"type": ["string", "null"]},
+        "games": {"type": "integer"},
+        "snap_share": {"type": ["number", "null"]},
+        "target_share": {"type": ["number", "null"]},
+        "carry_share": {"type": ["number", "null"]},
+        "has_page": {
+          "description": "True when this player is in scope and has their own page. When true, slug is non-null.",
+          "type": "boolean"
+        }
+      },
+      "required": ["season", "id", "slug", "name", "position", "games", "snap_share", "target_share", "carry_share", "has_page"],
+      "additionalProperties": false
+    },
+
+    "Basis": {
+      "description": "How a component was priced. MARKET is quoted directly, DERIVED is computed from another component, ANCHORED is scaled from a rate fitted elsewhere. Publishing this per component is mandatory - a derived yardage number must never read as a market price.",
+      "type": "string",
+      "enum": ["MARKET", "DERIVED", "ANCHORED"]
+    },
+
+    "MarketRung": {
+      "type": "object",
+      "properties": {
+        "line": {"type": "number"},
+        "p_over": {"type": "number", "minimum": 0, "maximum": 1},
+        "bid": {"type": ["number", "null"]},
+        "ask": {"type": ["number", "null"]},
+        "quote_ts": {"type": ["number", "null"]}
+      },
+      "required": ["line", "p_over", "bid", "ask", "quote_ts"],
+      "additionalProperties": false
+    },
+
+    "MarketComponent": {
+      "type": "object",
+      "properties": {
+        "stat": {"type": "string"},
+        "basis": {"$ref": "#/$defs/Basis"},
+        "note": {"type": "string"},
+        "rungs": {"type": "array", "items": {"$ref": "#/$defs/MarketRung"}}
+      },
+      "required": ["stat", "basis"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "description": "A MARKET component must show the ladder it was priced from, even when that ladder is empty and a note explains why. DERIVED and ANCHORED must not carry rungs - they were not quoted.",
+          "if": {"properties": {"basis": {"const": "MARKET"}}, "required": ["basis"]},
+          "then": {"required": ["rungs"]},
+          "else": {"not": {"required": ["rungs"]}}
+        }
+      ]
+    },
+
+    "Distribution": {
+      "type": "object",
+      "properties": {
+        "cdf": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "x": {"type": "number"},
+              "p_at_most": {"type": "number", "minimum": 0, "maximum": 1}
+            },
+            "required": ["x", "p_at_most"],
+            "additionalProperties": false
+          }
+        },
+        "thresholds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "points": {"type": "number"},
+              "p_at_least": {"type": "number", "minimum": 0, "maximum": 1}
+            },
+            "required": ["points", "p_at_least"],
+            "additionalProperties": false
+          }
+        },
+        "quantiles": {"type": "object", "additionalProperties": {"type": "number"}}
+      },
+      "required": ["cdf", "thresholds", "quantiles"],
+      "additionalProperties": false
+    },
+
+    "Verdict": {
+      "type": "string",
+      "enum": ["retired", "null", "not_testable", "open"]
+    },
+
+    "Hypothesis": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string"},
+        "brief": {"type": "string"},
+        "date": {"type": ["string", "null"]},
+        "question": {"type": "string"},
+        "verdict": {"$ref": "#/$defs/Verdict"},
+        "metric": {"type": ["string", "null"]},
+        "estimate": {"type": ["number", "null"]},
+        "interval": {"anyOf": [{"$ref": "#/$defs/Interval"}, {"type": "null"}]},
+        "unit": {"type": ["string", "null"]},
+        "n": {"type": ["integer", "null"]},
+        "games": {"type": ["integer", "null"]},
+        "why": {"type": "string"},
+        "script": {
+          "description": "The committed script that produces the number. Anything quoted as a finding must have one.",
+          "type": ["string", "null"]
+        }
+      },
+      "required": ["id", "brief", "date", "question", "verdict", "metric", "estimate", "interval", "unit", "n", "games", "why", "script"],
+      "additionalProperties": false
+    },
+
+    "ReliabilityBin": {
+      "type": "object",
+      "properties": {
+        "lo": {"type": "number"},
+        "hi": {"type": "number"},
+        "n": {"type": "integer"},
+        "mean_forecast": {"type": ["number", "null"]},
+        "realized": {"type": ["number", "null"]},
+        "wilson": {
+          "description": "Wilson interval, not a normal approximation - the buckets are small and the rates are low.",
+          "anyOf": [{"$ref": "#/$defs/Interval"}, {"type": "null"}]
+        }
+      },
+      "required": ["lo", "hi", "n", "mean_forecast", "realized", "wilson"],
+      "additionalProperties": false
+    },
+
+    "SportsFile": {
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "sports"},
+        "sport": {"type": "null"},
+        "sports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sport": {"type": "string"},
+              "name": {"type": "string"},
+              "manifest": {"type": "string"}
+            },
+            "required": ["sport", "name", "manifest"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "sports"],
+      "additionalProperties": false
+    },
+
+    "SportManifest": {
+      "description": "The only mutable pointer the site polls, and the only place stat labels, formats, groups and scoring weights exist.",
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "sport_manifest"},
+        "sport": {"type": "string"},
+        "name": {"type": "string"},
+        "period_type": {
+          "description": "What a period IS for this sport, declared by the sport itself - a week, a game, a date. Nothing in the contract assumes any of them.",
+          "type": "string"
+        },
+        "current": {
+          "type": "object",
+          "properties": {
+            "season": {"type": "integer"},
+            "period": {"$ref": "#/$defs/Period"},
+            "data_through": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {"season": {"type": "integer"}, "index": {"type": "integer"}},
+                  "required": ["season", "index"],
+                  "additionalProperties": false
+                },
+                {"type": "null"}
+              ]
+            },
+            "source_version": {"type": ["string", "null"]},
+            "stale": {
+              "description": "True when the source is late: data_through lags the last completed period. The site shows a banner rather than silently serving old numbers.",
+              "type": "boolean"
+            },
+            "stale_reason": {"type": ["string", "null"]}
+          },
+          "required": ["season", "period", "data_through", "source_version", "stale", "stale_reason"],
+          "additionalProperties": false
+        },
+        "seasons": {"type": "array", "items": {"type": "integer"}},
+        "stat_definitions": {"type": "object", "additionalProperties": {"$ref": "#/$defs/StatDefinition"}},
+        "scoring_presets": {"type": "object", "additionalProperties": {"$ref": "#/$defs/ScoringPreset"}},
+        "scoring_note": {"type": "string"},
+        "teams": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "slug": {"type": "string"},
+              "abbr": {"type": "string"},
+              "name": {"type": "string"}
+            },
+            "required": ["slug", "abbr", "name"],
+            "additionalProperties": false
+          }
+        },
+        "counts": {
+          "type": "object",
+          "properties": {
+            "players": {"type": "integer"},
+            "teams": {"type": "integer"},
+            "market": {"type": "integer"}
+          },
+          "required": ["players", "teams", "market"],
+          "additionalProperties": false
+        },
+        "unresolved_ids": {
+          "description": "Ids the export could not fully resolve, and why - including players excluded from the export for having no resolvable name. Published so an exclusion is visible on the site rather than being a silent filter.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "string"},
+              "name": {"type": ["string", "null"]},
+              "reason": {"type": "string"}
+            },
+            "required": ["id", "name", "reason"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "name", "period_type", "current", "seasons", "stat_definitions", "scoring_presets", "scoring_note", "teams", "counts", "unresolved_ids"],
+      "additionalProperties": false
+    },
+
+    "PlayerIndex": {
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "player_index"},
+        "sport": {"type": "string"},
+        "players": {"type": "array", "items": {"$ref": "#/$defs/IndexPlayer"}}
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "players"],
+      "additionalProperties": false
+    },
+
+    "PlayerSummary": {
+      "description": "First paint: identity, the season list, aggregates and the market pointer. No game logs - those are per-season files.",
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "player_summary"},
+        "sport": {"type": "string"},
+        "identity": {"$ref": "#/$defs/Identity"},
+        "seasons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "season": {"type": "integer"},
+              "teams": {"type": "array", "items": {"type": "string"}},
+              "games": {"type": "integer"},
+              "key": {"type": "string"}
+            },
+            "required": ["season", "teams", "games", "key"],
+            "additionalProperties": false
+          }
+        },
+        "season_totals": {"type": "array", "items": {"$ref": "#/$defs/SeasonTotal"}},
+        "career": {
+          "type": "object",
+          "properties": {
+            "season_type": {"type": "string"},
+            "games": {"type": "integer"},
+            "stats": {"$ref": "#/$defs/Stats"}
+          },
+          "required": ["season_type", "games", "stats"],
+          "additionalProperties": false
+        },
+        "market": {
+          "description": "Pointer to this period's market file, or null when there is no current-period market.",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {"key": {"type": "string"}},
+              "required": ["key"],
+              "additionalProperties": false
+            },
+            {"type": "null"}
+          ]
+        }
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "identity", "seasons", "season_totals", "career", "market"],
+      "additionalProperties": false
+    },
+
+    "PlayerSeason": {
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "player_season"},
+        "sport": {"type": "string"},
+        "identity": {"$ref": "#/$defs/ShortIdentity"},
+        "season": {"type": "integer"},
+        "periods": {"type": "array", "items": {"$ref": "#/$defs/PeriodRow"}}
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "identity", "season", "periods"],
+      "additionalProperties": false
+    },
+
+    "TeamFile": {
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "team"},
+        "sport": {"type": "string"},
+        "identity": {
+          "type": "object",
+          "properties": {
+            "slug": {"type": "string"},
+            "abbr": {"type": "string"},
+            "name": {"type": "string"}
+          },
+          "required": ["slug", "abbr", "name"],
+          "additionalProperties": false
+        },
+        "seasons": {"type": "array", "items": {"type": "integer"}},
+        "schedule": {"type": "array", "items": {"$ref": "#/$defs/ScheduleGame"}},
+        "splits": {"type": "array", "items": {"$ref": "#/$defs/TeamSplit"}},
+        "roster": {"type": "array", "items": {"$ref": "#/$defs/RosterEntry"}},
+        "coaches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "season": {"type": "integer"},
+              "head_coach": {"type": ["string", "null"]}
+            },
+            "required": ["season", "head_coach"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "identity", "seasons", "schedule", "splits", "roster", "coaches"],
+      "additionalProperties": false
+    },
+
+    "MarketFile": {
+      "description": "A market-implied fantasy distribution for one player-period. Every component carries its basis, and the validation note travels with the file - the method was validated on sportsbook ladders and the exchange arm was not.",
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "market"},
+        "sport": {"type": "string"},
+        "identity": {"$ref": "#/$defs/MarketIdentity"},
+        "period": {
+          "type": "object",
+          "properties": {
+            "season": {"type": "integer"},
+            "index": {"type": "integer"},
+            "label": {"type": "string"},
+            "key": {"type": "string"}
+          },
+          "required": ["season", "index", "label", "key"],
+          "additionalProperties": false
+        },
+        "game_id": {"type": ["string", "null"]},
+        "opponent": {"type": ["string", "null"]},
+        "kickoff_ts": {"type": ["number", "null"]},
+        "as_of": {
+          "description": "The freshest quote the distribution was built from, NOT when the file was written.",
+          "$ref": "#/$defs/Timestamp"
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "venue": {"type": "string"},
+            "method": {"type": "string"},
+            "n_sims": {"type": "integer"}
+          },
+          "required": ["venue", "method", "n_sims"],
+          "additionalProperties": false
+        },
+        "components": {"type": "array", "items": {"$ref": "#/$defs/MarketComponent"}},
+        "game_lines": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "total": {"type": ["number", "null"]},
+                "spread": {"type": ["number", "null"]},
+                "source": {"type": "string"}
+              },
+              "required": ["total", "spread", "source"],
+              "additionalProperties": false
+            },
+            {"type": "null"}
+          ]
+        },
+        "distributions": {
+          "description": "Keyed by the manifest's scoring preset keys. Replaced in site-architecture 3.2 by marginals plus a correlation matrix sampled in the browser, which is what makes custom scoring possible.",
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/Distribution"}
+        },
+        "validation": {
+          "type": "object",
+          "properties": {
+            "status": {"type": "string"},
+            "source": {"type": "string"}
+          },
+          "required": ["status", "source"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "identity", "period", "game_id", "opponent", "kickoff_ts", "as_of", "source", "components", "game_lines", "distributions", "validation"],
+      "additionalProperties": false
+    },
+
+    "HypothesesFile": {
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "research.hypotheses"},
+        "sport": {"type": "null"},
+        "hypotheses": {"type": "array", "items": {"$ref": "#/$defs/Hypothesis"}}
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "hypotheses"],
+      "additionalProperties": false
+    },
+
+    "CalibrationResearchFile": {
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "research.calibration"},
+        "sport": {"type": "null"},
+        "source": {"type": "string"},
+        "population": {"type": "string"},
+        "series": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "ece": {"type": ["number", "null"]},
+              "bins": {"type": "array", "items": {"$ref": "#/$defs/ReliabilityBin"}}
+            },
+            "required": ["name", "ece", "bins"],
+            "additionalProperties": false
+          }
+        },
+        "brier": {
+          "type": "object",
+          "properties": {
+            "model": {"type": ["number", "null"]},
+            "market": {"type": ["number", "null"]},
+            "naive": {"type": ["number", "null"]},
+            "model_minus_market": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "estimate": {"type": "number"},
+                    "interval": {"$ref": "#/$defs/Interval"}
+                  },
+                  "required": ["estimate", "interval"],
+                  "additionalProperties": false
+                },
+                {"type": "null"}
+              ]
+            }
+          },
+          "required": ["model", "market", "naive", "model_minus_market"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "source", "population", "series", "brier"],
+      "additionalProperties": false
+    },
+
+    "ExecutionFile": {
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "research.execution"},
+        "sport": {"type": "null"},
+        "source": {"type": "string"},
+        "series": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "series": {"type": "string"},
+              "by_time_to_kickoff": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "bucket": {"type": "string"},
+                    "median_spread_c": {"type": ["number", "null"]},
+                    "median_touch": {"type": ["number", "null"]}
+                  },
+                  "required": ["bucket", "median_spread_c", "median_touch"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["series", "by_time_to_kickoff"],
+            "additionalProperties": false
+          }
+        },
+        "spread_to_volatility": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "series": {"type": "string"},
+              "ratio": {"type": ["number", "null"]}
+            },
+            "required": ["series", "ratio"],
+            "additionalProperties": false
+          }
+        },
+        "rule": {"type": "string"}
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "source", "series", "spread_to_volatility", "rule"],
+      "additionalProperties": false
+    }
+  }
+}
