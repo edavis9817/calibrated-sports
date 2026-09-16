@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+# SCOPE, and why it is not the whole suite yet.
+#
+# 20 of the 46 test modules import numpy transitively. On the Windows dev
+# machine numpy is a MINGW-W64 build on Python 3.14 that takes an access
+# violation on import under pytest ("CRASHES ARE TO BE EXPECTED" is in its own
+# banner), so the full suite cannot be run or verified locally at all. Shipping
+# a full-suite job that has never been observed passing would be a gate nobody
+# trusts by the second red build.
+#
+# So this runs the modules that ARE verified locally, and they happen to be the
+# ones this workflow exists for: the executable web contract and the export held
+# to it. Widening it is a deliberate follow-up - run the full suite on a clean
+# Linux checkout, fix what falls out, then replace the explicit list below.
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements.txt pytest
+
+      - name: the contract is a legal schema, and the export is held to it
+        run: python -m pytest -q tests/test_web_contract.py tests/test_export_web.py
+
+      # The site vendors this exact file and generates its TypeScript types from
+      # it, so a malformed contract breaks the consumer's build, not ours. Fail
+      # here instead.
+      - name: the contract a consumer would fetch is well formed
+        run: |
+          python - <<'PY'
+          import json
+          from jsonschema import Draft202012Validator
+          doc = json.load(open("web/contract/v2/contract.schema.json", encoding="utf-8"))
+          Draft202012Validator.check_schema(doc)
+          xc = doc["x-contract"]
+          missing = [k for k in xc["kinds"].values() if k not in doc["$defs"]]
+          assert not missing, f"kinds naming a missing $def: {missing}"
+          assert xc["schema_version"] == 2, xc["schema_version"]
+          print(f"contract ok: {len(doc['$defs'])} types, {len(xc['kinds'])} kinds")
+          PY

@@ -1,14 +1,55 @@
 # Web data contract — schema_version 2
 
+> **THE CONTRACT IS `web/contract/v2/contract.schema.json`. THIS FILE IS PROSE
+> ABOUT IT.**
+>
+> That file is executable and it is the only source of truth. `jobs/export_web.py`
+> validates every file it writes against it, derives `SCHEMA_VERSION` and the
+> key table from it, and the site generates `lib/schema.generated.ts` from a
+> vendored copy — CI on both sides fails on drift. If this document and that
+> schema ever disagree, the schema is right and this document is a bug.
+>
+> This page existed alone until 2026-09-15, and the arrangement failed exactly
+> as you would predict: two hand transcriptions of one prose document. The site
+> typed `identity.name` as `string` while the exporter emitted `null` — a 500 on
+> the player page, and a browser-side throw that took out the whole 3,971-row
+> players index while `curl` still reported 200. Making the contract executable
+> found two more of the same shape within the hour (`RosterEntry.slug`,
+> `seasons[].teams[]`).
+
 The contract between `jobs/export_web.py` (this repo) and the site
 (`calibratedsports-web`). It implements `calibratedsports-web/docs/site-architecture.md`
-§1 (contracts) and §1.2 (R2, brought forward). §3 (components tables, custom
-scoring, client-side distribution sampling, incremental export and
-content-hash keys) is NOT in v2 and will add to it.
+§1 (contracts) and §1.2 (R2, brought forward). §3 continues from here; its first
+item — this executable contract — is done. Components tables, custom scoring,
+client-side distribution sampling, incremental export and content-hash keys are
+still to come.
 
 v1 (static files in `public/data`, sport-less paths, fantasy points computed at
 export) is retired. Changing a field's meaning or removing one bumps
-`schema_version`; adding an optional field does not.
+`schema_version`.
+
+**Adding an optional field does NOT bump `schema_version`, but it does fail the
+build until the contract is updated in the same commit.** Every object in the
+schema is closed (`additionalProperties: false`) on purpose: `headshot_url` was
+an additive field, and under a permissive schema it would have reached the site
+unannounced. Update the contract, sync, regenerate — one commit, both sides.
+
+## What the export excludes, and says so
+
+Two filters run, and **both report a count on every run**, zero included. A
+silent filter is how a real player disappears without anyone noticing; a line
+that reads `excluded 0` most weeks is what makes the week it reads `excluded 1`
+visible the day it happens. Both also publish the affected ids in the manifest's
+`unresolved_ids`, so an exclusion is visible on the site itself.
+
+- **No resolvable name** — no `player_xwalk` row and no `player_name` in any stat
+  row. A page titled by a bare source id is not a player page and a nameless row
+  cannot be searched for, so the player is excluded rather than rendered.
+  Currently 1: `00-0005532` (three 1999 rows for NO). Excluded players never
+  enter the permanent slug registry.
+- **A period row with no team** — dropped from that season's `teams` display
+  list only. The period row keeps its null `team`, because that is the honest
+  record. Currently 1 row of 478,812 (a 1999 game).
 
 ## Governing rules
 

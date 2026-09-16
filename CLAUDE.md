@@ -1123,8 +1123,43 @@ domain by decision**.
   - Fixed by typing both `string | null` and rendering every player name
     through `displayName()` (name, else slug). Roster rows were checked and are
     not affected: 32 team files, 1,117 rows, 0 null names.
-  - **The real gap is that nothing validates the export against the site's own
-    schema.** The fallback is the symptom's fix, not the cause's.
+  - The cause was that nothing validated the export against the site's own
+    schema. **Closed by the executable contract below** - the fallback was only
+    the symptom's fix.
+- **THE CONTRACT IS `web/contract/v2/contract.schema.json`, AND IT IS
+  EXECUTABLE.** `docs/web-schema.md` is prose *about* it. One document, two
+  consumers: `jobs/export_web.py` validates every file it writes against it
+  (in `sync_keys`, the single choke point) and DERIVES `SCHEMA_VERSION` and the
+  key table from it; the site vendors a byte-identical copy and GENERATES
+  `lib/schema.generated.ts` from it. Nothing about the shape of this data is
+  hand-written twice any more.
+  - **Making it executable found three lies the same afternoon**, all the same
+    shape - a field typed non-null that is null in real data: `identity.name`
+    (already a live 500), `RosterEntry.slug` (null in 63.5% of roster rows,
+    never fired because the site dereferences it behind `has_page`) and
+    `seasons[].teams[]` (null for one 1999 player). Checked against the real
+    export: 22,927 files at 2.11 ms each.
+  - **Objects are closed (`additionalProperties: false`) on purpose.** An
+    ADDITIVE field fails the export until the contract is updated in the same
+    commit, which is what regenerates the site's types. `headshot_url` was
+    additive and went unannounced under the old arrangement.
+  - Gates: `npm run check` fails on stale generated types; the web repo's
+    `contract-in-sync` job curls the canonical file from this (public) repo and
+    diffs the vendored copy; this repo's `ci.yml` runs the contract tests.
+  - **The site stays lenient where the producer is strict**, deliberately:
+    `validateEnvelope` checks the envelope and top-level keys only, so a file
+    written before a field existed still renders, while the same file would be
+    refused at export. Do not "fix" one to match the other.
+- **Two export filters, and both print a count on every run** - zero included,
+  because a number that reads 0 most weeks is what makes the week it reads 1
+  visible. Both publish their ids in the manifest's `unresolved_ids`, so an
+  exclusion is visible on the site rather than being a silent filter.
+  - **No resolvable name** (no `player_xwalk` row, no `player_name` on any stat
+    row): excluded from the export entirely, and never added to the permanent
+    slug registry. Currently 1 of 3,971 - `00-0005532`, three 1999 rows for NO.
+  - **A period row with no team**: dropped from that season's `teams` display
+    list only; the period row keeps its null `team`, which is the honest
+    record. Currently 1 row of 478,812.
 - **`wrangler deploy --dry-run` output.** "Read N files" counts directories
   too: 16,113 entries against 12,077 real files.
 - **Weekly refresh.** The task `CalibratedSports Weekly Refresh` runs
