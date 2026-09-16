@@ -161,6 +161,12 @@ HOLD_REASON = "published in the site export"
 REASON_NO_NAME = "no resolvable name - excluded from the export"
 REASON_NO_TEAM = "period row with no team - dropped from that season's team list"
 
+# A rung is a step function: ~143 quotes carry 35-59 changes. Change-point
+# encoding is therefore lossless AND smaller than any curve downsample. The cap
+# exists only for a volatile game-day market; over it, the smallest changes are
+# omitted and counted, never interpolated.
+PATH_MAX_POINTS = 60
+
 SNAP_FIRST_SEASON = 2013
 CDF_X = tuple(range(0, 51))
 THRESHOLDS = (5, 10, 15, 20, 25, 30)
@@ -370,6 +376,64 @@ def assign_slugs(entries, registry=None):
     registry.update(added)
     check_registry(registry)
     return registry, added
+
+
+def price_path(rows, cap=PATH_MAX_POINTS):
+    """One rung's price history as change-points. -> (points, dropped) or (None, 0).
+
+    LOSSLESS, not a downsample. A rung carries ~143 quotes but only 35-59 actual
+    changes and 11-19 distinct values - it is a step function, so keeping the
+    first point, every change and the last reproduces the series exactly in
+    roughly a third of the points. A curve-fitting downsample would reposition
+    points onto triangle-optimal picks and turn a discrete jump into a slope,
+    which is the one thing a repricing chart must not do.
+
+    The cap bounds a volatile game-day market. Over it, the SMALLEST-magnitude
+    changes go first and the count is published: omitting a 1c wobble is honest,
+    inventing a point is not, so nothing here ever interpolates. The first and
+    last points are never dropped - they anchor the span.
+    """
+    if not rows:
+        return None, 0
+    pts = [{"ts": ts, "p": rnd(p)} for ts, p in rows if p is not None]
+    if not pts:
+        return None, 0
+    keep = [0] + [i for i in range(1, len(pts)) if pts[i]["p"] != pts[i - 1]["p"]]
+    if keep[-1] != len(pts) - 1:
+        keep.append(len(pts) - 1)
+    dropped = 0
+    while len(keep) > cap:
+        # Interior only; index 0 and the last point anchor first/last_quote_ts.
+        interior = keep[1:-1]
+        smallest = min(interior, key=lambda i: abs(pts[i]["p"] - pts[i - 1]["p"]))
+        keep.remove(smallest)
+        dropped += 1
+    return [pts[i] for i in keep], dropped
+
+
+def build_price_path(con, rungs, until_ts):
+    """The ONE series a market publishes: the rung nearest the posted line.
+
+    A threshold ladder posts no single line, so "the line" is the rung the
+    market itself treats as the median - the one whose mid sits nearest 0.50.
+    Nine overlaid rungs would be an unreadable chart, and the survival curve
+    already shows every rung at one instant, which is the complementary view.
+    """
+    if not rungs:
+        return None
+    r = min(rungs, key=lambda x: abs((x["bid"] + x["ask"]) / 2.0 - 0.5))
+    rows = con.execute(
+        "SELECT ts, (best_bid + best_ask) / 2.0 FROM quotes WHERE venue = 'kalshi' "
+        "AND market_id = ? AND ts < ? AND best_bid IS NOT NULL AND best_ask IS NOT NULL "
+        "ORDER BY ts", (r["market_id"], until_ts)).fetchall()
+    points, dropped = price_path(rows)
+    if not points:
+        return None
+    return {"stat": r["stat"], "line": r["line"], "market_id": r["market_id"],
+            # Derived from the series, never asserted: these markets happen to
+            # start at listing, which will not generalise.
+            "first_quote_ts": points[0]["ts"], "last_quote_ts": points[-1]["ts"],
+            "raw_points": len(rows), "dropped": dropped, "points": points}
 
 
 def distribution_summary(sims):
@@ -991,6 +1055,8 @@ def build_market(con, games, weeks, xwalk, slugs, current, now_ts, generated_at,
             "as_of": iso(max(x["ts"] for x in rungs)),
             "source": dict(MARKET_SOURCE, n_sims=n_sims),
             "components": components,
+            "path": build_price_path(con, by_stat.get("receptions", []),
+                                     min(now_ts, g["kickoff_ts"])),
             "game_lines": {"total": g["total_line"], "spread": team_spread(g["spread_line"], home),
                            "source": "nflverse games"},
             "distributions": dists,

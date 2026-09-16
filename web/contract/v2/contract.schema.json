@@ -317,6 +317,40 @@
       ]
     },
 
+    "PricePath": {
+      "description": "How ONE rung's price moved, for drawing a curve. Lossless change-points, not a downsample: these series are step functions - a rung carries ~143 quotes but only 35-59 actual changes and 11-19 distinct values - so every retained point is a real observation and nothing between them is invented. A curve-fitting downsample (LTTB and friends) would reposition points onto triangle-optimal picks and round a discrete jump into a gradual slope, which is precisely what the chart must not show. One series per market, the rung nearest the posted line; the survival curve is the complementary view showing every rung at one instant.",
+      "type": "object",
+      "properties": {
+        "stat": {"type": "string"},
+        "line": {"description": "The rung this path follows.", "type": "number"},
+        "market_id": {"description": "The venue instrument, so the path is traceable to its source.", "type": "string"},
+        "first_quote_ts": {
+          "description": "DERIVED from the series - the first quote actually seen, never an assumed listing time. For these markets it happens to be listing, which will not generalise.",
+          "type": "number"
+        },
+        "last_quote_ts": {"type": "number"},
+        "raw_points": {"description": "Observations before change-point encoding.", "type": "integer"},
+        "dropped": {
+          "description": "Changes omitted to fit the point cap, smallest magnitude first. Omitting a 1c wobble is honest; inventing a point is not - so this counts omissions and there is no interpolation anywhere. Normally 0.",
+          "type": "integer"
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ts": {"description": "Real timestamp. Plot time on x - even spacing would make a sharp repricing look gradual.", "type": "number"},
+              "p": {"type": "number", "minimum": 0, "maximum": 1}
+            },
+            "required": ["ts", "p"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["stat", "line", "market_id", "first_quote_ts", "last_quote_ts", "raw_points", "dropped", "points"],
+      "additionalProperties": false
+    },
+
     "Distribution": {
       "type": "object",
       "properties": {
@@ -661,6 +695,10 @@
           "additionalProperties": false
         },
         "components": {"type": "array", "items": {"$ref": "#/$defs/MarketComponent"}},
+        "path": {
+          "description": "This market's price over time, or null when no series exists. Exactly one series - other rungs are deliberately NOT published: nine overlaid lines are an unreadable chart, and the contract being closed means adding one later fails loudly rather than the site silently expecting a field nothing writes.",
+          "anyOf": [{"$ref": "#/$defs/PricePath"}, {"type": "null"}]
+        },
         "game_lines": {
           "anyOf": [
             {
@@ -691,7 +729,7 @@
           "additionalProperties": false
         }
       },
-      "required": ["schema_version", "generated_at", "kind", "sport", "identity", "period", "game_id", "opponent", "kickoff_ts", "as_of", "source", "components", "game_lines", "distributions", "validation"],
+      "required": ["schema_version", "generated_at", "kind", "sport", "identity", "period", "game_id", "opponent", "kickoff_ts", "as_of", "source", "components", "path", "game_lines", "distributions", "validation"],
       "additionalProperties": false
     },
 

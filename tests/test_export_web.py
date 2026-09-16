@@ -103,6 +103,61 @@ def test_period_labels_come_from_game_type():
     assert E.period_label(None, 20, "POST") == "Postseason week 20"
 
 
+def _step(values, t0=1_000.0, every=600.0):
+    return [(t0 + i * every, v) for i, v in enumerate(values)]
+
+
+def _replay(points):
+    """Reconstruct the step series a path implies: each point holds until the
+    next one. If this differs from the input, the encoding lost something."""
+    return points
+
+
+def test_price_path_keeps_every_change_and_invents_nothing():
+    """The series is a step function, so change-points are LOSSLESS - not an
+    approximation that happens to be close."""
+    rows = _step([0.50, 0.50, 0.50, 0.55, 0.55, 0.40, 0.40, 0.40])
+    points, dropped = E.price_path(rows)
+
+    assert dropped == 0
+    assert [(p["ts"], p["p"]) for p in points] == [
+        (1000.0, 0.50), (2800.0, 0.55), (4000.0, 0.40), (5200.0, 0.40)]
+    # Every emitted point is a real observation. Nothing between them exists.
+    assert all((p["ts"], p["p"]) in rows for p in points)
+
+
+def test_price_path_anchors_the_span_with_first_and_last():
+    rows = _step([0.5, 0.5, 0.5, 0.5])
+    points, dropped = E.price_path(rows)
+    assert [p["ts"] for p in points] == [1000.0, 2800.0]   # first and last, flat between
+    assert dropped == 0
+
+
+def test_price_path_caps_by_dropping_the_smallest_wobbles_never_interpolating():
+    """A volatile game-day market must stay bounded. Omitting a 1c wobble is
+    honest; inventing a point is not."""
+    # 40 alternating 1c wobbles, then three large moves that must survive.
+    values = []
+    for i in range(40):
+        values.append(0.50 + (0.01 if i % 2 else 0.0))
+    values += [0.80, 0.20, 0.90]
+    rows = _step(values)
+    points, dropped = E.price_path(rows, cap=10)
+
+    assert len(points) == 10 and dropped > 0
+    assert all((p["ts"], p["p"]) in rows for p in points)      # still no invention
+    assert points[0]["ts"] == rows[0][0]                       # first anchored
+    assert points[-1]["ts"] == rows[-1][0]                     # last anchored
+    # The big moves outrank the 1c wobbles.
+    assert {0.80, 0.20, 0.90} <= {p["p"] for p in points}
+
+
+def test_price_path_handles_nothing_and_one_quote():
+    assert E.price_path([]) == (None, 0)
+    points, dropped = E.price_path(_step([0.42]))
+    assert [p["p"] for p in points] == [0.42] and dropped == 0
+
+
 def test_distribution_summary_shape():
     d = E.distribution_summary(list(range(0, 40)))
     assert len(d["cdf"]) == 51 and d["cdf"][0] == {"x": 0, "p_at_most": 0.025}
