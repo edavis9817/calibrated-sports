@@ -13,4 +13,5 @@ __pycache__/
 # sourced, those are the worst possible files to publish unlabelled. They may
 # ship later as a deliberate docs/design/ commit with a README stating that the
 # numbers are mock; they must never arrive swept in under an unrelated commit.
-design/
+design/*
+!design/README.md
