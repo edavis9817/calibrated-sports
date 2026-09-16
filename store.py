@@ -247,6 +247,25 @@ CREATE TABLE IF NOT EXISTS nfl_games (
 );
 CREATE INDEX IF NOT EXISTS ix_games_season ON nfl_games(season, week);
 
+CREATE TABLE IF NOT EXISTS nfl_teams (
+    sport         TEXT NOT NULL DEFAULT 'nfl',
+    team_abbr     TEXT NOT NULL,
+    data_version  TEXT NOT NULL,
+    team_name     TEXT,
+    team_conf     TEXT,
+    team_division TEXT,
+    team_color    TEXT,
+    team_color2   TEXT,
+    team_color3   TEXT,
+    team_color4   TEXT,
+    source        TEXT NOT NULL,
+    ingested_ts   REAL NOT NULL,
+    -- Keyed on the abbreviation as published, NOT on a current franchise: STL
+    -- and LA are different rows, and collapsing them would erase the identity a
+    -- historical game was actually played under.
+    PRIMARY KEY (team_abbr, data_version)
+);
+
 CREATE TABLE IF NOT EXISTS nfl_snap_counts (
     sport         TEXT NOT NULL DEFAULT 'nfl',
     pfr_player_id TEXT NOT NULL,

@@ -84,6 +84,17 @@ DATASETS = {
                            "ngs_rushing.parquet", LIVE, first_season=2016),
     "ngs_passing": Dataset("ngs_passing", "nextgen_stats",
                            "ngs_passing.parquet", LIVE, first_season=2016),
+    # Team reference data: colours keyed on the abbreviation ON THE ROW, so a
+    # relocated franchise keeps its own era's identity (STL and LA are separate
+    # rows, as are SD/LAC and OAK/LV). 36 rows against 32 current teams for
+    # exactly that reason.
+    #
+    # COLOURS ONLY. The release also carries logo and wordmark URLs; hex values
+    # are facts about a team, logos are trademarks, and this repo is public.
+    "teams": Dataset(
+        "teams", "teams", "teams_colors_logos.csv", OFFSEASON, normalize=True,
+        fields=("team_color", "team_color2"),
+        note="reference data, not a season feed; colours only, logos dropped"),
     "players": Dataset(
         "players", "players", "players.parquet", LIVE, normalize=True,
         note="the gsis_id crosswalk; carries pfr/espn/pff/otc ids and names"),

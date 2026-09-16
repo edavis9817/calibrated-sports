@@ -197,17 +197,50 @@ def normalize_players(data: bytes, version: str, week=None):
     return None, None, [None] * n_players       # row count only, already written
 
 
+def normalize_teams(data: bytes, version: str, week=None):
+    """Team reference data - the only CSV in the set, and the only non-seasonal
+    normalized table.
+
+    KEYED ON THE PUBLISHED ABBREVIATION. The release carries 36 rows for 32
+    current teams because a relocation gets its own row (STL and LA, SD and
+    LAC, OAK and LV). Folding those into the current franchise would be the
+    colour layer undoing the work that makes a trade visible: a 2015 Rams game
+    is a St. Louis game, and it should carry St. Louis' colours.
+
+    COLOURS ONLY. team_logo_espn, team_wordmark and the rest are trademarked
+    images; a hex value is a fact about a team, a logo is someone's mark, and
+    this repository is public.
+    """
+    pl = _pl()
+    df = pl.read_csv(io.BytesIO(data))
+    now = time.time()
+    cols = ("sport", "team_abbr", "data_version", "team_name", "team_conf",
+            "team_division", "team_color", "team_color2", "team_color3",
+            "team_color4", "source", "ingested_ts")
+    rows = []
+    for r in df.iter_rows(named=True):
+        abbr = r.get("team_abbr")
+        if not abbr:
+            continue
+        rows.append(("nfl", abbr, version, r.get("team_name"), r.get("team_conf"),
+                     r.get("team_division"), r.get("team_color"), r.get("team_color2"),
+                     r.get("team_color3"), r.get("team_color4"), SOURCE, now))
+    return "nfl_teams", cols, rows
+
+
 NORMALIZERS = {
     "players": normalize_players,
     "weekly_stats": normalize_weekly_stats,
     "games": normalize_games,
     "snap_counts": normalize_snap_counts,
+    "teams": normalize_teams,
 }
 
 KEY_COLS = {
     "nfl_player_week": ("gsis_id", "season", "week", "season_type", "data_version"),
     "nfl_games": ("game_id", "data_version"),
     "nfl_snap_counts": ("pfr_player_id", "game_id", "data_version"),
+    "nfl_teams": ("team_abbr", "data_version"),
 }
 
 
