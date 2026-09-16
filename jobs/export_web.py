@@ -42,6 +42,7 @@ from jsonschema import Draft202012Validator
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config  # noqa: E402
+import store  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # THE contract, and it is executable. This exporter validates everything it
@@ -156,6 +157,7 @@ SCORING_NOTE_BASE = ("Scored from the components present. fum_lost and two_pt ar
 # Reasons published in the manifest's unresolved_ids. Both are exclusions of a
 # sort, and both are counted in the export summary on every run: an exclusion
 # nobody can see is indistinguishable from a bug.
+HOLD_REASON = "published in the site export"
 REASON_NO_NAME = "no resolvable name - excluded from the export"
 REASON_NO_TEAM = "period row with no team - dropped from that season's team list"
 
@@ -872,7 +874,11 @@ def build_teams(games, weeks, snaps, scope, xwalk, slugs, generated_at):
 
 def build_market(con, games, weeks, xwalk, slugs, current, now_ts, generated_at, n_sims=N_SIMS):
     """Current-period market-implied fantasy distributions (research/implied.py arm A).
-    -> ({key: obj}, {gsis: key}, census)."""
+    -> ({key: obj}, {gsis: key}, census, {(venue, market_id)} published).
+
+    The fourth value is what retention holds on: the venue market ids whose
+    ladders are actually ON the site. A market the site is showing must not have
+    its price history pruned out from under it (see quote_retention_hold)."""
     from research import implied as I
 
     season, index = current["season"], current["period"]["index"]
@@ -881,7 +887,7 @@ def build_market(con, games, weeks, xwalk, slugs, current, now_ts, generated_at,
                 if g["season"] == season and g["week"] == index and g["home_score"] is None
                 and g["kickoff_ts"] and g["kickoff_ts"] > now_ts}
     if not wk_games:
-        return {}, {}, {"reason": "no unplayed games in the current period"}
+        return {}, {}, {"reason": "no unplayed games in the current period"}, set()
     rows = con.execute(
         "SELECT o.entity_id, o.stat, o.line, o.event_id, mo.market_id FROM outcomes o "
         "JOIN market_outcome mo ON mo.outcome_id = o.outcome_id AND mo.venue = 'kalshi' "
@@ -907,9 +913,9 @@ def build_market(con, games, weeks, xwalk, slugs, current, now_ts, generated_at,
             continue
         ts, bid, ask = q
         ladders[(gsis, game_id)].append({"stat": stat, "line": line, "bid": bid, "ask": ask,
-                                         "ts": ts})
+                                         "ts": ts, "market_id": market_id})
     if not ladders:
-        return {}, {}, dict(census, reason="no priced current-period ladders")
+        return {}, {}, dict(census, reason="no priced current-period ladders"), set()
 
     anchor, ypc, ypr, cop = I.fit_td_anchor(), I.fit_ypc(), I.fit_ypr(), I.fit_copula()
     history = defaultdict(list)
@@ -920,7 +926,7 @@ def build_market(con, games, weeks, xwalk, slugs, current, now_ts, generated_at,
             history[r["gsis_id"]].append(
                 1.0 if num(r["receiving_tds"]) + num(r["rushing_tds"]) > 0 else 0.0)
 
-    files, keys = {}, {}
+    files, keys, published = {}, {}, set()
     for (gsis, game_id), rungs in ladders.items():
         by_stat = defaultdict(list)
         for x in rungs:
@@ -971,6 +977,9 @@ def build_market(con, games, weeks, xwalk, slugs, current, now_ts, generated_at,
         ]
         key = f"{SPORT}/market/{gsis}/{pkey}.json"
         keys[gsis] = key
+        # Only the ladders that survived every census check reach here, so this
+        # is exactly the set the site displays - not everything that was mapped.
+        published |= {("kalshi", x["market_id"]) for x in rungs}
         files[key] = {
             **envelope("market", generated_at),
             "identity": {"id": gsis, "slug": slugs.get(gsis), "name": xw.get("display_name"),
@@ -987,7 +996,7 @@ def build_market(con, games, weeks, xwalk, slugs, current, now_ts, generated_at,
             "distributions": dists,
             "validation": dict(VALIDATION),
         }
-    return files, keys, dict(census)
+    return files, keys, dict(census), published
 
 
 def build_research(generated_at):
@@ -1084,6 +1093,34 @@ def ppr_check(weeks, scope):
 # writing
 # =============================================================================
 
+def hold_published_markets(published, now_ts, dry_run=False):
+    """Hold the quote history of every market the site is showing.
+
+    Retention prunes live quotes at QUOTES_RETENTION_DAYS measured on ingestion
+    time (invariant 8). That window is about bounding GROWTH, and it knows
+    nothing about what is on the site - so a market published here would have
+    its opening prices deleted while the page still drew them.
+
+    The hold is renewed on every export, so it follows what is actually
+    published: drop a market from the site and its hold simply ages out at the
+    normal window. `until_ts` is one retention window from now rather than
+    forever, because a hold nobody renews should expire rather than pin rows
+    for good.
+    """
+    until = now_ts + config.QUOTES_RETENTION_DAYS * 86400
+    out = {"markets": len(published), "until": iso(until), "written": 0}
+    if not published or dry_run:
+        return out
+    with store.db() as c:
+        c.executemany(
+            "INSERT INTO quote_retention_hold (venue, market_id, until_ts, reason, held_ts) "
+            "VALUES (?, ?, ?, ?, ?) ON CONFLICT(venue, market_id) DO UPDATE SET "
+            "until_ts = excluded.until_ts, held_ts = excluded.held_ts",
+            [(v, m, until, HOLD_REASON, now_ts) for v, m in sorted(published)])
+    out["written"] = len(published)
+    return out
+
+
 def local_path(dest, key):
     return os.path.join(dest, *key.split("/"))
 
@@ -1173,8 +1210,9 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
         + (": " + ", ".join(sorted(nameless)) if nameless else ""))
 
     if "market" in parts:
-        market, market_keys, census = build_market(con, games, weeks, xwalk, slugs, current,
-                                                   now_ts, generated_at)
+        market, market_keys, census, published_markets = build_market(
+            con, games, weeks, xwalk, slugs, current, now_ts, generated_at)
+        summary["retention_holds"] = hold_published_markets(published_markets, now_ts, dry_run)
         assert_stats_defined(market, STAT_DEFINITIONS)
         summary["market"] = sync_keys(dest, market, [f"{SPORT}/market/"], dry_run)
         summary["market_census"] = census

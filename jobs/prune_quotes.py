@@ -62,10 +62,34 @@ def run(days: float = None, dry_run: bool = False, vacuum: bool = None) -> dict:
     # whose ts and ingest_ts are the same instant anyway; a backfilled row from
     # that era would have been deleted long before this code ran.
     age = "COALESCE(ingest_ts, ts)"
+    # Rows whose market is still being SHOWN somewhere are held back, however
+    # old they are. jobs/export_web.py writes a row per published market and
+    # renews it every run; an unrenewed hold expires and the row prunes
+    # normally. NOT EXISTS rather than NOT IN or a LEFT JOIN: measured on a 4M
+    # row store with 1M stale rows, NOT EXISTS 5.98s and LEFT JOIN 5.66s are a
+    # wash while NOT IN builds a bloom filter and scans the hold table (13.02s)
+    # - and NOT EXISTS is the only one of the three expressible directly in the
+    # DELETE, which keeps this a single statement.
+    held_sql = ("AND NOT EXISTS (SELECT 1 FROM quote_retention_hold h "
+                "WHERE h.venue = quotes.venue AND h.market_id = quotes.market_id "
+                "AND h.until_ts > ?)")
+    held_args = (time.time(),)
     with store.db() as c:
+        # Degrade, never die: this runs inside the logger's maintenance loop, so
+        # a store predating the table must not take the loop down with it.
+        if not c.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                         "AND name='quote_retention_hold'").fetchone():
+            held_sql, held_args = "", ()
         stale = c.execute(
             f"SELECT COUNT(*) FROM quotes WHERE {age} < ? "
-            f"AND source IN ({ph})", (cutoff, *srcs)).fetchone()[0]
+            f"AND source IN ({ph}) {held_sql}", (cutoff, *srcs, *held_args)).fetchone()[0]
+        held = 0
+        if held_sql:
+            held = c.execute(
+                f"SELECT COUNT(*) FROM quotes WHERE {age} < ? AND source IN ({ph}) "
+                f"AND EXISTS (SELECT 1 FROM quote_retention_hold h "
+                f"WHERE h.venue = quotes.venue AND h.market_id = quotes.market_id "
+                f"AND h.until_ts > ?)", (cutoff, *srcs, *held_args)).fetchone()[0]
         total = c.execute("SELECT COUNT(*) FROM quotes").fetchone()[0]
         # Deliberately keyed on `ts`, not on age: this is the count of rows a
         # naive ts-keyed window WOULD have destroyed, which is the number worth
@@ -82,10 +106,10 @@ def run(days: float = None, dry_run: bool = False, vacuum: bool = None) -> dict:
             f"AND source IN ({ph})", (cutoff, cutoff, *srcs)).fetchone()[0]
         if stale and not dry_run:
             c.execute(f"DELETE FROM quotes WHERE {age} < ? "
-                      f"AND source IN ({ph})", (cutoff, *srcs))
+                      f"AND source IN ({ph}) {held_sql}", (cutoff, *srcs, *held_args))
 
     stats = {"deleted": 0 if dry_run else stale, "candidates": stale,
-             "protected": protected, "saved_by_ingest_ts": reparsed,
+             "protected": protected, "held": held, "saved_by_ingest_ts": reparsed,
              "remaining": total - (0 if dry_run else stale),
              "cutoff": cutoff, "bytes_before": before, "bytes_after": before}
 
@@ -102,7 +126,7 @@ def run(days: float = None, dry_run: bool = False, vacuum: bool = None) -> dict:
     store.record_health(
         SOURCE, True,
         f"pruned {stats['deleted']} live quotes ({protected} historical rows "
-        f"protected) older than "
+        f"protected, {held} held for the site) older than "
         f"{config.QUOTES_RETENTION_DAYS if days is None else days:g}d, "
         f"{stats['remaining']} remain",
         watermark=time.time())

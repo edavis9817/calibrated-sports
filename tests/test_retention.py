@@ -292,6 +292,70 @@ def test_prune_dry_run_deletes_nothing(env):
         assert c.execute("SELECT COUNT(*) FROM quotes").fetchone()[0] == 1
 
 
+def _hold(market_id, days_ahead, venue="kalshi"):
+    with store.db() as c:
+        c.execute("INSERT OR REPLACE INTO quote_retention_hold "
+                  "(venue, market_id, until_ts, reason, held_ts) VALUES (?,?,?,?,?)",
+                  (venue, market_id, time.time() + days_ahead * 86400, "test", time.time()))
+
+
+def test_a_held_market_survives_the_window_and_an_unheld_one_does_not(env):
+    """The site shows a market's opening prices; retention must not delete them
+    while it is still on the page. Both rows are equally stale - the hold is the
+    only difference."""
+    now = time.time()
+    store.write_quotes([_quote(now - 40 * 86400, "shown"), _quote(now - 40 * 86400, "gone")])
+    _ingested("shown", 40)
+    _ingested("gone", 40)
+    _hold("shown", days_ahead=14)
+
+    stats = prune_quotes.run(days=21)
+
+    assert stats["deleted"] == 1 and stats["held"] == 1
+    with store.db() as c:
+        assert [r[0] for r in c.execute("SELECT market_id FROM quotes")] == ["shown"]
+
+
+def test_an_expired_hold_stops_holding(env):
+    """A hold is renewed by each export. One nobody renews must age out, or the
+    table becomes a way to pin rows for ever by forgetting about them."""
+    now = time.time()
+    store.write_quotes([_quote(now - 40 * 86400, "stale-hold")])
+    _ingested("stale-hold", 40)
+    _hold("stale-hold", days_ahead=-1)          # expired yesterday
+
+    stats = prune_quotes.run(days=21)
+
+    assert stats["deleted"] == 1 and stats["held"] == 0
+    with store.db() as c:
+        assert c.execute("SELECT COUNT(*) FROM quotes").fetchone()[0] == 0
+
+
+def test_a_hold_is_scoped_to_its_venue(env):
+    """market_id is unique only within a venue - the Odds API alone carries
+    >100k distinct ids per book, so a venue-blind hold would protect strangers."""
+    now = time.time()
+    store.write_quotes([_quote(now - 40 * 86400, "shared-id")])
+    _ingested("shared-id", 40)
+    _hold("shared-id", days_ahead=14, venue="polymarket")   # different venue
+
+    assert prune_quotes.run(days=21)["deleted"] == 1
+
+
+def test_prune_degrades_when_the_hold_table_is_missing(env):
+    """It runs in the logger's maintenance loop. A store predating the table
+    must prune normally, not take the loop down."""
+    now = time.time()
+    store.write_quotes([_quote(now - 40 * 86400, "old")])
+    _ingested("old", 40)
+    with store.db() as c:
+        c.execute("DROP TABLE quote_retention_hold")
+
+    stats = prune_quotes.run(days=21)
+
+    assert stats["deleted"] == 1 and stats["held"] == 0
+
+
 def test_prune_leaves_the_coverage_record_alone(env):
     """poll_log is how gaps stay visible; pruning quotes must not erase the
     evidence of whether they were ever captured."""

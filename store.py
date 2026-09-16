@@ -467,6 +467,32 @@ CREATE TABLE IF NOT EXISTS outcome_close (
 );
 CREATE INDEX IF NOT EXISTS ix_close_p ON outcome_close(p_bench);
 
+-- Quotes that retention must keep beyond QUOTES_RETENTION_DAYS, because
+-- something downstream is still SHOWING them. Written by jobs/export_web.py for
+-- every market it publishes; read by jobs/prune_quotes.py, which deletes no row
+-- whose (venue, market_id) is held.
+--
+-- An explicit table rather than a join against the export, on purpose. The
+-- protection is then auditable - "why does this row still exist" has a row that
+-- answers it, with a reason and an expiry - instead of being implicit in
+-- whatever query the exporter happened to run that week. The one table this
+-- project deletes from has already destroyed paid history once (brief 009's
+-- 806-credit pilot); protection for it should be readable, not inferred.
+--
+-- Keyed on (venue, market_id): market_id is unique only WITHIN a venue. The
+-- Odds API alone carries 85k-133k distinct market ids per book, and
+-- ix_quotes_market_ts leads on (venue, market_id), so the prune's exclusion is
+-- index-served rather than a scan of 15M rows.
+CREATE TABLE IF NOT EXISTS quote_retention_hold (
+    venue      TEXT NOT NULL,
+    market_id  TEXT NOT NULL,
+    until_ts   REAL NOT NULL,     -- hold expires; NULL is not allowed, a hold ends
+    reason     TEXT NOT NULL,     -- who asked and why, in words
+    held_ts    REAL NOT NULL,     -- when the hold was written or last renewed
+    PRIMARY KEY (venue, market_id)
+);
+CREATE INDEX IF NOT EXISTS ix_hold_until ON quote_retention_hold(until_ts);
+
 CREATE TABLE IF NOT EXISTS outcome_settlement (
     outcome_id   TEXT NOT NULL,
     data_version TEXT NOT NULL,
