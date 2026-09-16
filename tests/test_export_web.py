@@ -380,6 +380,39 @@ def test_manifest_carries_period_type_presets_and_teams(db):
     assert {"slug": "buf", "abbr": "BUF", "name": "Buffalo Bills"} in m["teams"]
 
 
+def test_counts_games_played_not_games_scheduled(db):
+    """The fixture has five games and one of them has not been played.
+
+    len(games) would report 5. The coverage figure must report 4: nfl_games
+    carries scheduled rows with a null score, and counting them claims a record
+    the site does not hold. 2026_02_DET_BUF is the unplayed one - it is also the
+    current period, which is exactly when this is easiest to get wrong.
+    """
+    dest = str(db / "out")
+    E.export(only=["players", "manifest"], now_ts=NOW, dest=dest)
+    m = _walk(dest)["nfl/manifest.json"]
+    assert m["counts"]["games"] == 4
+    assert m["counts"]["teams"] == len(E.TEAM_NAMES)
+
+
+def test_counts_rungs_is_zero_only_when_no_market_is_published(db):
+    """rungs travels with the market count, so the two cannot disagree."""
+    dest = str(db / "out")
+    E.export(only=["players", "manifest"], now_ts=NOW, dest=dest)
+    c = _walk(dest)["nfl/manifest.json"]["counts"]
+    # No market part in this run and none on disk, so both read zero together.
+    assert c["market"] == 0 and c["rungs"] == 0
+
+
+def test_count_rungs_sums_every_components_ladder():
+    files = {
+        "a.json": {"components": [{"rungs": [1, 2, 3]}, {"rungs": []}, {"note": "no rungs key"}]},
+        "b.json": {"components": [{"rungs": [1, 2]}]},
+    }
+    assert E.count_rungs(files) == 5
+    assert E.count_rungs({}) == 0
+
+
 def test_rewrites_only_on_change_and_deletes_stale_keys(db):
     dest = str(db / "out")
     E.export(only=["players", "teams", "manifest"], now_ts=NOW, dest=dest)

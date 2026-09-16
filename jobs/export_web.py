@@ -1144,8 +1144,30 @@ def build_research(generated_at):
     return out
 
 
+def played(games):
+    """Games with a final score.
+
+    NOT len(games): nfl_games carries scheduled rows whose score is still None
+    (a whole unplayed season lands the moment the schedule is published), and a
+    coverage count including them claims a record the site does not hold.
+    build_market finds the current period's fixtures by exactly this field.
+    """
+    return sum(1 for g in games.values() if g["home_score"] is not None)
+
+
+def count_rungs(market_files):
+    """Ladder rungs across published market files, summed over components.
+
+    Counted off the EMITTED objects rather than threaded out of build_market:
+    census there is a Counter of exclusion reasons - a diagnostic - and folding
+    a shipped-volume tally into it would corrupt what it means.
+    """
+    return sum(len(c.get("rungs") or [])
+               for m in market_files.values() for c in m.get("components", []))
+
+
 def build_manifest(games, current, index, market_keys, unresolved, source_version, scoring_note,
-                   generated_at):
+                   generated_at, rungs):
     return {
         **envelope("sport_manifest", generated_at),
         "name": SPORT_NAME,
@@ -1159,7 +1181,8 @@ def build_manifest(games, current, index, market_keys, unresolved, source_versio
         "scoring_presets": SCORING_PRESETS,
         "scoring_note": scoring_note,
         "teams": [{"slug": team_slug(a), "abbr": a, "name": n} for a, n in TEAM_NAMES.items()],
-        "counts": {"players": len(index), "teams": len(TEAM_NAMES), "market": len(market_keys)},
+        "counts": {"players": len(index), "teams": len(TEAM_NAMES), "market": len(market_keys),
+                   "games": played(games), "rungs": rungs},
         "unresolved_ids": unresolved,
     }
 
@@ -1363,14 +1386,33 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
     if "manifest" in parts:
         src = con.execute("SELECT MAX(data_version) FROM nflverse_versions "
                           "WHERE dataset = 'weekly_stats'").fetchone()[0]
+        # Rungs come from the emitted market objects when this run built them.
+        # On a manifest-only run they are not in scope, so they are read back
+        # off disk: defaulting to 0 there would publish "0 rungs" beside a
+        # non-zero market count, which reads as a broken ladder rather than as
+        # a partial run.
+        if "market" in parts:
+            rungs = count_rungs(market)
+        else:
+            on_disk = local_keys(dest)
+            rungs = count_rungs({
+                k: json.load(open(on_disk[k], encoding="utf-8"))
+                for k in market_keys.values() if k in on_disk
+            })
         manifest = build_manifest(games, current, index, market_keys, unresolved, src, note,
-                                  generated_at)
+                                  generated_at, rungs)
         assert_stats_defined({f"{SPORT}/manifest.json": manifest}, STAT_DEFINITIONS)
         summary["manifest"] = sync_keys(dest, {f"{SPORT}/manifest.json": manifest,
                                                "sports.json": build_sports(generated_at)},
                                         [], dry_run)
     con.close()
-    summary["counts"] = {"players": len(index), "teams": len(TEAM_NAMES), "market": len(market_keys)}
+    # Mirrors the manifest's counts exactly. A run report that says something
+    # different from the file it just wrote is worse than one that says less.
+    summary["counts"] = {"players": len(index), "teams": len(TEAM_NAMES), "market": len(market_keys),
+                         "games": played(games), "rungs": count_rungs(market) if "market" in parts
+                         else count_rungs({k: json.load(open(p, encoding="utf-8"))
+                                           for k, p in local_keys(dest).items()
+                                           if k in set(market_keys.values())})}
     summary["runtime_s"] = round(time.time() - t0, 1)
     if current["stale"]:
         log(f"WARN nflverse is late: {current['stale_reason']}")

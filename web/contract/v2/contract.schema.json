@@ -512,13 +512,22 @@
           }
         },
         "counts": {
+          "description": "Coverage, computed once at export so a page costs one read. games and rungs exist because the site otherwise had to open 32 team files or all 11 market files to state them, which is the cost the components table exists to remove.",
           "type": "object",
           "properties": {
             "players": {"type": "integer"},
             "teams": {"type": "integer"},
-            "market": {"type": "integer"}
+            "market": {"type": "integer"},
+            "games": {
+              "description": "Games with a final score. NOT every scheduled row: the table carries fixtures that have not been played (256 of 7,548 at the time of writing), and a coverage figure counting them would claim a record the site does not hold.",
+              "type": "integer"
+            },
+            "rungs": {
+              "description": "Ladder rungs across every published market file, summed over components. The market count says how many players are priced; this says how much of a curve each price rests on.",
+              "type": "integer"
+            }
           },
-          "required": ["players", "teams", "market"],
+          "required": ["players", "teams", "market", "games", "rungs"],
           "additionalProperties": false
         },
         "unresolved_ids": {
