@@ -11,6 +11,7 @@
     python -m jobs.ingest_cfb --cfbd-status                     # /info (unmetered) + ledger
     python -m jobs.ingest_cfb --cfbd-lines 2013-2025            # 13 metered requests
     python -m jobs.ingest_cfb --cfbd-week 2026:3                # 2 metered requests
+    python -m jobs.ingest_cfb --cfbd-rankings 2026:3 | latest   # 1 metered request (polls)
     python -m jobs.ingest_cfb --fetch --season 2026 --cfbd-week latest   # the weekly refresh
     python -m jobs.ingest_cfb --promote-probe                   # exchange probe -> cfb.db, 0 requests
     python -m jobs.ingest_cfb --odds-free                       # Odds API /sports + /events, 0 credits
@@ -285,6 +286,21 @@ def measure_joins(conn):
         "detail=excluded.detail, src_file=excluded.src_file, measured_ts=excluded.measured_ts",
         [("games.team_ids_without_team_row", s, missing, f"of {total} team ids in games",
           "join:cfb_games x cfb_teams", time.time()) for s, missing, total in rows])
+
+    # A poll row names a team id; the teams file for that season should carry it.
+    # CFBD's `teamId` is the ESPN id, so this is a join on ids, not on names - and
+    # this measurement is what would catch that ceasing to be true.
+    ranks = conn.execute("""
+        SELECT r.season, SUM(t.team_id IS NULL), COUNT(*)
+        FROM cfb_rankings r LEFT JOIN cfb_teams t
+          ON t.season = r.season AND t.team_id = r.team_id AND t.valid_to_ts IS NULL
+        WHERE r.valid_to_ts IS NULL GROUP BY r.season""").fetchall()
+    conn.executemany(
+        "INSERT INTO cfb_measurements (key, season, value, detail, src_file, measured_ts) "
+        "VALUES (?,?,?,?,?,?) ON CONFLICT(key, season) DO UPDATE SET value=excluded.value, "
+        "detail=excluded.detail, src_file=excluded.src_file, measured_ts=excluded.measured_ts",
+        [("rankings.team_ids_without_team_row", s, missing, f"of {total} poll rows",
+          "join:cfb_rankings x cfb_teams", time.time()) for s, missing, total in ranks])
 
     # A provider spelled two ways ACROSS files is invisible to any one parse.
     names = [p for (p,) in conn.execute(
@@ -941,13 +957,16 @@ def _locked_run(conn, a, plan, cfbd_plan):
             t = run_parse_cfbd(conn, parse_seasons(a.season), rebuild=a.rebuild)
             print(f"CFBD parse: files {t['files']}  rows {t['rows']:,}  refused {t['refused']}")
 
-    if a.cfbd_week == "latest":
+    if a.cfbd_week == "latest" or a.cfbd_rankings == "latest":
         wk = latest_completed_week(conn, sources.CURRENT_SEASON)
         if wk is None:
             print(f"CFBD: no finished week of {sources.CURRENT_SEASON} in the stored schedule")
         else:
             print(f"CFBD latest finished week: {sources.CURRENT_SEASON} {wk[0]} week {wk[1]}")
-            cfbd_plan = cfbd_plan + cfbd.week(sources.CURRENT_SEASON, wk[1], wk[0])
+            if a.cfbd_week == "latest":
+                cfbd_plan = cfbd_plan + cfbd.week(sources.CURRENT_SEASON, wk[1], wk[0])
+            if a.cfbd_rankings == "latest":
+                cfbd_plan = cfbd_plan + cfbd.rankings(sources.CURRENT_SEASON, wk[1], wk[0])
 
     if cfbd_plan:
         print(f"CFBD plan: {len(cfbd_plan)} metered requests")
@@ -1025,6 +1044,9 @@ def _main(argv=None):
     ap.add_argument("--cfbd-week", metavar="YEAR:WEEK|latest",
                     help="one week's results and lines: two metered requests. 'latest' resolves "
                          "the most recent finished week of CURRENT_SEASON from the stored schedule")
+    ap.add_argument("--cfbd-rankings", metavar="YEAR:WEEK|latest",
+                    help="one week's polls: ONE metered request. 'latest' resolves the most "
+                         "recent finished week of CURRENT_SEASON from the stored schedule")
     ap.add_argument("--season-type", default="regular", choices=["regular", "postseason"])
     ap.add_argument("--max-requests", type=int, default=cfbd.MAX_REQUESTS_PER_RUN,
                     help=f"lower the per-run cap (never above {cfbd.MAX_REQUESTS_PER_RUN})")
@@ -1039,13 +1061,16 @@ def _main(argv=None):
     if a.cfbd_week and a.cfbd_week != "latest":
         y, w = (int(x) for x in a.cfbd_week.split(":"))
         cfbd_plan += cfbd.week(y, w, a.season_type)
+    if a.cfbd_rankings and a.cfbd_rankings != "latest":
+        y, w = (int(x) for x in a.cfbd_rankings.split(":"))
+        cfbd_plan += cfbd.rankings(y, w, a.season_type)
 
     if a.cfbd_status:
         cfbd_status(connect())
         return 0
     odds_flags = a.odds_free or a.odds_p1 or a.odds_forward or a.odds_week or a.odds_reparse
     if not (a.fetch or a.parse or a.rebuild or a.audit or cfbd_plan or a.cfbd_week
-            or a.promote_probe or odds_flags):
+            or a.cfbd_rankings or a.promote_probe or odds_flags):
         conn = connect()
         status(conn)
         return 0

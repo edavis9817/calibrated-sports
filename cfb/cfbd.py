@@ -40,6 +40,7 @@ USER_AGENT = "calibrated-sports-cfb-ingest"
 ALLOWED = {
     "games": {"year", "week", "seasonType"},
     "lines": {"year", "week", "seasonType"},
+    "rankings": {"year", "week", "seasonType"},
 }
 SEASON_TYPES = {"regular", "postseason", "both"}
 
@@ -90,6 +91,13 @@ def week(season: int, wk: int, season_type: str = "regular") -> list[Request]:
     p = (("year", season), ("week", wk), ("seasonType", season_type))
     return [Request("cfbd_games", "games", season, part, p),
             Request("cfbd_lines", "lines", season, part, p)]
+
+
+def rankings(season: int, wk: int, season_type: str = "regular") -> list:
+    """One request: that week's polls. Rank rows carry `teamId`, which is the ESPN
+    id `cfb_teams` is keyed on, so no name matching is involved."""
+    return [Request("cfbd_rankings", "rankings", season, f"{season_type}:w{wk}",
+                    (("year", season), ("week", wk), ("seasonType", season_type)))]
 
 
 def part_types(part: str) -> set:

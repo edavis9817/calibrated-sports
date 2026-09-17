@@ -206,5 +206,42 @@ def cfbd_lines(payload, season):
     return Normalized(t, rows, dropped, m)
 
 
-NORMALIZERS = {"cfbd_games": cfbd_games, "cfbd_lines": cfbd_lines}
-TABLES = {"cfbd_games": "cfb_cfbd_games", "cfbd_lines": "cfb_game_lines"}
+def cfbd_rankings(payload, season):
+    """CFBD /rankings -> cfb_rankings. The payload is [{season, seasonType, week,
+    polls: [{poll, isFinal, ranks: [{rank, teamId, school, ...}]}]}]."""
+    t = "cfb_rankings"
+    dropped = {}
+    rows = []
+    polls = set()
+    for blk in payload or []:
+        if not isinstance(blk, dict):
+            dropped["not_an_object"] = dropped.get("not_an_object", 0) + 1
+            continue
+        for poll in blk.get("polls") or []:
+            name = poll.get("poll")
+            if not name:
+                dropped["poll_without_a_name"] = dropped.get("poll_without_a_name", 0) + 1
+                continue
+            polls.add(name)
+            for r in poll.get("ranks") or []:
+                if _int(r.get("teamId")) is None:
+                    # No team id: the row cannot be joined to a team and would sit
+                    # in the table as an unresolvable name. Counted, never stored.
+                    dropped["rank_without_team_id"] = dropped.get("rank_without_team_id", 0) + 1
+                    continue
+                rows.append((
+                    _int(blk.get("season")), blk.get("seasonType"), _int(blk.get("week")),
+                    name, _bool(poll.get("isFinal")), _int(r.get("rank")),
+                    _int(r.get("teamId")), r.get("school"), r.get("conference"),
+                    _int(r.get("firstPlaceVotes")), _int(r.get("points")),
+                ))
+    rows = _drop_duplicates(rows, t, dropped)
+    m = [("cfbd_rankings.rows", len(rows), None),
+         ("cfbd_rankings.polls", len(polls), json.dumps(sorted(polls)) if polls else None)]
+    return Normalized(t, rows, dropped, m)
+
+
+NORMALIZERS = {"cfbd_games": cfbd_games, "cfbd_lines": cfbd_lines,
+               "cfbd_rankings": cfbd_rankings}
+TABLES = {"cfbd_games": "cfb_cfbd_games", "cfbd_lines": "cfb_game_lines",
+          "cfbd_rankings": "cfb_rankings"}

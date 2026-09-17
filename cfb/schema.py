@@ -104,6 +104,16 @@ TABLES = {
     # Results within hours of the final, ahead of sportsdataverse's lag. Line
     # scores are the verbatim per-period array; elo and win probability are
     # CFBD's model output and are not stored.
+    # Polls as published: one row per (season, season_type, week, poll, team).
+    # `team_id` is CFBD's `teamId`, which equals the ESPN id `cfb_teams` is keyed
+    # on - measured on the lines and games feeds - so a poll row joins without any
+    # name matching. `school` is kept as published anyway: it is what the poll said.
+    "cfb_rankings": (("season", "season_type", "week", "poll", "team_id"), [
+        ("season", "INTEGER"), ("season_type", "TEXT"), ("week", "INTEGER"),
+        ("poll", "TEXT"), ("is_final", "INTEGER"), ("rank", "INTEGER"),
+        ("team_id", "INTEGER"), ("school", "TEXT"), ("conference", "TEXT"),
+        ("first_place_votes", "INTEGER"), ("points", "INTEGER"),
+    ]),
     "cfb_cfbd_games": (("game_id",), [
         ("game_id", "INTEGER"), ("season", "INTEGER"), ("week", "INTEGER"),
         ("season_type", "TEXT"), ("start_ts", "REAL"), ("completed", "INTEGER"),

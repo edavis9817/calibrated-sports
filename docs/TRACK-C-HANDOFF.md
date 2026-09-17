@@ -103,6 +103,8 @@ python -m jobs.ingest_cfb --audit
 python -m jobs.ingest_cfb --cfbd-status                     # ledger + /info (unmetered)
 python -m jobs.ingest_cfb --cfbd-lines 2013-2025            # 1 metered request per season
 python -m jobs.ingest_cfb --cfbd-week 2026:3 | latest        # 2 metered requests
+python -m jobs.ingest_cfb --cfbd-rankings 2026:3 | latest    # 1 metered request (polls)
+python -m research.cfb_pbp_survey --download --scan --report --silent-zeros   # PBP survey, 0 credits
 python -m jobs.ingest_cfb --promote-probe                   # probe -> cfb.db, 0 requests
 python -m jobs.ingest_cfb --odds-free                       # Odds API /sports + NCAAF /events, 0 credits (verified per call)
 python -m research.cfb_odds_coverage                        # events -> cfb_games join, coverage, costs; 0 requests
@@ -416,6 +418,51 @@ Tuesday 09:00 trigger, and was deleted (confirmed). After creating the real task
   only for games kicking off soon after it. One snapshot per Saturday kickoff hour is ~15 calls
   = ~45 credits a week and gives every game a near-kickoff line. Recommendation: per kickoff
   hour; build the one-call job so either schedule works.
+
+## 10b. Rankings, team colours and the play-by-play survey (2026-09-17)
+
+**Team colours: ALREADY IN THE STORE, nothing to fetch.** `cfb_teams` carries `color`,
+`alternate_color` and `logo`: all **138 of 138** FBS teams in 2026 have all three, and
+**0** FBS team ids referenced by 2026 games are missing a teams row. FCS 124/128 colour,
+D-II 150/162, D-III 233/242. The shell needs a query, not an ingest.
+
+**CFBD `/rankings`: BUILT and run.** `--cfbd-rankings YEAR:WEEK|latest`, ONE metered
+CFBD call (the quota, not Odds credits). `cfb_rankings` keyed (season, season_type,
+week, poll, team_id). A rank row carries CFBD's `teamId`, which IS the ESPN id the store
+is keyed on, so the poll joins with no name matching; `measure_joins` records
+`rankings.team_ids_without_team_row` (2026: **0 of 126**). A rank with no team id is
+counted and dropped, never stored as an unresolvable name. 2026 week 2 holds five polls:
+AP Top 25, Coaches Poll (26 rows - a tie), FCS Coaches, AFCA D-II, AFCA D-III.
+- **A metered call was made outside the job** while establishing the payload shape
+  (1 call, 2025 week 5). It is in `cfbd_requests` as `manual_probe_shape_check_not_archived`
+  with `run_id='manual-probe'` so the reconciliation stays honest. Don't do this again:
+  `--cfbd-rankings` existed twenty minutes later.
+- CFBD quota after this work: **975** remaining of 1,000 for 2026-09.
+
+**Play-by-play: SURVEYED, NOTHING INGESTED.** `docs/C02-cfb-pbp-survey.md` and
+`research/cfb_pbp_survey.py`. 2.0 GB cached under `cfb/cache/pbp_survey/` (outside the
+manifested raw archive - a survey copy is not an ingest), 36 season files, 5,522,755
+plays, 0 credits. Headlines: `espn_cfb_pbp` reaches **2004**, not 2014; cfbfastR has
+**0 silent-zero runs** and ESPN has **14**, including `touchdown` non-null on every row
+and exactly 0.000 for 2005-2013; `cfbfastR.rusher_player_name` is dying live (0.37 ->
+0.21 -> 0.000 in 2026) while `rush_player_id` holds; and the 2022 row jump is **FCS
+games entering the feed**, not better FBS coverage (FBS-vs-FBS flat at 770-807 games
+for twelve seasons).
+
+**The analytics seam.** Track F owns the machinery. This survey calls
+`analytics.survey.scan_season` / `profiles` / `anomalies` / `silent_zeros` and copies
+nothing. When CFB analytics are built they compute through `analytics/gate.py` and
+`analytics/intervals.py`. One mismatch is reported in C02 §6 rather than forked:
+`run_scan` enumerates through the nflverse registry and mirror layout, so it cannot
+scan a feed stored anywhere else.
+
+**Track F's two failing tests are theirs, not ours.** `tests/test_analytics_survey.py`
+(the two that read the real archive) fail on `0f7c3ab` with Track C's work stashed:
+`analytics.db` on this machine has a `condition` column in `f_pbp_columns` that their
+COMMITTED `survey.SCHEMA` does not have, so every column-season is stored twice and
+`profiles()` - which does not filter on it - double-counts (`air_yards` absent reads
+"1999,1999-2000,2000-2001,..." instead of "1999-2005"). Their working copy is ahead of
+their push. Track C's insert names its columns so the extra column cannot shift it.
 
 ## 11. Decisions taken, with the why
 
