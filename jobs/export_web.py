@@ -1519,7 +1519,71 @@ def sync_keys(dest, wanted, prefixes, dry_run=False):
     return written, deleted
 
 
+class NumericStackBroken(RuntimeError):
+    """This interpreter's numpy cannot compute. Refuse before writing anything."""
+
+
+# `np.finfo(np.longdouble)` is the discriminator, measured 2026-09-17: it
+# SEGFAULTS on the dev box's MINGW-W64 numpy (exit 139) and returns
+# eps = 2.22e-16 on a clean 3.12 venv.
+_NUMPY_PROBE = (
+    "import math, sys; import numpy as np; "
+    "fi = np.finfo(np.longdouble); e = float(fi.eps); "
+    "sys.exit(0 if math.isfinite(e) and e > 0 else 3)"
+)
+_numeric_ok = None
+
+
+def assert_numeric_stack(executable=None, timeout=60):
+    """Refuse to export on an interpreter whose numpy dies when it computes.
+
+    THE INCIDENT, 2026-09-17. `python -m jobs.export_web` on this box's default
+    3.14 interpreter SEGFAULTED inside `build_research()` - exit 139, no Python
+    exception, no traceback - after market, players and teams had been written
+    and before research and manifest. Every file it had written was valid and
+    contract-clean, so a TRUNCATED EXPORT WAS INDISTINGUISHABLE FROM A GOOD ONE:
+    `--upload-only` pushed 4,910 correct keys to R2 beside an eight-hour-old
+    manifest and reported success. Only checking the SERVED manifest's
+    `generated_at` afterwards revealed it.
+
+    So the rule is: a job that writes a published tree part by part must refuse
+    at the START, where refusing costs nothing, rather than die in the middle,
+    where the wreckage looks like success.
+
+    IT RUNS IN A SUBPROCESS BECAUSE THE PROBE ITSELF SEGFAULTS. There is no
+    exception to catch - `try: np.finfo(np.longdouble)` does not help, the
+    interpreter is gone. Only a child process can report "it died" without
+    dying, which is also why the check is an exit code and not a return value.
+
+    Importing numpy proves nothing: `import core.distributions` succeeds on the
+    broken build. The probe must make numpy COMPUTE.
+    """
+    global _numeric_ok
+    if _numeric_ok is not None:
+        return _numeric_ok
+    import subprocess          # local: needed once per process, on this path only
+    exe = executable or sys.executable
+    try:
+        r = subprocess.run([exe, "-c", _NUMPY_PROBE], capture_output=True, timeout=timeout)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise NumericStackBroken(
+            f"could not probe the numeric stack with {exe}: {type(exc).__name__}: {exc}") from exc
+    if r.returncode != 0:
+        tail = (r.stderr or b"")[-400:].decode("utf-8", "replace").strip()
+        raise NumericStackBroken(
+            f"numpy on {exe} cannot compute (probe exit {r.returncode}"
+            f"{', SEGFAULT' if r.returncode in (139, -11, 0xC0000005) else ''}). "
+            "The export writes the published tree part by part, so it refuses here "
+            "rather than dying half way and leaving a truncated tree that uploads "
+            "cleanly. Run it from the 3.12 venv."
+            + (f"\n  probe stderr: {tail}" if tail else ""))
+    _numeric_ok = True
+    return True
+
+
 def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry_path=None):
+    # BEFORE `dest` is resolved and long before anything is written.
+    assert_numeric_stack()
     dest = dest or require_setting("WEB_EXPORT_DIR")
     parts = set(only or PARTS)
     now_ts = time.time() if now_ts is None else now_ts

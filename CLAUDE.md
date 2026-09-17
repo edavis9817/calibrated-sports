@@ -1262,6 +1262,34 @@ domain by decision**.
     suite in well under a minute** - `py -3.12 -m venv`,
     `pip install -r requirements.txt pytest`. Do not conclude from a crash on
     the default interpreter that anything is broken.
+  - **IT IS NOT ONLY THE SUITE, AND IT DOES NOT ONLY FAIL ON IMPORT. It
+    SEGFAULTS A PRODUCTION JOB AND TRUNCATES A PUBLISH.** Measured 2026-09-17:
+    `python -m jobs.export_web` on the default interpreter dies with
+    **exit 139, no Python exception and no traceback**, inside
+    `build_research()` - the first part that makes numpy actually compute
+    rather than merely import. `import core.distributions` succeeds there,
+    which proves nothing; the same call under a 3.12 venv returns in 2.1s.
+  - **The damage is what makes this severe: A TRUNCATED EXPORT LEAVES NO
+    FILESYSTEM EVIDENCE.** `export()` runs market -> players -> teams ->
+    research -> manifest, writing as it goes, and `write_if_changed` compares
+    through `_canonical()`, WHICH STRIPS `generated_at`. So a part that never
+    ran and a part that ran and produced identical content look the same on
+    disk - same bytes, same mtime, nothing to notice. The crash left 4,856
+    valid, contract-clean player and team files and the uploader pushed 4,910
+    correct keys to R2 and reported success.
+    - **Corrected, because the first diagnosis was wrong and the wrong reason
+      is instructive.** The stale manifest mtime was read as proof the export
+      had stopped early; a fully successful 3.12 re-run then reported
+      `players [0,0] teams [0,0] research [0,0] manifest [0,0]` and wrote
+      nothing at all. An untouched manifest is what a HEALTHY run produces too,
+      so it was never evidence. The only real signals were the missing summary
+      and the exit code - and the exit code had been masked by a pipe.
+    - That is the argument for the preflight: there is no after-the-fact check
+      that can distinguish a truncated export from a clean one, so the refusal
+      has to happen before the first write.
+  - **Run the export from the 3.12 venv, never the default interpreter**, and
+    see the preflight guard in `jobs/export_web`: a job that can corrupt a
+    published tree must refuse at the start rather than die in the middle.
   - **To reproduce CI locally, clone HEAD to a temp directory and run that venv
     against the clone.** The working tree has `.env` and a configured store, and
     it HIDES the two environment-dependent failures - the same shape as the
@@ -1466,6 +1494,7 @@ Six incidents in one session, all the same shape. They are cross-referenced, not
 | `pytest -k "lock"` selecting nothing | the tests actually running | "42 deselected" reads like a pass; the filter matched no test name and verified nothing. Only the unfiltered run did |
 | a registry record matching a published figure BY VALUE | that record's identity | R11's pointer was nearly resolved by scanning for `est ≈ 1.8125`; a second record carrying the same number is indistinguishable from the right one, and the scan would silently start returning it. Keyed on `(registry, family, name)` instead — verified unique at 1,171 records across all 8 registries |
 | a guard verified BEFORE it was active | the guard | "no renormalisation" was checked while `.gitattributes` was still untracked — attributes apply only once git tracks the file, so the check ran at the one moment the rule could not fire and a clean `git status` proved nothing |
+| **a PIPELINE's exit code** | **the command's exit code** | `cmd \| tail` reports `tail`'s status, so a SEGFAULTING export read as `exit 0`. Proven, not assumed: `python -c "sys.exit(7)" \| tail` gives `$?=0`, and `set -o pipefail` gives 7. Hit TWICE in one session — the second time in the command written to diagnose the first, which is how thoroughly a masked exit code hides itself. `ci.yml` already sets `pipefail`; ad-hoc diagnostics must too, or capture the status with no pipe in sight |
 
 The tell is always the same: **the check passed and told me nothing.** A result that cannot
 distinguish success from a plausible-looking absence has not been verified. Two habits close most of
