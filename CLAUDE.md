@@ -417,6 +417,38 @@ writes it, which is luck holding a guarantee up.
   - Same shape as snap counts (2013+): a stat that does not exist before season
     N needs vocabulary the contract does not have. Filed to track B as A5, and
     one mechanism must serve both sports — see `docs/track-c-requests.md` C3.
+- **THE SILENT-ZERO CLASS: a column that is present, populated and ZERO for a run
+  of seasons. No null check can see it, and a mean over it returns a number that
+  is wrong.** Targets are one row of this class, not a special case. Track F swept
+  the nflverse release for it (`python -m analytics.survey --silent-zeros`,
+  `docs/F01-pbp-survey.md` §2.9, 13 columns); track A swept the columns the SITE
+  PUBLISHES, which is the different and smaller question. **Three published
+  columns are affected, measured 2026-09-17 against `nfl_player_week`:**
+
+      source column               published as   silently zero
+      targets                     targets        2003-2008
+      def_tackles_for_loss        def_tfl        2003-2011   <- longest in the archive
+      def_qb_hits                 def_qb_hits    2003-2005
+
+  `def_tackles_for_loss` is 1,796 player-weeks in 2002, **0 through nine
+  seasons**, 1,843 in 2012, non-null throughout — so a career TFL total spanning
+  that span silently drops nine years. The seven other columns track F found
+  (`racr`, `receiving_air_yards`, `pacr`, `passing_air_yards`, `air_yards_share`,
+  `receiving_yards_after_catch`, `def_tackles_for_loss_yards`) are in neither
+  `STAT_MAP` nor `DEF_COLUMNS` and reach no page.
+  - **`target_share` is a DIFFERENT shape and needs its own handling.** It is
+    mostly NULL in the hole rather than zero — 60 non-null rows of 17,211 in
+    2003, none at all in 2005 — so it degrades honestly except for a small
+    residue that would render as a genuine usage share inside a gap.
+  - **Test it at the level that is published, not at the source.** Effectively
+    zero, never exactly zero: the league target counts are 3, 5, 0, 67, 14, 17,
+    so an exact-zero test walks past five of the six seasons. Track F's first
+    version did exactly that and missed the defect it was named after.
+  - **The contract already requires the fix.** `Stats` is
+    `{"type": ["number", "null"]}` and its description says *"null means unknown
+    or not collected, never zero"* — so the export publishing 0 here violates the
+    intent its own contract states, and no contract change is needed to correct
+    it. What IS missing is vocabulary for the REASON, which is track B's A5.
 - **QB passing facts are COMPLETE across all 28 seasons — the facts layer is not
   the blocker on QB props** (measured by track F, 2026-09-17). PBP passing
   reconciles to `stats_player_week` to the unit with no cliff anywhere,

@@ -201,6 +201,102 @@ the copy would have followed without a ticket.
 
 ---
 
+## 7. A null needs a REASON — per-season stat coverage (this is A5, with the measurements attached)
+
+**Status:** filed 2026-09-17 by Track A. The producer-side fix needs no contract change; this item is
+only about rendering the reason.
+
+**What is changing on the producer side, without asking Track B for anything.** Three published
+columns are *present, populated and zero* for a run of seasons — the silent-zero class. Measured
+against `nfl_player_week` on 2026-09-17:
+
+| source column | published as | silently zero | note |
+|---|---|---|---|
+| `targets` | `targets` | 2003–2008 | unrecoverable; PBP names the receiver on 0.5–0.9% of incompletions |
+| `def_tackles_for_loss` | `def_tfl` | **2003–2011** | 1,796 player-weeks in 2002, 0 for nine seasons, 1,843 in 2012 |
+| `def_qb_hits` | `def_qb_hits` | 2003–2005 | |
+
+These become `null`. **No contract change is required** — `Stats` is already
+`{"type": ["number", "null"]}` and its own description reads *"null means unknown or not collected,
+never zero."* The export was violating the intent the contract states; publishing null is the
+contract being obeyed, not extended.
+
+**What Track B will see.** `stats.targets` and `stats.def_tfl` go from `0` to `null` on affected
+seasons, on both player season files and team splits. Anything rendering `0` today renders an empty
+cell instead. **A career or multi-season total that spanned 2003–2011 was silently nine seasons
+short on TFL and will now refuse to claim a number it does not have.**
+
+**The request, and why null alone is not enough.** A null renders as "—", which is honest but says
+*unknown*. These are not unknown: they are **not collected, and never will be**. The reader cannot
+tell "this player had no targets" from "nobody recorded targets that year" from an empty cell, and
+the second is a fact worth stating.
+
+This is A5, which was filed as "per-season stat-coverage declaration" without measurements. The
+measurements now exist, and they argue for the coverage record living in the **sport manifest**,
+keyed by stat and season range, so one fetch covers every page:
+
+```json
+"stat_coverage": {
+  "targets":   [{"from": 2003, "to": 2008, "reason": "not recorded by the source"}],
+  "def_tfl":   [{"from": 2003, "to": 2011, "reason": "not recorded by the source"}],
+  "def_qb_hits": [{"from": 2003, "to": 2005, "reason": "not recorded by the source"}]
+}
+```
+
+**One mechanism, both gaps, both sports.** Snap counts begin in 2013 and CFB has the same shape
+(`docs/track-c-requests.md` C3). Today `slotState.ts` hard-codes its own prose about which seasons
+support which slot; that prose should read from this declaration instead, or it is the same fact
+written twice — which is the defect that cost this session 3,272 outcomes.
+
+Additive under `additionalProperties: false`, so it lands as one Track A contract change and Track B
+regenerates. Track A will propose the exact shape rather than extend `SportManifest` ad hoc.
+
+### 7a. Coverage of the existing treatment, checked against your code before publishing
+
+Ethan's condition on publishing was that a null must render as *not recorded* rather than as zero, at
+the season granularity each column needs. Track A read `calibratedsports-web` to check rather than
+assume. **Published 2026-09-17.** Result: honest everywhere, explained in one place of four.
+
+**The good news, and it is the load-bearing part: a null NEVER renders as zero.**
+`lib/statFormat.ts:10` returns `DASH` before any format branch, so nothing plots or prints a null as
+0. The failure mode Ethan was guarding against — a flat line at zero with no explanation — does not
+occur anywhere.
+
+**What the existing treatment covers:**
+
+| value | window | where it renders | reads "not recorded"? |
+|---|---|---|---|
+| `target_share` | 2003–2008 | player usage frame | **yes** |
+| `targets` | 2003–2008 | player game log, season totals, career | no — dash only |
+| `def_tfl` | **2003–2011** | team splits table | no — dash only |
+| `def_qb_hits` | 2003–2005 | team splits table | no — dash only |
+
+**`PlayerView` is right and should be the model.** `PlayerView.tsx:422-430` derives `unrecorded` from
+the rows themselves — every REG period null, or the summary's `<key>_mean` null — and names only the
+season on screen. Its own comment explains that no start year is hard-coded "because the contract
+carries none". That is exactly the per-column, per-season granularity needed, and it will light up for
+these seasons with no change at all. It also already carries the 2012-vs-2013 fix.
+
+**Three gaps, in priority order:**
+
+1. **`TeamView` has no equivalent path.** `Splits` maps `v == null` to `DASH` and stops
+   (`TeamView.tsx`, `perGame`). `def_tfl` is dashed for **nine consecutive seasons** on all 32 teams
+   with nothing saying why — 396 values. This is the one worth building, and `PlayerView`'s rule ports
+   directly: a column null in every row of a season is not recorded that season.
+2. **`targets` is not in `usageKeys`** (`config/sports/nfl.ts:21` is `["snap_share",
+   "target_share"]`), so the note misses it even on the player page, where its sibling
+   `target_share` is covered. A reader sees "Tgt %" explained and "Tgt" dashed beside it.
+3. **Career totals carry no season to attach a reason to.** 1,127 player pages now have a null career
+   `targets` (line 686 renders `summary.career.stats`). This is the case the `stat_coverage`
+   declaration above answers best: the career row can say "targets not recorded 2003–2008" from the
+   manifest without inspecting rows.
+
+**Producer-side counts, measured on the real export (23,206 files):** `targets` 44,518 values,
+`target_share` 39,600, `def_tfl` 396, `def_qb_hits` 132 — 4,856 files touched. Every one was `0`
+before and is `null` now, and a re-scan confirms **0 remaining zeros inside any run**.
+
+---
+
 ## 2. `docs/site-architecture.md` is now canonical in `calibrated-sports`
 
 **Status:** the file is in place here; the Track B half is not done.

@@ -116,6 +116,67 @@ DEF_COLUMNS = (("def_tkl_solo", "def_tackles_solo"), ("def_tkl_with_assist", "de
                ("def_safeties", "def_safeties"))
 
 
+# =============================================================================
+# THE SILENT-ZERO CLASS
+# =============================================================================
+#
+# A column that is PRESENT, POPULATED AND ZERO for a run of seasons. No null
+# check can see it: `nonnull` is 1.000 throughout, so every guard passes and a
+# mean returns a number that is simply wrong.
+#
+# The contract already requires the fix. `Stats` is `{"type": ["number","null"]}`
+# and its own description reads "null means unknown or not collected, never
+# zero" - so emitting 0 here violated the intent the contract states, and
+# publishing null needs no contract change.
+#
+# SWEPT, NOT GUESSED, AND SWEPT ON THE RIGHT QUESTION. Track F swept the nflverse
+# release (`analytics.survey --silent-zeros`, docs/F01-pbp-survey.md 2.9) and
+# found 13 columns. The question here is different and smaller - which columns
+# THIS EXPORT PUBLISHES are affected - and the answer is three, measured against
+# `nfl_player_week` on 2026-09-17. The other ten are in neither STAT_MAP nor
+# DEF_COLUMNS and reach no page.
+#
+# The runs are declared here rather than imported from `analytics`: that package
+# is track F's, reads its own `analytics.db`, and is explicitly scoped out of
+# this file. Importing it would make the export refuse to run unless another
+# track's database had been scanned. `tests/test_silent_zeros.py` cross-checks
+# this table against their sweep when that database exists, so the two cannot
+# drift in silence - which is the real risk of declaring it twice.
+#
+# EFFECTIVELY ZERO, NEVER EXACTLY ZERO. League targets for 2003-2008 are
+# 3, 5, 0, 67, 14, 17 - an exact-zero test walks past five of the six seasons,
+# and track F's first version did exactly that and missed the defect it was
+# named after.
+NOT_COLLECTED = {
+    # source column           inclusive season runs
+    "targets": ((2003, 2008),),
+    # Mostly NULL in the hole rather than zero (60 non-null rows of 17,211 in
+    # 2003, none at all in 2005), so it degrades honestly except for a residue
+    # that would otherwise render as a genuine usage share inside a gap.
+    "target_share": ((2003, 2008),),
+    # The longest run in the archive, and it was unknown until swept: 1,796
+    # player-weeks in 2002, 0 through nine seasons, 1,843 in 2012.
+    "def_tackles_for_loss": ((2003, 2011),),
+    "def_qb_hits": ((2003, 2005),),
+}
+
+# published stat key -> the nfl_player_week column behind it. `_totals` works in
+# published keys and the coverage table is keyed by source column.
+SOURCE_OF = {key: col for col, key in STAT_MAP}
+
+
+def collected(col, season):
+    """Did the source record this column in this season?
+
+    False means NOT COLLECTED - a fact about the feed, not about the player.
+    Callers must emit null, never 0.
+    """
+    for lo, hi in NOT_COLLECTED.get(col, ()):
+        if lo <= season <= hi:
+            return False
+    return True
+
+
 def _d(label, fmt, group, higher=True):
     return {"label": label, "format": fmt, "group": group, "higher_is_better": higher}
 
@@ -842,14 +903,35 @@ def scope_slugs(by_player, xwalk, registry_path=None, dry_run=False):
 # =============================================================================
 
 def _count(r, col):
+    # A season the source did not collect publishes null. Without this the row
+    # reads as a real zero, which is indistinguishable from "he had none".
+    if not collected(col, r["season"]):
+        return None
     return intish(r.get(col)) if r.get(col) is not None else 0
 
 
 def _totals(periods):
+    """Totals over `periods`, which may be ONE SEASON or a WHOLE CAREER.
+
+    THE CAREER CALL IS WHY THE RULE IS "ANY", NOT "ALL". This is called twice:
+    per (season, season_type) for `season_totals`, and over every REG period for
+    `career`. A rule of "null only when every period is uncollected" would be
+    right for the first and useless for the second - a player spanning 2002-2012
+    would get a career TFL figure that silently dropped nine seasons and looked
+    like a number. So a total spanning ANY uncollected season is null: the honest
+    answer is that it cannot be stated, not a sum of the half that exists.
+    """
     shares = [p["stats"]["snap_share"] for p in periods if p["stats"]["snap_share"] is not None]
     stats = {}
     for k in COUNT_KEYS:
-        stats[k] = None if k in MISSING_COMPONENTS else intish(sum(num(p["stats"][k]) for p in periods))
+        if k in MISSING_COMPONENTS:
+            stats[k] = None
+            continue
+        col = SOURCE_OF.get(k, k)
+        if any(not collected(col, p["season"]) for p in periods):
+            stats[k] = None
+            continue
+        stats[k] = intish(sum(num(p["stats"][k]) for p in periods))
     stats["snap_share_mean"] = rnd(statistics.fmean(shares)) if shares else None
     return stats
 
@@ -879,7 +961,8 @@ def build_players(games, by_player, snaps, xwalk, aliases, slugs, market_keys, g
                     if g is not None and r["season"] >= SNAP_FIRST_SEASON else None)
             raw = {"snaps": None if snap is None else intish(snap[0]),
                    "snap_share": None if snap is None else rnd(snap[1]),
-                   "target_share": rnd(r.get("target_share"))}
+                   "target_share": (rnd(r.get("target_share"))
+                                    if collected("target_share", r["season"]) else None)}
             for col, key in STAT_MAP:
                 raw[key] = _count(r, col)
             for key in MISSING_COMPONENTS:
@@ -999,7 +1082,11 @@ def build_teams(games, weeks, snaps, scope, xwalk, slugs, generated_at):
                 if not played and not prows:
                     continue
 
-                def tot(col):
+                def tot(col, _season=season):
+                    # Per-season here, so the whole split is null or none of it
+                    # is. `def_tfl` is 0 for nine straight seasons on every team.
+                    if not collected(col, _season):
+                        return None
                     return intish(sum(num(r[col]) for r in prows))
                 off = {"points": intish(sum(s["points_for"] for s in played)),
                        "pass_yds": tot("passing_yards"), "rush_yds": tot("rushing_yards"),
@@ -1019,7 +1106,12 @@ def build_teams(games, weeks, snaps, scope, xwalk, slugs, generated_at):
         if with_data:
             season = with_data[-1]
             prows = by_team_week[(abbr, season, "REG")]
-            team_tgt = sum(num(r["targets"]) for r in prows)
+            # None, not 0: a share whose denominator was never collected is
+            # unknown. `if team_tgt` below already yields null for a falsy
+            # denominator, but that was accidental - a residue of 54 stray rows
+            # across the hole makes it truthy on some teams.
+            team_tgt = (sum(num(r["targets"]) for r in prows)
+                        if collected("targets", season) else None)
             team_car = sum(num(r["carries"]) for r in prows)
             per = defaultdict(list)
             for r in prows:
