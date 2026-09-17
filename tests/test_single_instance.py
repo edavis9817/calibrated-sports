@@ -168,6 +168,110 @@ def test_a_stale_lock_FILE_alone_does_not_block(tmp_path):
     si.acquire(si.LOGGER).release()
 
 
+# ------------------------------------------------- InstanceLock (path-addressed)
+#
+# The context-manager API, kept compatible with Track C's cfb/lock.py so that
+# module can retire onto this one by changing an import. MEASURED: the two are
+# identical on every contention behaviour (refused while held, released on exit,
+# freed when the holder is killed) because both take a byte-range lock on an
+# open handle and the kernel owns liveness. What this one adds is holder identity
+# and the `_held` registry `acquire()` needs for a daemon with no enclosing
+# block. See docs/track-c-requests.md C1.
+
+
+def path_child(tmp_path, lock_path, hold_seconds):
+    """A separate process taking the SAME path via InstanceLock."""
+    src = textwrap.dedent(f"""
+        import os, sys, time
+        sys.path.insert(0, {str(ROOT)!r})
+        from core import single_instance as si
+        try:
+            lk = si.InstanceLock({str(lock_path)!r}).__enter__()
+        except si.AlreadyRunning:
+            print("REFUSED", flush=True)
+            raise SystemExit(9)
+        print("HELD", os.getpid(), flush=True)
+        time.sleep({hold_seconds})
+    """)
+    env = dict(os.environ, LOGGER_DB=str(tmp_path / "market_log.db"))
+    return subprocess.Popen([sys.executable, "-c", src], env=env,
+                            stdout=subprocess.PIPE, text=True)
+
+
+def test_instancelock_acquires_and_releases(tmp_path):
+    p = tmp_path / "locks" / "probe.lock"
+    with si.InstanceLock(str(p)):
+        assert p.exists()
+    with si.InstanceLock(str(p)):
+        pass                                # released on exit, so re-enterable
+
+
+def test_instancelock_stamps_the_STEM_not_the_whole_path(tmp_path):
+    """THE REGRESSION. The first version passed the path as both name and path,
+    so the holder record carried the full path in `name` - redundant with
+    `path`, unreadable in a refusal, and the field another track reads."""
+    p = tmp_path / "locks" / "ingest_cfb.lock"
+    with si.InstanceLock(str(p)):
+        h = si._holder_at(str(p))
+    assert h is not None
+    assert h["name"] == "ingest_cfb", h["name"]
+    assert os.sep not in h["name"] and not h["name"].endswith(".lock")
+
+
+def test_instancelock_refuses_a_separate_process(tmp_path):
+    p = tmp_path / "locks" / "probe.lock"
+    with si.InstanceLock(str(p)):
+        proc = path_child(tmp_path, p, hold_seconds=5)
+        try:
+            out = proc.stdout.readline().strip()
+            assert out == "REFUSED", f"a second process got in: {out!r}"
+        finally:
+            kill(proc.pid)
+            proc.wait(timeout=10)
+
+
+def test_instancelock_frees_when_the_holder_is_killed(tmp_path):
+    """The kernel owns liveness; no pid probe anywhere. On Windows a pid probe
+    is itself destructive - `os.kill(pid, 0)` TERMINATES rather than tests,
+    recorded in Track C's cfb/lock.py and true of this module too."""
+    p = tmp_path / "locks" / "probe.lock"
+    proc = path_child(tmp_path, p, hold_seconds=30)
+    pid = held_pid(proc)
+    kill(pid)
+    proc.wait(timeout=10)
+    with si.InstanceLock(str(p)):
+        pass                                # no exception is the assertion
+
+
+def test_instancelock_releases_on_an_exception(tmp_path):
+    p = tmp_path / "locks" / "probe.lock"
+    with pytest.raises(ValueError):
+        with si.InstanceLock(str(p)):
+            raise ValueError("boom")
+    with si.InstanceLock(str(p)):
+        pass                                # __exit__ ran despite the raise
+
+
+def test_the_two_apis_lock_different_paths_so_they_cannot_disagree(tmp_path):
+    """THE MIGRATION WINDOW. While both APIs exist they must not contend for one
+    resource unnoticed. `acquire(name)` resolves through
+    config.storage_path("locks", name); InstanceLock takes the path it is given.
+    The second half - that the SAME path DOES contend - is what stops the first
+    half passing for free.
+    """
+    named = si.acquire("run_logger")
+    try:
+        other = tmp_path / "other.lock"
+        assert os.path.abspath(named.path) != os.path.abspath(str(other))
+        with si.InstanceLock(str(other)):
+            pass                            # different path: no contention
+        with pytest.raises(si.AlreadyRunning):
+            with si.InstanceLock(named.path):
+                pass                        # same path: contends
+    finally:
+        named.release()
+
+
 # --------------------------------------------------------------- it is WIRED
 
 def calls_acquire(path: pathlib.Path) -> bool:

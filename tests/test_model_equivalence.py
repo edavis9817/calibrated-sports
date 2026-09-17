@@ -261,9 +261,37 @@ def test_the_018_change_verifies_and_is_identity_only():
     assert cmp["added"] == {} and cmp["removed"] == {}
 
 
+def _store_has_predictions():
+    """Is there a store here that can actually answer this test?
+
+    A SET ENVIRONMENT VARIABLE IS NOT A USABLE STORE. This skip used to read
+    `os.getenv("LOGGER_DB") is None`, which gates on the variable existing
+    rather than on the data existing. Track C runs with a throwaway
+    `LOGGER_DB` pointing at an empty database: the variable is set, the skip
+    does not fire, and the test FAILS on absent predictions while reading like
+    a broken equivalence chain. It cost them a diagnostic cycle and was routed
+    back here as a Track A item.
+
+    Probes the thing the test needs - at least one `predictions` row - rather
+    than a proxy for it. Never raises: an unreadable store is simply not one.
+    """
+    import sqlite3
+
+    import config
+    try:
+        con = sqlite3.connect(f"file:{config.DB_PATH}?mode=ro", uri=True)
+        try:
+            return con.execute("SELECT 1 FROM predictions LIMIT 1").fetchone() is not None
+        finally:
+            con.close()
+    except Exception:
+        return False
+
+
 @pytest.mark.skipif(
-    os.getenv("LOGGER_DB") is None,
-    reason="LOGGER_DB unset: the live chain reads the logger's predictions, which CI has no copy of",
+    not _store_has_predictions(),
+    reason="no configured store with predictions: the live chain reads the logger's "
+           "predictions, which CI (and a throwaway LOGGER_DB) has no copy of",
 )
 def test_all_three_versions_resolve_to_the_one_with_predictions():
     """The live chain: two hops, undirected, ending at the 935.

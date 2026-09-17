@@ -1,0 +1,19 @@
+# Line endings are a property of the COMMIT, not of the machine that made it.
+#
+# Without this file normalisation depends on each contributor's `core.autocrlf`.
+# This machine has it on, so the index happens to be LF - but a clone with
+# `autocrlf=false` commits CRLF, and part of this repo is PUBLIC. The web repo's
+# `contract-in-sync` job curls `web/contract/v2/contract.schema.json` from
+# GitHub and diffs it against its vendored copy BYTE FOR BYTE, so a CRLF commit
+# breaks another track's build without touching a line of content.
+#
+# Brief 018 paid for this lesson once already: `models/baseline._fingerprint()`
+# hashed raw bytes, so the same commit hashed differently under different
+# autocrlf settings and verifying a historical version needed a search over 2^n
+# line-ending conventions. The fix there was to remove the degree of freedom.
+# This removes it at the source instead.
+* text=auto
+
+# Fetched over HTTP and compared byte for byte. Pinned in the working tree too,
+# not just in the index, so what a contributor edits is what the gate diffs.
+*.json text eol=lf

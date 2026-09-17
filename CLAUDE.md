@@ -1363,6 +1363,30 @@ W04/W05 build cycle. They apply without being restated, so proceed on them rathe
 - **Route checks prove nothing about client-rendered content.** curl sees `Loading…`. Anything below
   the fold needs a render test.
 
+### A PROXY IS NOT THE THING
+
+**The class, and the check.** Name the thing under test, then confirm your assertion can only be
+satisfied by *that thing* and not by a stand-in that resembles it. If some other state could produce
+the same green, the assertion is measuring the stand-in.
+
+Six incidents in one session, all the same shape. They are cross-referenced, not re-litigated:
+
+| The stand-in | The thing | Where |
+|---|---|---|
+| `curl` | what the Worker serves a browser | a 403 came from Cloudflare's edge on the client's UA; the app returns only 404 |
+| exit 0 | the result | a `--tests-out` reader printed `n/a` for 28 intervals on wrong key names, and exited clean |
+| a `FunctionDef` exists once | nothing CALLS the deleted name | two live calls survived 800 green tests; an unresolved name is a runtime error |
+| three `Loading…` placeholders | three rendered values | they compared equal to each other and to nothing real |
+| `os.getenv("LOGGER_DB") is not None` | a store that resolves predictions | a throwaway path is set and empty: the skip misses and the test fails on absent data |
+| `changed: 12` | files the export modified | it counts keys differing from *upload state*, not from the previous build |
+| prose describing a manual check | a committed test | "a separate process was refused" in a handoff was a check run by hand during development; the committed test is nested `with` blocks in one process |
+| `pytest -k "lock"` selecting nothing | the tests actually running | "42 deselected" reads like a pass; the filter matched no test name and verified nothing. Only the unfiltered run did |
+
+The tell is always the same: **the check passed and told me nothing.** A result that cannot
+distinguish success from a plausible-looking absence has not been verified. Two habits close most of
+it — compare the count you got against the count you expected and fail loudly at zero, and make every
+assertion discriminate (show it returning the *other* answer on the other input) before trusting it.
+
 ## Data and figures
 
 - **No unsourced figures.** Every number on the site is query-derived or visibly marked placeholder.
@@ -1413,9 +1437,14 @@ W04/W05 build cycle. They apply without being restated, so proceed on them rathe
 
 ## Tests
 
-- **No test writes outside its own fixture.** Every test that touches the store pins it — `DB_PATH`,
-  `STORAGE_DIR`, `WEB_EXPORT_DIR` — to a `tmp_path`, and a subprocess gets it by env, not by
-  monkeypatch. Autouse the fixture rather than per-test: the failure mode is the test that forgets.
+- **No test writes outside its own fixture — and neither does a diagnostic.** Every test that touches
+  the store pins it — `DB_PATH`, `STORAGE_DIR`, `WEB_EXPORT_DIR` — to a `tmp_path`, and a subprocess
+  gets it by env, not by monkeypatch. Autouse the fixture rather than per-test: the failure mode is
+  the test that forgets. The word *test* is not the boundary: a throwaway probe run at a prompt
+  inherits the live config just as readily, and one such probe left
+  `<STORAGE_DIR>/locks/selftest_redirector.lock` in the production store because
+  `acquire(name)` resolves through `config.storage_path`. If it writes anywhere, pin it or point it
+  at a scratch path.
   This is not hypothetical. Adding a `source_health` write to `weekly_refresh.run()` gave seven
   previously write-free tests a real `record_health` call against the LIVE database, and the
   production `weekly_refresh` row read `ok=0` while the job was healthy. The tests were harmless

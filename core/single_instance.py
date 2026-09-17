@@ -191,6 +191,68 @@ class Lock:
         return False
 
 
+class InstanceLock:
+    """A path-addressed lock, as a context manager.
+
+    API-COMPATIBLE WITH `cfb/lock.py` ON PURPOSE. Track C wrote that module the
+    same night as this one, for the same 2026-09-11 incident (two processes
+    appending to one raw shard destroyed 43 of 114), with the same byte-range
+    design. Two implementations of one rule is the duplication that let the
+    settlement rule disagree with itself on 3,272 outcomes - so the shared
+    implementation lives here, and `cfb/lock.py` can retire onto it by changing
+    one import line. Track C owns that file; the adoption is FILED in
+    `docs/track-c-requests.md`, not edited in.
+
+    Their docstring records something this module did not know and should:
+    on Windows `os.kill(pid, 0)` does not probe a process, it TERMINATES it -
+    so the obvious "is the PID alive?" check is itself destructive, which is a
+    second reason a PID file is the wrong instrument.
+
+        with InstanceLock(path):
+            ...
+    """
+
+    def __init__(self, path: str):
+        self.path, self._lock = path, None
+
+    def __enter__(self):
+        # The stamped `name` is the lock file's stem, NOT the whole path. The
+        # first version passed the path as both, so the holder record read
+        # {"pid": ..., "name": "C:\\...\\probe.lock"} - redundant with `path`
+        # and unreadable in a refusal message. Another track reads this field.
+        name = os.path.splitext(os.path.basename(self.path))[0] or self.path
+        os.makedirs(os.path.dirname(os.path.abspath(self.path)) or ".", exist_ok=True)
+        fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o644)
+        if not _try_lock(fd):
+            info = _holder_at(self.path)
+            os.close(fd)
+            raise AlreadyRunning(name, self.path, info)
+        # No `_held` entry: the `with` block holds this instance, which holds the
+        # Lock, which holds the descriptor. `acquire()` needs the registry
+        # because a daemon has no enclosing scope - see its comment.
+        self._lock = Lock(name, self.path, fd)
+        self._lock._stamp(None)
+        return self
+
+    def __exit__(self, *_exc):
+        if self._lock is not None:
+            self._lock.release()
+            self._lock = None
+        return False
+
+
+def _holder_at(path: str) -> dict | None:
+    """`holder()` by path rather than by name. Reads from LOCK_BYTE so it works
+    while the lock is held on Windows, where the region is mandatory."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(LOCK_BYTE)
+            blob = f.read()
+        return json.loads(blob.decode("utf-8")) or None
+    except (OSError, ValueError, UnicodeDecodeError):
+        return None
+
+
 def acquire(name: str, argv=None) -> Lock:
     """Take the lock for `name`, or raise `AlreadyRunning`.
 
