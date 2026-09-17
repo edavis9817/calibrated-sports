@@ -69,6 +69,43 @@ the same under-designed pages twice and redo both.
 it should not require a schema change. If it does, that is a finding worth reporting — it means the
 contract is not as sport-agnostic as it claims, and that is better learned now than at sport five.
 
+### F — Analytics  (`calibrated-sports`, third clone)
+
+Play-by-play processing into league analytics. nflverse PBP 1999–2026 is archived on disk and has
+never been read; it is the largest untapped asset in the project.
+
+**Own database: `D:\calibrated-sports\data\analytics.db`.** Never writes to `market_log.db` — read it
+only with `mode=ro`. Same reasoning as CFB: bulk writes must never contend with the live logger.
+
+**Scope is processing and export only. No pages.** Does not edit `jobs/export_web.py`,
+`contract.schema.json`, or any shared NFL code path. New files only.
+
+**The structural rule, enforced as a failing test:** no analytic is published without an interval and
+a sample count. Every stats site publishes point estimates; publishing the uncertainty is what makes
+these ours. A table or export carrying a rate without its `n` and its interval fails the gate, the
+same way CFB's guard fails on a hit-rate-shaped table.
+
+First pass is PBP only. Next Gen Stats is free and static but is the most widely discussed advanced
+data there is; it lands after PBP, once we know what PBP is missing.
+
+### E — Design  (Claude Design, not a repo)
+
+Ethan iterating on look and composition in a separate Claude Design conversation. Fully parallel — it
+touches no code and cannot conflict.
+
+Three constraints, all of them learned the expensive way:
+
+- **Mock every artboard with the real magnitudes**, not invented density. 3,970 players, 7,292 games,
+  8 seasons, 18 stat columns, 11 markets, 83 ladder rungs, prop history at 11-of-16. A design approved
+  against 1,284 markets is a design that ships empty.
+- **Target what §3 will fill**, not what just shipped: prop performance, stats leaderboards, the
+  fantasy scoring editor, sport home. Redesigning built pages means building them twice.
+- **Carry the register assignment** from `site-design-direction.md`. Dense reference or editorial, per
+  page, chosen before any composition.
+
+Output lands in `design/` **in the web repo**, committed — not in the public repo, where it is
+currently gitignored and therefore untracked and unbacked. Track B reads it there.
+
 ### D — Ops
 
 At-boot task, Task Scheduler operational log, retention hold, source-health monitoring. Mostly Ethan's
