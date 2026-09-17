@@ -78,6 +78,17 @@ DATASETS = {d.name: d for d in (
 # Datasets that must never be ingested, with the reason. Checked by name AND by
 # tag, so a new Dataset pointed at a denied tag under another name still fails.
 DENIED = {
+    # Ethan, 2026-09-17, on the C02 survey: CFB play-by-play is cfbfastR, 2014+.
+    # Re-opening this needs a new argument, not a new import.
+    "espn_cfb_pbp": (
+        "carries 14 SILENT-ZERO runs against cfbfastR's zero - `touchdown` is non-null "
+        "on 100% of rows and exactly 0.000 for 2005-2013, `xp_attempt`/`xp_made` for "
+        "2004-2013, `qb_hurry` zero at BOTH ends of a populated middle - so a sum over "
+        "those seasons succeeds and returns a wrong number. It reaches 2004 against "
+        "cfbfastR's 2014, but a college roster turns over completely in four years, so "
+        "pre-2014 play-by-play has little bearing on current analysis and the box-score "
+        "history already runs to 2001. docs/C02-cfb-pbp-survey.md; "
+        "research/cfb_pbp_survey.py surveys it without ingesting it."),
     "espn_cfb_betting": (
         "fabricates lines: all 6,411 rows with odds_source='default' carry a spread "
         "of 2.5 and 6,395 a total of 55.5 - 6,276 of 6,277 games 2004-2011 and "

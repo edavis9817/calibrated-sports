@@ -5,6 +5,7 @@
     python -m research.cfb_pbp_survey --report          # feeds, seasons, rows, coverage cliffs
     python -m research.cfb_pbp_survey --silent-zeros    # non-null and exactly zero for a run of seasons
     python -m research.cfb_pbp_survey --column yards_gained [--feed espn_cfb_pbp]
+    python -m research.cfb_pbp_survey --divisions        # games by division per season -> cfb_measurements
 
 WHY A SURVEY FIRST. Track F's NFL survey (`docs/F01-pbp-survey.md`) found three
 defects that would have shipped as confident numbers: targets unreconstructable
@@ -169,6 +170,41 @@ def scan(feeds=None, seasons=None, verbose=True):
     return stats
 
 
+def divisions(feeds=None, verbose=True):
+    """Games per season by division pair, joined to `cfb_games`, into
+    `cfb_measurements` as `pbp.games_by_division`. This is the premise
+    `cfb.pbp_scope` refuses on, so it must be a query and not a remembered number."""
+    import sqlite3
+
+    import polars as pl
+    con = sqlite3.connect(paths.db_path(), timeout=30)
+    out = {}
+    for feed in (feeds or [DEFAULT_FEED]):
+        for season, path in cached_files(feed):
+            ids = [int(x) for x in
+                   pl.scan_parquet(path).select("game_id").unique().collect()["game_id"].to_list()]
+            q = ",".join("?" * len(ids))
+            mix = dict(con.execute(
+                f"SELECT home_division || '/' || COALESCE(away_division, '?'), COUNT(*) "
+                f"FROM cfb_games WHERE valid_to_ts IS NULL AND game_id IN ({q}) GROUP BY 1", ids))
+            mix["_pbp_games"] = len(ids)
+            mix["_matched"] = sum(v for k, v in mix.items() if not k.startswith("_"))
+            con.execute(
+                "INSERT INTO cfb_measurements (key, season, value, detail, src_file, measured_ts) "
+                "VALUES (?,?,?,?,?,?) ON CONFLICT(key, season) DO UPDATE SET value=excluded.value, "
+                "detail=excluded.detail, src_file=excluded.src_file, measured_ts=excluded.measured_ts",
+                (f"pbp.games_by_division[{feed}]", season, mix.get("fbs/fbs", 0),
+                 json.dumps(mix, sort_keys=True), path, time.time()))
+            out[(feed, season)] = mix
+            if verbose:
+                print(f"  {feed:18} {season}  pbp games {len(ids):>5}  matched {mix['_matched']:>5}  "
+                      f"fbs/fbs {mix.get('fbs/fbs', 0):>4}  fcs/fcs {mix.get('fcs/fcs', 0):>4}",
+                      flush=True)
+    con.commit()
+    con.close()
+    return out
+
+
 def _con():
     import sqlite3
     return sqlite3.connect(f"file:{paths.db_path()}?mode=ro", uri=True)
@@ -198,6 +234,9 @@ def main(argv=None):
     ap.add_argument("--scan", action="store_true")
     ap.add_argument("--report", action="store_true")
     ap.add_argument("--silent-zeros", action="store_true")
+    ap.add_argument("--divisions", action="store_true",
+                    help="games per season by division pair -> cfb_measurements (the premise "
+                         "cfb.pbp_scope refuses on)")
     ap.add_argument("--column")
     ap.add_argument("--feed", action="append", choices=sorted(FEEDS))
     ap.add_argument("--season", type=int, action="append")
@@ -209,6 +248,8 @@ def main(argv=None):
               f"{sum(1 for g in got if g[2] == 'cached')} already cached")
     if a.scan:
         print(f"scan: {scan(feeds, set(a.season) if a.season else None)}")
+    if a.divisions:
+        divisions(feeds)
     if a.column:
         con = _con()
         for feed in (feeds or FEEDS):
@@ -228,7 +269,7 @@ def main(argv=None):
         con.close()
     if a.report:
         report(feeds)
-    if not any((a.download, a.scan, a.report, a.silent_zeros, a.column)):
+    if not any((a.download, a.scan, a.report, a.silent_zeros, a.column, a.divisions)):
         ap.print_help()
     return 0
 

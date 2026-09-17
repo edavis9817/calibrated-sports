@@ -449,6 +449,17 @@ and exactly 0.000 for 2005-2013; `cfbfastR.rusher_player_name` is dying live (0.
 games entering the feed**, not better FBS coverage (FBS-vs-FBS flat at 770-807 games
 for twelve seasons).
 
+**DECIDED 2026-09-17 (Ethan): cfbfastR only, 2014+. `espn_cfb_pbp` is DENIED** in
+`cfb/sources.DENIED` - 14 silent-zero runs against cfbfastR's zero, and its 2004 depth buys
+little when a college roster turns over in four years and the box score already runs to 2001.
+Re-opening 2004-2013 needs a new argument, not a new import.
+
+**The 2022 scope change is a guard:** `cfb.pbp_scope.check()` raises on any season range that
+pools across it unless the caller restricts to FBS-vs-FBS or declares the change in words, and
+`key_column()` refuses text-parsed name columns. `--divisions` writes the premise to
+`cfb_measurements`. `tests/test_cfb_pbp_scope.py`; both guards were disabled once to watch the
+tests fail.
+
 **The analytics seam.** Track F owns the machinery. This survey calls
 `analytics.survey.scan_season` / `profiles` / `anomalies` / `silent_zeros` and copies
 nothing. When CFB analytics are built they compute through `analytics/gate.py` and

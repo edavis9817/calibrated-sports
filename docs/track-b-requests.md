@@ -312,3 +312,32 @@ what `calibratedsports-web/docs/site-architecture.md` held. Two things remain, b
 
 Track A did not edit that workflow or delete the web-repo file: it is Track B's, and W07 says an item
 belonging to another track is reported rather than fixed.
+
+---
+
+## CFB team colours are a QUERY, not an ingest — filed by Track C, 2026-09-17
+
+**Status:** nothing to build on the Track C side; filed so track B does not wait for a feed.
+
+`cfb_teams` in `cfb.db` already carries `color`, `alternate_color` and `logo`, from the
+sportsdataverse ESPN teams release, keyed `(season, team_id)` where `team_id` is the **ESPN team
+id** — the same id space `cfb_games.home_id` / `away_id` use, so no name matching is involved.
+
+Measured 2026-09-17 on season 2026, current rows only:
+
+| classification | teams | `color` | `alternate_color` | `logo` |
+|---|---:|---:|---:|---:|
+| fbs | 138 | **138** | **138** | **138** |
+| fcs | 128 | 124 | 105 | 128 |
+| ii | 162 | 150 | 16 | 155 |
+| iii | 242 | 233 | 104 | 237 |
+
+**0** FBS team ids referenced by 2026 games are missing a `cfb_teams` row. Colours are stored as
+six hex digits with no leading `#`.
+
+Two things to hold to, both live constraints elsewhere on the site: conference membership moves, so
+a colour row is per SEASON and must not be carried across seasons; and per the design rules team
+colour is identity only — chips and hairlines, never a chart fill or a row background.
+
+Alternate colour is materially thinner outside FBS (16 of 162 in D-II). Anything below FBS needs a
+fallback, not an assumption.
