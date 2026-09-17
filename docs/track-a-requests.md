@@ -58,3 +58,25 @@ What track C gives up: nothing. What it gains: a refusal that names the holder.
    rescan piped through `head -4` died on SIGPIPE after four files; the next command read
    the half-built table and printed a clean, plausible "0 silent-zero runs" - the exact
    shape of a wrong answer that looks like a result. Redirect to a file and tail it.
+
+## A-C4. For the defect table: removing a check's return value can be worse than a weak one
+
+**Status:** filed 2026-09-17 by track C, at Ethan's direction. Live in track C code and in
+`DECISIONS.md`; offered because it is a Python-wide hazard, not a CFB one.
+
+**The defect.** A guard returning a bare boolean is weak: `if check(x):` discards everything
+it learned. The fix looks like "stop returning a boolean" — but an object with no `__bool__`
+and no `__len__` is **truthy**, so every call site that said `assert check(x)` keeps passing
+and now asserts *nothing*, including when the check fails. The weak version at least failed
+when it should. The removed version cannot fail.
+
+**Measured here, not hypothetical.** Seven `assert ingest_cfb.audit(store)` sites would have
+gone green and vacuous, with no diff to notice, the same afternoon the rule was written.
+
+**The strong form.** Refuse truth-testing: `AuditReport.__bool__` raises `TypeError` naming
+`.clean` and `.statement`. Every stale call site fails loudly at the moment the return type
+changes, and each was rewritten to `.clean`. A test asserts `bool(report)` raises.
+
+**Generalised:** when a return value stops meaning what call sites assume, make the old usage
+RAISE, never merely stop being supported. Silence is the defect; the boolean was only the
+occasion for it.
