@@ -1498,6 +1498,16 @@ the agent — stated as options with a recommendation, not as a question without
   slate); Kalshi/Polymarket are exchange probabilities, never presented as a book line. CFBD lines
   are labelled book consensus without a capture time. Timestamped 2020-2025 history is bought only
   against a pre-registered question.
+- **Odds API CFB spend exists in exactly two shapes** (`cfb/oddsapi.PAID`, params fixed): P1 event
+  markets (74 credits LIFETIME, `--odds-p1`) and the forward bulk h2h/spreads/totals capture (3
+  credits per kickoff hour, 45 per CFB week Tue 12:00Z-Tue 12:00Z, `--odds-forward` every 5 min).
+  Kickoff hours come from the Odds API's `commence_time`, never `cfb_games.start_ts`. Anything
+  else - historical, props at scale, option B or C - needs a new approved number, and B vs C is
+  not proposed until P1's results AND Track A's NFL credit reconciliation are in: the NFL has
+  first claim on the shared pool.
+- **`config.ODDS_RESERVE` defaults to 40 - the NFL fallback.** A clone whose `.env` omits it
+  silently inherits a floor of 40. `cfb/oddsapi.reserve()` reads the environment only and refuses
+  when unset.
 Disk before diagnosis. store.disk_headroom_ok() refuses below 5 GB free, so a full drive presents as unexplained test failures and refused archives, not as a disk error. On any run of unexplained failures in storage, archive or temp-using tests, check free space on the temp drive first. Temp is D:\temp; pip and npm caches are under D:\caches\. Tests should run with --basetemp pointed at a project path, never the default.
 ## Claims (W07)
 

@@ -1,4 +1,4 @@
-"""The Odds API event -> cfb_games join in research/cfb_odds_coverage.py.
+"""The Odds API event -> cfb_games join in cfb/oddsapi_join.py.
 
 Run: pytest -q tests/test_cfb_odds_coverage.py
 
@@ -7,7 +7,7 @@ here is a measurement.
 """
 import sqlite3
 
-from research import cfb_odds_coverage as cov
+from cfb import oddsapi_join as cov
 
 KICK = "2026-09-19T19:30:00Z"
 

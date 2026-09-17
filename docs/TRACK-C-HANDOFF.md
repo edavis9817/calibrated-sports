@@ -106,6 +106,11 @@ python -m jobs.ingest_cfb --cfbd-week 2026:3 | latest        # 2 metered request
 python -m jobs.ingest_cfb --promote-probe                   # probe -> cfb.db, 0 requests
 python -m jobs.ingest_cfb --odds-free                       # Odds API /sports + NCAAF /events, 0 credits (verified per call)
 python -m research.cfb_odds_coverage                        # events -> cfb_games join, coverage, costs; 0 requests
+python -m jobs.ingest_cfb --odds-p1 --lock-wait 900         # P1: 1 credit/event, 74 LIFETIME, not before 2026-09-19 12:00Z
+python -m jobs.ingest_cfb --odds-forward                    # one tick: 3 credits per kickoff hour, 45 per CFB week
+python -m jobs.ingest_cfb --odds-week                       # this week's kickoff hours and what was captured, 0 requests
+python -m jobs.ingest_cfb --odds-reparse                    # archive -> cfb_odds_* observation tables, 0 requests
+run_cfb_job.cmd <flags>                                     # scheduler wrapper: cd to the repo, adds --log
 python -m jobs.ingest_cfb ... --log                         # append output + exit code to cfb/logs/ingest_cfb.log
 python -m research.cfb_sources_audit                        # reproduces every quoted source figure
 ```
@@ -349,8 +354,55 @@ Tuesday 09:00 trigger, and was deleted (confirmed). After creating the real task
   Recommendation given: run P1 (74) first to learn the returned-market count, then B.
   Note the source-layering rule now also applies: a historical pull for 2020–2025 needs a
   pre-registered question; last weekend (2026) is forward-season data.
+- **P1 APPROVED 2026-09-17 (74 credits, Saturday morning). BUILT, not yet run.**
+  `--odds-p1`: free `/events` refresh, then `/events/{id}/markets?regions=us` for every PRE-MATCH
+  event, FBS/FBS first, then FBS/FCS, then the rest, then unjoined. The 74 is a LIFETIME total for
+  `purpose='p1'` in `oddsapi_requests`; a rerun resumes and never exceeds it. Refuses before
+  `P1_NOT_BEFORE` (2026-09-19T12:00Z). Every response kept verbatim (no content dedupe; a
+  non-200 body is archived as `oddsapi_event_markets_error`), parsed to `cfb_odds_event_markets`.
+  Stops at the first non-200 or a billed cost above 1.
+- **B vs C is NOT to be proposed yet.** It waits on (1) P1's returned-market counts and (2) Track A's
+  reconciliation of the NFL credit discrepancy: 296 measured over seven days against a config that
+  implies 2,000+/week. The NFL has first claim on the shared pool; if its snapshot targets start
+  firing it could take ~8,000/month, which makes C reckless, not just expensive.
 
-**Step 4 — forward bulk game-line capture. APPROVED ("start that capture now"); BLOCKED on key; not built.**
+**Step 4 — forward bulk game-line capture. APPROVED 2026-09-17: per kickoff hour, 45 credits a week
+(~675 a season). BUILT; runs once the scheduled task exists (see below).**
+- As built: `--odds-forward` is one tick, scheduled every 5 minutes via `run_cfb_job.cmd`. A kickoff
+  hour = the UTC clock hour of the **Odds API's `commence_time`** (authoritative for timing - it is
+  what books price against; our schedule had one game 30 min off and one TBD). The hour's snapshot
+  fires in [first kickoff - 8 min, first kickoff - 1 min]. `cfb_odds_snapshots` holds one row per
+  hour (primary key), so an hour is never bought twice; outcomes `captured`, `missed`,
+  `skipped_weekly_cap`, `refused`, `error` (retried only if it cost 0), `charge_unknown`.
+- Cap: 45 per CFB week (Tuesday 12:00Z to Tuesday 12:00Z). If a week lists more than 15 kickoff
+  hours, the hours with the most games are kept and the rest are recorded `skipped_weekly_cap`.
+  Week 3 as listed at 2026-09-17 16:44Z: exactly **15 hours = 45**; first window 2026-09-17
+  23:22-23:29Z (Pittsburgh v Syracuse 23:30Z).
+- A quiet tick (listing <3h old, no kickoff within 40 min) takes no lock, writes nothing and makes
+  no request - verified live 17:05Z. Near a kickoff it refreshes the free listing every tick (>4
+  min old), so a moved kickoff is seen before the snapshot.
+- Output: `cfb_odds_quotes` (event, book, book `last_update`, market, market `last_update`,
+  outcome, american price, point, `fetched_ts`) and `cfb_odds_events`. A quote is a close only
+  for a game whose `commence_ts` is after its `fetched_ts`; that is a query, not a column.
+- Tests `tests/test_oddsapi_capture.py`: a simulated 17-hour week buys 15 and skips the two
+  1-game hours; P1 stops at 74 across reruns; an overcharge stops and is charged to the week;
+  identical responses in one second never overwrite. The weekly cap, P1 total, overcharge stop and
+  no-overwrite were each disabled once and the tests failed.
+- **Found while testing:** `archive_cfbd` wrote the file with `os.replace` BEFORE checking the
+  manifest, so two identical responses in one second overwrote the first on disk, then failed the
+  insert. Harmless for content-deduped sources; not for paid responses kept verbatim. The path is
+  now made unique before any write.
+- **Scheduled tasks: NOT created by Track C** (tasks are Ethan's). One-liners, non-elevated,
+  logged-on only like the NFL tasks:
+  ```
+  schtasks.exe --% /Create /F /TN "CalibratedSports CFB Odds Forward" /SC MINUTE /MO 5 /TR "\"C:\Users\Ethan Davis\code\cs-cfb\run_cfb_job.cmd\" --odds-forward" /IT
+  schtasks.exe --% /Create /F /TN "CalibratedSports CFB Odds P1" /SC ONCE /SD 2026/09/19 /ST 09:00 /TR "\"C:\Users\Ethan Davis\code\cs-cfb\run_cfb_job.cmd\" --odds-p1 --lock-wait 900" /IT
+  ```
+  `/SD` is yyyy/mm/dd on this machine (`09/19/2026` is refused). The `/TR` form was round-tripped
+  2026-09-17 through a throwaway task (dated 2030, deleted, deletion confirmed): execute stored as
+  `"C:\Users\Ethan Davis\code\cs-cfb\run_cfb_job.cmd"`, args passed through, logon Interactive.
+  Check: `python -m jobs.ingest_cfb --odds-week` and the tail of `cfb\logs\ingest_cfb.log`.
+- *(The pre-build plan follows, kept for the record; the "As built" bullets above supersede it.)*
 - One call = `GET /v4/sports/americanfootball_ncaaf/odds?regions=us&markets=h2h,spreads,totals`
   = **3 credits** for every listed game, each bookmaker with its own `last_update`.
 - Build it in the same shape as CFBD: new files only (e.g. `cfb/oddsapi.py`, a

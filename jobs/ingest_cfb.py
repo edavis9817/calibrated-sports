@@ -14,6 +14,10 @@
     python -m jobs.ingest_cfb --fetch --season 2026 --cfbd-week latest   # the weekly refresh
     python -m jobs.ingest_cfb --promote-probe                   # exchange probe -> cfb.db, 0 requests
     python -m jobs.ingest_cfb --odds-free                       # Odds API /sports + /events, 0 credits
+    python -m jobs.ingest_cfb --odds-p1 --lock-wait 900         # P1: 1 credit/event, 74 lifetime, Sat 09-19
+    python -m jobs.ingest_cfb --odds-forward                    # one tick; 3 credits per kickoff hour, 45/week
+    python -m jobs.ingest_cfb --odds-week                       # this week's kickoff hours and captures, 0 requests
+    python -m jobs.ingest_cfb --odds-reparse                    # archive -> observation tables, 0 requests
 
 CFB SHIPS STATS AND USAGE, NOT HIT RATES. No public source says whether a
 college player appeared in a game, so nothing here settles, voids or computes a
@@ -50,8 +54,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import polars as pl
 
 import config
-from cfb import (cfbd, cfbd_normalize, fetch, limitations, normalize, oddsapi, paths,
-                 probe_promote, schema, sources, versioning)
+from cfb import (cfbd, cfbd_normalize, fetch, limitations, normalize, oddsapi, oddsapi_capture,
+                 paths, probe_promote, schema, sources, versioning)
 from cfb.lock import AlreadyRunning, InstanceLock
 
 DEFAULT_MAX_FILES = 200
@@ -311,9 +315,11 @@ def _part_dir(part):
 
 
 def archive_cfbd(conn, req, body: bytes, fetched_ts, source="cfbd",
-                 repo="collegefootballdata.com"):
+                 repo="collegefootballdata.com", dedupe=True):
     """Raw first: the response bytes, gzipped verbatim, manifested. A copy is kept
-    only when the CONTENT differs from the newest copy for this exact scope.
+    only when the CONTENT differs from the newest copy for this exact scope, unless
+    `dedupe=False` - every PAID Odds API response is kept, because the instant it
+    was fetched is part of what was bought.
     `source`/`repo` let the Odds API archive through the same path.
     Returns (file_id or None, outcome)."""
     bsha = hashlib.sha256(body).hexdigest()
@@ -326,11 +332,18 @@ def archive_cfbd(conn, req, body: bytes, fetched_ts, source="cfbd",
         "SELECT file_id, bytes_sha256, content_sha256 FROM cfb_raw_files WHERE dataset=? "
         "AND season=? AND asset=? ORDER BY fetched_ts DESC LIMIT 1",
         (req.dataset, req.season, req.part)).fetchone()
-    if newest and newest[2] == csha:
+    if dedupe and newest and newest[2] == csha:
         return newest[0], "unchanged_content"
 
-    rel = "/".join([source, req.endpoint, str(req.season), _part_dir(req.part),
-                    f"{_utc(fetched_ts)}-{csha[:12]}.json.gz"])
+    stem = "/".join([source, req.endpoint, str(req.season), _part_dir(req.part),
+                     f"{_utc(fetched_ts)}-{csha[:12]}"])
+    rel, n = f"{stem}.json.gz", 1
+    # Never overwrite: identical content fetched in the same second (possible once
+    # paid responses skip dedupe) gets a numbered sibling, checked BEFORE any write.
+    while (os.path.exists(os.path.join(paths.raw_root(), *rel.split("/")))
+           or conn.execute("SELECT 1 FROM cfb_raw_files WHERE rel_path=?", (rel,)).fetchone()):
+        n += 1
+        rel = f"{stem}-{n}.json.gz"
     dest = os.path.join(paths.raw_root(), *rel.split("/"))
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     with open(dest + ".part", "wb") as f:
@@ -574,6 +587,218 @@ def run_odds_free(conn, client=None):
     return out
 
 
+def archive_odds(conn, client, row, dataset, endpoint, part, body, fetched_ts, dedupe):
+    """Archive a response, settle its ledger row, parse it into the observation tables."""
+    req = cfbd.Request(dataset, endpoint, sources.CURRENT_SEASON, part)
+    file_id, outcome = archive_cfbd(conn, req, body, fetched_ts, source="oddsapi",
+                                    repo="the-odds-api.com", dedupe=dedupe)
+    client.settle(row, file_id, outcome)
+    counts = oddsapi_capture.store_rows(conn, file_id, fetched_ts,
+                                        oddsapi_capture.PARSERS[dataset](body))
+    return file_id, outcome, counts
+
+
+def refresh_events(conn, client):
+    """The free events listing, archived (content-deduplicated) and parsed. It also
+    gives the client this run's pool balance, which every paid call requires."""
+    fetched_ts = time.time()
+    body, h, row = client.get_free("events")
+    file_id, outcome, _ = archive_odds(conn, client, row, "oddsapi_events", "events",
+                                       oddsapi.SPORT, body, fetched_ts, dedupe=True)
+    return file_id, oddsapi.events_from(body), h
+
+
+def newest_listing(conn):
+    """(fetched_ts, file_id, events) of the newest archived events listing, or (None, None, [])."""
+    row = conn.execute("SELECT fetched_ts, file_id, rel_path FROM cfb_raw_files WHERE "
+                       "dataset='oddsapi_events' ORDER BY fetched_ts DESC LIMIT 1").fetchone()
+    if row is None:
+        return None, None, []
+    with gzip.open(os.path.join(paths.raw_root(), *row[2].split("/"))) as f:
+        return row[0], row[1], oddsapi.events_from(f.read())
+
+
+def p1_spent(conn):
+    """Credits P1 has cost, lifetime. A row whose cost the server did not report but that
+    reached the server counts at the expected 1: an unknown spend is not a free one."""
+    return conn.execute(
+        "SELECT COALESCE(SUM(CASE WHEN cost_last IS NOT NULL THEN cost_last "
+        "WHEN status IS NOT NULL THEN 1 ELSE 0 END), 0) FROM oddsapi_requests "
+        "WHERE purpose='p1'").fetchone()[0]
+
+
+def run_odds_p1(conn, client=None, now=None, max_credits=oddsapi.P1_APPROVED_CREDITS,
+                gap_s=1.0):
+    """P1: /events/{id}/markets for every pre-match listed event, once, FBS first.
+    Lifetime budget P1_APPROVED_CREDITS; not before P1_NOT_BEFORE. Every response is
+    kept verbatim. Stops at the first non-200 or unexpected charge."""
+    now = time.time() if now is None else now
+    not_before = oddsapi.iso_ts(oddsapi.P1_NOT_BEFORE)
+    if now < not_before:
+        raise oddsapi.BudgetRefused(f"P1 is approved for Saturday morning; not before "
+                                    f"{oddsapi.P1_NOT_BEFORE}")
+    budget = min(max_credits, oddsapi.P1_APPROVED_CREDITS) - p1_spent(conn)
+    if budget <= 0:
+        raise oddsapi.BudgetRefused(f"P1 has spent {p1_spent(conn)} of "
+                                    f"{oddsapi.P1_APPROVED_CREDITS}; nothing left")
+    oddsapi.reserve()
+    client = client or oddsapi.Client(conn)
+    listing_id, events, h = refresh_events(conn, client)
+    plan = oddsapi_capture.plan_p1(conn, events, now, sources.CURRENT_SEASON)
+    print(f"  P1: {len(events)} listed, {len(plan)} pre-match, budget {budget}, pool "
+          f"{h['remaining']}, listing file {listing_id}")
+    done = {r[0] for r in conn.execute("SELECT event_id FROM oddsapi_requests WHERE purpose='p1' "
+                                       "AND status=200")}
+    counts = {"called": 0, "credits": 0, "already_done": 0, "not_reached": 0}
+    for i, (e, label) in enumerate(plan):
+        if e["id"] in done:
+            counts["already_done"] += 1
+            continue
+        if budget < oddsapi.PAID["event_markets"][2]:
+            counts["not_reached"] = len(plan) - i
+            print(f"  P1 budget exhausted; {len(plan) - i} events not reached")
+            break
+        if counts["called"]:
+            time.sleep(gap_s)
+        fetched_ts = time.time()
+        status, body, cost, row = client.get_paid("event_markets", "p1", budget, event_id=e["id"])
+        budget -= cost
+        counts["called"] += 1
+        counts["credits"] += cost
+        if status != 200:
+            # Kept verbatim too: a refusal is evidence. Not parsed.
+            req = cfbd.Request("oddsapi_event_markets_error", "event_markets",
+                               sources.CURRENT_SEASON, e["id"])
+            fid, _ = archive_cfbd(conn, req, body, fetched_ts, source="oddsapi",
+                                  repo="the-odds-api.com", dedupe=False)
+            client.settle(row, fid, f"http_{status}")
+            print(f"  STOPPED P1: {e['id']} returned {status}")
+            counts["stopped"] = status
+            break
+        fid, _o, c = archive_odds(conn, client, row, "oddsapi_event_markets", "event_markets",
+                                  e["id"], body, fetched_ts, dedupe=False)
+        n_keys = len({r[3] for r in oddsapi_capture.parse_event_markets(body)
+                      ["cfb_odds_event_markets"]})
+        print(f"  {label:<9} {e['commence_time']}  {e['away_team']} @ {e['home_team']}  "
+              f"cost {cost}  books/markets rows {c.get('cfb_odds_event_markets', 0)}  "
+              f"distinct keys {n_keys}  file {fid}")
+    print(f"  P1: {counts}  pool now {client.remaining}")
+    return counts
+
+
+def run_odds_forward(conn, client=None, now=None):
+    """One tick of the forward game-line capture. Refreshes the free listing only when
+    a kickoff is near or the listing is stale; buys at most one bulk snapshot."""
+    now = time.time() if now is None else now
+    fetched, listing_id, events = newest_listing(conn)
+    if not oddsapi_capture.needs_refresh(fetched, events, now):
+        print(f"  forward: no kickoff within 40 min; listing {int((now - fetched) / 60)} min old")
+        return {"refreshed": False}
+    oddsapi.reserve()
+    client = client or oddsapi.Client(conn)
+    listing_id, events, h = refresh_events(conn, client)
+    due, missed, skipped = oddsapi_capture.plan_forward(conn, events, now)
+    for hour, g in missed:
+        conn.execute("INSERT OR IGNORE INTO cfb_odds_snapshots (hour_ts, week_start_ts, "
+                     "earliest_commence_ts, n_events, listing_file_id, outcome, detail) "
+                     "VALUES (?,?,?,?,?,'missed',?)",
+                     (hour, g["week"], g["earliest"], g["n"], listing_id,
+                      f"first kickoff passed before a tick fell in the window ({now:.0f})"))
+        print(f"  MISSED kickoff hour {_utc(hour)} ({g['n']} events)")
+    for hour, g in skipped:
+        conn.execute("INSERT OR IGNORE INTO cfb_odds_snapshots (hour_ts, week_start_ts, "
+                     "earliest_commence_ts, n_events, listing_file_id, outcome, detail) "
+                     "VALUES (?,?,?,?,?,'skipped_weekly_cap',?)",
+                     (hour, g["week"], g["earliest"], g["n"], listing_id,
+                      f"cap {oddsapi.FORWARD_WEEKLY_CAP}/week kept hours with more games"))
+        print(f"  SKIPPED kickoff hour {_utc(hour)} ({g['n']} events): weekly cap")
+    conn.commit()
+    out = {"refreshed": True, "missed": len(missed), "skipped": len(skipped), "captured": 0}
+    for hour, g, left in due:
+        conn.execute("INSERT OR REPLACE INTO cfb_odds_snapshots (hour_ts, week_start_ts, "
+                     "earliest_commence_ts, n_events, listing_file_id, fired_ts, outcome) "
+                     "VALUES (?,?,?,?,?,?,'firing')",
+                     (hour, g["week"], g["earliest"], g["n"], listing_id, time.time()))
+        conn.commit()
+        fetched_ts = time.time()
+        try:
+            status, body, cost, row = client.get_paid("odds", "forward", left)
+        except oddsapi.BudgetRefused as e:
+            conn.execute("UPDATE cfb_odds_snapshots SET outcome='refused', detail=? WHERE hour_ts=?",
+                         (str(e), hour))
+            conn.commit()
+            raise
+        except oddsapi.UnexpectedCharge as e:
+            # Count the larger of what was expected and what the server said it billed,
+            # so the weekly cap is charged for an overcharge rather than hiding it.
+            billed = conn.execute("SELECT MAX(cost_last) FROM oddsapi_requests WHERE run_id=? "
+                                  "AND purpose='forward'", (client.run_id,)).fetchone()[0]
+            conn.execute("UPDATE cfb_odds_snapshots SET outcome='charge_unknown', cost=?, detail=? "
+                         "WHERE hour_ts=?", (max(oddsapi.PAID["odds"][2], billed or 0), str(e), hour))
+            conn.commit()
+            raise
+        except oddsapi.OddsApiError as e:
+            conn.execute("UPDATE cfb_odds_snapshots SET outcome='error', cost=0, detail=? "
+                         "WHERE hour_ts=?", (str(e), hour))
+            conn.commit()
+            raise
+        if status != 200:
+            conn.execute("UPDATE cfb_odds_snapshots SET outcome='error', cost=?, detail=? "
+                         "WHERE hour_ts=?", (cost, f"http {status}", hour))
+            client.settle(row, None, f"http_{status}")
+            conn.commit()
+            raise oddsapi.OddsApiError(f"forward odds returned {status}")
+        fid, _o, c = archive_odds(conn, client, row, "oddsapi_odds", "odds", oddsapi.SPORT,
+                                  body, fetched_ts, dedupe=False)
+        conn.execute("UPDATE cfb_odds_snapshots SET outcome='captured', cost=?, file_id=? "
+                     "WHERE hour_ts=?", (cost, fid, hour))
+        conn.commit()
+        out["captured"] = 1
+        print(f"  CAPTURED kickoff hour {_utc(hour)}: first kickoff {_utc(g['earliest'])}, "
+              f"{g['n']} events in hour, cost {cost}, {left - cost} left this week, "
+              f"{c.get('cfb_odds_quotes', 0)} quotes on {c.get('cfb_odds_events', 0)} events, "
+              f"file {fid}, pool {client.remaining}")
+    if not due:
+        nxt = sorted((g["earliest"], hr) for hr, g in oddsapi_capture.hour_groups(events).items()
+                     if g["earliest"] > now)
+        print(f"  forward: nothing due; pool {h['remaining']}; next kickoff hour "
+              f"{_utc(nxt[0][1]) if nxt else '-'}")
+    return out
+
+
+def odds_week_report(conn, now=None):
+    """The current CFB week's kickoff hours as listed, and what the capture did with each."""
+    now = time.time() if now is None else now
+    fetched, _fid, events = newest_listing(conn)
+    week = oddsapi.week_start_ts(now)
+    groups = {h: g for h, g in oddsapi_capture.hour_groups(events).items() if g["week"] == week}
+    rows = {r[0]: r[1:] for r in conn.execute(
+        "SELECT hour_ts, outcome, cost, file_id FROM cfb_odds_snapshots WHERE week_start_ts=?",
+        (week,))}
+    spent = sum((r[1] or 0) for r in rows.values())
+    print(f"forward capture, CFB week from {_utc(week)}: {len(groups)} kickoff hours listed "
+          f"(listing {_utc(fetched) if fetched else '-'}), cap {oddsapi.FORWARD_WEEKLY_CAP}, "
+          f"spent {spent}")
+    for h in sorted(set(groups) | set(rows)):
+        g = groups.get(h, {})
+        r = rows.get(h, ("pending", 0, None))
+        print(f"  {_utc(h)}  events {g.get('n', '-'):>3}  {r[0]:<20} cost {r[1]}  file {r[2]}")
+
+
+def run_odds_reparse(conn):
+    """Replay every archived Odds API response into the observation tables, 0 requests."""
+    n = 0
+    for fid, dataset, rel, fetched_ts in conn.execute(
+            "SELECT file_id, dataset, rel_path, fetched_ts FROM cfb_raw_files WHERE dataset IN "
+            f"({','.join('?' * len(oddsapi_capture.PARSERS))}) ORDER BY fetched_ts",
+            tuple(oddsapi_capture.PARSERS)).fetchall():
+        with gzip.open(os.path.join(paths.raw_root(), *rel.split("/"))) as f:
+            oddsapi_capture.store_rows(conn, fid, fetched_ts,
+                                       oddsapi_capture.PARSERS[dataset](f.read()))
+        n += 1
+    return n
+
+
 def cfbd_status(conn, client=None):
     month = cfbd.month_key()
     mine = conn.execute("SELECT COUNT(*) FROM cfbd_requests WHERE month=? AND metered=1 AND "
@@ -685,6 +910,19 @@ def _locked_run(conn, a, plan, cfbd_plan):
         except (oddsapi.OddsApiError, oddsapi.UnexpectedCharge) as e:
             print(f"STOPPED Odds API: {type(e).__name__}: {e}")
             code = 5
+    for flag, label, fn in (("odds_p1", "P1 event markets", run_odds_p1),
+                            ("odds_forward", "forward game lines", run_odds_forward)):
+        if getattr(a, flag):
+            print(f"Odds API, {label}:")
+            try:
+                fn(conn)
+            except (oddsapi.OddsApiError, oddsapi.UnexpectedCharge, oddsapi.BudgetRefused) as e:
+                print(f"STOPPED Odds API {label}: {type(e).__name__}: {e}")
+                code = 5
+    if a.odds_week:
+        odds_week_report(conn)
+    if a.odds_reparse:
+        print(f"Odds API reparse: {run_odds_reparse(conn)} files")
     if a.promote_probe:
         counts, m = promote_probe(conn)
         print(f"probe promotion: {counts}")
@@ -723,7 +961,8 @@ def _locked_run(conn, a, plan, cfbd_plan):
               f"-{t['closed']:,}  refused {t['refused']}  dropped {t['dropped'] or 0}")
         if t["refused"]:
             code = code or 4
-    measure_joins(conn)
+    if a.fetch or a.parse or a.rebuild or cfbd_plan or a.promote_probe:
+        measure_joins(conn)
     return code
 
 
@@ -770,6 +1009,17 @@ def _main(argv=None):
                     help="exchange probe capture -> cfb.db (read-only on the probe, 0 requests)")
     ap.add_argument("--odds-free", action="store_true",
                     help="Odds API /sports and NCAAF /events: documented free, verified 0 per call")
+    ap.add_argument("--odds-p1", action="store_true",
+                    help=f"P1: event markets for every pre-match listed event, "
+                         f"{oddsapi.P1_APPROVED_CREDITS} credits lifetime, not before {oddsapi.P1_NOT_BEFORE}")
+    ap.add_argument("--odds-forward", action="store_true",
+                    help="one forward-capture tick: bulk h2h/spreads/totals per kickoff hour "
+                         f"(3 credits, {oddsapi.FORWARD_WEEKLY_CAP}/week); schedule every 5 minutes")
+    ap.add_argument("--odds-week", action="store_true", help="this CFB week's capture state, 0 requests")
+    ap.add_argument("--odds-reparse", action="store_true",
+                    help="re-derive the Odds API observation tables from the archive, 0 requests")
+    ap.add_argument("--lock-wait", type=int, default=0, metavar="SECONDS",
+                    help="retry the single-instance lock for this long instead of exiting 2")
     ap.add_argument("--cfbd-lines", metavar="SEASONS",
                     help="season-level lines, regular+postseason: one metered request per season")
     ap.add_argument("--cfbd-week", metavar="YEAR:WEEK|latest",
@@ -793,39 +1043,67 @@ def _main(argv=None):
     if a.cfbd_status:
         cfbd_status(connect())
         return 0
+    odds_flags = a.odds_free or a.odds_p1 or a.odds_forward or a.odds_week or a.odds_reparse
     if not (a.fetch or a.parse or a.rebuild or a.audit or cfbd_plan or a.cfbd_week
-            or a.promote_probe or a.odds_free):
+            or a.promote_probe or odds_flags):
         conn = connect()
         status(conn)
         return 0
 
-    try:
-        with InstanceLock(os.path.join(paths.checkpoints_root(), "ingest_cfb.lock")):
-            conn = connect()
-            if a.audit:
-                return 0 if audit(conn) else 1
-            run_id = f"{time.strftime('%Y%m%dT%H%M%S')}-{os.getpid()}"
+    if a.odds_forward and not (a.fetch or a.parse or a.rebuild or a.audit or cfbd_plan
+                               or a.cfbd_week or a.promote_probe or a.odds_free or a.odds_p1
+                               or a.odds_reparse or a.odds_week) and os.path.exists(paths.db_path()):
+        # A tick every 5 minutes: with nothing near kickoff it takes no lock, writes
+        # nothing and makes no request, so it cannot collide with P1 or the weekly refresh.
+        ro = sqlite3.connect(f"file:{paths.db_path()}?mode=ro", uri=True)
+        try:
+            fetched, _fid, events = newest_listing(ro)
+        except sqlite3.OperationalError:
+            fetched, events = None, []
+        finally:
+            ro.close()
+        if not oddsapi_capture.needs_refresh(fetched, events, time.time()):
+            print(f"forward: no kickoff within 40 min; listing "
+                  f"{int((time.time() - fetched) / 60)} min old; no request")
+            return 0
+
+    lock = InstanceLock(os.path.join(paths.checkpoints_root(), "ingest_cfb.lock"))
+    deadline = time.time() + max(a.lock_wait, 0)
+    while True:
+        try:
+            lock.__enter__()
+            break
+        except AlreadyRunning as e:
+            if time.time() >= deadline:
+                print(f"REFUSING: {e}")
+                return 2
+            time.sleep(5)
+
+    try:                                  # the lock taken above is the one held throughout
+        conn = connect()
+        if a.audit:
+            return 0 if audit(conn) else 1
+        run_id = f"{time.strftime('%Y%m%dT%H%M%S')}-{os.getpid()}"
+        tdir, tbytes, tfiles = temp_usage()
+        conn.execute("INSERT INTO cfb_runs (run_id, argv, started_ts, temp_dir, "
+                     "temp_bytes_start, temp_files_start) VALUES (?,?,?,?,?,?)",
+                     (run_id, json.dumps(sys.argv[1:] if argv is None else argv), time.time(),
+                      tdir, tbytes, tfiles))
+        conn.commit()
+        print(f"temp at start: {tdir}  {tbytes / 1e9:.3f} GB in {tfiles:,} files")
+        code = 0
+        try:
+            code = _locked_run(conn, a, plan, cfbd_plan)
+            return code
+        finally:
             tdir, tbytes, tfiles = temp_usage()
-            conn.execute("INSERT INTO cfb_runs (run_id, argv, started_ts, temp_dir, "
-                         "temp_bytes_start, temp_files_start) VALUES (?,?,?,?,?,?)",
-                         (run_id, json.dumps(sys.argv[1:] if argv is None else argv), time.time(),
-                          tdir, tbytes, tfiles))
+            conn.execute("UPDATE cfb_runs SET ended_ts=?, exit_code=?, temp_bytes_end=?, "
+                         "temp_files_end=? WHERE run_id=?",
+                         (time.time(), code, tbytes, tfiles, run_id))
             conn.commit()
-            print(f"temp at start: {tdir}  {tbytes / 1e9:.3f} GB in {tfiles:,} files")
-            code = 0
-            try:
-                code = _locked_run(conn, a, plan, cfbd_plan)
-                return code
-            finally:
-                tdir, tbytes, tfiles = temp_usage()
-                conn.execute("UPDATE cfb_runs SET ended_ts=?, exit_code=?, temp_bytes_end=?, "
-                             "temp_files_end=? WHERE run_id=?",
-                             (time.time(), code, tbytes, tfiles, run_id))
-                conn.commit()
-                print(f"temp at end:   {tdir}  {tbytes / 1e9:.3f} GB in {tfiles:,} files")
-    except AlreadyRunning as e:
-        print(f"REFUSING: {e}")
-        return 2
+            print(f"temp at end:   {tdir}  {tbytes / 1e9:.3f} GB in {tfiles:,} files")
+    finally:
+        lock.__exit__(None, None, None)
 
 
 if __name__ == "__main__":

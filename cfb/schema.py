@@ -201,6 +201,10 @@ def _index_ddl(table):
 def migrate(conn):
     """Additive changes to tables an earlier version created. Only ever ADDS a
     nullable column and swaps an index; never drops or rewrites data."""
+    for table, col, typ in CONTROL_ADDED_COLUMNS:
+        cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if cols and col not in cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
     for table in TABLES:
         cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
         if not cols:
@@ -320,9 +324,28 @@ CREATE TABLE IF NOT EXISTS oddsapi_requests (
     file_id    INTEGER,
     run_id     TEXT NOT NULL,
     origin     TEXT NOT NULL,
-    outcome    TEXT
+    outcome    TEXT,
+    purpose    TEXT,
+    event_id   TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_oddsapi_requests_month ON oddsapi_requests(month);
+
+-- The forward capture's schedule: ONE row per kickoff hour, so an hour can never be
+-- bought twice. `earliest_commence_ts` is the Odds API's commence_time (authoritative
+-- for timing), not cfb_games.start_ts. `outcome`: captured | skipped_weekly_cap |
+-- missed (the hour's first kickoff passed with no capture) | refused | error.
+CREATE TABLE IF NOT EXISTS cfb_odds_snapshots (
+    hour_ts               REAL PRIMARY KEY,
+    week_start_ts         REAL NOT NULL,
+    earliest_commence_ts  REAL NOT NULL,
+    n_events              INTEGER NOT NULL,
+    listing_file_id       INTEGER,
+    fired_ts              REAL,
+    cost                  INTEGER NOT NULL DEFAULT 0,
+    file_id               INTEGER,
+    outcome               TEXT NOT NULL,
+    detail                TEXT
+);
 
 -- One row per ingest run. temp_* sizes the process's temp directory at start
 -- and end: 24.8 GB accumulated in %TEMP% on 2026-09-16 with no attributed cause,
@@ -353,8 +376,50 @@ CREATE TABLE IF NOT EXISTS cfb_limitations (
 """
 
 
+# Columns added to CONTROL tables after they first shipped.
+CONTROL_ADDED_COLUMNS = [
+    ("oddsapi_requests", "purpose", "TEXT"),
+    ("oddsapi_requests", "event_id", "TEXT"),
+]
+
+# OBSERVATIONS from the Odds API. Not SCD2-versioned like the facts above: a quote
+# is what one book showed at one instant, so rows are APPEND-ONLY, one set per raw
+# file, and re-deriving a file deletes its own rows (`src_file_id`) and replays it.
+# Same (key, columns) shape as TABLES so `cfb.guards` checks them too. Timestamps are
+# the API's own: `book_last_update_ts` / `market_last_update_ts` say when a book last
+# moved, `fetched_ts` when we asked.
+ODDS_TABLES = {
+    "cfb_odds_events": (("src_file_id", "event_id"), [
+        ("event_id", "TEXT"), ("commence_ts", "REAL"), ("home_team", "TEXT"),
+        ("away_team", "TEXT"),
+    ]),
+    "cfb_odds_quotes": (("src_file_id", "event_id", "bookmaker", "market_key", "outcome_name"), [
+        ("event_id", "TEXT"), ("commence_ts", "REAL"), ("bookmaker", "TEXT"),
+        ("book_last_update_ts", "REAL"), ("market_key", "TEXT"),
+        ("market_last_update_ts", "REAL"), ("outcome_name", "TEXT"), ("price", "REAL"),
+        ("point", "REAL"),
+    ]),
+    "cfb_odds_event_markets": (("src_file_id", "event_id", "bookmaker", "market_key"), [
+        ("event_id", "TEXT"), ("commence_ts", "REAL"), ("bookmaker", "TEXT"),
+        ("market_key", "TEXT"), ("market_last_update_ts", "REAL"),
+    ]),
+}
+
+
+def _odds_ddl(table):
+    _key, cols = ODDS_TABLES[table]
+    body = ",\n    ".join(
+        [f"{c} {t}" for c, t in cols]
+        + [f"sport TEXT NOT NULL DEFAULT '{SPORT}'", "src_file_id INTEGER NOT NULL",
+           "fetched_ts REAL NOT NULL"])
+    return (f"CREATE TABLE IF NOT EXISTS {table} (\n    {body}\n);\n"
+            f"CREATE INDEX IF NOT EXISTS ix_{table}_file ON {table}(src_file_id);\n"
+            f"CREATE INDEX IF NOT EXISTS ix_{table}_event ON {table}(event_id);\n")
+
+
 def ddl() -> str:
-    return CONTROL_DDL + "".join(_fact_ddl(t) for t in TABLES)
+    return (CONTROL_DDL + "".join(_fact_ddl(t) for t in TABLES)
+            + "".join(_odds_ddl(t) for t in ODDS_TABLES))
 
 
 def index_ddl() -> str:
