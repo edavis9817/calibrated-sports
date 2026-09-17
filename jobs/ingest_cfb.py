@@ -13,6 +13,7 @@
     python -m jobs.ingest_cfb --cfbd-week 2026:3                # 2 metered requests
     python -m jobs.ingest_cfb --fetch --season 2026 --cfbd-week latest   # the weekly refresh
     python -m jobs.ingest_cfb --promote-probe                   # exchange probe -> cfb.db, 0 requests
+    python -m jobs.ingest_cfb --odds-free                       # Odds API /sports + /events, 0 credits
 
 CFB SHIPS STATS AND USAGE, NOT HIT RATES. No public source says whether a
 college player appeared in a game, so nothing here settles, voids or computes a
@@ -49,8 +50,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import polars as pl
 
 import config
-from cfb import (cfbd, cfbd_normalize, fetch, limitations, normalize, paths, probe_promote,
-                 schema, sources, versioning)
+from cfb import (cfbd, cfbd_normalize, fetch, limitations, normalize, oddsapi, paths,
+                 probe_promote, schema, sources, versioning)
 from cfb.lock import AlreadyRunning, InstanceLock
 
 DEFAULT_MAX_FILES = 200
@@ -309,9 +310,11 @@ def _part_dir(part):
     return part.replace(":", "_")
 
 
-def archive_cfbd(conn, req, body: bytes, fetched_ts):
+def archive_cfbd(conn, req, body: bytes, fetched_ts, source="cfbd",
+                 repo="collegefootballdata.com"):
     """Raw first: the response bytes, gzipped verbatim, manifested. A copy is kept
     only when the CONTENT differs from the newest copy for this exact scope.
+    `source`/`repo` let the Odds API archive through the same path.
     Returns (file_id or None, outcome)."""
     bsha = hashlib.sha256(body).hexdigest()
     try:
@@ -326,7 +329,7 @@ def archive_cfbd(conn, req, body: bytes, fetched_ts):
     if newest and newest[2] == csha:
         return newest[0], "unchanged_content"
 
-    rel = "/".join(["cfbd", req.endpoint, str(req.season), _part_dir(req.part),
+    rel = "/".join([source, req.endpoint, str(req.season), _part_dir(req.part),
                     f"{_utc(fetched_ts)}-{csha[:12]}.json.gz"])
     dest = os.path.join(paths.raw_root(), *rel.split("/"))
     os.makedirs(os.path.dirname(dest), exist_ok=True)
@@ -336,7 +339,7 @@ def archive_cfbd(conn, req, body: bytes, fetched_ts):
     cur = conn.execute(
         "INSERT INTO cfb_raw_files (rel_path, dataset, season, repo, tag, asset, bytes, "
         "bytes_sha256, content_sha256, remote_updated_at, fetched_ts) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-        (rel, req.dataset, req.season, "collegefootballdata.com", req.endpoint, req.part,
+        (rel, req.dataset, req.season, repo, req.endpoint, req.part,
          len(body), bsha, csha, None, fetched_ts))
     conn.commit()
     return cur.lastrowid, "new"
@@ -536,6 +539,41 @@ def temp_usage():
     return root, total, files
 
 
+# =============================================================================
+# The Odds API (phase 3) - FREE endpoints only; see cfb/oddsapi.py
+# =============================================================================
+
+def run_odds_free(conn, client=None):
+    """GET /sports then /sports/americanfootball_ncaaf/events: 0 credits, each
+    verified against x-requests-last. Raw first. Returns a summary dict."""
+    floor = oddsapi.reserve()                    # refuse before any request if unset
+    client = client or oddsapi.Client(conn)
+    season = sources.CURRENT_SEASON
+    out = {}
+    for endpoint, dataset, part in (("sports", "oddsapi_sports", "all"),
+                                    ("events", "oddsapi_events", oddsapi.SPORT)):
+        req = cfbd.Request(dataset, endpoint, season, part)
+        fetched_ts = time.time()
+        body, h, row = client.get_free(endpoint)
+        file_id, outcome = archive_cfbd(conn, req, body, fetched_ts, source="oddsapi",
+                                        repo="the-odds-api.com")
+        client.settle(row, file_id, outcome)
+        out[endpoint] = {"file_id": file_id, "outcome": outcome, **h}
+        print(f"  /{endpoint:<7} {outcome:<18} billed {h['last']}  remaining {h['remaining']}  "
+              f"used {h['used']}  file {file_id}")
+        if endpoint == "sports":
+            ncaaf = [s for s in json.loads(body) if s.get("key") == oddsapi.SPORT]
+            out["ncaaf_active"] = bool(ncaaf and ncaaf[0].get("active"))
+            print(f"  {oddsapi.SPORT} listed {bool(ncaaf)}  active {out['ncaaf_active']}")
+        else:
+            out["n_events"] = len(oddsapi.events_from(body))
+            print(f"  events listed: {out['n_events']}")
+    rem = out["events"]["remaining"]
+    print(f"  pool: remaining {rem}, reserve {floor}, spendable above reserve "
+          f"{None if rem is None else rem - floor}  (shared with the NFL logger)")
+    return out
+
+
 def cfbd_status(conn, client=None):
     month = cfbd.month_key()
     mine = conn.execute("SELECT COUNT(*) FROM cfbd_requests WHERE month=? AND metered=1 AND "
@@ -640,6 +678,13 @@ def _locked_run(conn, a, plan, cfbd_plan):
     """Facts first, then CFBD. A CFBD refusal must not cost the week its stats,
     so it is reported in the exit code (3) AFTER the free work is done."""
     code = 0
+    if a.odds_free:
+        print("Odds API, free endpoints:")
+        try:
+            run_odds_free(conn)
+        except (oddsapi.OddsApiError, oddsapi.UnexpectedCharge) as e:
+            print(f"STOPPED Odds API: {type(e).__name__}: {e}")
+            code = 5
     if a.promote_probe:
         counts, m = promote_probe(conn)
         print(f"probe promotion: {counts}")
@@ -723,6 +768,8 @@ def _main(argv=None):
                     help="append all output to <STORAGE_DIR>/cfb/logs/ingest_cfb.log (for the scheduler)")
     ap.add_argument("--promote-probe", action="store_true",
                     help="exchange probe capture -> cfb.db (read-only on the probe, 0 requests)")
+    ap.add_argument("--odds-free", action="store_true",
+                    help="Odds API /sports and NCAAF /events: documented free, verified 0 per call")
     ap.add_argument("--cfbd-lines", metavar="SEASONS",
                     help="season-level lines, regular+postseason: one metered request per season")
     ap.add_argument("--cfbd-week", metavar="YEAR:WEEK|latest",
@@ -747,7 +794,7 @@ def _main(argv=None):
         cfbd_status(connect())
         return 0
     if not (a.fetch or a.parse or a.rebuild or a.audit or cfbd_plan or a.cfbd_week
-            or a.promote_probe):
+            or a.promote_probe or a.odds_free):
         conn = connect()
         status(conn)
         return 0

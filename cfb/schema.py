@@ -304,6 +304,26 @@ CREATE TABLE IF NOT EXISTS cfbd_requests (
 );
 CREATE INDEX IF NOT EXISTS ix_cfbd_requests_month ON cfbd_requests(month);
 
+-- EVERY Odds API request this job makes. The credit pool is shared with the
+-- live NFL logger. `cost_last` is the server's own x-requests-last for the call;
+-- the API key is never stored here.
+CREATE TABLE IF NOT EXISTS oddsapi_requests (
+    ts         REAL NOT NULL,
+    month      TEXT NOT NULL,
+    endpoint   TEXT NOT NULL,
+    sport_key  TEXT,
+    status     INTEGER,
+    cost_last  INTEGER,
+    remaining  INTEGER,
+    used       INTEGER,
+    bytes      INTEGER,
+    file_id    INTEGER,
+    run_id     TEXT NOT NULL,
+    origin     TEXT NOT NULL,
+    outcome    TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_oddsapi_requests_month ON oddsapi_requests(month);
+
 -- One row per ingest run. temp_* sizes the process's temp directory at start
 -- and end: 24.8 GB accumulated in %TEMP% on 2026-09-16 with no attributed cause,
 -- and a before/after figure per run is the cheapest way to rule a job in or out.

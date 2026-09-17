@@ -10,15 +10,13 @@ Reports open with: `TRACK C · cs-cfb · C:\Users\Ethan Davis\code\cs-cfb`
 
 ## 0. Act on these first
 
-1. **`D:\calibrated-sports\data\cfb\raw_archive\` does NOT exist** (checked 05:40Z).
-   Ethan said he would copy the 115 CFB probe shards (`D:\calibrated-sports\data\raw\cfb_kalshi`,
-   `cfb_polymarket`, `cfb_cfbd`, 15.96 GB) there. The live logger rotates them to R2 from
-   **2026-09-18 00:00Z** (verified upload, then local delete). Nothing is lost if the copy
-   never happens — R2 holds a byte-identical copy — but there will be no local copy to decode.
-   Tell Ethan; do not touch the logger or its raw tree.
-2. **`ODDS_API_KEY` is not in `cs-cfb\.env`.** Phase 3 step 2 (free coverage measurement) and
-   the forward game-line capture are both blocked on it. The key's credit pool is shared with
-   the live NFL logger.
+1. **RESOLVED 2026-09-17 ~17:00Z: `D:\calibrated-sports\data\cfb\raw_archive\` holds all 115
+   probe shards** (57 cfb_kalshi, 57 cfb_polymarket, 1 cfb_cfbd; 15,957,864,233 bytes), and all
+   115 sha256 hashes match the logger's raw tree, compared file by file. Rotation to R2 from 2026-09-18
+   00:00Z no longer leaves the store without a local copy. Do not touch the logger or its raw tree.
+2. **RESOLVED 2026-09-17: `ODDS_API_KEY` is in `cs-cfb\.env`** (identical to the main clone's), and
+   `ODDS_RESERVE=20000` was added, copied from the main clone. `cfb/oddsapi.py` refuses when
+   `ODDS_RESERVE` is unset, because `config.ODDS_RESERVE` defaults to 40 (the NFL fallback).
 3. **Nothing in phase 3 may spend Odds API credits except the approved forward bulk game-line
    capture (~3 credits a slate).** Historical pulls and prop probes wait for Ethan to approve a
    costed number.
@@ -31,7 +29,7 @@ Reports open with: `TRACK C · cs-cfb · C:\Users\Ethan Davis\code\cs-cfb`
 |---|---|
 | Clone | `C:\Users\Ethan Davis\code\cs-cfb` (W07 said `C:\cs-cfb`; this is where it is) — remote `git@github.com:edavis9817/calibrated-sports.git`, **public** |
 | Venv | `.venv`, Python 3.12.10 (`py -3.12 -m venv .venv`, `pip install -r requirements.txt pytest`). Stays on C: until the next rebuild for another reason; then recreate on D: (Windows venvs hardcode paths, so it is a rebuild, not a move) |
-| `.env` (gitignored) | `LOGGER_DB=D:/calibrated-sports/data/_track_c_unused.db` (throwaway), `LOGGER_RAW_DIR=D:/calibrated-sports/data/_track_c_unused_raw` (throwaway, a sibling of the live `raw\`), `CFBD_API_KEY` (added by Ethan, same key as the main clone). **No `ODDS_API_KEY`.** |
+| `.env` (gitignored) | `LOGGER_DB=D:/calibrated-sports/data/_track_c_unused.db` (throwaway), `LOGGER_RAW_DIR=D:/calibrated-sports/data/_track_c_unused_raw` (throwaway, a sibling of the live `raw\`), `CFBD_API_KEY` (added by Ethan, same key as the main clone), `ODDS_API_KEY` (added by Ethan, same key), `ODDS_RESERVE=20000` (added 2026-09-17, copies the main clone) |
 | `STORAGE_DIR` | `D:\calibrated-sports\data` (derived from `LOGGER_DB`); every CFB path comes from `config.storage_path()` via `cfb/paths.py` |
 | Temp | `%TEMP%` is `D:\temp` for Ethan's user. This session's shell still had the old value, so every command was run with `TEMP='D:\temp' TMP='D:\temp'`. pip cache `D:\caches\pip`, npm `D:\caches\npm` |
 | Tests | `TEMP='D:\temp' TMP='D:\temp' .venv/Scripts/python.exe -m pytest -q -p no:cacheprovider` → **853 passed, 1 failed** before the last commit; the failure is Track A's (§8). CFB tests: `tests/test_ingest_cfb.py`, `tests/test_ingest_cfb_cfbd.py`, `tests/test_probe_promote.py` (77) |
@@ -106,12 +104,15 @@ python -m jobs.ingest_cfb --cfbd-status                     # ledger + /info (un
 python -m jobs.ingest_cfb --cfbd-lines 2013-2025            # 1 metered request per season
 python -m jobs.ingest_cfb --cfbd-week 2026:3 | latest        # 2 metered requests
 python -m jobs.ingest_cfb --promote-probe                   # probe -> cfb.db, 0 requests
+python -m jobs.ingest_cfb --odds-free                       # Odds API /sports + NCAAF /events, 0 credits (verified per call)
+python -m research.cfb_odds_coverage                        # events -> cfb_games join, coverage, costs; 0 requests
 python -m jobs.ingest_cfb ... --log                         # append output + exit code to cfb/logs/ingest_cfb.log
 python -m research.cfb_sources_audit                        # reproduces every quoted source figure
 ```
 
 Exit codes: 0 ok · 1 audit failure or crash · 2 another instance holds the lock · 3 CFBD
-refused on budget (facts already done) · 4 a CFBD file refused at parse.
+refused on budget (facts already done) · 4 a CFBD file refused at parse · 5 Odds API stopped
+(non-200, unset reserve/key, or a documented-free call that the server billed).
 
 Code: `cfb/{paths,sources,schema,normalize,versioning,fetch,lock,limitations,cfbd,cfbd_normalize,probe_promote,guards}.py`, `jobs/ingest_cfb.py`, `run_weekly_cfb.cmd`.
 
@@ -220,6 +221,13 @@ the task runs whether or not Ethan is logged on:
 schtasks.exe --% /Create /F /TN "CalibratedSports CFB Weekly Refresh" /SC WEEKLY /D TUE /ST 09:00 /TR "\"C:\Users\Ethan Davis\code\cs-cfb\run_weekly_cfb.cmd\"" /RU "ETHANPC\Ethan Davis" /RP * /RL HIGHEST
 ```
 Logged-on-only variant (matches the NFL tasks): replace `/RP *` with `/IT`.
+
+**State 2026-09-17 ~17:00Z:** Ethan created task `\CalibratedSports CFB Weekly` → `run_weekly_cfb.cmd`,
+next run Tue 2026-09-22 09:00, never yet fired by the scheduler (LastTaskResult 267011). The wrapper
+has an **uncommitted local edit** (not Track C's): it hardcodes the C: checkout, sets
+`PYTHONIOENCODING=utf-8`, and redirects to `cfb\logs\weekly_cfb.log` INSTEAD of `--log`, so that log
+has no `===== exit N` line; the exit code is only in the task's LastTaskResult. A manual run at
+16:36Z exited 0 (CFBD remaining 977).
 The `/TR` quoting was round-tripped: a throwaway non-elevated task created with exactly that
 `/TR` stored the command as `"C:\Users\Ethan Davis\code\cs-cfb\run_weekly_cfb.cmd"` with a
 Tuesday 09:00 trigger, and was deleted (confirmed). After creating the real task:
@@ -254,7 +262,21 @@ Tuesday 09:00 trigger, and was deleted (confirmed). After creating the real task
   ("St. Thomas" → "state thomas"). The normaliser is copied verbatim from
   `research/cfb_calibration.py` and a test keeps the copies identical; fix both or neither.
 
-**Step 2 — coverage measurement. NOT RUN. Next action after the key is added.**
+**Step 2 — coverage measurement. FREE PART DONE 2026-09-17 16:44Z.**
+- Code: `cfb/oddsapi.py` (free endpoints only; a paid URL cannot be built), `oddsapi_requests`
+  ledger in `cfb.db`, `--odds-free`, `research/cfb_odds_coverage.py`, tests
+  `tests/test_oddsapi_cfb.py` (charge guard mutation-checked) and `tests/test_cfb_odds_coverage.py`.
+- Ledger: `/sports` and `/events` both **x-requests-last 0**, remaining **44,546**, used 55,454 →
+  **24,546 spendable above the 20,000 reserve**. Raw files 167, 168. NCAAF active.
+- **88 events listed; 88 of 88 join `cfb_games`** after 6 explicit aliases (UMass, Southeastern
+  Louisiana, Appalachian State, Nicholls State, Sam Houston State, Southern Mississippi), each checked
+  against the schedule (same kickoff to the minute, same opponent). Kickoff agrees exactly on 86; one is
+  30 min off (Oregon @ USC); one is 720 min off, a TBD placeholder (`start_time_tbd=1`), not a bad match.
+- **2026 week 3: 74 listed of 311 scheduled — FBS/FBS 57 of 57, FBS/FCS 17 of 18** (missing: Wagner @
+  California), **0 of 44 FCS/FCS, 0 of the D-II/D-III games.** Week 4: 14 listed, which only shows how
+  far ahead `/events` lists (latest listed kickoff 09-26 23:45Z), not coverage.
+- Week 3 as listed: **N = 74 events, 25 distinct 5-minute kickoff slots, 15 kickoff hours.**
+- Still unknown: which PROP keys any book hangs on a CFB game. That needs P1.
 - What the docs say (fetched 2026-09-17 into `cfb/cache/oddsapi_docs/`, quoted):
   - `GET /v4/sports` — "This endpoint does not count against the usage quota."
   - `GET /v4/sports/{sport}/events` — "Returns a list of in-play and pre-match events … Odds are
@@ -278,7 +300,7 @@ Tuesday 09:00 trigger, and was deleted (confirmed). After creating the real task
   Archive both responses raw first; log calls with origin; spend 0.
 - **The paid coverage probes, awaiting Ethan's approval:**
   - **P1 (recommended), this weekend:** `/events/{id}/markets` for every NCAAF event = **1 credit
-    per event (~N from the free count; ~120 expected)**, run Saturday morning. Answers which prop
+    per event — 74 as listed 2026-09-17** (the proxy said ~120), run Saturday morning. Answers which prop
     keys each book lists per game.
   - **P2, last weekend:** historical events list (1 credit) + historical event odds on k sampled
     games requesting all 34 prop keys, ≤ 340 credits each; k = 2 → **≤ 681**.
@@ -320,7 +342,11 @@ Tuesday 09:00 trigger, and was deleted (confirmed). After creating the real task
   | **C** | 119 Kalshi-covered games × the 16 NFL-setting markets, + ≤30 listings | **≤ 19,070** | 77.6% |
   | kill | 119 games × all 34 prop keys | 40,460 | 165% |
 
-  Recommendation given: run P1 (~120) first to learn the returned-market count, then B.
+  **Recomputed on the measured week-3 listing** (N = 74, 25 slots, 24,546 spendable;
+  `python -m research.cfb_odds_coverage` prints it): P1 **74** · forward one bulk snapshot **3** ·
+  forward per kickoff hour **45** · A **750** (3.1%) · B **≤ 4,475** (18.2%) · C **≤ 11,865** (48.3%) ·
+  all 34 prop keys **≤ 25,160** (102.5%, more than is spendable).
+  Recommendation given: run P1 (74) first to learn the returned-market count, then B.
   Note the source-layering rule now also applies: a historical pull for 2020–2025 needs a
   pre-registered question; last weekend (2026) is forward-season data.
 
