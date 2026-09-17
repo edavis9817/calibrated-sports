@@ -1,6 +1,7 @@
 # C02 — the CFB play-by-play feeds, surveyed before anything is ingested
 
 Reproduce: `python -m research.cfb_pbp_survey --download --scan --report --silent-zeros`
+(and `--divisions`, which writes the division mix `cfb.pbp_scope` refuses on)
 (GitHub release assets, unmetered, **0 credits**). Measured 2026-09-17 on 36 season
 files, 5,522,755 plays, 2.0 GB cached under `cfb/cache/pbp_survey/` — outside the
 manifested raw archive, because a survey copy is not an ingest.
@@ -123,13 +124,31 @@ allows — which is not most plays.
 - Nothing about the appearance gap changes. A play-by-play feed still does not say who
   dressed, so `cfb.stats_and_usage_only` stands exactly as written.
 
-## 6. Mismatch to report to Track F
+## 5b. Re-measured on Track F's schema v3, and the finding holds
 
-`analytics.survey.run_scan` enumerates seasons through the nflverse registry and the
-pull-date mirror layout, so it cannot scan a feed that lives anywhere else. Everything
-below it — `scan_season`, `profiles`, `reference`, `anomalies`, `silent_zeros`, the
-formatters — reused unchanged, and did the work here. **Suggested generalisation:
-`run_scan` takes an iterable of `(dataset, season, path, pull)` and a connection,
-leaving enumeration to the caller.** Until then this module duplicates ~30 lines of
-loop, which is the seam to watch. No analytics were computed here: when CFB analytics
+Track F took the seam below within the hour: `scan_files(con, items)` now takes the file
+list AND the connection, so this module's duplicated loop is gone, and schema v3 excludes
+NaN from `nonnull`/`informative` (NaN is not null; it had inverted one NFL column entirely).
+
+Re-scanned on v3, 2026-09-17: **all 14 ESPN silent-zero runs reproduce unchanged**, because
+every one of them is a Boolean column where NaN cannot arise. Verified against the raw
+parquet rather than the scan: `espn_cfb_pbp` 2008 `touchdown` is Boolean, False on 139,013
+rows, **True on 0**, null on 93; 2013 is False on all 158,911; 2014 carries 5,922 True.
+`qb_hurry` has 599 True in 2008 and 1,047 in 2013 but **0 in 2014**, which is the
+two-ended shape.
+
+Track F's new `dead_ends()` - built for exactly that shape - run on these feeds:
+**12 columns dead at both ends in cfbfastR**, 7 in ESPN. The cfbfastR ones are the live
+collapse already noted: `pass_breakup_player*` and `position_pass_breakup` are empty in
+2014-2015 AND in 2026, `fumble_recovered_player*` in 2014-2015 and 2025-2026.
+
+## 6. Mismatch to report to Track F — CLOSED
+
+`analytics.survey.run_scan` enumerated seasons through the nflverse registry and the
+pull-date mirror layout, so a feed stored anywhere else could not use it and this module
+duplicated ~30 lines of loop. **Track F shipped the seam the same day**: `scan_files(con,
+items)` takes `(dataset, season, path, pull)` tuples and the connection, exactly as
+suggested, and this module now calls it - the duplicated loop is deleted. `profiles()`
+also now asserts each (column, season) appears once, so the cross-version double-count
+that made `air_yards` print as `1999,1999-2000,2000-2001,...` fails loudly instead. No analytics were computed here: when CFB analytics
 are built they go through `analytics/gate.py` and `analytics/intervals.py`.

@@ -133,41 +133,46 @@ def cached_files(feed):
 
 
 def scan(feeds=None, seasons=None, verbose=True):
-    """Track F's `scan_season` per file; rows land in cfb.db under Track F's schema."""
-    con = __import__("sqlite3").connect(paths.db_path(), timeout=30)
-    con.executescript(survey.SCHEMA)
-    now = int(time.time())
-    stats = {"feeds": 0, "seasons": 0, "rows": 0}
+    """Track F's `scan_files` writes into cfb.db; this supplies only the file list.
+
+    The loop that used to be here is gone: Track F took the seam reported in C02 §6,
+    so `scan_files(con, items)` is the measurement and takes the connection too."""
+    import sqlite3
+    con = sqlite3.connect(paths.db_path(), timeout=30)
+    _drop_if_older_schema(con, verbose)
+    items = []
     for feed in (feeds or FEEDS):
         files = [f for f in cached_files(feed) if not seasons or f[0] in seasons]
         if not files:
             raise SystemExit(f"no cached {feed} parquet - run --download first. "
                              f"A scan that reads nothing and exits 0 is what this prevents.")
-        stats["feeds"] += 1
-        for season, path in files:
-            t0 = time.time()
-            rows, games, cols = survey.scan_season(path)
-            pull = time.strftime("%Y-%m-%d", time.gmtime(os.path.getmtime(path)))
-            con.execute("INSERT OR REPLACE INTO f_pbp_files VALUES (?,?,?,?,?,?,?,?,?)",
-                        (feed, season, path, pull, rows, len(cols),
-                         os.path.getsize(path), games, now))
-            con.execute("DELETE FROM f_pbp_columns WHERE dataset=? AND season=?", (feed, season))
-            # Named columns, not positional: Track F's table is theirs to extend, and a
-            # column added there (a `condition` discriminator is already in their working
-            # copy) must not silently shift this insert's values by one.
-            con.executemany(
-                "INSERT INTO f_pbp_columns (dataset, season, column_name, dtype, rows, nonnull, "
-                "informative, distinct_n, pull_date, scanned_ts) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                [(feed, season, c, d, rows, nn, inf, dn, pull, now)
-                 for c, d, nn, inf, dn in cols])
-            con.commit()
-            stats["seasons"] += 1
-            stats["rows"] += rows
-            if verbose:
-                print(f"  {feed:18} {season}  rows {rows:>9,}  games {games or 0:>5}  "
-                      f"cols {len(cols):>4}  {time.time() - t0:5.1f}s", flush=True)
+        items += [(feed, season, path,
+                   time.strftime("%Y-%m-%d", time.gmtime(os.path.getmtime(path))))
+                  for season, path in files]
+    stats = survey.scan_files(con, items, verbose=verbose)
     con.close()
     return stats
+
+
+def _drop_if_older_schema(con, verbose=True):
+    """Survey rows are re-derivable in seconds from the cache, so a schema bump drops
+    them rather than migrating. Track F's `f_survey_meta.schema_version` refuses a
+    cross-version read; this is the CFB side of honouring that."""
+    have = con.execute("SELECT name FROM sqlite_master WHERE type='table' AND "
+                       "name='f_pbp_columns'").fetchone()
+    if not have:
+        return
+    row = con.execute("SELECT value FROM f_survey_meta WHERE key='schema_version'").fetchone() \
+        if con.execute("SELECT name FROM sqlite_master WHERE type='table' AND "
+                       "name='f_survey_meta'").fetchone() else None
+    if row and row[0] == survey.SCHEMA_VERSION:
+        return
+    if verbose:
+        print(f"  survey schema {row[0] if row else 'pre-versioning'} -> "
+              f"{survey.SCHEMA_VERSION}: dropping and re-deriving from the cache", flush=True)
+    con.executescript("DROP TABLE IF EXISTS f_pbp_columns; DROP TABLE IF EXISTS f_pbp_files; "
+                      "DROP TABLE IF EXISTS f_survey_meta;")
+    con.commit()
 
 
 def divisions(feeds=None, verbose=True):

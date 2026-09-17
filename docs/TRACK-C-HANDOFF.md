@@ -460,6 +460,20 @@ pools across it unless the caller restricts to FBS-vs-FBS or declares the change
 `cfb_measurements`. `tests/test_cfb_pbp_scope.py`; both guards were disabled once to watch the
 tests fail.
 
+**Schema v3 and the seam, both landed 2026-09-17.** Track F's `scan_files(con, items)` is
+now what this survey calls; the duplicated loop is gone. A schema bump drops the CFB survey
+tables and re-derives from the cache (`_drop_if_older_schema`), because survey rows are
+seconds of work and a cross-version read is refused by `f_survey_meta.schema_version`.
+Re-measured on v3: the 14 ESPN silent-zero runs reproduce exactly (Boolean columns, so the
+NaN fix cannot touch them), verified against the raw parquet. `dead_ends()` finds 12
+two-ended columns in cfbfastR and 7 in ESPN.
+
+**One lock, track A's** (`docs/track-c-requests.md` C1, accepted): `jobs/ingest_cfb.py`
+imports `core.single_instance`, `cfb/lock.py` is deleted.
+
+**Guards return statements** (Ethan, general rule): `audit()` returns an `AuditReport` with
+`.statement` and `__bool__`, not a bare bool; `pbp_scope.check()` already did.
+
 **The analytics seam.** Track F owns the machinery. This survey calls
 `analytics.survey.scan_season` / `profiles` / `anomalies` / `silent_zeros` and copies
 nothing. When CFB analytics are built they compute through `analytics/gate.py` and

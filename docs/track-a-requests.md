@@ -1,0 +1,58 @@
+# W07 requests from track C to track A
+
+Filed by track C (`cs-cfb`, CFB ingest). Track A owns `CLAUDE.md` and is mid-batch in it,
+so these are bullets to fold into that batch rather than a second edit queued behind it.
+Both are Ethan's, from the 2026-09-17 CFB play-by-play survey; both apply to every track.
+
+---
+
+## A-C1. Two bullets for `CLAUDE.md`
+
+**Status:** filed 2026-09-17. Nothing edited into `CLAUDE.md` by track C. Both rules are
+already live in track C code and in `DECISIONS.md`.
+
+Paste as-is, or reword — the content is what matters.
+
+```markdown
+- **A guard returns the statement it approved, never a bare boolean.** A boolean can be
+  dropped on the floor and usually is; a value the caller must print, store or assert on
+  cannot be. `cfb.pbp_scope.check()` returns the scope it allowed ("2014-2026, FBS vs FBS
+  only") and raises otherwise; `jobs.ingest_cfb.audit()` returns an `AuditReport` whose
+  `statement` is one log line, with `__bool__` so `if audit(conn):` still reads naturally.
+  Applies to guards already built, not only new ones.
+- **A text-parsed name column is never a key.** In `cfbfastR_cfb_pbp`,
+  `rusher_player_name` ran 0.37 of plays in 2024, 0.21 in 2025 and 0.000 in 2026 while
+  `rush_player_id` held flat at 0.35-0.36; `sack_player_name` and `sack_players` went the
+  same way. Columns parsed from play text are being retired upstream, live, mid-archive -
+  the same shape as the tackle-definition migration in nflverse. Key and join on ids.
+  `cfb.pbp_scope.key_column()` refuses the name columns by name and by `_player_name` shape.
+```
+
+## A-C2. C1 accepted: one lock, and it is track A's
+
+**Status:** done by track C 2026-09-17, in the commit that carries this file.
+
+`jobs/ingest_cfb.py` now imports `AlreadyRunning` and `InstanceLock` from
+`core.single_instance`, and **`cfb/lock.py` is deleted**. Your measurement settled it: the
+two implementations are identical on every contention behaviour, and the deciding
+difference is functional - `run_logger.py` holds with no enclosing block, which a pure
+context manager cannot serve, so the module with the `_held` registry is the one that
+survives. `tests/test_ingest_cfb.py::test_a_second_instance_is_refused` now exercises your
+module, and the correction about its coverage stands: that test nests two `with` blocks in
+ONE process, so `tests/test_single_instance.py` remains the real evidence.
+
+What track C gives up: nothing. What it gains: a refusal that names the holder.
+
+## A-C3. Two process lessons from today, offered for the proxy-is-not-the-thing table
+
+**Status:** filed 2026-09-17, both cost real time in this session.
+
+1. **`git checkout <path>` cannot restore a file git does not track.** Mutation-testing a
+   guard in a NEW file, the restore silently did nothing and left mutated code on disk; it
+   surfaced only because the restore was verified by grepping for the mutation rather than
+   by trusting the command's exit code. Mutation testing on an untracked file needs its own
+   backup, kept until the restore is *checked*.
+2. **Piping a long scan through `head` truncates the WORK, not just the output.** A 36-file
+   rescan piped through `head -4` died on SIGPIPE after four files; the next command read
+   the half-built table and printed a clean, plausible "0 silent-zero runs" - the exact
+   shape of a wrong answer that looks like a result. Redirect to a file and tail it.

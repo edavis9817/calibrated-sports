@@ -48,6 +48,7 @@ import shutil
 import sqlite3
 import sys
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -57,7 +58,7 @@ import polars as pl
 import config
 from cfb import (cfbd, cfbd_normalize, fetch, limitations, normalize, oddsapi, oddsapi_capture,
                  paths, probe_promote, schema, sources, versioning)
-from cfb.lock import AlreadyRunning, InstanceLock
+from core.single_instance import AlreadyRunning, InstanceLock   # C1: one lock, track A's
 
 DEFAULT_MAX_FILES = 200
 
@@ -842,8 +843,45 @@ def cfbd_status(conn, client=None):
 # audit and status
 # =============================================================================
 
+@dataclass(frozen=True)
+class AuditReport:
+    """What the audit found, as a value the caller has to carry.
+
+    A GUARD RETURNS THE STATEMENT IT APPROVED, NEVER A BARE BOOLEAN. A boolean can be
+    dropped on the floor and usually is; a statement has to be printed, stored or
+    asserted on. `__bool__` keeps `if audit(conn):` working, and `statement` is the one
+    line that belongs in a log or beside a figure. Ethan, 2026-09-17, generalising
+    `cfb.pbp_scope.check`, which returns the scope it approved rather than True.
+    """
+    on_disk: int
+    manifested: int
+    unregistered: list
+    missing: list
+    unreadable: list
+    external: int
+    bad_external: list
+
+    @property
+    def clean(self) -> bool:
+        return not (self.unregistered or self.missing or self.unreadable or self.bad_external)
+
+    @property
+    def statement(self) -> str:
+        return (f"CFB raw audit: {self.on_disk} files on disk, {self.manifested} manifested, "
+                f"{self.external} external; unregistered {len(self.unregistered)}, missing "
+                f"{len(self.missing)}, unreadable {len(self.unreadable)}, unreadable external "
+                f"{len(self.bad_external)} - {'CLEAN' if self.clean else 'FAILED'}")
+
+    def __bool__(self):
+        return self.clean
+
+    def __str__(self):
+        return self.statement
+
+
 def audit(conn):
-    """Every raw file manifested, every manifested file present and readable."""
+    """Every raw file manifested, every manifested file present and readable.
+    Returns an `AuditReport`; see that class for why it is not a bool."""
     root = paths.raw_root()
     on_disk = set()
     if os.path.isdir(root):
@@ -889,7 +927,10 @@ def audit(conn):
     print(f"  external sources {len(external)}  unreadable {len(bad_external)}")
     for x, why in bad_external:
         print(f"    UNREADABLE EXTERNAL {x}: {why}")
-    return not (unregistered or missing or unreadable or bad_external)
+    report = AuditReport(len(on_disk), len(manifest), unregistered, missing, unreadable,
+                         len(external), bad_external)
+    print(f"  {report.statement}")
+    return report
 
 
 def status(conn):
@@ -1107,7 +1148,7 @@ def _main(argv=None):
     try:                                  # the lock taken above is the one held throughout
         conn = connect()
         if a.audit:
-            return 0 if audit(conn) else 1
+            return 0 if audit(conn).clean else 1
         run_id = f"{time.strftime('%Y%m%dT%H%M%S')}-{os.getpid()}"
         tdir, tbytes, tfiles = temp_usage()
         conn.execute("INSERT INTO cfb_runs (run_id, argv, started_ts, temp_dir, "

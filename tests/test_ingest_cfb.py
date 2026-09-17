@@ -19,7 +19,8 @@ import polars as pl
 import pytest
 
 import config
-from cfb import fetch, lock, normalize, paths, schema, sources, versioning
+from cfb import fetch, normalize, paths, schema, sources, versioning
+from core import single_instance as lock   # C1: one lock implementation, track A's
 from jobs import ingest_cfb
 
 
@@ -458,7 +459,8 @@ def test_audit_reports_an_unregistered_raw_file(store):
     p = os.path.join(paths.raw_root(), "sportsdataverse", "x", "stray.parquet")
     os.makedirs(os.path.dirname(p))
     TEAMS.write_parquet(p)
-    assert ingest_cfb.audit(store) is False
+    report = ingest_cfb.audit(store)
+    assert not report and "FAILED" in report.statement and report.unregistered
 
 
 # =============================================================================
@@ -469,7 +471,7 @@ def test_a_second_instance_is_refused(tmp_path):
     p = str(tmp_path / "ingest.lock")
     with lock.InstanceLock(p):
         with pytest.raises(lock.AlreadyRunning):
-            with lock.InstanceLock(p):
+            with lock.InstanceLock(p):   # noqa: shared module, see docs/track-c-requests C1
                 pass
     with lock.InstanceLock(p):          # released on exit
         pass
