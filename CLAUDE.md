@@ -1372,3 +1372,27 @@ W04/W05 build cycle. They apply without being restated, so proceed on them rathe
 Every report closes with: what was as described and what wasn't; what the real data cannot support,
 flagged rather than faked; what changed unasked; and any decision that belongs to Ethan rather than to
 the agent — stated as options with a recommendation, not as a question without one.
+
+## CFB facts store (W07 track C)
+
+- **CFB publishes stats and usage, never hit rates, prop history or settlement.**
+  There is no appearance signal for a college player - no snaps anywhere free,
+  `did_not_play` False on every row 2004-2026, starter flags only from 2025.
+  The limitation is a row in `cfb_limitations`, not a footnote; an About page
+  renders it from the store and quotes figures from `cfb_measurements`.
+- **Store:** `<STORAGE_DIR>/cfb.db`; raw at `<STORAGE_DIR>/cfb/raw`, outside the
+  logger's RAW_DIR. `python -m jobs.ingest_cfb --fetch --season 2026` is the
+  weekly refresh; `--parse` and `--rebuild` replay the archive at zero requests;
+  `--audit` checks manifest against disk. One instance at a time (OS lock).
+- **Versioning is per row by ingestion time** (`valid_from_ts`/`valid_to_ts`).
+  A raw copy is kept only when the CONTENT hash moves - upstream re-uploads
+  every season many times a day, so `updated_at` means nothing.
+- **Never ingest `espn_cfb_betting`** - it fills missing lines with spread 2.5 /
+  total 55.5. Denied in `cfb/sources.py`. Historical lines: CFBD `/lines`.
+- **2026 passing rows use two layouts in one file**: 466 of 534 carry
+  (C/ATT, YDS, AVG, TD, INT) in `stat_1..stat_5`. Order verified (AVG = YDS/ATT
+  on all 466; TD before INT by mean).
+- **ESPN's box score has no targets.** Targets come from the usage file, and
+  targets thrown to unidentified players (~5% a season 2004-2014, <0.5% from
+  2015) are in `team_targets` and no player's row.
+- Figures: `python -m research.cfb_sources_audit`.
