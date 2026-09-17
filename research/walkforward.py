@@ -105,6 +105,7 @@ from dataclasses import dataclass, field
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config  # noqa: E402
+from core import settlement  # noqa: E402
 
 SEASONS = (2023, 2024, 2025)
 STATS = ("receptions", "rush_attempts")
@@ -299,28 +300,32 @@ def ro():
     return sqlite3.connect(f"file:{config.DB_PATH}?mode=ro", uri=True)
 
 
-def corrected_result(line, push, offense_snaps):
-    """Corrected arm, for an outcome the pre-registered settlement left unsettled.
-    Played (offensive snaps > 0) -> the stat is 0 and settles normally; otherwise
-    void, as a book voids a player who did not play."""
-    from jobs.settle_outcomes import resolve
-    if offense_snaps is not None and offense_snaps > 0:
-        return resolve(0.0, line, bool(push)), 0.0
-    return "void", None
+# `corrected_result` used to live here and judged EVERY stat on offensive snaps.
+# It is gone: the rule is core/settlement.py, which picks the snap column from
+# the stat. This copy was wrong for tackles and sacks - a defender's offensive
+# snap count is 0 in every game he plays - and was dormant only because STATS
+# here is ("receptions", "rush_attempts").
 
 
 def snap_rows(con, T):
-    """(gsis, game_id) -> (offense_snaps, team, position), newest data_version."""
+    """(gsis, game_id) -> (snap, team, position) at the newest data_version,
+    where snap is (team, offense_snaps, defense_snaps) - the shape the shared
+    settlement rule reads.
+
+    BOTH PHASES, deliberately. This loader selected `offense_snaps` alone, which
+    is what made the offence-only rule above impossible to fix in one line.
+    """
     out = {}
-    for gsis, game_id, team, pos, off in con.execute(
-            """SELECT x.gsis_id, s.game_id, s.team, s.position, s.offense_snaps
+    for gsis, game_id, team, pos, off, dfn in con.execute(
+            """SELECT x.gsis_id, s.game_id, s.team, s.position, s.offense_snaps,
+                      s.defense_snaps
                  FROM nfl_snap_counts s JOIN player_xwalk x ON x.pfr_id = s.pfr_player_id
                 WHERE s.season = ? AND s.data_version = (
                       SELECT MAX(t.data_version) FROM nfl_snap_counts t
                        WHERE t.game_id = s.game_id AND t.pfr_player_id = s.pfr_player_id)""", (T,)):
         prev = out.get((gsis, game_id))
-        if prev is None or (off or 0) > (prev[0] or 0):
-            out[(gsis, game_id)] = (off, team, pos)
+        if prev is None or (off or 0) > (prev[0][1] or 0):
+            out[(gsis, game_id)] = ((team, off or 0, dfn or 0), team, pos)
     return out
 
 
@@ -390,14 +395,15 @@ def run(workers=20, seasons=SEASONS, limit=None, out=print):
         for r in rows:
             (oid, key, sport, season, week, etype, gsis, stat, line, side, push, game,
              pb, pa, lead, kick) = r
-            result, actual, _v = settle_one(con, (oid, key, sport, season, week, etype, gsis,
-                                                  stat, line, side, push))
+            result, actual, _v, _void = settle_one(con, (oid, key, sport, season, week, etype, gsis,
+                                                         stat, line, side, push))
             moved = False
             if result == UNSETTLED:
                 census["unsettled (no player-week actual)"] += 1
-                off, steam, spos = snaps.get((gsis, game), (None, None, None))
-                result, actual = corrected_result(line, push, off)
-                if result == "void":
+                snap, steam, spos = snaps.get((gsis, game), (None, None, None))
+                result, actual, _reason, _status = settlement.settle(
+                    None, False, snap, stat, line, push)
+                if result == settlement.VOID:
                     ccensus["void (no snap row or 0 offensive snaps)"] += 1
                     continue
                 moved = True
@@ -421,7 +427,7 @@ def run(workers=20, seasons=SEASONS, limit=None, out=print):
                 if pw:
                     pos_team.setdefault((gsis, game), pw)
                 else:
-                    off, steam, spos = snaps.get((gsis, game), (None, None, None))
+                    _snap, steam, spos = snaps.get((gsis, game), (None, None, None))
                     pos_team.setdefault((gsis, game), (spos, steam))
             settled_corr[oid] = rec
             groups[(gsis, stat, game, kick, week)].append((oid, line, push))

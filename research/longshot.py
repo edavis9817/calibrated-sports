@@ -76,6 +76,13 @@ SELECT o.outcome_id, o.stat, o.side, s.result, q.best_bid, q.best_ask, q.ts,
          GROUP BY game_id) g ON g.game_id = o.event_id
   JOIN quotes q ON q.venue = 'kalshi' AND q.market_id = mo.market_id
  WHERE q.best_bid IS NOT NULL AND q.best_ask IS NOT NULL
+   -- A VOID IS NOT A MISS. `kalshi_rows` scores `hit` as `res == side`, and a
+   -- void equals neither side, so every voided outcome would land as a realized
+   -- 0 - depressing precisely the longshot buckets this study reports on.
+   -- BOOK_SQL below already filters this way; the two arms of one study
+   -- disagreed. No effect on any published number: there are no void rows yet,
+   -- which is why this lands BEFORE the migration that creates them.
+   AND s.result IN ('over', 'under')
    AND q.ts <= g.kickoff_ts
    AND q.ts = (SELECT MAX(ts) FROM quotes q2
                 WHERE q2.venue = 'kalshi' AND q2.market_id = mo.market_id

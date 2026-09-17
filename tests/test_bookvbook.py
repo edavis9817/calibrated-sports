@@ -72,15 +72,10 @@ def test_middles_found_only_when_under_threshold_exceeds_over():
     assert list(mids) == [(3.0, 3.5)] and not arbs
 
 
-def test_corrected_settlement_rule():
-    assert B.corrected_value(3.0, True, None, "receptions") == (3.0, "value")
-    assert B.corrected_value(None, False, ("BUF", 18, 0), "receptions") == (0.0, "played, no row -> 0")
-    assert B.corrected_value(None, False, ("BUF", 0, 0), "receptions") == (None, "did not play -> void")
-    assert B.corrected_value(None, False, None, "receptions") == (None, "did not play -> void")
-    # defensive props judge on DEFENSIVE snaps
-    assert B.corrected_value(None, False, ("BUF", 0, 41), "sacks") == (0.0, "played, no row -> 0")
-    assert B.corrected_value(None, False, ("BUF", 0, 41), "tackles_assists") == (0.0, "played, no row -> 0")
-    assert B.corrected_value(None, False, ("BUF", 12, 0), "sacks") == (None, "did not play -> void")
+# The settlement rule moved to core/settlement.py and is tested in
+# tests/test_settlement.py, including the defensive-phase case this file used to
+# own. Asserting it here as well would re-create the duplication that caused the
+# defect.
 
 
 def test_consensus_mode_ties_go_low():

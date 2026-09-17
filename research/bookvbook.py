@@ -64,6 +64,7 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config  # noqa: E402
+from core import settlement  # noqa: E402
 from research.sweep.common import boot, mean_of, wilson  # noqa: E402
 from venues.mapping import norm_name, team_abbr  # noqa: E402
 
@@ -310,8 +311,10 @@ SETTLEMENTS = ("pre-registered", "corrected")
 
 
 def snap_status(con):
-    """(gsis_id, season, week) -> (team, offense_snaps) from nfl_snap_counts at
-    its newest data_version, pfr_player_id mapped to gsis via player_xwalk.
+    """(gsis_id, season, week) -> (team, offense_snaps, defense_snaps) from
+    nfl_snap_counts at its newest data_version, pfr_player_id mapped to gsis via
+    player_xwalk. BOTH phases: the docstring said offence only for a while, and
+    the rule that reads it picks the column from the STAT, not from the player.
 
     Why (coordinator's correction, added after the pre-registration): nflverse
     weekly player stats carry NO row for a player who played and recorded no
@@ -329,21 +332,10 @@ def snap_status(con):
     return out
 
 
-# Amendment (coordinator): defensive props settle on DEFENSIVE snaps. A defender
-# who played and recorded nothing has no stats row either; judging him on
-# offensive snaps (always 0) would void exactly his zero outcomes.
-DEFENSIVE_STATS = {"tackles_assists", "sacks"}
-
-
-def corrected_value(pw_value, has_pw_row, snap, stat=None):
-    """The corrected settlement rule. Returns (value, status).
-    snap = (team, offense_snaps, defense_snaps) or None."""
-    if has_pw_row:
-        return pw_value, ("value" if pw_value is not None else "null stat")
-    played = None if snap is None else (snap[2] if stat in DEFENSIVE_STATS else snap[1])
-    if (played or 0) > 0:
-        return 0.0, "played, no row -> 0"
-    return None, "did not play -> void"
+# The settlement rule used to live here. It now lives in core/settlement.py,
+# because it also lived in research/walkforward.py and the two disagreed on
+# 3,272 defensive outcomes. This copy was the correct one; keeping it would have
+# made three.
 
 
 class Empirical:
@@ -373,7 +365,8 @@ class Empirical:
                 if settlement == "pre-registered":
                     self.census["no actual -> excluded"] += 1
                     continue
-                v, status = corrected_value(None, False, (snaps or {}).get((ent, season, week)), stat)
+                v, status, _reason = settlement.settled_value(
+                    None, False, (snaps or {}).get((ent, season, week)), stat)
                 self.census[status] += 1
                 if v is None:
                     continue
@@ -455,13 +448,13 @@ class Realized:
             pw = self.pw.get((gid, game["season"], game["week"]))
             snap = self.snaps.get((gid, game["season"], game["week"]))
             if pw and pw["team"] in teams:
-                hits[gid] = corrected_value(pw.get(stat), True, snap, stat)
+                hits[gid] = settlement.settled_value(pw.get(stat), True, snap, stat)
             elif not pw and snap and snap[0] in teams:
-                hits[gid] = corrected_value(None, False, snap, stat)
+                hits[gid] = settlement.settled_value(None, False, snap, stat)
         if len(hits) != 1:
             self.census["unresolved" if not hits else "ambiguous"] += 1
             return None
-        v, status = next(iter(hits.values()))
+        v, status, _reason = next(iter(hits.values()))
         self.census[status] += 1
         return None if v is None else float(v)
 

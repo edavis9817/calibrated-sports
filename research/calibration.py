@@ -538,10 +538,21 @@ def trust():
     print("TRUST CHECK 1 - what is NOT settled, and why")
     print("=" * 78)
     tot = q("SELECT COUNT(*) FROM outcomes WHERE entity_type='player'")[0][0]
-    got = q("SELECT COUNT(DISTINCT outcome_id) FROM outcome_settlement")[0][0]
-    print("\n  player-prop outcomes %s, settled %s (%.2f%%), unsettled %s"
+    # SETTLED means GRADED. A void resolved - the bet did not run - but it has
+    # no side and scores nothing, so counting it here would report coverage the
+    # curves above do not have (they all filter `result IN ('over','under')`).
+    # The NOT EXISTS guards below are already right: a void row exists, so a
+    # voided outcome correctly stops being "unsettled".
+    got = q("SELECT COUNT(DISTINCT outcome_id) FROM outcome_settlement "
+            "WHERE result IN ('over','under','push')")[0][0]
+    voided = q("SELECT COUNT(DISTINCT outcome_id) FROM outcome_settlement "
+               "WHERE result = 'void'")[0][0]
+    # Three buckets, not two. A void resolved but scores nothing, so folding it
+    # into either "settled" or "unsettled" misreports one of them: it is not
+    # coverage the curves have, and it is not a gap in our data either.
+    print("\n  player-prop outcomes %s, graded %s (%.2f%%), void %s, unsettled %s"
           % (format(tot, ","), format(got, ","), 100.0 * got / tot,
-             format(tot - got, ",")))
+             format(voided, ","), format(tot - got - voided, ",")))
     _tbl("  composition of the unsettled:", ("cause", "n"),
          [(w, format(n, ",")) for w, n in q(_UNSETTLED_WHY)], [56, 10])
     _tbl("  unsettled by stat, seasons already played:", ("stat", "n"),

@@ -385,8 +385,9 @@
     },
 
     "Verdict": {
+      "description": "A hypothesis's standing. `edge_confirmed` exists so the programme's headline - that nothing found an edge surviving costs - is FALSIFIABLE: computed over an enum without it, that count could never have come out otherwise, which makes it decoration rather than a finding. Its criterion is strict and stated here so assigning it is a check, not a judgement: the interval on net-of-cost CLV excludes zero AND the result replicates on a holdout the mechanism was frozen before. R11 (022 H1, settlement lag, +1.81pp [+1.24, +2.47]) is the only hypothesis that clears the first half; it stays `open` because it fails the second - week-2 replication - which is what the value being reachable is supposed to mean.",
       "type": "string",
-      "enum": ["retired", "null", "not_testable", "open"]
+      "enum": ["retired", "null", "not_testable", "open", "edge_confirmed"]
     },
 
     "Hypothesis": {
@@ -809,9 +810,24 @@
                 },
                 {"type": "null"}
               ]
+            },
+            "model_minus_naive": {
+              "description": "Paired difference against the naive prior-season rate, same game-block bootstrap and THE SAME POPULATION as `model_minus_market` and as the three Brier scores above - all of them the common set named in `population`. Two intervals on different denominators are not comparable, and a consumer gating \"identical to naive\" on model == naive must be able to read the interval beside it from the same rows.",
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "estimate": {"type": "number"},
+                    "interval": {"$ref": "#/$defs/Interval"}
+                  },
+                  "required": ["estimate", "interval"],
+                  "additionalProperties": false
+                },
+                {"type": "null"}
+              ]
             }
           },
-          "required": ["model", "market", "naive", "model_minus_market"],
+          "required": ["model", "market", "naive", "model_minus_market", "model_minus_naive"],
           "additionalProperties": false
         }
       },

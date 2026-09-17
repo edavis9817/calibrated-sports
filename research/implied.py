@@ -375,6 +375,11 @@ SELECT o.entity_id, o.event_id, o.stat, o.line, o.side, c.p_all, c.n_all,
   JOIN outcomes o      ON o.outcome_id = s.outcome_id
   JOIN outcome_close c ON c.outcome_id = s.outcome_id
  WHERE o.entity_type = 'player' AND o.line IS NOT NULL AND c.p_all IS NOT NULL
+   -- `outcome_settlement` is joined here purely as "this outcome resolved" -
+   -- the realized values come from realized_index(), not from this row. Once
+   -- voids exist, an unfiltered join would build ladder rungs out of outcomes
+   -- that never resolved and move the published quantile coverage.
+   AND s.result IN ('over', 'under')
 """
 
 

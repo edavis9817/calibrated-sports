@@ -515,7 +515,11 @@ CREATE INDEX IF NOT EXISTS ix_hold_until ON quote_retention_hold(until_ts);
 CREATE TABLE IF NOT EXISTS outcome_settlement (
     outcome_id   TEXT NOT NULL,
     data_version TEXT NOT NULL,
-    result       TEXT NOT NULL,      -- over | under | push | unsettled
+    result       TEXT NOT NULL,      -- over | under | push | void
+                                     -- 'unsettled' is NEVER stored: the settler
+                                     -- writes no row rather than a row saying
+                                     -- it does not know. A void is a fact about
+                                     -- the bet; unsettled is a fact about us.
     actual       REAL,
     source       TEXT NOT NULL,
     settled_ts   REAL NOT NULL,
@@ -535,6 +539,15 @@ def _conn():
 # Columns added after the first deploy. SQLite has no "ADD COLUMN IF NOT
 # EXISTS", and there is a live database on this box that predates them.
 MIGRATIONS = [
+    # WHY a void was voided. `result='void'` says the venue returns the stake
+    # rather than grading it; this says which absence caused that -
+    # 'did_not_play' (a snap row that reads zero) or 'inactive' (no snap row,
+    # but the player has snap rows elsewhere). NULL on every non-void row.
+    # Added BEFORE the first void is written: 200,614 settlement rows already
+    # exist, and a column introduced after them needs a backfill to be
+    # trustworthy. Extensible on purpose - "void" is one venue's rule and we
+    # settle against two venue families whose inactive-player rules differ.
+    ("outcome_settlement", "void_reason", "TEXT"),
     ("raw_shards", "kind", "TEXT DEFAULT 'market'"),
     ("quotes", "source", "TEXT DEFAULT 'live'"),
     ("quotes", "prob_devig", "REAL"),
@@ -1096,37 +1109,46 @@ def record_ticket(row: dict) -> int:
         return cur.lastrowid
 
 
-def record_settlement(outcome_id, result, actual, data_version, source):
+def record_settlement(outcome_id, result, actual, data_version, source,
+                      void_reason=None):
+    """`void_reason` is keyword-with-default so the five-positional callers that
+    predate voids keep working unchanged."""
     with db() as c:
         c.execute(
             """INSERT INTO outcome_settlement
-                 (outcome_id, data_version, result, actual, source, settled_ts)
-               VALUES (?,?,?,?,?,?)
+                 (outcome_id, data_version, result, actual, source, settled_ts,
+                  void_reason)
+               VALUES (?,?,?,?,?,?,?)
                ON CONFLICT(outcome_id, data_version) DO UPDATE SET
                  result=excluded.result, actual=excluded.actual,
-                 settled_ts=excluded.settled_ts""",
-            (outcome_id, data_version, result, actual, source, time.time()))
+                 settled_ts=excluded.settled_ts,
+                 void_reason=excluded.void_reason""",
+            (outcome_id, data_version, result, actual, source, time.time(),
+             void_reason))
 
 
 def record_settlements(rows):
-    """The batch form. rows: (outcome_id, result, actual, data_version, source).
+    """The batch form. rows: (outcome_id, result, actual, data_version, source)
+    or (outcome_id, result, actual, data_version, source, void_reason).
 
     Settlement runs over every player outcome in the store at once, so the
     per-row connection was ~200k transactions for one pass.
     """
     now = time.time()
-    payload = [(oid, ver, res, act, src, now)
-               for oid, res, act, ver, src in rows]
+    payload = [(r[0], r[3], r[1], r[2], r[4], now, r[5] if len(r) > 5 else None)
+               for r in rows]
     if not payload:
         return 0
     with db() as c:
         c.executemany(
             """INSERT INTO outcome_settlement
-                 (outcome_id, data_version, result, actual, source, settled_ts)
-               VALUES (?,?,?,?,?,?)
+                 (outcome_id, data_version, result, actual, source, settled_ts,
+                  void_reason)
+               VALUES (?,?,?,?,?,?,?)
                ON CONFLICT(outcome_id, data_version) DO UPDATE SET
                  result=excluded.result, actual=excluded.actual,
-                 settled_ts=excluded.settled_ts""", payload)
+                 settled_ts=excluded.settled_ts,
+                 void_reason=excluded.void_reason""", payload)
     return len(payload)
 
 

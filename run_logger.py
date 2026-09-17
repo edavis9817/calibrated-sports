@@ -25,6 +25,7 @@ import asyncio
 import hashlib
 import os
 import signal
+import sys
 import time
 from datetime import datetime, timezone
 
@@ -33,6 +34,7 @@ import httpx
 import config
 import nflverse
 import store
+from core import single_instance
 from jobs import capture_depth, ingest_nflverse, prune_quotes, rotate_raw
 from venues.base import RateLimiter
 from venues.kalshi import KalshiClient
@@ -523,6 +525,13 @@ async def depth_worker():
 
 
 async def main():
+    # BEFORE init_db and before any archive write. What a duplicate destroys is
+    # the shard tree, and one appended record is already the damage - so the
+    # refusal has to happen ahead of the first write, not at the first conflict.
+    # start_logger.ps1 refuses a duplicate too, but only when IT is the launcher;
+    # `python run_logger.py` typed by hand is the path that corrupted 43 CFB
+    # shards on 2026-09-11.
+    single_instance.acquire(single_instance.LOGGER)
     store.init_db()
     # One bucket per venue. A single shared limiter makes Kalshi's discovery
     # pass throttle Polymarket's quotes and, worse, throttle the 15s hot tier
@@ -626,4 +635,10 @@ if __name__ == "__main__":
             loop.add_signal_handler(sig, _handle_signal)
         except NotImplementedError:
             signal.signal(sig, _handle_signal)
-    loop.run_until_complete(main())
+    try:
+        loop.run_until_complete(main())
+    except single_instance.AlreadyRunning as e:
+        # Loud and non-zero: a scheduled task that "succeeded" while refusing is
+        # how a duplicate stays invisible.
+        log(f"REFUSING TO START - {e}")
+        sys.exit(3)

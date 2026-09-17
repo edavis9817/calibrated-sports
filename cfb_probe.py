@@ -49,6 +49,7 @@ from datetime import datetime, timezone
 import httpx
 
 import config
+from core import single_instance
 
 # Repointed before store is used. store reads config at call time, so this has
 # to happen before init_db() and it must happen in THIS process only.
@@ -451,6 +452,12 @@ def main():
     if args.report:
         report()
         return
+    # Below this line the probe writes raw shards, so below this line is where
+    # the lock goes. A --report run writes nothing and must not be refused just
+    # because a probe is live. THIS is the process that ran twice on 2026-09-11
+    # and left 43 of 114 shards unreadable, and --discover archives too, so the
+    # lock has to cover both paths in _run(), not only polling.
+    single_instance.acquire(single_instance.CFB_PROBE)
     asyncio.run(_run(args))
 
 

@@ -669,6 +669,85 @@ def load_snaps(con, xwalk):
     return snaps, unresolved
 
 
+def snap_weeks(con, xwalk):
+    """(gsis, season, week) -> (team, offense_snaps, defense_snaps, offense_pct, game_id).
+
+    SEPARATE from `load_snaps`, which keys on (gsis, game_id) and is read at two
+    call sites that have no reason to change. This one carries the two things
+    that one drops and a played-zero row cannot be built without:
+
+      team            `game_index` keys on (season, week, team), so without it
+                      there is no opponent, no date and no home flag - all of
+                      which PeriodRow requires.
+      defense_snaps   so a defender is visible rather than reading as zero.
+                      Dropping it is exactly what made walkforward's copy of
+                      the settlement rule impossible to fix in one line.
+    """
+    pfr_to_gsis = {r["pfr_id"]: g for g, r in xwalk.items() if r.get("pfr_id")}
+    out = {}
+    for pfr, gid, season, week, team, off, dfn, pct in con.execute(
+            "SELECT s.pfr_player_id, s.game_id, s.season, s.week, s.team, "
+            "s.offense_snaps, s.defense_snaps, s.offense_pct "
+            "FROM nfl_snap_counts s JOIN (SELECT pfr_player_id, game_id, MAX(data_version) dv "
+            "FROM nfl_snap_counts GROUP BY pfr_player_id, game_id) v "
+            "ON v.pfr_player_id = s.pfr_player_id AND v.game_id = s.game_id "
+            "AND v.dv = s.data_version WHERE s.week IS NOT NULL"):
+        g = pfr_to_gsis.get(pfr)
+        if g is not None:
+            out[(g, season, week)] = (team, off or 0, dfn or 0, pct, gid)
+    return out
+
+
+def played_zero_periods(gsis, rows, snap_index, gidx):
+    """Periods for weeks this player PLAYED and recorded no stat row.
+
+    nflverse writes no row for a player who played and recorded nothing, so the
+    absence is not evidence of absence - the snap counts are. Same upstream gap
+    as the settlement defect; see core/settlement.py for the five-case
+    partition and tests/test_played_zero.py for what may and may not be emitted.
+
+    THREE THINGS ARE REFUSED, and the refusals matter more than the emissions:
+      * zero snaps in BOTH phases - he sat out, and a row would assert he did
+        not. 5,904 in-scope weeks, the largest excluded group.
+      * defence-only snaps - `snaps` here is OFFENSIVE and PERIOD_KEYS is
+        offensive vocabulary, so the row would publish snaps=0 with all-zero
+        offence and read on the page as sitting out. 1,070 weeks.
+      * a week with no joinable game, or a game with no final score.
+    """
+    have = {(r["season"], r["week"]) for r in rows}
+    out = []
+    for (g, season, week), (team, off, _dfn, pct, _gid) in snap_index.items():
+        if g != gsis or season < SNAP_FIRST_SEASON or (season, week) in have:
+            continue
+        if not off or off <= 0:
+            continue
+        game = gidx.get((season, week, team))
+        if game is None or game.get("home_score") is None:
+            continue
+        home = team == game["home_team"]
+        # THE SEASON TYPE COMES FROM THE GAME, NEVER A CONSTANT. `game_index`
+        # carries every game type, so hard-coding "REG" here emitted 745 playoff
+        # games as regular season - rows reading season_type=REG beside
+        # label='Divisional', 'Wild Card', even 'Super Bowl'. `_totals` groups on
+        # (season, season_type), so each one was counted into that season's REG
+        # total and into the per-game denominator the site divides by. A row that
+        # contradicts itself is worse than a missing row.
+        gtype = game.get("game_type") or "REG"
+        stype = "REG" if gtype == "REG" else "POST"
+        stats = {k: 0 for k in PERIOD_KEYS}
+        stats["snaps"] = intish(off)
+        stats["snap_share"] = rnd(pct)
+        out.append({
+            "season": season, "index": week,
+            "label": period_label(gtype, week, stype),
+            "season_type": stype,
+            "game_id": game["game_id"], "date": game["gameday"],
+            "team": team,
+            "opponent": game["away_team"] if home else game["home_team"],
+            "home": home, "stats": stats})
+    return out
+
+
 def current_period(games, weeks, now_ts=None):
     """The current period, what the stats reach, and whether nflverse is late."""
     now_ts = time.time() if now_ts is None else now_ts
@@ -776,7 +855,7 @@ def _totals(periods):
 
 
 def build_players(games, by_player, snaps, xwalk, aliases, slugs, market_keys, generated_at,
-                  headshots=None):
+                  headshots=None, snap_index=None):
     """-> ({key: obj} for summaries and season files, [index entries], unresolved)."""
     headshots = headshots or {}
     gidx = game_index(games)
@@ -814,6 +893,13 @@ def build_players(games, by_player, snaps, xwalk, aliases, slugs, market_keys, g
                 "date": None if g is None else g["gameday"],
                 "team": r["team"], "opponent": opp, "home": home,
                 "stats": {k: raw[k] for k in PERIOD_KEYS}})
+
+        # Weeks he played and recorded nothing. Appended after the stat-row
+        # periods and re-sorted, so a season file reads in week order whatever
+        # the source of each row.
+        if snap_index:
+            periods.extend(played_zero_periods(gsis, rows, snap_index, gidx))
+            periods.sort(key=lambda p: (p["season"], p["index"] or 0))
 
         if any(p["team"] is None for p in periods):
             unresolved.append({"id": gsis, "name": name, "reason": REASON_NO_TEAM})
@@ -1118,11 +1204,22 @@ def build_research(generated_at):
     head = SC.boot_mean(common, lambda r: SC.brier(r["model"], r["y"]) - SC.brier(r["market_p"], r["y"]))
     brier["model_minus_market"] = {"estimate": rnd(head["est"]),
                                    "interval": [rnd(head["lo"]), rnd(head["hi"])]}
+    # ON `common`, NOT on the full settled set. score.py also computes a
+    # model-naive difference over every settled row (its "secondary"), and that
+    # is a DIFFERENT population - one-sided books included. Publishing it beside
+    # Brier scores computed on `common` would put an interval and the numbers it
+    # describes on different denominators, and the site gates "identical to
+    # naive" on model == naive at four places. Same rows, or the page can show
+    # 0.1916 = 0.1916 next to an interval that never saw those outcomes.
+    nv = SC.boot_mean(common, lambda r: SC.brier(r["model"], r["y"]) - SC.brier(r["naive"], r["y"]))
+    brier["model_minus_naive"] = {"estimate": rnd(nv["est"]),
+                                  "interval": [rnd(nv["lo"]), rnd(nv["hi"])]}
     out["research/calibration.json"] = {
         **envelope("research.calibration", generated_at, None),
         "source": "research/score.py (brief 021)",
         "population": (f"NFL week 1 2026, KXNFLREC + KXNFLRSHATT, common set n={len(common)}, "
-                       f"{len({r['game'] for r in common})} games"),
+                       f"{len({r['game'] for r in common})} games. Every figure in `brier` - the "
+                       f"three scores and both intervals - is computed on this one set."),
         "series": series, "brier": brier}
 
     reg = os.path.join(ROOT, "research", "sweep", "results", "h3.jsonl")
@@ -1341,6 +1438,13 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
     weeks = load_player_weeks(con)
     xwalk, aliases = load_xwalk(con)
     snaps, snap_unresolved = load_snaps(con, xwalk)
+    # Weeks a player PLAYED and recorded nothing - nflverse writes no row for
+    # those, so the snap counts are the only evidence. See played_zero_periods.
+    # A SECOND index rather than a wider load_snaps: that one keys on
+    # (gsis, game_id) and is read at two call sites with no reason to change.
+    # Costs one more pass over nfl_snap_counts; §3.4 makes the export
+    # incremental and is where that scan stops being paid on every run.
+    snap_index = snap_weeks(con, xwalk)
     current = current_period(games, weeks, now_ts)
     scope = player_scope(weeks)
     by_player = players_by_id(weeks, scope)
@@ -1372,7 +1476,8 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
 
     headshots = load_headshots(con)
     player_files, index, unresolved = build_players(games, by_player, snaps, xwalk, aliases, slugs,
-                                                    market_keys, generated_at, headshots)
+                                                    market_keys, generated_at, headshots,
+                                                    snap_index=snap_index)
     summary["headshots"] = {"with_url": sum(1 for g in by_player if g in headshots),
                             "players": len(by_player)}
     med, p99, n = ppr_check(weeks, scope)

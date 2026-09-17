@@ -281,7 +281,7 @@ def load(season=2026, week=1):
         assert market_id.startswith(STAT_SERIES[stat] + "-"), f"{pid}: {market_id} vs {stat}"
         assert rung(market_id) is not None and rung(market_id) - 0.5 == line, \
             f"{pid}: Kalshi rung {market_id} is not over {line}"
-        result, actual, _v = settle_one(
+        result, actual, _v, _void = settle_one(
             c, (oid, key, sport, s, w, etype, entity, stat, line, side, push))
         if result == UNSETTLED:
             home, away = teams_of(game)[1], teams_of(game)[0]

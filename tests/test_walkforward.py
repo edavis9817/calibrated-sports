@@ -85,11 +85,9 @@ def test_scoring_helpers():
     assert W.mde({"se": 0.01}) == pytest.approx(0.028) and W.mde(None) is None
 
 
-def test_corrected_settlement_settles_a_player_who_played_at_zero_and_voids_a_dnp():
-    assert W.corrected_result(0.5, False, 24) == ("under", 0.0)
-    assert W.corrected_result(1.5, False, 3) == ("under", 0.0)
-    assert W.corrected_result(0.5, False, 0) == ("void", None)
-    assert W.corrected_result(0.5, False, None) == ("void", None)
+# `corrected_result` is gone - it judged every stat on OFFENSIVE snaps, which
+# voids a defender's realized zeros. The rule is core/settlement.py and is tested
+# in tests/test_settlement.py, on both phases.
 
 
 def test_every_variant_is_declared_and_counted():

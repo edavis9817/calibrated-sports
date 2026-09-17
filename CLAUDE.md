@@ -395,7 +395,8 @@ writes it, which is luck holding a guarantee up.
   Stribling, Elijah Arroyo and Odell Beckham Jr. played 11-32 offensive snaps in
   week 1 and are absent from the file itself, not just the table. A missing row
   is therefore NOT "inactive" and NOT "unresolvable": with offensive snaps > 0
-  (`nfl_snap_counts`, from 2012) the actual is 0 and the over LOST; with no snaps
+  (`nfl_snap_counts`, from 2013 - the table's own earliest season and
+  `export_web.SNAP_FIRST_SEASON`; "2012" was wrong) the actual is 0 and the over LOST; with no snaps
   the book voids the prop. `jobs/settle_outcomes.py` still treats every missing
   row as unsettled, which drops exactly the zero outcomes and inflates the
   realized over rate - brief 021's 28 "no stat row" exclusions are this.
@@ -877,10 +878,19 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
   where Kalshi was two-sided at entry, 131 fits, 14 games. Market = Kalshi mid,
   no de-vig. Naive = the player's own Laplace-smoothed 2025 hit rate.
 
-      Brier  model 0.1957   market 0.1682   naive 0.1924
-      model - market   +0.0275 [+0.0117, +0.0410]   log loss +0.0747 [+0.0266, +0.1168]
-      model - naive    +0.0032 [-0.0057, +0.0121]
-      market - naive   -0.0242 [-0.0364, -0.0112]
+      Brier  model 0.1916   market 0.1676   naive 0.1916
+      model - market   +0.0240 [+0.0089, +0.0373]
+
+  RESTATED 2026-09-17 after the settlement fix. The population grew from 682 to
+  706 on the common set (the played-with-no-stat-row outcomes now settle at 0
+  instead of being dropped), and the figures above are the ones the site serves
+  from `research/calibration.json`. THE VERDICT DID NOT MOVE: the interval still
+  excludes zero and the new estimate sits inside the previously published one.
+  What DID change is that **the model and the naive prior are now identical** -
+  0.1916 against 0.1916, where the model was 0.0033 worse. It is not "no better
+  than" a smoothed prior-season frequency; it is the same number.
+  Log loss, and the intervals on model-naive and market-naive, were NOT
+  re-derived and are removed rather than carried forward stale.
 
   - **Minimum detectable Brier difference at 80% power is 0.021** (bootstrap
     SE 0.0075; cluster-robust 0.0213). The observed gap is above it: this is a
@@ -1011,9 +1021,14 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
   de-vigged DK/FD/MGM median within 15 min of kickoff. Game block bootstrap:
 
       season  n      games  Brier model / close / naive   model - close           MDE
-      2023    4,441  270    0.2735 / 0.2463 / 0.2768      +0.0272 [+0.0216,+0.0333]  0.0083
-      2024    4,842  272    0.2711 / 0.2446 / 0.2795      +0.0265 [+0.0210,+0.0318]  0.0077
-      2025    5,574  271    0.2668 / 0.2450 / 0.2766      +0.0218 [+0.0162,+0.0277]  0.0082
+      2023    4,785  283    0.2695 / 0.2466 / 0.2777      +0.0229 [+0.0170,+0.0290]  0.0085
+      2024    5,225  285    0.2687 / 0.2450 / 0.2833      +0.0237 [+0.0188,+0.0288]  0.0073
+      2025    6,031  284    0.2648 / 0.2453 / 0.2844      +0.0195 [+0.0144,+0.0253]  0.0080
+
+    RESTATED 2026-09-17, re-run after the settlement fix. The verdict is
+    unchanged - every interval excludes zero, every estimate is 2.4-3.2x its
+    MDE, and the summary reports `{'model worse*': 13}` across all 13 variants
+    in all three seasons. The model still loses to the book close everywhere.
 
   - **Powered, and robust to everything we could not pin down.**
     `SHRINK_GAMES_VMR`, `TEAM_CHANGE_KEEP` and `COACH_CHANGE_KEEP` are
@@ -1023,8 +1038,15 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
     alternatives declared before the run - 13 variants per season, 60 intervals
     - and every one has the model worse with the interval excluding zero (range
     +0.0211 to +0.0295). Receptions and rush attempts both lose separately.
-  - Settling played-with-no-stat-row at 0 (~7% of outcomes, priced like normal
-    props) narrows the gap by only 0.002-0.004: +0.0231 / +0.0237 / +0.0195.
+  - THAT DISTINCTION NO LONGER EXISTS (2026-09-17). The "corrected" arm settled
+    played-with-no-stat-row at 0; `jobs/settle_outcomes.py` now does exactly
+    that, so the re-run reports `0 moved to settled-at-0` in all three seasons
+    and the two arms are the SAME computation - visible as
+    `Brier(model) - Brier(p_all)` and its CORRECTED twin being byte-identical.
+    The corrected figures it used to quote (+0.0231 / +0.0237 / +0.0195) are now
+    simply the primary ones (+0.0229 / +0.0237 / +0.0195). The shift the
+    correction was worth is therefore already inside the table above, measured
+    at 0.0043 / 0.0028 / 0.0023 against the 0.002-0.004 this line predicted.
   - The model beats the naive prior-season hit rate by only 0.003-0.010.
   - **This closes the model-versus-close question.** The brief's rule was that
     beating neither end closes Part 1; the close is beaten by 0.022-0.027 against
@@ -1320,8 +1342,22 @@ W04/W05 build cycle. They apply without being restated, so proceed on them rathe
 - **Verify the verifier.** When a check fails, establish which side is wrong before editing anything.
   Do not change working code to satisfy a broken assertion. Four failures in one round were the
   checker, not the page.
+- **Exit 0 is not a result.** A script that reports nothing and succeeds is a FAILED script. Assert on
+  the SHAPE of what you read before trusting what you print. Three of these in one night, each
+  exiting clean and each telling me nothing: a `--tests-out` reader that printed `n/a` for all 28
+  intervals because it assumed `est`/`lo`/`hi` key names the writer does not use; `curl -o /tmp/…`
+  followed by a read of a path Git Bash had not written; `find -newermt "03:40"` against UTC
+  timestamps on a machine in EDT, matching zero files four hours early. Check the count you got
+  against the count you expected, and fail loudly when it is zero.
 - **Assert correctness, not presence.** A test that a tab renders is worthless; assert its destination
   resolves. Use `satisfies`, not `as`. The gate typechecks everything, not the import graph.
+- **An assertion about a DEFINITION says nothing about its CALL SITES.** Extracting a duplicated rule
+  deleted two functions and left two live calls to them in `research/bookvbook.py`, behind a suite of
+  800 passing tests. The guard asserted the definition existed exactly once — but the risk was in the
+  references, and an unresolved name is a runtime `NameError`, so `py_compile` passes and so does any
+  test that never reaches the line. When you remove or rename something, assert on the callers, by
+  AST rather than by grep: a docstring explaining the removal quotes the old name by design, and a
+  text search cannot tell that from a live call.
 - **Any assertion that can pass against a placeholder is asserting nothing.** Where a loading state
   exists, a second test asserts the subject is not it.
 - **Route checks prove nothing about client-rendered content.** curl sees `Loading…`. Anything below
@@ -1333,6 +1369,14 @@ W04/W05 build cycle. They apply without being restated, so proceed on them rathe
 - **A figure the page itself contradicts is worse than a blank.** Suppress it; don't mark it.
 - **Data leads code.** Never ship a consumer ahead of the export it reads. Publish the data, verify it
   is served, then ship the reader.
+- **Snapshot before any write that can move a published figure — everything the operation could
+  touch, not only what you expect to move.** One `.tar` of the export directory and a dump of the
+  table being written costs seconds and preserves the before/after permanently. The 2026-09-17
+  settlement run captured only the three `research/*.json` files, so when brief 023's MIDDLES turned
+  out to be settlement-sensitive there was no baseline left to diff against — and the surgical
+  rollback was gone too, because the marker recorded `max(settled_ts)` while the writer's
+  `ON CONFLICT` refreshed `settled_ts` on every row. A rollback marker records the KEY SET being
+  added, never a timestamp the writer is free to rewrite.
 - **Never approximate a historical field from a current one.** Backdating today's team onto past rows
   renders a wrong career while looking correct.
 - **Components, not derived totals.** Store the parts; compute the aggregate at read time.
@@ -1366,6 +1410,23 @@ W04/W05 build cycle. They apply without being restated, so proceed on them rathe
 - **No charting library.** Hand-drawn SVG. Works at 400px.
 - **One register per page** — dense reference or editorial, per `site-design-direction.md`. The player
   page is the one hybrid and its seam is an explicit section break.
+
+## Tests
+
+- **No test writes outside its own fixture.** Every test that touches the store pins it — `DB_PATH`,
+  `STORAGE_DIR`, `WEB_EXPORT_DIR` — to a `tmp_path`, and a subprocess gets it by env, not by
+  monkeypatch. Autouse the fixture rather than per-test: the failure mode is the test that forgets.
+  This is not hypothetical. Adding a `source_health` write to `weekly_refresh.run()` gave seven
+  previously write-free tests a real `record_health` call against the LIVE database, and the
+  production `weekly_refresh` row read `ok=0` while the job was healthy. The tests were harmless
+  unpinned right up until the code under them started writing.
+- **Pin the root, not the leaf.** `config.STORAGE_DIR` is computed once at import from `DB_PATH`, so
+  pinning `DB_PATH` alone leaves `storage_path()` pointing at the real store.
+- **An empty environment variable is a SET variable.** `os.getenv("LOGGER_DB") is None` is the skip
+  condition; `LOGGER_DB=` defeats it and runs a test that needs a store without one. Use `env -u`.
+- **Never run the full suite against the live store while the logger is running.** Clone HEAD to a
+  temp directory, overlay the working-tree changes, and run there — the working tree has `.env` and a
+  configured store, and it hides exactly the environment-dependent failures CI exists to catch.
 
 ## Reporting
 
@@ -1437,3 +1498,44 @@ the agent — stated as options with a recommendation, not as a question without
   slate); Kalshi/Polymarket are exchange probabilities, never presented as a book line. CFBD lines
   are labelled book consensus without a capture time. Timestamped 2020-2025 history is bought only
   against a pre-registered question.
+Disk before diagnosis. store.disk_headroom_ok() refuses below 5 GB free, so a full drive presents as unexplained test failures and refused archives, not as a disk error. On any run of unexplained failures in storage, archive or temp-using tests, check free space on the temp drive first. Temp is D:\temp; pip and npm caches are under D:\caches\. Tests should run with --basetemp pointed at a project path, never the default.
+## Claims (W07)
+
+- **No comparative claim on this site is hand-written.** Every verdict — "worse than", "tightens",
+  "below the line", "doubles", "thinnest", "a small fraction" — is computed from the exported numbers
+  at render time (`lib/claims`, `lib/verdict`), or it does not appear. Five captions written from
+  memory were wrong in both directions ("four of five" when all five cleared; "roughly doubles" at
+  1.6×): prose from memory, not a site flattering itself, so the fix is mechanical.
+- **Wording comes from the interval.** Excludes zero → "worse than" / "better than"; includes it →
+  "no better than". "Identical" only on a match at the precision the file publishes. **No interval,
+  no verdict**: state the figures and stop ("well calibrated" was removed for exactly this).
+- `tests/handwrittenClaims.test.ts` enforces it. Every comparative phrase in rendered text is computed
+  or declared with a kind (definition, gated, record, violation). Declared violations are live debt,
+  to be removed or computed, not permission.
+
+
+## Claims — falsifiability (W07, Ethan)
+
+- **A computed verdict must be capable of producing a different answer from the same pipeline.** A
+  comparison whose only possible output is the one we are publishing is decoration, not a finding.
+  Computing it is not enough: the data model must be able to express the other answer, and the code
+  must be able to reach it.
+- Found on the register: "none of them found an edge" was computed over a verdict enum with no
+  edge-confirmed value, so it could not have come out otherwise. The fix is not to delete the finding
+  but to make it falsifiable — add the reachable verdict, render the count ("17 registered, 0 reaching
+  edge-confirmed"), a number that could have been non-zero.
+- `tests/falsifiable.test.ts` drives every verdict function in `lib/claims` and `lib/verdict` to each of
+  its answers. A new verdict function lands with its entry there, or it does not land.
+
+
+- **It covers EXPORTED PROSE, not just rendered text** (track B, A10). The site renders these
+  verbatim and cannot recompute them, so a comparison written into a string here is a hand-written
+  claim one layer down:
+  - `manifest.scoring_note` - "differs by median 0.00 and p99 0.00 points per game over 193,354
+    player-games".
+  - `market.validation.status` - "validated on sportsbook ladders, 2023-25 (q90 coverage 0.101
+    against 0.100)".
+  - `research.calibration.population`, `hypotheses[].why`, `source.method` - any comparative wording.
+
+  Either export the figures as fields and let the site word them, or generate the string from the
+  figures at export time, in code that can produce the other answer.

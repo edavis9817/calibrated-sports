@@ -40,6 +40,19 @@ class Runner:
         return [self.name(c) for c in self.calls]
 
 
+@pytest.fixture(autouse=True)
+def _isolate_db(tmp_path, monkeypatch):
+    """Every test in this module gets its own database.
+
+    run() writes a source_health row on every exit now. Before that it wrote
+    nothing, so these tests were harmless unpinned - afterwards SEVEN of them
+    wrote straight into the live store, which is how the production
+    weekly_refresh row came to read ok=0 while the job was healthy. Autouse
+    rather than per-test, because the failure mode is a test that forgets.
+    """
+    monkeypatch.setattr(config, "DB_PATH", str(tmp_path / "health.db"))
+
+
 @pytest.fixture
 def env(tmp_path, monkeypatch):
     dest = tmp_path / "export"
@@ -135,6 +148,13 @@ def test_skip_ingest(env):
 
 
 def test_refuses_without_config(monkeypatch, tmp_path):
+    # DB_PATH is pinned because run() now writes a source_health row on every
+    # exit. Before that it wrote nothing, so this test was harmless without the
+    # pin; afterwards it wrote "configuration missing" straight into the LIVE
+    # store, which is how the production weekly_refresh row came to read ok=0
+    # while the job was healthy. Every other test file that imports store
+    # already pins this - 16 of 16 - and this one was the exception.
+    monkeypatch.setattr(config, "DB_PATH", str(tmp_path / "t.db"))
     monkeypatch.setattr(config, "WEB_EXPORT_DIR", None)
     r = Runner()
     assert W.run(runner=r, log=log_to(tmp_path), fetch=matching_fetch) == 4

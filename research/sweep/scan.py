@@ -343,7 +343,7 @@ def team_outcome(m, g):
 
 def prop_outcomes(c, markets):
     """market -> (y, player's team) via market_outcome -> outcomes -> settle_one."""
-    from jobs.settle_outcomes import OVER, UNDER, settle_one
+    from jobs.settle_outcomes import OVER, UNDER, VOID, settle_one
     from research.score import rung
     out, census = {}, Counter()
     for mid_, m in markets.items():
@@ -361,7 +361,14 @@ def prop_outcomes(c, markets):
             continue
         result = settle_one(c, row)[0]
         if result not in (OVER, UNDER):
-            census["prop: unsettled"] += 1
+            # A VOID IS NOT AN UNSETTLED. The bet did not run - the player did
+            # not play - which is a different fact from "we could not settle
+            # this", and pooling them hid 3,624 outcomes under a label that
+            # reads like a data gap. Both are excluded from the scan either way;
+            # only the census changes, and brief 022's census is republished
+            # with this correction noted.
+            census["prop: void (did not play)" if result == VOID
+                   else "prop: unsettled"] += 1
             continue
         t = c.execute("SELECT team FROM nfl_player_week WHERE gsis_id=? AND season=? AND week=? "
                       "ORDER BY data_version DESC LIMIT 1", (row[6], S.SEASON, S.WEEK)).fetchone()

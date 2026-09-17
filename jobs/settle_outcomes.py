@@ -20,9 +20,13 @@ import time
 
 import config
 import store
+from core import settlement
 from core.outcomes import Stat
-
-OVER, UNDER, PUSH, UNSETTLED = "over", "under", "push", "unsettled"
+# THE RULE LIVES IN core/settlement.py. Re-exported here so the existing
+# `from jobs.settle_outcomes import OVER, UNSETTLED, resolve` imports in
+# research/ keep working: the rule moved, the callers did not have to.
+from core.settlement import (DID_NOT_PLAY, INACTIVE, OVER,  # noqa: F401
+                             PUSH, UNDER, UNSETTLED, VOID, resolve)
 
 # Canonical stat -> the nfl_player_week expression that measures it.
 STAT_COLUMN = {
@@ -48,20 +52,6 @@ STAT_COLUMN = {
 }
 
 
-def resolve(actual, line, push_possible) -> str:
-    """The pure decision. Kept separate from any I/O so it can be tested and
-    read at a glance - this is the function that decides whether a bet won."""
-    if actual is None or line is None:
-        return UNSETTLED
-    if actual > line:
-        return OVER
-    if actual < line:
-        return UNDER
-    # Exactly on the line. Only meaningful when the line is an integer on a
-    # discrete stat; a half-point line can never land here.
-    return PUSH if push_possible else OVER
-
-
 def actual_for(con, gsis_id, season, week, stat, as_of=None):
     """(value, data_version) for one player-week at its newest version."""
     col = STAT_COLUMN.get(stat)
@@ -76,18 +66,94 @@ def actual_for(con, gsis_id, season, week, stat, as_of=None):
     return (row[0], row[1]) if row else (None, None)
 
 
-def settle_one(con, outcome_row, as_of=None):
-    """outcome row -> (result, actual, data_version). Never writes."""
+def snap_context(con, gsis, season, week, snaps=None, coverage=None):
+    """(snap, player_has_snaps, week_has_snaps) for one player-week.
+
+    `snap` is (team, offense_snaps, defense_snaps) at the newest data_version -
+    BOTH phases, because the settlement rule picks the column from the stat.
+    The two flags separate "he was inactive" from "our join failed", which is
+    the difference between writing a void and leaving the row alone.
+
+    Pass `snaps`/`coverage` preloaded when settling in bulk; the per-row queries
+    below are correct but run three statements per outcome, and `run()` settles
+    200k of them.
+    """
+    if snaps is not None:
+        players, weeks = coverage or (None, None)
+        return (snaps.get((gsis, season, week)),
+                None if players is None else (gsis in players),
+                None if weeks is None else ((season, week) in weeks),
+                None if weeks is None else weeks.get((season, week)))
+    row = con.execute(
+        "SELECT s.team, s.offense_snaps, s.defense_snaps, s.data_version "
+        "FROM nfl_snap_counts s JOIN player_xwalk x ON x.pfr_id = s.pfr_player_id "
+        "WHERE x.gsis_id=? AND s.season=? AND s.week=? "
+        "ORDER BY s.data_version DESC LIMIT 1", (gsis, season, week)).fetchone()
+    week_version = con.execute(
+        "SELECT MAX(data_version) FROM nfl_snap_counts WHERE season=? AND week=?",
+        (season, week)).fetchone()[0]
+    if row:
+        return (row[0], row[1] or 0, row[2] or 0, row[3]), True, True, week_version
+    player_has = con.execute(
+        "SELECT 1 FROM nfl_snap_counts s JOIN player_xwalk x "
+        "ON x.pfr_id = s.pfr_player_id WHERE x.gsis_id=? LIMIT 1",
+        (gsis,)).fetchone() is not None
+    return None, player_has, week_version is not None, week_version
+
+
+def load_snap_index(con):
+    """(snaps, players, weeks) for a bulk settle - one pass instead of three
+    statements per outcome, and `run()` settles ~200k of them.
+
+    `ORDER BY data_version` so a later version overwrites an earlier one and the
+    newest wins, which is what `load_snaps` in export_web does by aggregate.
+    """
+    snaps, players, weeks = {}, set(), {}
+    for gsis, season, week, team, off, dfn, dv in con.execute(
+            "SELECT x.gsis_id, s.season, s.week, s.team, s.offense_snaps, "
+            "s.defense_snaps, s.data_version FROM nfl_snap_counts s "
+            "JOIN player_xwalk x ON x.pfr_id = s.pfr_player_id "
+            "ORDER BY s.data_version"):
+        snaps[(gsis, season, week)] = (team, off or 0, dfn or 0, dv)
+        players.add(gsis)
+        if dv is not None and (weeks.get((season, week)) or "") < dv:
+            weeks[(season, week)] = dv
+    return snaps, players, weeks
+
+
+def settle_one(con, outcome_row, as_of=None, snaps=None, coverage=None):
+    """outcome row -> (result, actual, data_version, void_reason). Never writes.
+
+    A MISSING PLAYER-WEEK ROW IS NOT "UNSETTLED". nflverse omits the row for a
+    player who played and recorded nothing, so the snap counts decide between a
+    realized zero, a void, and a genuine gap in our own data. See
+    core/settlement.py for the five-case partition and its measured sizes.
+    """
     (_oid, _key, _sport, season, week, entity_type, entity_id, stat, line,
      _side, push_possible) = outcome_row
     if entity_type != "player":
-        return UNSETTLED, None, None       # team/game settlement is brief 004
+        return UNSETTLED, None, None, None   # team/game settlement is brief 004
     if week is None:
-        return UNSETTLED, None, None       # season-long claims settle in Feb
+        return UNSETTLED, None, None, None   # season-long claims settle in Feb
     actual, version = actual_for(con, entity_id, season, week, stat, as_of)
-    if actual is None:
-        return UNSETTLED, None, version
-    return resolve(float(actual), line, bool(push_possible)), float(actual), version
+    has_row = version is not None
+    if has_row and actual is not None:
+        return (resolve(float(actual), line, bool(push_possible)),
+                float(actual), version, None)
+    snap, player_has, week_has, week_version = snap_context(
+        con, entity_id, season, week, snaps=snaps, coverage=coverage)
+    result, value, reason, _status = settlement.settle(
+        actual, has_row, snap, stat, line, push_possible,
+        player_has_snaps=player_has, week_has_snaps=week_has)
+    # VERSION IT BY THE DATA THAT SETTLED IT. `data_version` is NOT NULL and is
+    # half the primary key, and every case reachable here has NO player-week row
+    # - so the version has to come from the snap counts. For a player-week snap
+    # row that is its own version; for an inactive player there is no row at
+    # all, and the evidence IS the week's snap data, so the week's newest
+    # version is what the settlement is pinned to.
+    if version is None:
+        version = (snap[3] if snap and len(snap) > 3 else None) or week_version
+    return result, value, version, reason
 
 
 def run(season=None, week=None, as_of=None, limit=None) -> dict:
@@ -105,23 +171,34 @@ def run(season=None, week=None, as_of=None, limit=None) -> dict:
         q += f" LIMIT {int(limit)}"
     rows = con.execute(q, args).fetchall()
 
-    counts = {OVER: 0, UNDER: 0, PUSH: 0, UNSETTLED: 0}
+    snaps, players, weeks = load_snap_index(con)
+    coverage = (players, weeks)
+
+    counts = {OVER: 0, UNDER: 0, PUSH: 0, UNSETTLED: 0, VOID: 0}
+    reasons_seen = {}
     batch = []
     for r in rows:
-        result, actual, version = settle_one(con, r, as_of)
+        result, actual, version, void_reason = settle_one(
+            con, r, as_of, snaps=snaps, coverage=coverage)
         counts[result] += 1
-        if result != UNSETTLED:
-            batch.append((r[0], result, actual, version, "nflverse"))
+        if void_reason:
+            reasons_seen[void_reason] = reasons_seen.get(void_reason, 0) + 1
+        # A row with no data_version cannot be stored (NOT NULL, and half the
+        # primary key). That is C1b/C2 - our join failed - and those stay
+        # unsettled by design rather than being written under a guessed version.
+        if result != UNSETTLED and version is not None:
+            batch.append((r[0], result, actual, version, "nflverse", void_reason))
         if len(batch) >= 5000:
             store.record_settlements(batch)
             batch = []
     store.record_settlements(batch)
     con.close()
-    settled = sum(v for k, v in counts.items() if k != UNSETTLED)
+    graded = sum(v for k, v in counts.items() if k not in (UNSETTLED, VOID))
     store.record_health("settlement", True,
-                        f"{settled} settled of {len(rows)} player outcomes "
+                        f"{graded} settled of {len(rows)} player outcomes "
                         f"({counts[OVER]} over, {counts[UNDER]} under, "
-                        f"{counts[PUSH]} push)", watermark=time.time())
+                        f"{counts[PUSH]} push, {counts[VOID]} void "
+                        f"[{reasons_seen}])", watermark=time.time())
     return counts
 
 
@@ -159,7 +236,7 @@ def spot_check():
         store.upsert_outcome(o)
         row = (o.outcome_id, o.key, "nfl", season, week, "player", gsis, stat,
                line, "over", int(is_push_possible(line, S(stat))))
-        result, actual, version = settle_one(con, row)
+        result, actual, version, void_reason = settle_one(con, row)
         flag = ""
         if expected and result != expected:
             flag, bad = f"  <-- expected {expected}", bad + 1
@@ -168,8 +245,9 @@ def spot_check():
         print(f"{name:<22} {week:>3} {stat:<16} {line:>6g} "
               f"{actual if actual is not None else '-':>7} "
               f"{str(bool(row[10])):>6} {result:>9}{flag}")
-        if result != UNSETTLED:
-            store.record_settlement(o.outcome_id, result, actual, version, "nflverse")
+        if result != UNSETTLED and version is not None:
+            store.record_settlement(o.outcome_id, result, actual, version,
+                                    "nflverse", void_reason)
     con.close()
     print()
     print("Verify by hand against the box scores. The two integer lines are the"
@@ -217,7 +295,12 @@ def reasons(season=None, week=None):
     counts = {}
     for (_oid, etype, wk, stat, _eid, _season, kickoff, score, has_pw,
          result) in con.execute(q, args):
-        if result in (OVER, UNDER, PUSH):
+        if result == VOID:
+            # Not "settled" and not "unsettled": the bet did not run. Without
+            # this branch a void falls through the chain below and is reported
+            # as "no player-week row", which is the very thing it resolves.
+            key = "void: the player did not play"
+        elif result in (OVER, UNDER, PUSH):
             key = f"settled: {result}"
         elif etype != "player":
             key = f"unsettled: {etype} outcome (team/game settlement is later work)"
