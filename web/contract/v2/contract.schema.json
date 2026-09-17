@@ -621,9 +621,55 @@
             },
             {"type": "null"}
           ]
+        },
+        "prop_history": {
+          "description": "The settled prop record, or null for a player with none. 672 of 3,970 exported players have one; the 681 with settled props and no page are defenders, whose stats are not exported at player level yet.",
+          "anyOf": [{"$ref": "#/$defs/PropHistory"}, {"type": "null"}]
         }
       },
-      "required": ["schema_version", "generated_at", "kind", "sport", "identity", "seasons", "season_totals", "career", "market"],
+      "required": ["schema_version", "generated_at", "kind", "sport", "identity", "seasons", "season_totals", "career", "market", "prop_history"],
+      "additionalProperties": false
+    },
+
+    "PropHistoryStat": {
+      "description": "One stat's settled record. `priority` marks the markets the research settled on (targets, rush attempts, receptions); it is DATA so the site can word the ordering rather than hard-coding a claim about it. rate and interval are null at n = 0.",
+      "type": "object",
+      "properties": {
+        "stat": {"type": "string"},
+        "priority": {"type": "boolean"},
+        "n": {"type": "integer"},
+        "cleared": {"type": "integer"},
+        "rate": {"type": ["number", "null"]},
+        "interval": {"anyOf": [{"$ref": "#/$defs/Interval"}, {"type": "null"}]}
+      },
+      "required": ["stat", "priority", "n", "cleared", "rate", "interval"],
+      "additionalProperties": false
+    },
+
+    "PropHistoryRecord": {
+      "description": "One (season, stat, line) claim. The line is part of the identity: a ladder prices several thresholds in one game and they are different claims, so collapsing them would average away the record.",
+      "type": "object",
+      "properties": {
+        "season": {"type": "integer"},
+        "stat": {"type": "string"},
+        "line": {"type": "number"},
+        "n": {"type": "integer"},
+        "cleared": {"type": "integer"},
+        "rate": {"type": ["number", "null"]},
+        "interval": {"anyOf": [{"$ref": "#/$defs/Interval"}, {"type": "null"}]}
+      },
+      "required": ["season", "stat", "line", "n", "cleared", "rate", "interval"],
+      "additionalProperties": false
+    },
+
+    "PropHistory": {
+      "description": "The settled prop record: how often the OVER cleared. A FACT, not a pick - per the editorial line, hit-rate history is publishable and a recommendation is not. It needs no closing price, only the posted line and the settled result, which is why it covers the current season while market-comparison figures cannot. Each market is counted ONCE: a settled prop is stored twice in the producer (over and under) carrying the same market-level result, so counting both would leave the rate right and double n. `stats` is ordered, priority markets first.",
+      "type": "object",
+      "properties": {
+        "stats": {"type": "array", "items": {"$ref": "#/$defs/PropHistoryStat"}},
+        "records": {"type": "array", "items": {"$ref": "#/$defs/PropHistoryRecord"}}
+      },
+      "required": ["stats", "records"],
       "additionalProperties": false
     },
 

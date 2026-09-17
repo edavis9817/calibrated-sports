@@ -297,6 +297,63 @@ before and is `null` now, and a re-scan confirms **0 remaining zeros inside any 
 
 ---
 
+## 8. `prop_history` is exported — the settled record, counted once, ordering supplied as data
+
+**Status:** producer built and tested 2026-09-17. **Contract changed**, so Track B must regenerate
+`lib/schema.generated.ts` before the types match.
+
+**What landed.** `PlayerSummary` gains `prop_history`, which is `PropHistory | null`:
+
+```json
+"prop_history": {
+  "stats":   [{"stat", "priority", "n", "cleared", "rate", "interval"}],
+  "records": [{"season", "stat", "line", "n", "cleared", "rate", "interval"}]
+}
+```
+
+`null` for a player with no settled props — **not** an empty record, because "no history" and "a
+history of nothing" are different statements. 672 of 3,970 exported players carry one.
+
+**`stats` is already ordered and the ordering is DATA, not prose.** Priority markets first
+(receptions, rush attempts, targets — the markets the research settled on), then everything else by
+depth. Each entry carries a `priority` boolean and its full `n`.
+
+**This is deliberate, and it is the W07 claims rule doing its job.** Ethan's instruction was to lead
+with the priority markets and *not* suppress receiving yards, which has by far the deepest record —
+"hiding the deepest data to flatter the model's own scope would be its own dishonesty" — and to say
+that on the page rather than only in a report. But "receiving yards has the most data" is a
+comparative claim, so under `tests/handwrittenClaims.test.ts` it cannot ship as a typed string. The
+producer therefore exports the ordering and the counts; **the site words it from `n` and
+`priority`.** Same split as item 6: one boundary decision in Python, one wording decision in
+TypeScript.
+
+**What it is, and is not.** A hit-rate record is a FACT and publishable under the editorial line —
+"11-6 to the over" is research. Nothing here forecasts, and there is no pick.
+
+**It needs no closing price, which is why it covers the current season.** Only the posted `line` and
+the settled `result` are required, and `line` is non-null on 100% of settled rows in every season.
+`outcome_close` has **zero** 2026 rows (it is written only by the historical backfill, newest close
+2026-02-08), so anything comparing to the market stops at 2025 while this does not. If a
+market-comparison layer is added later it must be labelled with its own coverage, not inherit this
+one's.
+
+**Each market is counted once, and this is the subtle part.** A settled prop is stored twice by the
+producer — once as the over, once as the under — carrying the *same* market-level result. Counting
+both leaves the rate correct and **doubles `n`**, so the interval comes out ~sqrt(2) too narrow and
+the error survives review. `core/stats.hit_rate` refuses such a population outright
+(`tests/test_hit_rate.py`). If Track B ever aggregates these records further, aggregate `cleared`
+and `n` and recompute — **never average the rates**, and never re-derive from a source that carries
+both sides.
+
+**Missing on purpose: 681 players.** Every one is a defender (`tackles_assists` 561 players, `sacks`
+370). They have settled props and no page, because defensive stats are not exported at player level
+— which is your own §3 finding in `docs/audits/w07-track-b/README.md` (~770–990 defensive players
+with a tackle each season, none exported). Ethan's sequencing: defensive stat groups is the real
+follow-up, and it makes those pages worth existing rather than manufacturing pages to hold one
+section. Until then those records are unreachable, accepted knowingly.
+
+---
+
 ## 2. `docs/site-architecture.md` is now canonical in `calibrated-sports`
 
 **Status:** the file is in place here; the Track B half is not done.

@@ -20,6 +20,8 @@ value where a normal one did not.
 """
 import math
 
+from core.settlement import OVER
+
 
 def wilson(k, n, z=1.96):
     """Wilson score interval for k successes in n trials. -> (lo, hi).
@@ -41,3 +43,96 @@ def wilson(k, n, z=1.96):
     half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
     return (min(max((centre - half) / d, 0.0), 1.0),
             min(max((centre + half) / d, 0.0), 1.0))
+
+
+# =============================================================================
+# hit rates: one market, one row
+# =============================================================================
+#
+# A settled prop exists TWICE in `outcomes` - once as the over, once as the
+# under - and `outcome_settlement.result` records the MARKET's outcome, which is
+# identical on both rows. Measured 2026-09-17: 97,948 of 97,948 two-sided
+# markets agree on `result`. So a hit rate computed over both rows counts every
+# game twice:
+#
+#     receptions, over rows only    n=21,914   rate 0.4275
+#     receptions, under rows only   n=20,031   rate 0.4383
+#     receptions, pooled            n=41,945   rate 0.4327
+#
+# The RATE barely moves. What doubles is `n`, so every interval built on it is
+# about sqrt(2) too narrow and the sample looks twice the size it is - the same
+# class as brief 021's "the effective sample is 136 fits, not 935".
+#
+# A SECOND failure shares the shape: asking "did THIS ROW's side win" over both
+# sides returns exactly 0.5000 in every slice, because over and under are exact
+# complements, and that reads as proof of perfect calibration. One rule stops
+# both - count each market once - which is why this is keyed on the MARKET and
+# not on the side.
+#
+# WHY NOT SIMPLY FILTER `side == "over"`. 4,211 markets are one-sided, including
+# 1,800 receptions markets carrying only an under row; `anytime_td`,
+# `passing_yards` and `rush_yards` have no under rows at all - one-sided by
+# construction (CLAUDE.md: `player_anytime_td` is every-outcome-"Yes"). A filter
+# would drop them silently. Because `result` is market-level, the over-view is
+# recoverable from EITHER row, so this normalises rather than filters.
+
+# One claim, priced at one line, in one game. Two lines on the same player in the
+# same game are two claims - a ladder prices several - so `line` is in the key.
+MARKET_KEY = ("season", "week", "entity_id", "stat", "line")
+
+# Imported, not re-declared. `core.settlement` is the single home of the
+# settlement vocabulary and imports nothing, so there is no cycle to dodge - and
+# this session's most expensive defect was a rule that existed twice.
+
+
+class PooledSides(ValueError):
+    """A hit-rate population containing the same market more than once."""
+
+
+def market_key(row, fields=MARKET_KEY):
+    return tuple(row[f] for f in fields)
+
+
+def pooled_side_violations(rows, fields=MARKET_KEY):
+    """[(key, sides)] for every market appearing more than once; [] when clean.
+
+    Pure, and returns rather than raises, so a caller can report every offending
+    market at once - the same shape as `cfb.guards.scope_violations` and
+    `analytics.gate`.
+    """
+    seen, order = {}, []
+    for r in rows:
+        k = market_key(r, fields)
+        if k not in seen:
+            seen[k] = []
+            order.append(k)
+        seen[k].append(r.get("side"))
+    return [(k, sorted(set(seen[k]))) for k in order if len(seen[k]) > 1]
+
+
+def hit_rate(rows, fields=MARKET_KEY):
+    """How often the OVER cleared, counting each market exactly once.
+
+    -> {"cleared", "n", "rate", "lo", "hi"}; `rate`/`lo`/`hi` are None at n = 0,
+    because 0/0 is not 0.0 and a degenerate interval must not read as a
+    measurement.
+
+    RAISES `PooledSides` on a population carrying any market twice. Refusing is
+    the point: the pooled number is not obviously wrong - the rate is right and
+    only the sample is inflated - so it survives review and publishes a claim
+    with an interval it has not earned.
+    """
+    bad = pooled_side_violations(rows, fields)
+    if bad:
+        shown = "; ".join(f"{k} appears as {s}" for k, s in bad[:3])
+        more = f" (+{len(bad) - 3} more)" if len(bad) > 3 else ""
+        raise PooledSides(
+            f"{len(bad)} market(s) counted more than once: {shown}{more}. "
+            "A hit rate takes one row per market; over and under are the same "
+            "event and `result` is identical on both.")
+    n = len(rows)
+    cleared = sum(1 for r in rows if r.get("result") == OVER)
+    if not n:
+        return {"cleared": 0, "n": 0, "rate": None, "lo": None, "hi": None}
+    lo, hi = wilson(cleared, n)
+    return {"cleared": cleared, "n": n, "rate": cleared / n, "lo": lo, "hi": hi}

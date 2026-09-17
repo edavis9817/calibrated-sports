@@ -43,6 +43,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config  # noqa: E402
 import store  # noqa: E402
+from core import settlement as ST  # noqa: E402
+from core import stats as core_stats  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # THE contract, and it is executable. This exporter validates everything it
@@ -713,6 +715,86 @@ def load_headshots(con):
     return out
 
 
+# The markets the research settled on: "Priority markets: targets, rush attempts,
+# receptions. Yards below them, TDs and QB props near zero." Emitted as a
+# `priority` flag rather than used to filter, because suppressing the stat with
+# the DEEPEST record (receiving yards) to flatter the model's own scope would be
+# its own dishonesty. The site words the ordering; this decides it.
+PRIORITY_PROPS = ("receptions", "rush_attempts", "targets")
+
+
+def load_prop_history(con, scope):
+    """gsis -> {"stats": [...], "records": [...]} for players in `scope`.
+
+    A FACT, NOT A PICK. The editorial line permits hit-rate history - "Jefferson
+    is 11-6 to the over" is research - and forbids recommendations. Nothing here
+    forecasts.
+
+    IT NEEDS NO CLOSING PRICE, which is why it covers the current season. The
+    posted `line` and the settled `result` are sufficient, and `line` is non-null
+    on 100% of settled rows in every season. `outcome_close` has no 2026 rows at
+    all, so anything comparing to the market stops at 2025 while this does not.
+
+    EACH MARKET IS COUNTED ONCE, AND THE RULE IS NOT COPIED HERE. A settled prop
+    exists twice in `outcomes` - once as the over, once as the under - carrying
+    the SAME market-level result. Pooling leaves the rate right and doubles `n`,
+    so the interval comes out about sqrt(2) too narrow and the error survives
+    review. The deduplication key and the counting both live in `core.stats`;
+    this function collapses to one row per market and hands it over.
+    """
+    by_market = {}
+    for season, week, gsis, stat, line, side, result in con.execute(
+            "SELECT o.season, o.week, o.entity_id, o.stat, o.line, o.side, s.result "
+            "FROM outcome_settlement s JOIN outcomes o ON o.outcome_id = s.outcome_id "
+            "WHERE o.entity_type = 'player' AND s.result IN (?, ?) "
+            "ORDER BY o.season, o.week, o.entity_id, o.stat, o.line, o.side",
+            (ST.OVER, ST.UNDER)):
+        if gsis not in scope:
+            continue
+        row = {"season": season, "week": week, "entity_id": gsis, "stat": stat,
+               "line": line, "side": side, "result": result}
+        # One row per market. `result` is market-level and identical on both
+        # sides, so whichever arrives first answers "did the over clear".
+        by_market.setdefault(core_stats.market_key(row), row)
+
+    per_player = defaultdict(list)
+    for row in by_market.values():
+        per_player[row["entity_id"]].append(row)
+
+    out = {}
+    for gsis, rows in per_player.items():
+        by_stat, by_record = defaultdict(list), defaultdict(list)
+        for r in rows:
+            by_stat[r["stat"]].append(r)
+            by_record[(r["season"], r["stat"], r["line"])].append(r)
+
+        stats_out = []
+        for stat, srows in by_stat.items():
+            h = core_stats.hit_rate(srows)
+            stats_out.append({
+                "stat": stat, "priority": stat in PRIORITY_PROPS,
+                "n": h["n"], "cleared": h["cleared"],
+                "rate": rnd(h["rate"]),
+                "interval": None if h["rate"] is None else [rnd(h["lo"]), rnd(h["hi"])]})
+        # Priority markets first, in the order the research ranks them; then
+        # everything else by depth. Deterministic on ties, so a re-export does
+        # not churn the file.
+        stats_out.sort(key=lambda s: (
+            PRIORITY_PROPS.index(s["stat"]) if s["priority"] else len(PRIORITY_PROPS),
+            -s["n"], s["stat"]))
+
+        records = []
+        for (season, stat, line), rrows in sorted(by_record.items()):
+            h = core_stats.hit_rate(rrows)
+            records.append({
+                "season": season, "stat": stat, "line": line,
+                "n": h["n"], "cleared": h["cleared"], "rate": rnd(h["rate"]),
+                "interval": None if h["rate"] is None else [rnd(h["lo"]), rnd(h["hi"])]})
+
+        out[gsis] = {"stats": stats_out, "records": records}
+    return out
+
+
 def load_snaps(con, xwalk):
     pfr_to_gsis = {r["pfr_id"]: g for g, r in xwalk.items() if r.get("pfr_id")}
     snaps, unresolved = {}, {}
@@ -937,7 +1019,7 @@ def _totals(periods):
 
 
 def build_players(games, by_player, snaps, xwalk, aliases, slugs, market_keys, generated_at,
-                  headshots=None, snap_index=None):
+                  headshots=None, snap_index=None, prop_history=None):
     """-> ({key: obj} for summaries and season files, [index entries], unresolved)."""
     headshots = headshots or {}
     gidx = game_index(games)
@@ -1030,6 +1112,9 @@ def build_players(games, by_player, snaps, xwalk, aliases, slugs, market_keys, g
             "season_totals": totals,
             "career": {"season_type": "REG", "games": len(reg), "stats": _totals(reg)},
             "market": {"key": market_keys[gsis]} if gsis in market_keys else None,
+            # null, never an empty record: a player with no settled props has no
+            # history, which is a different statement from a history of nothing.
+            "prop_history": (prop_history or {}).get(gsis),
         }
         index.append({"id": gsis, "slug": slug, "name": name, "position": position,
                       "team": latest.get("team"), "first_season": rows[0]["season"],
@@ -1631,9 +1716,13 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
                 market_keys[parts_k[2]] = key
 
     headshots = load_headshots(con)
+    prop_history = load_prop_history(con, scope)
     player_files, index, unresolved = build_players(games, by_player, snaps, xwalk, aliases, slugs,
                                                     market_keys, generated_at, headshots,
-                                                    snap_index=snap_index)
+                                                    snap_index=snap_index,
+                                                    prop_history=prop_history)
+    summary["prop_history"] = {"players": len(prop_history),
+                               "records": sum(len(v["records"]) for v in prop_history.values())}
     summary["headshots"] = {"with_url": sum(1 for g in by_player if g in headshots),
                             "players": len(by_player)}
     med, p99, n = ppr_check(weeks, scope)
