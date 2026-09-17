@@ -71,8 +71,12 @@ DATASETS = {
     "pbp": Dataset("pbp", "pbp", "play_by_play_{season}.parquet", LIVE),
     "snap_counts": Dataset(
         "snap_counts", "snap_counts", "snap_counts_{season}.parquet", LIVE,
-        normalize=True, first_season=2012,
-        fields=("offense_snaps", "offense_pct")),
+        normalize=True, first_season=2013,
+        fields=("offense_snaps", "offense_pct"),
+        note="2013, not 2012: the 2012 file is PUBLISHED BUT EMPTY (0 rows), so "
+             "2012 cost a request every run and ingested nothing. The store's own "
+             "earliest season is 2013 (23,799 rows) and export_web.SNAP_FIRST_SEASON "
+             "has always said 2013 - this constant was the odd one out"),
     "ftn_charting": Dataset(
         "ftn_charting", "ftn_charting", "ftn_charting_{season}.parquet", LIVE,
         first_season=2022,

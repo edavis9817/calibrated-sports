@@ -25,14 +25,17 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt pytest
 
-      # The whole suite. 751 tests; 2 skip here because they need the logger's
-      # real database, which CI has no copy of - both say so in their skip
-      # reason rather than being quietly weakened into passing.
+      # The whole suite. No test count is pinned in this comment: three tracks
+      # write this repo and any pinned total is stale within days. What matters
+      # is the rule, which does not change - every skip NAMES THE ABSENT
+      # RESOURCE in its reason (the logger's database; a scanned analytics.db),
+      # so an absence can never read as a pass, and nothing is quietly weakened
+      # into passing.
       #
       # It does NOT run on the Windows dev box's default interpreter, where
       # numpy is a MINGW-W64 build on Python 3.14 that takes an access violation
       # on import under pytest. That is one bad install, not a property of the
-      # tests: a clean 3.12 venv on the same machine runs all 751. To reproduce
+      # tests: a clean 3.12 venv on the same machine runs the lot. To reproduce
       # this job locally, clone to a temp directory (no .env, as here) and run
       # it from such a venv - the working tree hides these two failures because
       # it has a configured store.

@@ -400,6 +400,33 @@ writes it, which is luck holding a guarantee up.
   the book voids the prop. `jobs/settle_outcomes.py` still treats every missing
   row as unsettled, which drops exactly the zero outcomes and inflates the
   realized over rate - brief 021's 28 "no stat row" exclusions are this.
+- **TARGETS ARE UNRECOVERABLE FOR 2003-2008. This is a permanent data
+  limitation, not a deferred fix.** The earlier plan — null them now and rebuild
+  from play-by-play `receiver_id` later — is withdrawn: track F measured the PBP
+  and the receiver is named on **100% of completions but only 0.5-0.9% of
+  incompletions** in those six seasons. A target is a pass *thrown at* a
+  receiver, so reconstructing it needs exactly the half that is missing. PBP
+  cannot rebuild this at any effort.
+  - **The store holds ZEROS, not nulls, which is the dangerous part.** Measured
+    2026-09-17: 2003-2008 carry ~17,200 rows per season with `targets` non-null
+    on every one, summing to **3, 5, 0, 67, 14, 17** against ~17,000 in the
+    seasons either side. A consumer therefore computes `target_share = 0` and
+    renders a confident zero rather than a gap. Null at the READ boundary —
+    invariant 2 forbids transforming on write, and the raw file is not wrong,
+    it is empty.
+  - Same shape as snap counts (2013+): a stat that does not exist before season
+    N needs vocabulary the contract does not have. Filed to track B as A5, and
+    one mechanism must serve both sports — see `docs/track-c-requests.md` C3.
+- **QB passing facts are COMPLETE across all 28 seasons — the facts layer is not
+  the blocker on QB props** (measured by track F, 2026-09-17). PBP passing
+  reconciles to `stats_player_week` to the unit with no cliff anywhere,
+  including the 2003 and 2005 seasons that break targets. So if `KXNFLPASSYDS`
+  or `KXNFLPASSTDS` are ever logged, settlement and prop history need **no new
+  facts work**; the whole cost is market logging and Odds API credits. That
+  materially changes the calculus on tracking them, and belongs in any prop
+  coverage report. Note this is a statement about DATA availability only — brief
+  019's catalogue measured PASSYDS at a 5c spread, and 021/023 still say the
+  model loses to the close.
 - Participation refreshes **only after the postseason**. It carries `route`,
   `defense_man_zone_type`, `defense_coverage_type`, `was_pressure` and
   `offense_players` — all backtest-tier, never Sunday-tier. A feature reading
@@ -446,6 +473,19 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
   to pin this: both Roquan Smith and Bobby Okereke had `with_assist` = 0, which
   leaves `solo + assists` looking correct when it is not. Tremaine Edmunds
   (2025 wk3, CHI) is the discriminating case.
+  - **`def_tackles_with_assist` is being RECLASSIFIED UPSTREAM, so "solo" does not
+    mean the same thing across seasons** (measured by track F, 2026-09-17). Its
+    share of plays collapses 0.075 (2023) → 0.014 (2025) → 0.007 (2026) while
+    plain `def_tackle_assists` rises 13,299 → 17,059. This is a definition change
+    at the source, **not a missing feed**: total tackles are stable (37,443 →
+    38,443) over the same span.
+    - **Nothing published moves.** The `tackles_assists` market settles on the
+      SUM of all three columns, and the sum is what is stable — which is the
+      second reason the three-column decomposition above is the right one.
+    - **But box-score SOLO falls 11% across those seasons on definition alone.**
+      Any split, trend or comparison quoting solo across 2023-2026 is comparing
+      two different definitions and will read as a real decline. Recorded before
+      it bites a split, which is the only cheap moment to record it.
 - **nflverse `gametime` is US/Eastern.** Parse it with `ZoneInfo`, never as
   UTC - that puts kickoff 4-5 hours early, which is invisible in a schedule
   listing and silently closes any pre-kickoff window. September is EDT,
@@ -1168,17 +1208,28 @@ domain by decision**.
   - Gates: `npm run check` fails on stale generated types; the web repo's
     `contract-in-sync` job curls the canonical file from this (public) repo and
     diffs the vendored copy; this repo's `ci.yml` runs the FULL suite.
-- **CI runs all 751 tests, and the local numpy crash was never a reason not
+- **CI runs the WHOLE suite, and the local numpy crash was never a reason not
   to.** `.github/workflows/ci.yml` is this repo's first workflow (2026-09-15).
-  Two tests skip, both stating why: they read the logger's own database, which
-  CI has no copy of. `LOGGER_DB is None` is the skip condition and this suite's
-  only skip convention.
+  - **No count is pinned here on purpose.** This file said "751 tests" for two
+    days while three tracks added to the suite; a total that every track
+    invalidates weekly is a stale figure by construction, and re-typing today's
+    number only restarts the clock. Run it if you need the number. Last
+    measured 2026-09-17: 993 passed, 7 skipped, ~32s.
+  - **Every skip states why, and there are now TWO skip conditions, not one.**
+    This file previously called `LOGGER_DB is None` "this suite's only skip
+    convention"; that stopped being true when track F landed
+    `tests/test_analytics_survey.py`, which skips 5 on `no scanned
+    analytics.db`. The convention that actually holds is the weaker one: a skip
+    names the absent resource in its reason, so an absence never reads as a
+    pass. Both current conditions are environment-absence, neither weakens an
+    assertion.
   - **The dev box's default interpreter cannot run the suite; the suite is
     fine.** numpy there is a MINGW-W64 build on Python 3.14 that takes an
     access violation on import under pytest, killing 11 modules outright. That
-    is one bad install. **A clean 3.12 venv on the same machine runs all 751 in
-    35s** - `py -3.12 -m venv`, `pip install -r requirements.txt pytest`. Do not
-    conclude from a crash on the default interpreter that anything is broken.
+    is one bad install. **A clean 3.12 venv on the same machine runs the whole
+    suite in well under a minute** - `py -3.12 -m venv`,
+    `pip install -r requirements.txt pytest`. Do not conclude from a crash on
+    the default interpreter that anything is broken.
   - **To reproduce CI locally, clone HEAD to a temp directory and run that venv
     against the clone.** The working tree has `.env` and a configured store, and
     it HIDES the two environment-dependent failures - the same shape as the
