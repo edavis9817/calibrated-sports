@@ -16,37 +16,37 @@ LIMITATIONS = [
         "id": "cfb.stats_and_usage_only",
         "severity": "structural",
         "title": ("College football supports statistics, usage and per-game results - "
-                  "not aggregate hit rates, settlement or closing-line value"),
+                  "not aggregate hit rates or settlement, and no book closing line"),
         "statement": (
-            "Two gaps in the public data, either of which alone would rule these out. "
-            "FIRST, no source records whether a college player appeared in a game. "
-            "CFBD publishes no snap or participation field; ESPN's box score lists "
-            "only players who recorded a stat; ESPN's play participants list only "
-            "players credited on a play; and ESPN's game-roster did_not_play flag is "
-            "False on every row. A starting-lineup flag is one-sided - it says who "
-            "started, never who did not play - and exists only from 2025: no "
-            "team-game from 2004 to 2024 flags a starter, and 1,087 of 1,890 "
-            "team-games in 2025 still carry none. PFF sells snap counts; nothing free "
-            "does. SECOND, college game lines carry no timestamp. CFBD reports each "
-            "provider's spread and total and their opening values with no time on "
-            "either, so the value it holds is not known to be the line at kickoff."),
+            "No source records whether a college player appeared in a game. CFBD "
+            "publishes no snap or participation field; ESPN's box score lists only "
+            "players who recorded a stat; ESPN's play participants list only players "
+            "credited on a play; and ESPN's game-roster did_not_play flag is False on "
+            "every row. A starting-lineup flag is one-sided - it says who started, never "
+            "who did not play - and exists only from 2025: no team-game from 2004 to 2024 "
+            "flags a starter, and 1,087 of 1,890 team-games in 2025 still carry none. PFF "
+            "sells snap counts; nothing free does. Separately, CFBD's sportsbook lines "
+            "carry no timestamp, so no book line can be called a close."),
         "consequence": (
-            "A game in which a player recorded no statistic cannot be told apart from "
-            "a game the player did not dress for, and no college line can be called a "
-            "close. Per-game display is permitted: the posted line, the actual "
-            "statistic and whether it cleared or missed for that one game - shown only "
-            "where a statistic row exists, and a game with no row is shown as no record, "
-            "never as missed. No aggregate hit rate across games is published, because "
-            "the direction of its error is set by a choice the data cannot inform: "
-            "counting a game with no row as a zero skews the rate toward the under "
-            "(every game a player missed becomes a miss), and dropping it skews toward "
-            "the over (every game played without a recorded statistic disappears). "
-            "Also no settlement and no closing-line value."),
+            "A game in which a player recorded no statistic cannot be told apart from a "
+            "game the player did not dress for. Per-game display is permitted: the posted "
+            "line, the actual statistic and whether it cleared or missed for that one game "
+            "- shown only where a statistic row exists, and a game with no row is shown as "
+            "no record, never as missed. No aggregate hit rate across games is published, "
+            "because the direction of its error is set by a choice the data cannot inform: "
+            "counting a game with no row as a zero skews the rate toward the under, and "
+            "dropping it skews toward the over. No settlement. No closing line from CFBD "
+            "book lines, which carry no timestamps. Real exchange closes DO exist for the "
+            "games the probe captured between 2026-09-10 and 09-12 (Kalshi 119 games, "
+            "Polymarket 129; see cfb.exchange_probe_capture) - those are exchange "
+            "probabilities at a known instant before kickoff, not posted book lines, and "
+            "are never presented as one."),
         "evidence_keys": ["game_rosters.did_not_play_true_rows",
                           "game_rosters.team_games",
                           "game_rosters.team_games_full_starting_lineup",
                           "game_rosters.team_games_no_starters",
-                          "cfbd_lines.games", "cfbd_lines.games_with_lines"],
+                          "cfbd_lines.games", "cfbd_lines.games_with_lines",
+                          "probe.games_with_a_close.cfb_kalshi"],
     },
     {
         "id": "cfb.no_targets_in_box_score",
@@ -124,9 +124,12 @@ LIMITATIONS = [
             "Polymarket quotes an empty book as 0/1; those closes are labelled, not priced. "
             "Kalshi closes cover 119 games and Polymarket 129."),
         "consequence": (
-            "One weekend, at poll-limited resolution: a probe close is a real price at a "
-            "known instant, not a kickoff tick, and no college exchange history exists "
-            "outside that window. This does not lift the ban on closing-line value."),
+            "One weekend, at poll-limited resolution: a probe close is a genuine close - "
+            "a real exchange price at a known instant a median 56s before kickoff - for "
+            "those games only, and no college exchange history exists outside that "
+            "window. It is an exchange probability, not a sportsbook line: a spread "
+            "cannot be derived from it without assuming a scoring distribution, and "
+            "coverage skews to marquee games."),
         "evidence_keys": ["probe.poll_gap_median_s.cfb_kalshi.quotes:game",
                           "probe.poll_gap_median_s.cfb_polymarket.quotes:game",
                           "probe.game_polls_per_hour.cfb_kalshi.after_double_write",

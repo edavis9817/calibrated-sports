@@ -1431,3 +1431,9 @@ the agent — stated as options with a recommendation, not as a question without
   coverage cannot be measured for free.
 - **Scheduled weekly CFB refresh:** `run_weekly_cfb.cmd` (runs the job with `--log`;
   output and exit code in `<STORAGE_DIR>/cfb/logs/ingest_cfb.log`).
+- **Track C state lives in `docs/TRACK-C-HANDOFF.md`** - read it before any CFB work.
+- **CFB line sources are layers, not substitutes:** CFBD for 2013-2019 (unreachable elsewhere) and
+  as the free 2020-2025 layer; the Odds API is the forward source (bulk game lines, ~3 credits a
+  slate); Kalshi/Polymarket are exchange probabilities, never presented as a book line. CFBD lines
+  are labelled book consensus without a capture time. Timestamped 2020-2025 history is bought only
+  against a pre-registered question.

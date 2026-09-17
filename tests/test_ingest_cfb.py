@@ -140,8 +140,9 @@ def test_the_scope_limit_is_one_structural_entry_covering_both_gaps(store):
     assert len(rows) == 1
     lid, consequence, keys = rows[0]
     assert lid == "cfb.stats_and_usage_only"
-    for phrase in ("Per-game display is permitted", "aggregate hit rate", "no settlement",
-                   "no closing-line value", "never as missed"):
+    for phrase in ("Per-game display is permitted", "aggregate hit rate", "No settlement",
+                   "No closing line from CFBD book lines", "Real exchange closes DO exist",
+                   "not posted book lines", "never as missed"):
         assert phrase in consequence, phrase
     keys = json.loads(keys)
     assert "game_rosters.did_not_play_true_rows" in keys and "cfbd_lines.games" in keys
