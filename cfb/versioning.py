@@ -45,17 +45,18 @@ class OutOfOrder(Exception):
     would close rows with a timestamp before they were opened."""
 
 
-def latest_version(conn, table, dataset, season):
-    r = conn.execute(
-        f"SELECT MAX(valid_from_ts) FROM {table} WHERE src_dataset=? AND src_season IS ?",
-        (dataset, season)).fetchone()[0]
-    c = conn.execute(
-        f"SELECT MAX(valid_to_ts) FROM {table} WHERE src_dataset=? AND src_season IS ?",
-        (dataset, season)).fetchone()[0]
+SCOPE = "src_dataset=? AND src_season IS ? AND src_part IS ?"
+
+
+def latest_version(conn, table, dataset, season, part=None):
+    r = conn.execute(f"SELECT MAX(valid_from_ts) FROM {table} WHERE {SCOPE}",
+                     (dataset, season, part)).fetchone()[0]
+    c = conn.execute(f"SELECT MAX(valid_to_ts) FROM {table} WHERE {SCOPE}",
+                     (dataset, season, part)).fetchone()[0]
     return max(x for x in (r, c, 0.0) if x is not None)
 
 
-def apply(conn, dataset, season, file_id, version_ts, table, rows, label=None):
+def apply(conn, dataset, season, file_id, version_ts, table, rows, label=None, part=None):
     """Diff `rows` against the current rows for (dataset, season) and write the
     difference as of `version_ts`. Idempotent: applying the same file twice
     changes nothing. Returns (inserted, closed, unchanged).
@@ -63,7 +64,7 @@ def apply(conn, dataset, season, file_id, version_ts, table, rows, label=None):
     Runs inside the caller's transaction; the caller commits.
     """
     label = label or f"file {file_id}"
-    last = latest_version(conn, table, dataset, season)
+    last = latest_version(conn, table, dataset, season, part)
     if version_ts < last:
         raise OutOfOrder(f"{label} is as of {version_ts:.0f}, but {table} "
                          f"{dataset}/{season} already holds {last:.0f}; "
@@ -76,8 +77,8 @@ def apply(conn, dataset, season, file_id, version_ts, table, rows, label=None):
     current = {}
     for rowid, *vals in conn.execute(
             f"SELECT rowid, {', '.join(key)}, row_sha FROM {table} "
-            f"WHERE src_dataset=? AND src_season IS ? AND valid_to_ts IS NULL",
-            (dataset, season)):
+            f"WHERE {SCOPE} AND valid_to_ts IS NULL",
+            (dataset, season, part)):
         current[tuple(vals[:-1])] = (rowid, vals[-1])
 
     to_insert, seen, unchanged = [], set(), 0
@@ -96,7 +97,7 @@ def apply(conn, dataset, season, file_id, version_ts, table, rows, label=None):
             raise OutOfOrder(f"{label}: key {k} changed within one version")
         if held:
             to_close.append(held[0])
-        to_insert.append(tuple(r) + (dataset, season, file_id, sha, version_ts))
+        to_insert.append(tuple(r) + (dataset, season, part, file_id, sha, version_ts))
 
     for k, (rowid, _sha) in current.items():
         if k not in seen:
@@ -104,7 +105,7 @@ def apply(conn, dataset, season, file_id, version_ts, table, rows, label=None):
 
     conn.executemany(f"UPDATE {table} SET valid_to_ts=? WHERE rowid=?",
                      [(version_ts, rid) for rid in to_close])
-    meta = ["src_dataset", "src_season", "src_file_id", "row_sha", "valid_from_ts"]
+    meta = ["src_dataset", "src_season", "src_part", "src_file_id", "row_sha", "valid_from_ts"]
     conn.executemany(
         f"INSERT INTO {table} ({', '.join(cols + meta)}) "
         f"VALUES ({', '.join('?' * (len(cols) + len(meta)))})", to_insert)

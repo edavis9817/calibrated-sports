@@ -1396,3 +1396,12 @@ the agent — stated as options with a recommendation, not as a question without
   targets thrown to unidentified players (~5% a season 2004-2014, <0.5% from
   2015) are in `team_targets` and no player's row.
 - Figures: `python -m research.cfb_sources_audit`.
+- **CFBD (phase 2) goes through `jobs.ingest_cfb` only.** `--cfbd-status` (/info,
+  unmetered), `--cfbd-lines 2013-2025` (1 request/season), `--cfbd-week 2026:3`
+  (2 requests). Guards: /info pre-check, `CFBD_RESERVE` floor, 20-request run cap,
+  no gameId/id/team URL can be built, every call in `cfbd_requests` with `origin`.
+  The old `jobs/ingest_cfbd.py` writes to `cfb_probe.db` and backs the C01 record;
+  do not use it for new spend.
+- **CFBD lines carry no timestamps** - `spread` is the provider's last value, not a
+  kickoff close; opening values absent on 79% of rows, moneylines on 80%; retail
+  books only from 2018; provider names pass through ('DraftKings' and 'Draft Kings').

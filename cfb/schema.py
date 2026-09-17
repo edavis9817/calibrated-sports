@@ -96,6 +96,38 @@ TABLES = {
         ("team_targets", "INTEGER"), ("team_touches", "INTEGER"),
         ("team_first_downs", "INTEGER"),
     ]),
+    # --- CFBD (phase 2). Separate tables per source: a CFBD game and a
+    # sportsdataverse game with the same id are two sources' claims, compared
+    # by query, never merged on write.
+    #
+    # Results within hours of the final, ahead of sportsdataverse's lag. Line
+    # scores are the verbatim per-period array; elo and win probability are
+    # CFBD's model output and are not stored.
+    "cfb_cfbd_games": (("game_id",), [
+        ("game_id", "INTEGER"), ("season", "INTEGER"), ("week", "INTEGER"),
+        ("season_type", "TEXT"), ("start_ts", "REAL"), ("completed", "INTEGER"),
+        ("neutral_site", "INTEGER"), ("conference_game", "INTEGER"),
+        ("home_id", "INTEGER"), ("home_team", "TEXT"), ("home_classification", "TEXT"),
+        ("home_conference", "TEXT"), ("home_points", "INTEGER"),
+        ("home_line_scores", "TEXT"),
+        ("away_id", "INTEGER"), ("away_team", "TEXT"), ("away_classification", "TEXT"),
+        ("away_conference", "TEXT"), ("away_points", "INTEGER"),
+        ("away_line_scores", "TEXT"),
+    ]),
+    # GAME LINES ONLY. One row per (game, provider). CFBD gives no timestamp for
+    # either value: `spread` is the provider's last line CFBD holds and
+    # `spread_open` its first, which is not the same claim as "the close at
+    # kickoff". Which side `spread` is quoted from is checked on every parse
+    # against `formattedSpread` (`lines.spread_sign_*`), not assumed.
+    "cfb_game_lines": (("game_id", "provider"), [
+        ("game_id", "INTEGER"), ("season", "INTEGER"), ("week", "INTEGER"),
+        ("season_type", "TEXT"), ("start_ts", "REAL"),
+        ("home_id", "INTEGER"), ("home_team", "TEXT"),
+        ("away_id", "INTEGER"), ("away_team", "TEXT"),
+        ("provider", "TEXT"), ("spread", "REAL"), ("spread_open", "REAL"),
+        ("total", "REAL"), ("total_open", "REAL"),
+        ("home_moneyline", "REAL"), ("away_moneyline", "REAL"),
+    ]),
     # Resolved AT INGEST (CLAUDE.md: "crosswalked at ingest, never in analysis
     # code"). CFBD athlete ids ARE ESPN athlete ids - 20,342 of 22,465 CFBD 2023
     # roster ids appear in ESPN's rosters, 20,210 with the same last name - so
@@ -109,7 +141,13 @@ TABLES = {
 
 # `src_file_id` references cfb_raw_files.file_id rather than repeating the path:
 # at 4.3M rows a 95-character path on every row was ~40% of the database.
+#
+# `src_part` narrows a scope below the season. A sportsdataverse file IS a season,
+# so it is NULL there. A CFBD response can be one week ("regular:w3") or a whole
+# season ("both"); without it, applying week 3 would close every other week's
+# rows as "no longer carried".
 META = [("src_dataset", "TEXT NOT NULL"), ("src_season", "INTEGER"),
+        ("src_part", "TEXT"),
         ("src_file_id", "INTEGER NOT NULL"), ("row_sha", "TEXT NOT NULL"),
         ("valid_from_ts", "REAL NOT NULL"), ("valid_to_ts", "REAL")]
 
@@ -129,9 +167,22 @@ def _fact_ddl(table):
         + [f"sport TEXT NOT NULL DEFAULT '{SPORT}'"]
         + [f"{c} {t}" for c, t in META]
         + [f"PRIMARY KEY ({', '.join(key)}, valid_from_ts)"])
-    return (f"CREATE TABLE IF NOT EXISTS {table} (\n    {body}\n);\n"
-            f"CREATE INDEX IF NOT EXISTS ix_{table}_current "
-            f"ON {table}(src_season, valid_to_ts);\n")
+    return f"CREATE TABLE IF NOT EXISTS {table} (\n    {body}\n);\n"
+
+
+def _index_ddl(table):
+    return (f"CREATE INDEX IF NOT EXISTS ix_{table}_scope "
+            f"ON {table}(src_season, src_part, valid_to_ts);\n")
+
+
+def migrate(conn):
+    """Additive changes to tables an earlier version created. Only ever ADDS a
+    nullable column and swaps an index; never drops or rewrites data."""
+    for table in TABLES:
+        cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if cols and "src_part" not in cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN src_part TEXT")
+        conn.execute(f"DROP INDEX IF EXISTS ix_{table}_current")
 
 
 # Bookkeeping. `cfb_raw_files` is the manifest: every file under cfb/raw has a
@@ -206,6 +257,27 @@ CREATE TABLE IF NOT EXISTS cfb_measurements (
     PRIMARY KEY (key, season)
 );
 
+-- EVERY CFBD request this job makes, metered or not. The quota is shared with
+-- the main clone and with CBBD, so `origin` names the host and checkout, and
+-- `--cfbd-status` compares the server's usedCalls with this ledger: the
+-- difference is spend this job did not make.
+CREATE TABLE IF NOT EXISTS cfbd_requests (
+    ts         REAL NOT NULL,
+    month      TEXT NOT NULL,
+    endpoint   TEXT NOT NULL,
+    params     TEXT,
+    status     INTEGER,
+    metered    INTEGER NOT NULL,
+    remaining  INTEGER,
+    used       INTEGER,
+    bytes      INTEGER,
+    file_id    INTEGER,
+    run_id     TEXT NOT NULL,
+    origin     TEXT NOT NULL,
+    outcome    TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_cfbd_requests_month ON cfbd_requests(month);
+
 CREATE TABLE IF NOT EXISTS cfb_limitations (
     id            TEXT PRIMARY KEY,
     sport         TEXT NOT NULL DEFAULT '{SPORT}',
@@ -221,3 +293,7 @@ CREATE TABLE IF NOT EXISTS cfb_limitations (
 
 def ddl() -> str:
     return CONTROL_DDL + "".join(_fact_ddl(t) for t in TABLES)
+
+
+def index_ddl() -> str:
+    return "".join(_index_ddl(t) for t in TABLES)

@@ -82,6 +82,26 @@ LIMITATIONS = [
         "evidence_keys": ["games.team_ids_without_team_row"],
     },
     {
+        "id": "cfb.lines_untimestamped",
+        "severity": "provenance",
+        "title": "College game lines carry no timestamp",
+        "statement": (
+            "CFBD reports, per provider, a spread and total and their opening values, "
+            "with no time attached to either. The last value CFBD holds is not "
+            "necessarily the line at kickoff, and provider coverage varies by season "
+            "and by game: 2013-2017 carry only consensus, numberfire and teamrankings, "
+            "and retail books appear from 2018. Opening values are absent on 79% of "
+            "rows and moneylines on 80%. Provider names are passed through as CFBD "
+            "writes them, so one book can appear twice ('DraftKings' and 'Draft "
+            "Kings' in 2025)."),
+        "consequence": (
+            "College lines are published as the provider's reported values, never as "
+            "a kickoff close, and no closing-line-value figure is computed from them."),
+        "evidence_keys": ["cfbd_lines.games", "cfbd_lines.games_with_lines",
+                          "cfbd_lines.providers", "cfbd_lines.rows_with_spread_open",
+                          "cfbd_lines.rows_with_moneyline"],
+    },
+    {
         "id": "cfb.current_season_rosters_partial",
         "severity": "coverage",
         "title": "Current-season rosters fill in as the season is published",

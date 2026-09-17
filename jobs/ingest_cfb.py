@@ -8,6 +8,10 @@
     python -m jobs.ingest_cfb --rebuild --dataset player_box --season 2025
     python -m jobs.ingest_cfb --audit                           # manifest vs disk
 
+    python -m jobs.ingest_cfb --cfbd-status                     # /info (unmetered) + ledger
+    python -m jobs.ingest_cfb --cfbd-lines 2013-2025            # 13 metered requests
+    python -m jobs.ingest_cfb --cfbd-week 2026:3                # 2 metered requests
+
 CFB SHIPS STATS AND USAGE, NOT HIT RATES. No public source says whether a
 college player appeared in a game, so nothing here settles, voids or computes a
 rate. `cfb.limitations` records why, as data.
@@ -28,6 +32,8 @@ Writes ONLY `cfb.db` and `<STORAGE_DIR>/cfb/`. Never opens the logger's
 database, never writes under the logger's RAW_DIR, imports no NFL job.
 """
 import argparse
+import gzip
+import hashlib
 import json
 import os
 import shutil
@@ -40,7 +46,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import polars as pl
 
-from cfb import fetch, limitations, normalize, paths, schema, sources, versioning
+import config
+from cfb import (cfbd, cfbd_normalize, fetch, limitations, normalize, paths, schema, sources,
+                 versioning)
 from cfb.lock import AlreadyRunning, InstanceLock
 
 DEFAULT_MAX_FILES = 200
@@ -52,6 +60,8 @@ def connect(db_path=None):
     c = sqlite3.connect(db, timeout=30)
     c.execute("PRAGMA journal_mode=WAL")
     c.executescript(schema.ddl())
+    schema.migrate(c)
+    c.executescript(schema.index_ddl())
     limitations.record(c)
     c.commit()
     return c
@@ -273,6 +283,174 @@ def measure_joins(conn):
 
 
 # =============================================================================
+# CFBD (phase 2) - metered; see cfb/cfbd.py for the guards
+# =============================================================================
+
+def _part_dir(part):
+    return part.replace(":", "_")
+
+
+def archive_cfbd(conn, req, body: bytes, fetched_ts):
+    """Raw first: the response bytes, gzipped verbatim, manifested. A copy is kept
+    only when the CONTENT differs from the newest copy for this exact scope.
+    Returns (file_id or None, outcome)."""
+    bsha = hashlib.sha256(body).hexdigest()
+    try:
+        csha = hashlib.sha256(json.dumps(json.loads(body), sort_keys=True,
+                                         separators=(",", ":")).encode()).hexdigest()
+    except ValueError:
+        csha = bsha                      # kept verbatim; the parse will refuse it
+    newest = conn.execute(
+        "SELECT file_id, bytes_sha256, content_sha256 FROM cfb_raw_files WHERE dataset=? "
+        "AND season=? AND asset=? ORDER BY fetched_ts DESC LIMIT 1",
+        (req.dataset, req.season, req.part)).fetchone()
+    if newest and newest[2] == csha:
+        return newest[0], "unchanged_content"
+
+    rel = "/".join(["cfbd", req.endpoint, str(req.season), _part_dir(req.part),
+                    f"{_utc(fetched_ts)}-{csha[:12]}.json.gz"])
+    dest = os.path.join(paths.raw_root(), *rel.split("/"))
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    with open(dest + ".part", "wb") as f:
+        f.write(gzip.compress(body))
+    os.replace(dest + ".part", dest)
+    cur = conn.execute(
+        "INSERT INTO cfb_raw_files (rel_path, dataset, season, repo, tag, asset, bytes, "
+        "bytes_sha256, content_sha256, remote_updated_at, fetched_ts) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (rel, req.dataset, req.season, "collegefootballdata.com", req.endpoint, req.part,
+         len(body), bsha, csha, None, fetched_ts))
+    conn.commit()
+    return cur.lastrowid, "new"
+
+
+def run_cfbd(conn, requests, client=None, max_requests=cfbd.MAX_REQUESTS_PER_RUN):
+    """Refuse before spending, spend at most the plan, stop at the reserve.
+    Returns counts; raises BudgetRefused when the run must not start."""
+    cap = min(max_requests, cfbd.MAX_REQUESTS_PER_RUN)
+    if len(requests) > cap:
+        raise cfbd.BudgetRefused(f"plan is {len(requests)} metered requests, cap is {cap}; "
+                                 f"split the run")
+    client = client or cfbd.Client(conn)
+    info = client.info()
+    remaining = int(info["remainingCalls"])
+    if remaining - len(requests) < config.CFBD_RESERVE:
+        raise cfbd.BudgetRefused(
+            f"server reports {remaining} calls remaining; this plan spends {len(requests)} and "
+            f"would leave {remaining - len(requests)}, below the {config.CFBD_RESERVE} floor")
+    print(f"  CFBD /info: {remaining} remaining of {info.get('monthlyLimit')}, "
+          f"used {info.get('usedCalls')}; plan {len(requests)}")
+
+    counts = {}
+    for req in requests:
+        fetched_ts = time.time()
+        status, body, rem, row = client.get(req)
+        if status != 200:
+            client.settle(row, None, f"http_{status}")
+            counts[f"http_{status}"] = counts.get(f"http_{status}", 0) + 1
+            print(f"  STOPPED: /{req.endpoint} {req.param_dict()} returned {status}")
+            break
+        file_id, outcome = archive_cfbd(conn, req, body, fetched_ts)
+        client.settle(row, file_id, outcome)
+        counts[outcome] = counts.get(outcome, 0) + 1
+        print(f"  {req.dataset:<11} {req.season} {req.part:<14} {outcome}  remaining {rem}")
+        if rem is not None and rem <= config.CFBD_RESERVE:
+            counts["stopped_at_reserve"] = 1
+            print(f"  STOPPED: remaining {rem} reached the {config.CFBD_RESERVE} floor")
+            break
+    return counts
+
+
+def run_parse_cfbd(conn, seasons=None, rebuild=False):
+    totals = {"files": 0, "rows": 0, "inserted": 0, "closed": 0, "refused": 0, "dropped": {}}
+    for dataset, table in cfbd_normalize.TABLES.items():
+        scopes = conn.execute(
+            "SELECT DISTINCT season, asset FROM cfb_raw_files WHERE dataset=? ORDER BY season, asset",
+            (dataset,)).fetchall()
+        for season, part in scopes:
+            if seasons is not None and season not in seasons:
+                continue
+            if rebuild:
+                conn.execute("BEGIN")
+                conn.execute(f"DELETE FROM {table} WHERE {versioning.SCOPE}", (dataset, season, part))
+                conn.execute("UPDATE cfb_parse_log SET status='rebuilt_over' WHERE dataset=? AND "
+                             "season IS ? AND status='ok' AND rel_path IN (SELECT rel_path FROM "
+                             "cfb_raw_files WHERE dataset=? AND season=? AND asset=?)",
+                             (dataset, season, dataset, season, part))
+                conn.commit()
+            others = [p for (p,) in conn.execute(
+                f"SELECT DISTINCT src_part FROM {table} WHERE src_dataset=? AND src_season=? "
+                f"AND valid_to_ts IS NULL", (dataset, season)) if p and cfbd.parts_overlap(p, part)]
+            for fid, rel, fts in conn.execute(
+                    "SELECT file_id, rel_path, fetched_ts FROM cfb_raw_files WHERE dataset=? AND "
+                    "season=? AND asset=? ORDER BY fetched_ts", (dataset, season, part)).fetchall():
+                if _parsed(conn, rel):
+                    continue
+                try:
+                    if others:
+                        raise versioning.OutOfOrder(
+                            f"scope {part} overlaps {others} already held for {season}; one game "
+                            f"would be current twice. --rebuild the other scope first")
+                    with gzip.open(os.path.join(paths.raw_root(), *rel.split("/")), "rb") as f:
+                        payload = json.loads(f.read())
+                    norm = cfbd_normalize.NORMALIZERS[dataset](payload, season)
+                    conn.execute("BEGIN")
+                    ins, closed, same = versioning.apply(conn, dataset, season, fid, fts, table,
+                                                         norm.rows, label=rel, part=part)
+                    suffix = "" if part == "both" else f"@{part}"
+                    conn.executemany(
+                        "INSERT INTO cfb_measurements (key, season, value, detail, src_file, "
+                        "measured_ts) VALUES (?,?,?,?,?,?) ON CONFLICT(key, season) DO UPDATE SET "
+                        "value=excluded.value, detail=excluded.detail, src_file=excluded.src_file, "
+                        "measured_ts=excluded.measured_ts",
+                        [(k + suffix, season, v, d, rel, time.time()) for k, v, d in norm.measurements])
+                    conn.execute("INSERT INTO cfb_parse_log VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                                 (time.time(), rel, dataset, season, fts, len(norm.rows), ins,
+                                  closed, same, json.dumps(norm.dropped), "ok", part))
+                    conn.commit()
+                except (versioning.OutOfOrder, ValueError, OSError) as e:
+                    conn.rollback()
+                    conn.execute("INSERT INTO cfb_parse_log VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                                 (time.time(), rel, dataset, season, fts, None, None, None, None,
+                                  None, "refused", f"{type(e).__name__}: {e}"))
+                    conn.commit()
+                    totals["refused"] += 1
+                    print(f"  REFUSED {rel}: {e}")
+                    continue
+                totals["files"] += 1
+                totals["rows"] += len(norm.rows)
+                totals["inserted"] += ins
+                totals["closed"] += closed
+                for k, v in norm.dropped.items():
+                    totals["dropped"][f"{dataset}.{k}"] = totals["dropped"].get(f"{dataset}.{k}", 0) + v
+                print(f"  parsed {dataset:<11} {season} {part:<14} rows {len(norm.rows):>6,}  "
+                      f"+{ins:,} -{closed:,} ={same:,}  dropped {norm.dropped or 0}")
+    return totals
+
+
+def cfbd_status(conn, client=None):
+    month = cfbd.month_key()
+    mine = conn.execute("SELECT COUNT(*) FROM cfbd_requests WHERE month=? AND metered=1 AND "
+                        "(status IS NULL OR status BETWEEN 200 AND 299)", (month,)).fetchone()[0]
+    print(f"CFBD ledger  month {month}")
+    print(f"  metered 2xx requests logged by this job: {mine}")
+    for origin, n in conn.execute("SELECT origin, COUNT(*) FROM cfbd_requests WHERE month=? AND "
+                                  "metered=1 GROUP BY origin", (month,)):
+        print(f"    {n:>4}  {origin}")
+    try:
+        info = (client or cfbd.Client(conn)).info()
+    except cfbd.BudgetRefused as e:
+        print(f"  server: unavailable ({e})")
+        return
+    used = info.get("usedCalls")
+    print(f"  server: remaining {info.get('remainingCalls')} of {info.get('monthlyLimit')}, "
+          f"used {used}, resets {info.get('resetAt')}")
+    if used is not None:
+        print(f"  used by something other than this job this month: {int(used) - mine} "
+              f"(the main clone, CBBD, the docs playground)")
+    print(f"  reserve floor {config.CFBD_RESERVE}; per-run cap {cfbd.MAX_REQUESTS_PER_RUN}")
+
+
+# =============================================================================
 # audit and status
 # =============================================================================
 
@@ -289,8 +467,13 @@ def audit(conn):
     missing = sorted(manifest - on_disk)
     unreadable = []
     for rel in sorted(manifest & on_disk):
+        path = os.path.join(root, *rel.split("/"))
         try:
-            pl.read_parquet_schema(os.path.join(root, *rel.split("/")))
+            if rel.endswith(".json.gz"):
+                with gzip.open(path, "rb") as f:
+                    json.loads(f.read())
+            else:
+                pl.read_parquet_schema(path)
         except Exception as e:
             unreadable.append((rel, f"{type(e).__name__}: {e}"))
     print(f"CFB raw audit  root={root}")
@@ -338,12 +521,30 @@ def main(argv=None):
     ap.add_argument("--dataset", action="append", choices=sorted(sources.DATASETS))
     ap.add_argument("--season", help="2026 | 2004-2026 | 2019,2021 | all (default all)")
     ap.add_argument("--max-files", type=int, default=DEFAULT_MAX_FILES)
+    ap.add_argument("--cfbd-status", action="store_true", help="ledger + /info, 0 metered requests")
+    ap.add_argument("--cfbd-lines", metavar="SEASONS",
+                    help="season-level lines, regular+postseason: one metered request per season")
+    ap.add_argument("--cfbd-week", metavar="YEAR:WEEK",
+                    help="one week's results and lines: two metered requests")
+    ap.add_argument("--season-type", default="regular", choices=["regular", "postseason"])
+    ap.add_argument("--max-requests", type=int, default=cfbd.MAX_REQUESTS_PER_RUN,
+                    help=f"lower the per-run cap (never above {cfbd.MAX_REQUESTS_PER_RUN})")
     a = ap.parse_args(argv)
 
     paths.ensure_dirs()
     plan = sources.plan(a.dataset, parse_seasons(a.season))
 
-    if not (a.fetch or a.parse or a.rebuild or a.audit):
+    cfbd_plan = []
+    if a.cfbd_lines:
+        cfbd_plan += cfbd.lines_backfill(parse_seasons(a.cfbd_lines))
+    if a.cfbd_week:
+        y, w = (int(x) for x in a.cfbd_week.split(":"))
+        cfbd_plan += cfbd.week(y, w, a.season_type)
+
+    if a.cfbd_status:
+        cfbd_status(connect())
+        return 0
+    if not (a.fetch or a.parse or a.rebuild or a.audit or cfbd_plan):
         conn = connect()
         status(conn)
         return 0
@@ -353,11 +554,26 @@ def main(argv=None):
             conn = connect()
             if a.audit:
                 return 0 if audit(conn) else 1
+            if cfbd_plan:
+                print(f"CFBD plan: {len(cfbd_plan)} metered requests")
+                try:
+                    print(f"CFBD: {run_cfbd(conn, cfbd_plan, max_requests=a.max_requests)}")
+                except cfbd.BudgetRefused as e:
+                    print(f"REFUSING CFBD: {e}")
+                    return 3
+                t = run_parse_cfbd(conn, {r.season for r in cfbd_plan})
+                print(f"CFBD parse: files {t['files']}  rows {t['rows']:,}  +{t['inserted']:,} "
+                      f"-{t['closed']:,}  refused {t['refused']}  dropped {t['dropped'] or 0}")
+                if not (a.fetch or a.parse or a.rebuild):
+                    return 0
             print(f"plan: {len(plan)} (dataset, season) pairs")
             if a.fetch:
                 counts = run_fetch(conn, plan, a.max_files)
                 print(f"fetch: {counts}")
             totals = run_parse(conn, plan, rebuild=a.rebuild)
+            if a.parse or a.rebuild:
+                t = run_parse_cfbd(conn, parse_seasons(a.season), rebuild=a.rebuild)
+                print(f"CFBD parse: files {t['files']}  rows {t['rows']:,}  refused {t['refused']}")
             measure_joins(conn)
             print(f"parse: files {totals['files']}  rows {totals['rows']:,}  "
                   f"+{totals['inserted']:,} -{totals['closed']:,} ={totals['unchanged']:,}  "
