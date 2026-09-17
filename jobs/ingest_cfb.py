@@ -610,6 +610,14 @@ def archive_odds(conn, client, row, dataset, endpoint, part, body, fetched_ts, d
     file_id, outcome = archive_cfbd(conn, req, body, fetched_ts, source="oddsapi",
                                     repo="the-odds-api.com", dedupe=dedupe)
     client.settle(row, file_id, outcome)
+    if outcome == "unchanged_content":
+        # The bytes are the EARLIER file's, so the observation rows must carry that
+        # file's fetch time, not this tick's. Otherwise a content-deduplicated listing
+        # re-parsed five minutes later claims to have been fetched five minutes later,
+        # and "when did the API first say this kickoff" reads as the last time nothing
+        # changed. Only the free listing dedupes; a paid response never does.
+        fetched_ts = conn.execute("SELECT fetched_ts FROM cfb_raw_files WHERE file_id=?",
+                                  (file_id,)).fetchone()[0]
     counts = oddsapi_capture.store_rows(conn, file_id, fetched_ts,
                                         oddsapi_capture.PARSERS[dataset](body))
     return file_id, outcome, counts

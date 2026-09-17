@@ -320,3 +320,19 @@ def test_identical_paid_responses_in_one_second_never_overwrite(store):
     rels = [r[0] for r in store.execute("SELECT rel_path FROM cfb_raw_files ORDER BY file_id")]
     assert len(set(ids)) == 3 and len(set(rels)) == 3
     assert ingest_cfb.audit(store).clean
+
+
+def test_a_deduplicated_listing_keeps_the_earlier_fetch_time(store):
+    """Found on the first live capture: an unchanged listing re-parsed on a later tick
+    was claiming that tick's fetch time, so "when did the API first say this kickoff"
+    read as "the last time nothing changed"."""
+    t0 = _next_week_wednesday()
+    fake = FakeOdds(_events(t0, [1]))
+    first, _ev, _h = ingest_cfb.refresh_events(store, fake.client(store))
+    ts1 = store.execute("SELECT fetched_ts FROM cfb_odds_events WHERE src_file_id=?",
+                        (first,)).fetchone()[0]
+    time.sleep(1.1)
+    again, _ev, _h = ingest_cfb.refresh_events(store, fake.client(store))
+    ts2 = store.execute("SELECT fetched_ts FROM cfb_odds_events WHERE src_file_id=?",
+                        (again,)).fetchone()[0]
+    assert again == first and ts2 == ts1          # same bytes, same archive row, same instant
