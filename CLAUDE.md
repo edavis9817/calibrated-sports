@@ -1495,6 +1495,8 @@ Six incidents in one session, all the same shape. They are cross-referenced, not
 | a registry record matching a published figure BY VALUE | that record's identity | R11's pointer was nearly resolved by scanning for `est ≈ 1.8125`; a second record carrying the same number is indistinguishable from the right one, and the scan would silently start returning it. Keyed on `(registry, family, name)` instead — verified unique at 1,171 records across all 8 registries |
 | a guard verified BEFORE it was active | the guard | "no renormalisation" was checked while `.gitattributes` was still untracked — attributes apply only once git tracks the file, so the check ran at the one moment the rule could not fire and a clean `git status` proved nothing |
 | **a PIPELINE's exit code** | **the command's exit code** | `cmd \| tail` reports `tail`'s status, so a SEGFAULTING export read as `exit 0`. Proven, not assumed: `python -c "sys.exit(7)" \| tail` gives `$?=0`, and `set -o pipefail` gives 7. Hit TWICE in one session — the second time in the command written to diagnose the first, which is how thoroughly a masked exit code hides itself. `ci.yml` already sets `pipefail`; ad-hoc diagnostics must too, or capture the status with no pipe in sight |
+| **a stale mtime** | **a part of the job that never ran** | a manifest 8 hours older than its siblings was read as proof the export had stopped early. `write_if_changed` compares through `_canonical()`, which strips `generated_at`, so a part that never ran is byte-identical to one that ran and produced the same content — and a fully successful re-run duly reported `manifest [0,0]`. The mtime could not distinguish the two states, so it was never evidence for either |
+| **`$(git rev-parse origin/main)` read AFTER `git fetch`** | **whether the remote moved** | a freshness guard compared the post-fetch SHA against itself and could only ever print "unchanged". Capture it BEFORE the fetch. Written, and relied on, inside the very protocol step it was meant to protect |
 
 The tell is always the same: **the check passed and told me nothing.** A result that cannot
 distinguish success from a plausible-looking absence has not been verified. Two habits close most of
@@ -1536,12 +1538,30 @@ assertion discriminate (show it returning the *other* answer on the other input)
   next vendor name.
 - **The commit sequence, in full. Three tracks write this repo, so the remote moves while you work.**
 
+      PRE=$(git rev-parse origin/main)   # BEFORE the fetch - see the warning below
       git fetch
       git rebase origin/main      # BEFORE the work is staged, not after it is rejected
       <run the suite>             # against the rebased tree - that is what will be pushed
       git commit                  # named paths, never -A
       git fetch                   # again: the remote may have moved during the suite run
+      # if origin/main != $PRE: rebase onto it AND RE-RUN THE SUITE before pushing.
+      # A rebase is a new tree. The suite result you are holding belongs to the old one.
       git push
+
+  **THE SECOND FETCH HAS A SECOND HALF, AND OMITTING IT IS HOW THIS WAS VIOLATED**
+  (2026-09-17, by the agent that wrote this section). The remote moved to another
+  track's commit between the suite run and the commit. The rebase was done - and then
+  the push went out with **no suite run against the combined tree**. Rebasing is the easy
+  half to remember because it is what git forces; re-running is the half nothing prompts
+  for. A green suite is evidence about a specific tree, and a rebase replaces that tree.
+  (Verified clean afterwards, 1022 passed - which is luck, not process.)
+
+  **And the freshness check must capture the SHA BEFORE fetching.** The guard written to
+  catch exactly the above read `BEFORE=$(git rev-parse origin/main)` *after* `git fetch`,
+  so it compared the post-fetch value with itself and could only ever report "unchanged".
+  It printed reassurance from a check structurally incapable of firing - the same class as
+  the `.gitattributes` guard verified before it was active, in a guard written to enforce
+  this very protocol.
 
   The second fetch is not redundant. The suite takes minutes and another track can land in them.
   A rebase attempted at push time is a rebase attempted with staged work in the way, which is where
