@@ -188,7 +188,7 @@ def test_p1_keeps_every_response_verbatim_even_when_identical(store, monkeypatch
         assert len(raw) == nbytes and json.loads(raw)["id"] == eid
     keys = {r[0] for r in store.execute("SELECT market_key FROM cfb_odds_event_markets")}
     assert keys == {"h2h", "player_receptions"}
-    assert ingest_cfb.audit(store)
+    assert ingest_cfb.audit(store).clean
 
 
 def test_p1_orders_fbs_first_and_stops_on_a_non_200(store, monkeypatch):
@@ -319,4 +319,4 @@ def test_identical_paid_responses_in_one_second_never_overwrite(store):
                                    repo="the-odds-api.com", dedupe=False)[0] for _ in range(3)]
     rels = [r[0] for r in store.execute("SELECT rel_path FROM cfb_raw_files ORDER BY file_id")]
     assert len(set(ids)) == 3 and len(set(rels)) == 3
-    assert ingest_cfb.audit(store)
+    assert ingest_cfb.audit(store).clean

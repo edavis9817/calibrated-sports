@@ -118,7 +118,7 @@ def test_promotion_is_idempotent_and_marks_the_source_external(store, probe, mon
     assert again["probe_markets"] == {"rows": 6, "inserted": 0, "closed": 0, "unchanged": 6}
     rels = [r[0] for r in store.execute("SELECT rel_path FROM cfb_raw_files")]
     assert all(r.startswith("external:") for r in rels if "probe" in r)
-    assert ingest_cfb.audit(store)
+    assert ingest_cfb.audit(store).clean
 
 
 def test_book_states():

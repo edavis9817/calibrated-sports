@@ -88,7 +88,7 @@ def test_free_run_archives_both_and_logs_zero_cost(store):
     assert rel.startswith("oddsapi/events/")
     with gzip.open(os.path.join(paths.raw_root(), *rel.split("/"))) as f:
         assert json.loads(f.read()) == EVENTS
-    assert ingest_cfb.audit(store)
+    assert ingest_cfb.audit(store).clean
 
 
 def test_identical_content_is_not_archived_twice(store):

@@ -206,7 +206,7 @@ def test_responses_are_archived_verbatim_and_unchanged_content_is_not_copied(sto
     assert len(files) == 2
     with gzip.open(os.path.join(paths.raw_root(), *files[1][0].split("/"))) as f:
         assert json.loads(f.read())[0]["lines"][0]["provider"] == "DraftKings"
-    assert ingest_cfb.audit(store)
+    assert ingest_cfb.audit(store).clean
 
 
 def test_weeks_are_separate_scopes_and_do_not_close_each_other(store):

@@ -1,8 +1,13 @@
-# Track B requests — filed by Track A, not built here
+# Track B requests — filed by other tracks, not built here
+
+**Convention (Ethan, 2026-09-17, project-wide): one file per TARGET track,
+`docs/track-<target>-requests.md`, with sections by SOURCE track.** So this file is
+everything filed TO track B, whoever filed it; `track-a-requests.md` and
+`track-c-requests.md` are the same shape for their targets.
 
 Track A owns `contract.schema.json`; Track B consumes it and regenerates
 `lib/schema.generated.ts`. Per `docs/W07-parallel-tracks.md`, an item belonging to another track is
-**reported, not fixed**. This file is where Track A files them.
+**reported, not fixed**.
 
 ---
 
@@ -372,7 +377,7 @@ belonging to another track is reported rather than fixed.
 
 ---
 
-## CFB team colours are a QUERY, not an ingest — filed by Track C, 2026-09-17
+## From track C — CFB team colours are a QUERY, not an ingest (filed 2026-09-17)
 
 **Status:** nothing to build on the Track C side; filed so track B does not wait for a feed.
 

@@ -849,9 +849,16 @@ class AuditReport:
 
     A GUARD RETURNS THE STATEMENT IT APPROVED, NEVER A BARE BOOLEAN. A boolean can be
     dropped on the floor and usually is; a statement has to be printed, stored or
-    asserted on. `__bool__` keeps `if audit(conn):` working, and `statement` is the one
-    line that belongs in a log or beside a figure. Ethan, 2026-09-17, generalising
-    `cfb.pbp_scope.check`, which returns the scope it approved rather than True.
+    asserted on. Ethan, 2026-09-17, generalising `cfb.pbp_scope.check`, which returns
+    the scope it approved rather than True.
+
+    SO THIS OBJECT REFUSES TRUTH-TESTING, rather than merely not supporting it.
+    `__bool__` would reinstate exactly what the rule prevents - `if audit(conn):`
+    discards the statement - but DELETING it is worse than refusing it: Python then
+    makes every instance truthy, so the seven existing `assert audit(store)` call sites
+    would keep passing while asserting nothing at all, including on a failed audit. That
+    is the vacuous-assertion trap this project has hit before. Raising turns each of
+    them into a loud failure that has to be rewritten as `.clean`.
     """
     on_disk: int
     manifested: int
@@ -873,7 +880,10 @@ class AuditReport:
                 f"{len(self.bad_external)} - {'CLEAN' if self.clean else 'FAILED'}")
 
     def __bool__(self):
-        return self.clean
+        raise TypeError(
+            "AuditReport has no truth value: use .clean for the verdict and .statement "
+            "for the line to print or store. A guard's result must be carried, not "
+            "discarded by an `if`.")
 
     def __str__(self):
         return self.statement

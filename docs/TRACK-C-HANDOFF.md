@@ -472,7 +472,12 @@ two-ended columns in cfbfastR and 7 in ESPN.
 imports `core.single_instance`, `cfb/lock.py` is deleted.
 
 **Guards return statements** (Ethan, general rule): `audit()` returns an `AuditReport` with
-`.statement` and `__bool__`, not a bare bool; `pbp_scope.check()` already did.
+`.statement` and `.clean`, and `__bool__` RAISES - truth-testing would discard the statement,
+and omitting `__bool__` would make `assert audit(store)` vacuously true. Call sites use
+`.clean`. `pbp_scope.check()` already returned its scope statement.
+
+**Cross-track requests:** one file per TARGET track, sections by SOURCE - `docs/track-a-requests.md`
+is what track C asks of track A, `track-c-requests.md` what others ask of C.
 
 **The analytics seam.** Track F owns the machinery. This survey calls
 `analytics.survey.scan_season` / `profiles` / `anomalies` / `silent_zeros` and copies

@@ -14,11 +14,13 @@ already live in track C code and in `DECISIONS.md`.
 Paste as-is, or reword — the content is what matters.
 
 ```markdown
-- **A guard returns the statement it approved, never a bare boolean.** A boolean can be
-  dropped on the floor and usually is; a value the caller must print, store or assert on
-  cannot be. `cfb.pbp_scope.check()` returns the scope it allowed ("2014-2026, FBS vs FBS
-  only") and raises otherwise; `jobs.ingest_cfb.audit()` returns an `AuditReport` whose
-  `statement` is one log line, with `__bool__` so `if audit(conn):` still reads naturally.
+- **A guard returns the statement it approved, never a bare boolean**, and the result is
+  carried rather than discarded. `cfb.pbp_scope.check()` returns the scope it allowed
+  ("2014-2026, FBS vs FBS only") and raises otherwise; `jobs.ingest_cfb.audit()` returns an
+  `AuditReport` whose `.statement` is one log line and whose `.clean` is the verdict.
+  **The report REFUSES truth-testing** - `__bool__` raises - because supporting it
+  reinstates the `if audit(conn):` that drops the statement, while merely omitting it makes
+  every instance truthy and turns `assert audit(store)` into an assertion about nothing.
   Applies to guards already built, not only new ones.
 - **A text-parsed name column is never a key.** In `cfbfastR_cfb_pbp`,
   `rusher_player_name` ran 0.37 of plays in 2024, 0.21 in 2025 and 0.000 in 2026 while

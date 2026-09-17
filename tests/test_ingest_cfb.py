@@ -382,7 +382,7 @@ def test_fetch_keeps_a_raw_copy_only_when_content_changes(store):
     assert dict(store.execute("SELECT team_id, abbreviation FROM cfb_teams "
                               "WHERE valid_to_ts IS NULL").fetchall()) == {1: "AUB", 2: "BAMA"}
     assert ingest_cfb.run_parse(store, plan)["files"] == 0     # nothing left to parse
-    assert ingest_cfb.audit(store)
+    assert ingest_cfb.audit(store).clean
 
 
 def test_rebuild_replays_the_archive_to_the_same_state(store):
@@ -460,7 +460,9 @@ def test_audit_reports_an_unregistered_raw_file(store):
     os.makedirs(os.path.dirname(p))
     TEAMS.write_parquet(p)
     report = ingest_cfb.audit(store)
-    assert not report and "FAILED" in report.statement and report.unregistered
+    assert report.clean is False and "FAILED" in report.statement and report.unregistered
+    with pytest.raises(TypeError, match="no truth value"):
+        bool(report)          # the verdict cannot be discarded by an `if`
 
 
 # =============================================================================
