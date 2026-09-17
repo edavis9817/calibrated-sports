@@ -124,9 +124,12 @@ TABLES = {
         ("season_type", "TEXT"), ("start_ts", "REAL"),
         ("home_id", "INTEGER"), ("home_team", "TEXT"),
         ("away_id", "INTEGER"), ("away_team", "TEXT"),
+        # `provider` is canonical (cfb.cfbd_normalize.PROVIDER_CANONICAL);
+        # `provider_raw` is the string CFBD wrote.
         ("provider", "TEXT"), ("spread", "REAL"), ("spread_open", "REAL"),
         ("total", "REAL"), ("total_open", "REAL"),
         ("home_moneyline", "REAL"), ("away_moneyline", "REAL"),
+        ("provider_raw", "TEXT"),
     ]),
     # Resolved AT INGEST (CLAUDE.md: "crosswalked at ingest, never in analysis
     # code"). CFBD athlete ids ARE ESPN athlete ids - 20,342 of 22,465 CFBD 2023
@@ -180,8 +183,11 @@ def migrate(conn):
     nullable column and swaps an index; never drops or rewrites data."""
     for table in TABLES:
         cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
-        if cols and "src_part" not in cols:
-            conn.execute(f"ALTER TABLE {table} ADD COLUMN src_part TEXT")
+        if not cols:
+            continue
+        for col, typ in TABLES[table][1] + [("src_part", "TEXT")]:
+            if col not in cols:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
         conn.execute(f"DROP INDEX IF EXISTS ix_{table}_current")
 
 
@@ -277,6 +283,22 @@ CREATE TABLE IF NOT EXISTS cfbd_requests (
     outcome    TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_cfbd_requests_month ON cfbd_requests(month);
+
+-- One row per ingest run. temp_* sizes the process's temp directory at start
+-- and end: 24.8 GB accumulated in %TEMP% on 2026-09-16 with no attributed cause,
+-- and a before/after figure per run is the cheapest way to rule a job in or out.
+CREATE TABLE IF NOT EXISTS cfb_runs (
+    run_id            TEXT PRIMARY KEY,
+    argv              TEXT,
+    started_ts        REAL NOT NULL,
+    ended_ts          REAL,
+    exit_code         INTEGER,
+    temp_dir          TEXT,
+    temp_bytes_start  INTEGER,
+    temp_files_start  INTEGER,
+    temp_bytes_end    INTEGER,
+    temp_files_end    INTEGER
+);
 
 CREATE TABLE IF NOT EXISTS cfb_limitations (
     id            TEXT PRIMARY KEY,

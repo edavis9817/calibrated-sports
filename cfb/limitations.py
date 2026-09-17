@@ -13,29 +13,35 @@ import time
 
 LIMITATIONS = [
     {
-        "id": "cfb.no_appearance_signal",
+        "id": "cfb.stats_and_usage_only",
         "severity": "structural",
-        "title": "No record of whether a college player appeared in a game",
+        "title": ("College football supports statistics and usage - not settlement, "
+                  "hit rates or closing-line value"),
         "statement": (
-            "No public source records college snap counts or participation. "
+            "Two gaps in the public data, either of which alone would rule these out. "
+            "FIRST, no source records whether a college player appeared in a game. "
             "CFBD publishes no snap or participation field; ESPN's box score lists "
             "only players who recorded a stat; ESPN's play participants list only "
-            "players credited on a play; and ESPN's game-roster did_not_play flag "
-            "is False on every row measured. A starting-lineup flag exists but is "
-            "one-sided - it says who started, never who did not play - and exists "
-            "only from 2025: no team-game from 2004 to 2024 flags a starter, and "
-            "1,087 of 1,890 team-games in 2025 still carry none. PFF sells snap "
-            "counts; nothing free does."),
+            "players credited on a play; and ESPN's game-roster did_not_play flag is "
+            "False on every row. A starting-lineup flag is one-sided - it says who "
+            "started, never who did not play - and exists only from 2025: no "
+            "team-game from 2004 to 2024 flags a starter, and 1,087 of 1,890 "
+            "team-games in 2025 still carry none. PFF sells snap counts; nothing free "
+            "does. SECOND, college game lines carry no timestamp. CFBD reports each "
+            "provider's spread and total and their opening values with no time on "
+            "either, so the value it holds is not known to be the line at kickoff."),
         "consequence": (
-            "A game in which a player recorded no statistic cannot be told apart "
-            "from a game the player missed. CFB therefore publishes statistics and "
-            "usage only: no hit rates, no prop history, no settlement. Any rate "
-            "computed over a college player's games is biased toward games in which "
-            "a statistic was recorded, and nothing in the data can correct it."),
+            "A game in which a player recorded no statistic cannot be told apart from "
+            "a game the player missed, and no college line can be called a close. CFB "
+            "therefore publishes statistics and usage only: no settlement, no hit "
+            "rates, no prop history and no closing-line value. Any rate computed over "
+            "a college player's games is biased toward games in which a statistic was "
+            "recorded, and nothing in the data can correct it."),
         "evidence_keys": ["game_rosters.did_not_play_true_rows",
                           "game_rosters.team_games",
                           "game_rosters.team_games_full_starting_lineup",
-                          "game_rosters.team_games_no_starters"],
+                          "game_rosters.team_games_no_starters",
+                          "cfbd_lines.games", "cfbd_lines.games_with_lines"],
     },
     {
         "id": "cfb.no_targets_in_box_score",
@@ -82,24 +88,22 @@ LIMITATIONS = [
         "evidence_keys": ["games.team_ids_without_team_row"],
     },
     {
-        "id": "cfb.lines_untimestamped",
-        "severity": "provenance",
-        "title": "College game lines carry no timestamp",
+        "id": "cfb.lines_coverage",
+        "severity": "coverage",
+        "title": "College game lines are thin before 2018 and sparse on opens and moneylines",
         "statement": (
-            "CFBD reports, per provider, a spread and total and their opening values, "
-            "with no time attached to either. The last value CFBD holds is not "
-            "necessarily the line at kickoff, and provider coverage varies by season "
-            "and by game: 2013-2017 carry only consensus, numberfire and teamrankings, "
-            "and retail books appear from 2018. Opening values are absent on 79% of "
-            "rows and moneylines on 80%. Provider names are passed through as CFBD "
-            "writes them, so one book can appear twice ('DraftKings' and 'Draft "
-            "Kings' in 2025)."),
+            "Provider coverage varies by season and by game: 2013-2017 carry only "
+            "consensus, numberfire and teamrankings, and retail books appear from 2018. "
+            "Opening values are absent on 79% of line rows and moneylines on 80%. "
+            "Provider names are normalised (CFBD writes DraftKings two ways); where "
+            "both DraftKings feeds quote one game, the fuller feed is kept and the "
+            "disagreement is measured."),
         "consequence": (
-            "College lines are published as the provider's reported values, never as "
-            "a kickoff close, and no closing-line-value figure is computed from them."),
-        "evidence_keys": ["cfbd_lines.games", "cfbd_lines.games_with_lines",
-                          "cfbd_lines.providers", "cfbd_lines.rows_with_spread_open",
-                          "cfbd_lines.rows_with_moneyline"],
+            "A provider's line exists for some games and seasons and not others; "
+            "coverage is a property of the source, not of the games."),
+        "evidence_keys": ["cfbd_lines.providers", "cfbd_lines.rows_with_spread_open",
+                          "cfbd_lines.rows_with_moneyline",
+                          "cfbd_lines.provider_feed_collisions"],
     },
     {
         "id": "cfb.current_season_rosters_partial",
@@ -116,7 +120,11 @@ LIMITATIONS = [
 
 
 def record(conn):
+    """Upsert every limitation, and remove any the code no longer states - a
+    retired entry left in the table would still render on the About page."""
     now = time.time()
+    ids = [x["id"] for x in LIMITATIONS]
+    conn.execute(f"DELETE FROM cfb_limitations WHERE id NOT IN ({','.join('?' * len(ids))})", ids)
     conn.executemany(
         "INSERT INTO cfb_limitations (id, severity, title, statement, consequence, "
         "evidence_keys, recorded_ts) VALUES (?,?,?,?,?,?,?) "

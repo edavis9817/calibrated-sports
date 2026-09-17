@@ -1405,3 +1405,13 @@ the agent — stated as options with a recommendation, not as a question without
 - **CFBD lines carry no timestamps** - `spread` is the provider's last value, not a
   kickoff close; opening values absent on 79% of rows, moneylines on 80%; retail
   books only from 2018; provider names pass through ('DraftKings' and 'Draft Kings').
+- **Provider names are canonical in `cfb_game_lines.provider`** (map in
+  `cfb.cfbd_normalize.PROVIDER_CANONICAL`); the CFBD string is `provider_raw`.
+  DraftKings arrives as two feeds; the fuller one wins per game. A new book spelled
+  two ways refuses the file - add it to the map and `--rebuild`, never fuzzy-match.
+- **Weekly CFB refresh:** `python -m jobs.ingest_cfb --fetch --season 2026
+  --cfbd-week latest` (~2 CFBD calls). `CURRENT_SEASON` in `cfb/sources.py` and the
+  `--season` argument both change once a year, before the 2027 season.
+- **A build line in `logger.log` is not evidence of a start today.** Log lines carry
+  no date. Date a line by counting midnight rollovers after it, and confirm a start
+  against the process's CreationDate.

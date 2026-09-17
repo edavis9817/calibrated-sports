@@ -283,3 +283,73 @@ def test_game_lines_store_no_derived_or_model_fields():
     cols = set(schema.columns("cfb_game_lines")) | set(schema.columns("cfb_cfbd_games"))
     for banned in ("formatted_spread", "elo", "win_probability", "home_postgame_win_probability"):
         assert not any(banned in c for c in cols)
+
+
+# =============================================================================
+# provider names
+# =============================================================================
+
+def _dk(raw, spread, opens=True):
+    ln = {"provider": raw, "spread": spread, "formattedSpread": f"Alabama {spread}",
+          "overUnder": 50.5}
+    if opens:
+        ln.update(spreadOpen=-6.0, homeMoneyline=-250, awayMoneyline=210)
+    return ln
+
+
+def test_both_draftkings_spellings_become_one_book_and_the_fuller_feed_wins():
+    """176 games through 2026 week 2 carry both spellings. The spaced feed never
+    has opens or moneylines, and its spread differs on 30."""
+    both = _game(1, lines=[_dk("Draft Kings", -7.5, opens=False), _dk("DraftKings", -7.0)])
+    only_spaced = _game(2, lines=[_dk("Draft Kings", -3.0, opens=False)])
+    n = cfbd_normalize.cfbd_lines([both, only_spaced], 2025)
+    from cfb import schema
+    cols = schema.columns("cfb_game_lines")
+    got = {r[0]: dict(zip(cols, r)) for r in n.rows}
+    assert (got[1]["provider"], got[1]["provider_raw"], got[1]["spread"]) == ("DraftKings", "DraftKings", -7.0)
+    assert (got[2]["provider"], got[2]["provider_raw"]) == ("DraftKings", "Draft Kings")
+    assert n.dropped == {"superseded_feed_rows": 1}
+    m = {k: (v, d) for k, v, d in n.measurements}
+    assert m["cfbd_lines.provider_feed_collisions"][0] == 1
+    assert json.loads(m["cfbd_lines.provider_feed_collisions"][1]) == {"spread": 1}
+    assert json.loads(m["cfbd_lines.providers"][1]) == {"DraftKings": 2}
+
+
+def test_the_fuller_feed_wins_whichever_order_it_arrives_in():
+    a = cfbd_normalize.cfbd_lines([_game(1, lines=[_dk("DraftKings", -7.0), _dk("Draft Kings", -7.5, False)])], 2025)
+    b = cfbd_normalize.cfbd_lines([_game(1, lines=[_dk("Draft Kings", -7.5, False), _dk("DraftKings", -7.0)])], 2025)
+    assert a.rows == b.rows
+
+
+def test_an_unmapped_provider_spelled_two_ways_refuses_the_file():
+    g = _game(1, lines=[_dk("Fan Duel", -7.0), _dk("FanDuel", -7.0)])
+    with pytest.raises(cfbd_normalize.ProviderSplit, match="PROVIDER_CANONICAL"):
+        cfbd_normalize.cfbd_lines([g], 2026)
+
+
+def test_a_new_provider_is_kept_and_reported_as_unmapped():
+    n = cfbd_normalize.cfbd_lines([_game(1, lines=[_dk("FanDuel", -7.0)])], 2026)
+    m = {k: (v, d) for k, v, d in n.measurements}
+    assert m["cfbd_lines.unmapped_providers"] == (1, json.dumps({"FanDuel": 1}))
+    assert n.rows[0][9] == "FanDuel"
+
+
+def test_every_provider_seen_2013_2026_is_mapped():
+    seen = ["Bovada", "Caesars", "Caesars (Pennsylvania)", "Caesars Sportsbook (Colorado)",
+            "consensus", "DraftKings", "Draft Kings", "ESPN Bet", "numberfire", "SugarHouse",
+            "teamrankings", "William Hill (New Jersey)"]
+    for raw in seen:
+        assert cfbd_normalize.provider_fold(raw) in cfbd_normalize.PROVIDER_CANONICAL
+
+
+def test_a_spelling_split_across_files_is_measured(store):
+    fake = FakeCFBD()
+    _week_payloads(fake, 1, [], [_game(1, lines=[_dk("FanDuel", -7.0)])])
+    _week_payloads(fake, 2, [], [_game(2, week=2, lines=[_dk("Fan Duel", -3.0)])])
+    ingest_cfb.run_cfbd(store, cfbd.week(2025, 1), client=fake.client(store))
+    ingest_cfb.run_cfbd(store, cfbd.week(2025, 2), client=fake.client(store))
+    ingest_cfb.run_parse_cfbd(store)
+    ingest_cfb.measure_joins(store)
+    v, d = store.execute("SELECT value, detail FROM cfb_measurements "
+                         "WHERE key='cfbd_lines.provider_name_splits'").fetchone()
+    assert v == 1 and json.loads(d) == {"fanduel": ["Fan Duel", "FanDuel"]}

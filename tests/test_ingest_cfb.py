@@ -111,12 +111,28 @@ def test_no_derived_shares_or_model_outputs_are_stored():
         assert derived not in stored
 
 
-def test_limitations_are_recorded_with_the_appearance_gap_first_class(store):
-    row = store.execute("SELECT severity, consequence, evidence_keys FROM cfb_limitations "
-                        "WHERE id='cfb.no_appearance_signal'").fetchone()
-    assert row[0] == "structural"
-    assert "no hit rates" in row[1]
-    assert "game_rosters.did_not_play_true_rows" in json.loads(row[2])
+def test_the_scope_limit_is_one_structural_entry_covering_both_gaps(store):
+    """Stats and usage only: no settlement, hit rates or closing-line value. One
+    entry, because the two gaps lead to the same boundary."""
+    rows = store.execute("SELECT id, consequence, evidence_keys FROM cfb_limitations "
+                         "WHERE severity='structural'").fetchall()
+    assert len(rows) == 1
+    lid, consequence, keys = rows[0]
+    assert lid == "cfb.stats_and_usage_only"
+    for phrase in ("no settlement", "no hit rates", "no closing-line value"):
+        assert phrase in consequence
+    keys = json.loads(keys)
+    assert "game_rosters.did_not_play_true_rows" in keys and "cfbd_lines.games" in keys
+
+
+def test_a_retired_limitation_does_not_linger_in_the_store(store):
+    store.execute("INSERT INTO cfb_limitations (id, severity, title, statement, consequence, "
+                  "evidence_keys, recorded_ts) VALUES ('cfb.no_appearance_signal','structural',"
+                  "'t','s','c','[]',0)")
+    from cfb import limitations
+    limitations.record(store)
+    ids = {r[0] for r in store.execute("SELECT id FROM cfb_limitations")}
+    assert "cfb.no_appearance_signal" not in ids and "cfb.lines_untimestamped" not in ids
 
 
 # =============================================================================
@@ -434,3 +450,53 @@ def test_a_second_instance_is_refused(tmp_path):
                 pass
     with lock.InstanceLock(p):          # released on exit
         pass
+
+
+# =============================================================================
+# the weekly run: which week, and what it leaves in temp
+# =============================================================================
+
+def _schedule(store, games):
+    cols = schema.columns("cfb_games")
+    rows = []
+    for gid, season_type, week, start in games:
+        d = dict.fromkeys(cols)
+        d.update(game_id=gid, season=2026, week=week, season_type=season_type, start_ts=start)
+        rows.append(tuple(d[c] for c in cols))
+    versioning.apply(store, "games", 2026, 1, 1.0, "cfb_games", rows)
+
+
+def test_latest_week_is_the_last_one_whose_games_have_all_started_and_settled(store):
+    day = 86400.0
+    now = 100 * day
+    _schedule(store, [(1, "regular", 1, now - 9 * day), (2, "regular", 2, now - 2 * day),
+                      (3, "regular", 2, now - 1.9 * day), (4, "regular", 3, now + 5 * day),
+                      (5, "regular", 3, now - 3 * day)])     # week 3 still has a game to come
+    assert ingest_cfb.latest_completed_week(store, 2026, now=now) == ("regular", 2)
+
+
+def test_latest_week_reaches_the_postseason(store):
+    day = 86400.0
+    now = 200 * day
+    _schedule(store, [(1, "regular", 15, now - 30 * day), (2, "postseason", 1, now - 2 * day)])
+    assert ingest_cfb.latest_completed_week(store, 2026, now=now) == ("postseason", 1)
+
+
+def test_latest_week_is_none_before_any_game(store):
+    _schedule(store, [(1, "regular", 1, 10.0 ** 12)])
+    assert ingest_cfb.latest_completed_week(store, 2026) is None
+
+
+def test_a_run_records_temp_directory_size_at_start_and_end(store, monkeypatch, tmp_path):
+    import tempfile
+    t = tmp_path / "t"
+    t.mkdir()
+    (t / "junk.bin").write_bytes(b"x" * 1234)
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(t))
+    store.close()
+    assert ingest_cfb.main(["--parse", "--season", "2025"]) == 0
+    conn = sqlite3.connect(paths.db_path())
+    row = conn.execute("SELECT temp_dir, temp_bytes_start, temp_bytes_end, exit_code, ended_ts "
+                       "FROM cfb_runs").fetchone()
+    conn.close()
+    assert row[0] == str(t) and row[1] == 1234 and row[2] == 1234 and row[3] == 0 and row[4]

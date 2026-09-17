@@ -62,6 +62,36 @@ def cfbd_games(payload, season):
     return Normalized(t, rows, dropped, m)
 
 
+def provider_fold(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", (name or "").lower())
+
+
+# fold key -> canonical name. Every provider seen 2013-2026 is listed, so a NEW
+# name is visible as unmapped rather than silently becoming its own book.
+PROVIDER_CANONICAL = {
+    "bovada": "Bovada",
+    "caesars": "Caesars",
+    "caesarspennsylvania": "Caesars (Pennsylvania)",
+    "caesarssportsbookcolorado": "Caesars Sportsbook (Colorado)",
+    "consensus": "consensus",
+    "draftkings": "DraftKings",
+    "espnbet": "ESPN Bet",
+    "numberfire": "numberfire",
+    "sugarhouse": "SugarHouse",
+    "teamrankings": "teamrankings",
+    "williamhillnewjersey": "William Hill (New Jersey)",
+}
+
+
+class ProviderSplit(ValueError):
+    """One file spells an UNMAPPED provider two ways. Refused so the name is
+    added to PROVIDER_CANONICAL rather than guessed."""
+
+
+def canonical_provider(raw: str) -> str:
+    return PROVIDER_CANONICAL.get(provider_fold(raw), raw.strip())
+
+
 _FORMATTED = re.compile(r"^(?P<team>.+?)\s+(?P<value>[-+]?\d+(?:\.\d+)?)$")
 
 
@@ -85,11 +115,28 @@ def spread_side(line, home, away):
     return None
 
 
+VALUE_FIELDS = ("spread", "spreadOpen", "overUnder", "overUnderOpen", "homeMoneyline",
+                "awayMoneyline")
+
+
 def cfbd_lines(payload, season):
+    """PROVIDER NAMES ARE NORMALISED, AND ONE BOOK CAN ARRIVE AS TWO FEEDS.
+
+    CFBD writes DraftKings as both "DraftKings" and "Draft Kings" (from late
+    2025). They are not duplicates: on the 176 games carrying both through
+    2026 week 2, "Draft Kings" never has an opening value or a moneyline, and
+    its spread differs on 30 - two snapshots of one book. A provider-level
+    aggregate must see one DraftKings per game, so when both feeds quote a game
+    the row whose raw name IS the canonical name is kept, the other is counted
+    in `dropped` as `superseded_feed_rows`, and every value they disagreed on
+    is measured. `provider_raw` says which feed a kept row came from.
+    """
     t = "cfb_game_lines"
     dropped = {}
     rows, providers, sides = [], {}, {"home": 0, "away": 0, None: 0}
     games = with_lines = postseason = 0
+    unmapped, collisions, disagreements = {}, 0, {}
+    spellings = {}
     for g in payload or []:
         if not isinstance(g, dict) or g.get("id") is None:
             dropped["no_game_id"] = dropped.get("no_game_id", 0) + 1
@@ -98,11 +145,30 @@ def cfbd_lines(payload, season):
         postseason += g.get("seasonType") == "postseason"
         lines = g.get("lines") or []
         with_lines += bool(lines)
+        chosen = {}
         for ln in lines:
-            prov = ln.get("provider")
-            if not prov:
+            raw = ln.get("provider")
+            if not raw:
                 dropped["no_provider"] = dropped.get("no_provider", 0) + 1
                 continue
+            fold = provider_fold(raw)
+            spellings.setdefault(fold, set()).add(raw)
+            if fold not in PROVIDER_CANONICAL:
+                unmapped[raw] = unmapped.get(raw, 0) + 1
+            prov = canonical_provider(raw)
+            if prov in chosen:
+                collisions += 1
+                other = chosen[prov]
+                for f in VALUE_FIELDS:
+                    a, b = _float(other.get(f)), _float(ln.get(f))
+                    if a is not None and b is not None and a != b:
+                        disagreements[f] = disagreements.get(f, 0) + 1
+                if ln.get("provider") == prov and other.get("provider") != prov:
+                    chosen[prov] = ln
+                dropped["superseded_feed_rows"] = dropped.get("superseded_feed_rows", 0) + 1
+                continue
+            chosen[prov] = ln
+        for prov, ln in chosen.items():
             providers[prov] = providers.get(prov, 0) + 1
             sides[spread_side(ln, g.get("homeTeam"), g.get("awayTeam"))] += 1
             rows.append((
@@ -113,7 +179,13 @@ def cfbd_lines(payload, season):
                 prov, _float(ln.get("spread")), _float(ln.get("spreadOpen")),
                 _float(ln.get("overUnder")), _float(ln.get("overUnderOpen")),
                 _float(ln.get("homeMoneyline")), _float(ln.get("awayMoneyline")),
+                ln.get("provider"),
             ))
+    split = {k: sorted(v) for k, v in spellings.items()
+             if len(v) > 1 and k not in PROVIDER_CANONICAL}
+    if split:
+        raise ProviderSplit(f"unmapped provider spelled more than one way: {split} - "
+                            f"add it to cfb.cfbd_normalize.PROVIDER_CANONICAL")
     rows = _drop_duplicates(rows, t, dropped)
     m = [("cfbd_lines.games", games, None),
          ("cfbd_lines.games_with_lines", with_lines, None),
@@ -126,7 +198,11 @@ def cfbd_lines(payload, season):
          # Opening values and moneylines are sparse (79% / 80% absent 2013-2025).
          ("cfbd_lines.rows_with_spread_open", sum(1 for r in rows if r[11] is not None), None),
          ("cfbd_lines.rows_with_total_open", sum(1 for r in rows if r[13] is not None), None),
-         ("cfbd_lines.rows_with_moneyline", sum(1 for r in rows if r[14] is not None), None)]
+         ("cfbd_lines.rows_with_moneyline", sum(1 for r in rows if r[14] is not None), None),
+         ("cfbd_lines.provider_feed_collisions", collisions,
+          json.dumps(dict(sorted(disagreements.items()))) if disagreements else None),
+         ("cfbd_lines.unmapped_providers", len(unmapped),
+          json.dumps(dict(sorted(unmapped.items()))) if unmapped else None)]
     return Normalized(t, rows, dropped, m)
 
 

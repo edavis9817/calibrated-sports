@@ -11,6 +11,7 @@
     python -m jobs.ingest_cfb --cfbd-status                     # /info (unmetered) + ledger
     python -m jobs.ingest_cfb --cfbd-lines 2013-2025            # 13 metered requests
     python -m jobs.ingest_cfb --cfbd-week 2026:3                # 2 metered requests
+    python -m jobs.ingest_cfb --fetch --season 2026 --cfbd-week latest   # the weekly refresh
 
 CFB SHIPS STATS AND USAGE, NOT HIT RATES. No public source says whether a
 college player appeared in a game, so nothing here settles, voids or computes a
@@ -278,6 +279,23 @@ def measure_joins(conn):
         "detail=excluded.detail, src_file=excluded.src_file, measured_ts=excluded.measured_ts",
         [("games.team_ids_without_team_row", s, missing, f"of {total} team ids in games",
           "join:cfb_games x cfb_teams", time.time()) for s, missing, total in rows])
+
+    # A provider spelled two ways ACROSS files is invisible to any one parse.
+    names = [p for (p,) in conn.execute(
+        "SELECT DISTINCT provider FROM cfb_game_lines WHERE valid_to_ts IS NULL")]
+    folds = {}
+    for p in names:
+        folds.setdefault(cfbd_normalize.provider_fold(p), []).append(p)
+    splits = {k: sorted(v) for k, v in folds.items() if len(v) > 1}
+    conn.execute(
+        "INSERT INTO cfb_measurements (key, season, value, detail, src_file, measured_ts) "
+        "VALUES (?,?,?,?,?,?) ON CONFLICT(key, season) DO UPDATE SET value=excluded.value, "
+        "detail=excluded.detail, src_file=excluded.src_file, measured_ts=excluded.measured_ts",
+        ("cfbd_lines.provider_name_splits", 0, len(splits), json.dumps(splits) if splits else None,
+         "store:cfb_game_lines", time.time()))
+    if splits:
+        print(f"  WARNING: provider names split across files: {splits} - "
+              f"add them to PROVIDER_CANONICAL and --rebuild")
     conn.commit()
     return rows
 
@@ -407,7 +425,7 @@ def run_parse_cfbd(conn, seasons=None, rebuild=False):
                                  (time.time(), rel, dataset, season, fts, len(norm.rows), ins,
                                   closed, same, json.dumps(norm.dropped), "ok", part))
                     conn.commit()
-                except (versioning.OutOfOrder, ValueError, OSError) as e:
+                except (versioning.OutOfOrder, ValueError, OSError) as e:   # incl. ProviderSplit
                     conn.rollback()
                     conn.execute("INSERT INTO cfb_parse_log VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                                  (time.time(), rel, dataset, season, fts, None, None, None, None,
@@ -425,6 +443,45 @@ def run_parse_cfbd(conn, seasons=None, rebuild=False):
                 print(f"  parsed {dataset:<11} {season} {part:<14} rows {len(norm.rows):>6,}  "
                       f"+{ins:,} -{closed:,} ={same:,}  dropped {norm.dropped or 0}")
     return totals
+
+
+def latest_completed_week(conn, season, now=None, settle_hours=12):
+    """The most recent (season_type, week) of `season` whose last game started
+    at least `settle_hours` ago, from the schedule already in the store - so
+    resolving it costs no request. None when no week has finished."""
+    now = now or time.time()
+    r = conn.execute(
+        "SELECT season_type, week, MAX(start_ts) AS last FROM cfb_games "
+        "WHERE valid_to_ts IS NULL AND season=? AND week IS NOT NULL AND start_ts IS NOT NULL "
+        "AND season_type IN ('regular', 'postseason') GROUP BY season_type, week "
+        "HAVING last <= ? ORDER BY last DESC LIMIT 1",
+        (season, now - settle_hours * 3600)).fetchone()
+    return (r[0], r[1]) if r else None
+
+
+def temp_usage():
+    """(temp dir, bytes, files) for this process's temp directory. Best effort:
+    a file that vanishes mid-walk is skipped, never raised."""
+    import tempfile
+    root = tempfile.gettempdir()
+    total = files = 0
+    stack = [root]
+    while stack:
+        d = stack.pop()
+        try:
+            with os.scandir(d) as it:
+                for e in it:
+                    try:
+                        if e.is_dir(follow_symlinks=False):
+                            stack.append(e.path)
+                        else:
+                            total += e.stat(follow_symlinks=False).st_size
+                            files += 1
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    return root, total, files
 
 
 def cfbd_status(conn, client=None):
@@ -511,6 +568,47 @@ def status(conn):
         print(f"    {lid:<36} {title}")
 
 
+def _locked_run(conn, a, plan, cfbd_plan):
+    """Facts first, then CFBD. A CFBD refusal must not cost the week its stats,
+    so it is reported in the exit code (3) AFTER the free work is done."""
+    code = 0
+    if a.fetch or a.parse or a.rebuild:
+        print(f"plan: {len(plan)} (dataset, season) pairs")
+        if a.fetch:
+            print(f"fetch: {run_fetch(conn, plan, a.max_files)}")
+        totals = run_parse(conn, plan, rebuild=a.rebuild)
+        print(f"parse: files {totals['files']}  rows {totals['rows']:,}  "
+              f"+{totals['inserted']:,} -{totals['closed']:,} ={totals['unchanged']:,}  "
+              f"refused {totals['refused']}")
+        print(f"dropped: {totals['dropped'] or 0}")
+        if a.parse or a.rebuild:
+            t = run_parse_cfbd(conn, parse_seasons(a.season), rebuild=a.rebuild)
+            print(f"CFBD parse: files {t['files']}  rows {t['rows']:,}  refused {t['refused']}")
+
+    if a.cfbd_week == "latest":
+        wk = latest_completed_week(conn, sources.CURRENT_SEASON)
+        if wk is None:
+            print(f"CFBD: no finished week of {sources.CURRENT_SEASON} in the stored schedule")
+        else:
+            print(f"CFBD latest finished week: {sources.CURRENT_SEASON} {wk[0]} week {wk[1]}")
+            cfbd_plan = cfbd_plan + cfbd.week(sources.CURRENT_SEASON, wk[1], wk[0])
+
+    if cfbd_plan:
+        print(f"CFBD plan: {len(cfbd_plan)} metered requests")
+        try:
+            print(f"CFBD: {run_cfbd(conn, cfbd_plan, max_requests=a.max_requests)}")
+        except cfbd.BudgetRefused as e:
+            print(f"REFUSING CFBD: {e}")
+            code = 3
+        t = run_parse_cfbd(conn, {r.season for r in cfbd_plan})
+        print(f"CFBD parse: files {t['files']}  rows {t['rows']:,}  +{t['inserted']:,} "
+              f"-{t['closed']:,}  refused {t['refused']}  dropped {t['dropped'] or 0}")
+        if t["refused"]:
+            code = code or 4
+    measure_joins(conn)
+    return code
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--fetch", action="store_true", help="download changed assets, then parse")
@@ -524,8 +622,9 @@ def main(argv=None):
     ap.add_argument("--cfbd-status", action="store_true", help="ledger + /info, 0 metered requests")
     ap.add_argument("--cfbd-lines", metavar="SEASONS",
                     help="season-level lines, regular+postseason: one metered request per season")
-    ap.add_argument("--cfbd-week", metavar="YEAR:WEEK",
-                    help="one week's results and lines: two metered requests")
+    ap.add_argument("--cfbd-week", metavar="YEAR:WEEK|latest",
+                    help="one week's results and lines: two metered requests. 'latest' resolves "
+                         "the most recent finished week of CURRENT_SEASON from the stored schedule")
     ap.add_argument("--season-type", default="regular", choices=["regular", "postseason"])
     ap.add_argument("--max-requests", type=int, default=cfbd.MAX_REQUESTS_PER_RUN,
                     help=f"lower the per-run cap (never above {cfbd.MAX_REQUESTS_PER_RUN})")
@@ -537,14 +636,14 @@ def main(argv=None):
     cfbd_plan = []
     if a.cfbd_lines:
         cfbd_plan += cfbd.lines_backfill(parse_seasons(a.cfbd_lines))
-    if a.cfbd_week:
+    if a.cfbd_week and a.cfbd_week != "latest":
         y, w = (int(x) for x in a.cfbd_week.split(":"))
         cfbd_plan += cfbd.week(y, w, a.season_type)
 
     if a.cfbd_status:
         cfbd_status(connect())
         return 0
-    if not (a.fetch or a.parse or a.rebuild or a.audit or cfbd_plan):
+    if not (a.fetch or a.parse or a.rebuild or a.audit or cfbd_plan or a.cfbd_week):
         conn = connect()
         status(conn)
         return 0
@@ -554,32 +653,25 @@ def main(argv=None):
             conn = connect()
             if a.audit:
                 return 0 if audit(conn) else 1
-            if cfbd_plan:
-                print(f"CFBD plan: {len(cfbd_plan)} metered requests")
-                try:
-                    print(f"CFBD: {run_cfbd(conn, cfbd_plan, max_requests=a.max_requests)}")
-                except cfbd.BudgetRefused as e:
-                    print(f"REFUSING CFBD: {e}")
-                    return 3
-                t = run_parse_cfbd(conn, {r.season for r in cfbd_plan})
-                print(f"CFBD parse: files {t['files']}  rows {t['rows']:,}  +{t['inserted']:,} "
-                      f"-{t['closed']:,}  refused {t['refused']}  dropped {t['dropped'] or 0}")
-                if not (a.fetch or a.parse or a.rebuild):
-                    return 0
-            print(f"plan: {len(plan)} (dataset, season) pairs")
-            if a.fetch:
-                counts = run_fetch(conn, plan, a.max_files)
-                print(f"fetch: {counts}")
-            totals = run_parse(conn, plan, rebuild=a.rebuild)
-            if a.parse or a.rebuild:
-                t = run_parse_cfbd(conn, parse_seasons(a.season), rebuild=a.rebuild)
-                print(f"CFBD parse: files {t['files']}  rows {t['rows']:,}  refused {t['refused']}")
-            measure_joins(conn)
-            print(f"parse: files {totals['files']}  rows {totals['rows']:,}  "
-                  f"+{totals['inserted']:,} -{totals['closed']:,} ={totals['unchanged']:,}  "
-                  f"refused {totals['refused']}")
-            print(f"dropped: {totals['dropped'] or 0}")
-            return 0
+            run_id = f"{time.strftime('%Y%m%dT%H%M%S')}-{os.getpid()}"
+            tdir, tbytes, tfiles = temp_usage()
+            conn.execute("INSERT INTO cfb_runs (run_id, argv, started_ts, temp_dir, "
+                         "temp_bytes_start, temp_files_start) VALUES (?,?,?,?,?,?)",
+                         (run_id, json.dumps(sys.argv[1:] if argv is None else argv), time.time(),
+                          tdir, tbytes, tfiles))
+            conn.commit()
+            print(f"temp at start: {tdir}  {tbytes / 1e9:.3f} GB in {tfiles:,} files")
+            code = 0
+            try:
+                code = _locked_run(conn, a, plan, cfbd_plan)
+                return code
+            finally:
+                tdir, tbytes, tfiles = temp_usage()
+                conn.execute("UPDATE cfb_runs SET ended_ts=?, exit_code=?, temp_bytes_end=?, "
+                             "temp_files_end=? WHERE run_id=?",
+                             (time.time(), code, tbytes, tfiles, run_id))
+                conn.commit()
+                print(f"temp at end:   {tdir}  {tbytes / 1e9:.3f} GB in {tfiles:,} files")
     except AlreadyRunning as e:
         print(f"REFUSING: {e}")
         return 2
