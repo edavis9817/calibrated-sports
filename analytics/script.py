@@ -144,7 +144,7 @@ def compute(con, kind, season_from, season_to, min_games=MIN_GAMES):
             {"": elasticity,
              TRAILING: lambda v: part(v, 0, 1),
              LEADING: lambda v: part(v, 2, 3)},
-            rows_by_block={g: 1 for g in vecs})
+            rows_by_block={g: 1 for g in vecs}, subject=player)
         for slice_key, est in got.items():
             if est.est is not None:
                 out.append((player, slice_key, est))

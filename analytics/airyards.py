@@ -160,7 +160,7 @@ def compute(con, role, season_from, season_to, min_games=MIN_GAMES, draws=2000):
     for player, by_game in _hist_by_player(con, role, season_from, season_to).items():
         if len(by_game) < min_games:
             continue
-        got = histogram_bootstrap(by_game, stats, draws=draws)
+        got = histogram_bootstrap(by_game, stats, draws=draws, subject=player)
         for key, est in got.items():
             if est.est is None:
                 continue

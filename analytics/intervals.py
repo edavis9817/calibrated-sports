@@ -153,24 +153,53 @@ def _isnan(v) -> bool:
 # the same block bootstrap, over histograms
 # ---------------------------------------------------------------------------
 
-_COUNTS_CACHE = {}
+def _counts_matrix(n, draws, seed, subject):
+    """draws x n multinomial counts. NOT CACHED ACROSS SUBJECTS - see below.
 
+    An earlier version memoised this on (n, draws, seed), so every subject with
+    the same number of blocks was resampled with the SAME draws: common random
+    numbers. THE COMMENT JUSTIFYING IT WAS WRONG TWICE.
 
-def _counts_matrix(n, draws, seed):
-    """draws x n multinomial counts, memoised on (n, draws, seed)."""
+    On the product: it said nothing published is a contrast between two
+    subjects. The site's idiom is two players' intervals side by side, and a
+    reader comparing them is performing an informal contrast.
+
+    On the cost: it said generating fresh draws per subject was ~99% of the
+    runtime. Measured, it is 0.0008-0.0077s per subject by block count - 22 to
+    208 seconds across all 27,000 player-slices. The saving was about two
+    minutes.
+
+    And the statistics go the wrong way. `analytics/crn_check.py` measures the
+    variance of the gap a reader eyeballs, against the per-game correlation
+    between the two subjects, relative to independent draws:
+
+        rho     -0.9   -0.6   -0.3    0.0   +0.3   +0.6   +0.9
+        cached  1.571  1.226  1.078  1.026  0.981  0.952  0.980
+
+    Above 1 is ANTI-conservative: more noise in the comparison than the
+    intervals advertise, so two of them separate when they should not. Two
+    receivers on one team share a denominator and measure rho = -0.215 on the
+    2024 slate, which is the anti-conservative half - and teammates side by
+    side is precisely the comparison this site invites. At rho = -0.9 the gap
+    carries 57% more variance than it appears to.
+
+    A per-subject column permutation was measured too and is flat across the
+    whole range (0.985-1.020), so it would have worked. It is not used: two
+    minutes does not buy an extra mechanism to reason about.
+    """
     import numpy as np
-    key = (n, draws, seed)
-    got = _COUNTS_CACHE.get(key)
-    if got is None:
-        rng = np.random.default_rng(seed + n)
-        got = _COUNTS_CACHE[key] = rng.multinomial(
-            n, np.full(n, 1.0 / n), size=draws).astype(float)
-    return got
+    import zlib
+    # zlib.crc32, NOT the builtin hash(): str hashing is salted per process, so
+    # a seed built from it would give a different interval on every run and the
+    # figures would not reproduce. Deterministic, and it is only a seed.
+    key = zlib.crc32(str(subject).encode("utf-8"))
+    rng = np.random.default_rng([seed, n, key])
+    return rng.multinomial(n, np.full(n, 1.0 / n), size=draws).astype(float)
 
 
 def histogram_bootstrap(hist_by_block, statistics, draws: int = 2000,
                         conf: float = 0.95, seed: int = 20260917,
-                        rows_by_block=None) -> dict:
+                        rows_by_block=None, subject: str = "") -> dict:
     """Block bootstrap where each block is an integer HISTOGRAM, not a list.
 
     WHY THIS EXISTS. The air-yard metrics need twelve statistics per player -
@@ -226,16 +255,11 @@ def histogram_bootstrap(hist_by_block, statistics, draws: int = 2000,
     # multinomial per replicate is exactly sampling n blocks with replacement,
     # and it turns the whole bootstrap into a single matrix product.
     #
-    # THE MATRIX IS CACHED BY BLOCK COUNT, which means every subject with the
-    # same number of blocks is resampled with the SAME draws. That is common
-    # random numbers, and it is a deliberate choice: each subject's interval is
-    # still a valid bootstrap of its own blocks, and what it costs is that the
-    # Monte Carlo error is correlated BETWEEN subjects. Nothing here publishes a
-    # contrast between two subjects, so nothing consumes that correlation - and
-    # generating it fresh per subject is ~99% of the runtime across 27,000
-    # player-slices. If a contrast between subjects is ever published, it must
-    # not be built from two of these.
-    counts = _counts_matrix(n, draws, seed)
+    # `subject` makes the draws INDEPENDENT BETWEEN SUBJECTS. Callers pass
+    # something stable and distinct - a player id - so a rerun reproduces, and
+    # two subjects a reader will put side by side never share a resample. See
+    # `_counts_matrix` for the measurement that settled it.
+    counts = _counts_matrix(n, draws, seed, subject)
     replicates = counts @ mat
     out = {}
     for name, fn in statistics.items():
@@ -254,7 +278,7 @@ def histogram_bootstrap(hist_by_block, statistics, draws: int = 2000,
 
 
 def share_bootstrap(blocks, draws: int = 2000, conf: float = 0.95,
-                    seed: int = 20260917, extra=None) -> dict:
+                    seed: int = 20260917, extra=None, subject: str = "") -> dict:
     """A ratio of sums, block-bootstrapped. `blocks` is {key: (num, denom)}.
 
     Every share in this package has this shape - a player's targets over his
@@ -274,4 +298,5 @@ def share_bootstrap(blocks, draws: int = 2000, conf: float = 0.95,
     stats = {"share": lambda v: (v[0] / v[1]) if v[1] else None}
     stats.update(extra or {})
     return histogram_bootstrap(vecs, stats, draws=draws, conf=conf, seed=seed,
-                               rows_by_block={k: 1 for k in vecs})
+                               rows_by_block={k: 1 for k in vecs},
+                               subject=subject)

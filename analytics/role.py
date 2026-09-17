@@ -228,7 +228,7 @@ def compute(con, kind, season_from, season_to, min_games=MIN_GAMES):
     for (player, bucket), by_game in blocks.items():
         if bucket not in BUCKETS or len(by_game) < min_games:
             continue
-        e = share_bootstrap(by_game)["share"]
+        e = share_bootstrap(by_game, subject="%s|%s" % (player, bucket))["share"]
         if e.est is not None:
             out.append((player, bucket, e))
     return out

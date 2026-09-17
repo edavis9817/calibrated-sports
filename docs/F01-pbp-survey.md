@@ -400,6 +400,42 @@ subject counts or credit cost, which are track A's.
 
 ---
 
+## 3b. Next Gen Stats — measured, not inherited
+
+A note routed to this track attributed `was_pressure` and the offseason-tier
+limits to NGS and concluded it should be treated as historical-only. **Those
+limits belong to `pbp_participation`, which is a different release.** Measured
+from the archive rather than reasoned from the participation result:
+
+| | `pbp_participation` | **Next Gen Stats** |
+|---|---|---|
+| release | `pbp_participation` | `nextgen_stats` |
+| tier in `nflverse.py` | OFFSEASON | **LIVE** |
+| seasons on disk | 2016–2025 | **2016–2026** |
+| current season | **absent** | **present — 2026 week 1, pulled 2026-09-17** |
+
+So **NGS can serve a current-season page and participation cannot.** The
+earlier conclusion does not carry across.
+
+Three things about NGS that do matter, all measured:
+
+- **It is a qualifying-threshold leaderboard, not a full feed.** NGS receiving
+  carries 120–132 players a season against ~500 with at least one target in the
+  play-by-play — **23.6% to 29.2% coverage**. It can differentiate the players
+  it covers and it cannot be a spine for anything that needs a roster.
+- **Week 0 is the season total, and it sums to the weeks.** Ja'Marr Chase 2025:
+  the week-0 row reads 185 targets and weeks 1+ sum to exactly 185. A naive
+  aggregation over all weeks double-counts every season by precisely 2×, which
+  is the same silent-doubling shape as §2.12.
+- **`player_gsis_id` is on all three files**, so it joins to the spine with no
+  crosswalk.
+
+Not yet measured: whether the NGS columns add anything over the play-by-play.
+That is the next track F pass, and it is now a question about value rather than
+about availability.
+
+---
+
 ## 4. What this means for the five analytics
 
 | # | analytic | usable range | binding constraint |

@@ -61,6 +61,11 @@ REQUIRES["reception_share"] = REQUIRES["receptions"]
 REQUIRES["carry_share"] = REQUIRES["carries"]
 
 FAMILIES = {
+    "naive_lag1": ("Naive week-to-week correlation, NOT demeaned",
+                   "pooled lag-1 correlation of raw weekly values across all "
+                   "players; high because good players are high every week, "
+                   "which is why it is published beside the demeaned figure "
+                   "rather than instead of it"),
     "within_lag1": ("Week-to-week persistence of usage deviations",
                     "lag-1 autocorrelation of a player's weekly deviation from "
                     "his own season mean; 0 means this week's surprise says "
@@ -125,7 +130,7 @@ def _sufficient(by_player, min_weeks=MIN_WEEKS):
         by_season = {}
         for (season, week), value in weeks.items():
             by_season.setdefault(season, {})[week] = value
-        v = np.zeros(10)
+        v = np.zeros(16)
         n_obs = 0
         for season, wk in by_season.items():
             if len(wk) < min_weeks:
@@ -147,6 +152,17 @@ def _sufficient(by_player, min_weeks=MIN_WEEKS):
                 v[3] += x * y
                 v[4] += x * x
                 v[5] += y * y
+                # the SAME pairs, undemeaned. Published beside the demeaned
+                # figure because the gap between them is the finding: the
+                # naive number is what "his target share is trending" rests
+                # on, and it is almost entirely a between-player fact.
+                p, q = wk[a], wk[b]
+                v[10] += 1
+                v[11] += p
+                v[12] += q
+                v[13] += p * q
+                v[14] += p * p
+                v[15] += q * q
             n = len(values)
             v[6] += n
             v[7] += sum(values)
@@ -159,8 +175,8 @@ def _sufficient(by_player, min_weeks=MIN_WEEKS):
     return vec, rows
 
 
-def _pearson(v):
-    n, sx, sy, sxy, sxx, syy = v[0], v[1], v[2], v[3], v[4], v[5]
+def _pearson_at(v, k):
+    n, sx, sy, sxy, sxx, syy = v[k], v[k+1], v[k+2], v[k+3], v[k+4], v[k+5]
     if n < 2:
         return None
     cov = sxy - sx * sy / n
@@ -169,6 +185,14 @@ def _pearson(v):
     if vx <= 0 or vy <= 0:
         return None
     return cov / (vx * vy) ** 0.5
+
+
+def _pearson(v):
+    return _pearson_at(v, 0)
+
+
+def _naive(v):
+    return _pearson_at(v, 10)
 
 
 def _between(v):
@@ -191,8 +215,9 @@ def compute(con, kind, season_from, season_to, draws=2000):
         raise SystemExit("only %d players qualify for %s - refusing to publish "
                          "a league figure on that" % (len(vec), kind))
     return histogram_bootstrap(vec, {"within_lag1": _pearson,
+                                     "naive_lag1": _naive,
                                      "between": _between},
-                               draws=draws, rows_by_block=rows)
+                               draws=draws, rows_by_block=rows, subject=kind)
 
 
 def publish(con, kinds=None, verbose=True):

@@ -168,3 +168,47 @@ def test_the_sample_count_is_blocks_not_rows():
 def test_a_mean_over_units_reports_its_unit_count():
     e = student_t([3.0, 4.0, 5.0, 6.0])
     assert e.n == 4 and e.lo < e.est < e.hi
+
+
+# =============================================================================
+# the draws must be independent between subjects (Ethan, 2026-09-17)
+# =============================================================================
+
+def test_two_subjects_do_not_share_bootstrap_draws():
+    """CRN is anti-conservative for negatively correlated subjects, and two
+    receivers on one team share a denominator. `analytics/crn_check.py` has the
+    measurement; this is the guard that the fix stays in.
+
+    Two subjects with IDENTICAL data must still get different draws - under the
+    old cache they got byte-identical intervals, which is the visible symptom
+    of the coupling."""
+    from analytics.intervals import share_bootstrap
+    blocks = {g: (3, 10 + g) for g in range(14)}
+    a = share_bootstrap(blocks, subject="00-0000001")["share"]
+    b = share_bootstrap(blocks, subject="00-0000002")["share"]
+    assert a.est == b.est, "the point estimate is not a random quantity"
+    assert (a.lo, a.hi) != (b.lo, b.hi), (
+        "two subjects share a resampling matrix; see analytics/crn_check.py")
+
+
+def test_one_subject_reproduces_exactly_across_runs():
+    """Independent between subjects must not mean irreproducible. The seed is
+    a stable hash of the subject - NOT the builtin `hash()`, which is salted
+    per process and would move every published figure on every run."""
+    from analytics.intervals import share_bootstrap
+    blocks = {g: (3, 10 + g) for g in range(14)}
+    a = share_bootstrap(blocks, subject="00-0036355")["share"]
+    b = share_bootstrap(blocks, subject="00-0036355")["share"]
+    assert (a.lo, a.hi) == (b.lo, b.hi)
+
+
+def test_the_resampling_matrix_is_not_memoised_across_subjects():
+    """A seam guard of the same shape as the `run_scan` one: assert on the
+    source, because the behaviour above could be satisfied by a cache keyed on
+    the subject while leaving the old cache in place for another caller."""
+    import inspect
+
+    from analytics import intervals
+    src = inspect.getsource(intervals)
+    assert "_COUNTS_CACHE" not in src
+    assert "subject" in inspect.signature(intervals._counts_matrix).parameters
