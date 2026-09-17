@@ -131,11 +131,25 @@ def latest_asset(asset: str, source: str = NFLVERSE_SOURCE):
 
 def pbp_files() -> list:
     """[(season, path, pull_date)] for every season in the mirror, ascending."""
+    return seasonal_files(PBP)
+
+def seasonal_files(pattern: str) -> list:
+    """[(season, path, pull_date)] for any `..._{season}.parquet` asset.
+
+    `pbp_files()` is this with the play-by-play pattern. Generalised because
+    the survey has to cover `stats_player_week` too: THE DEFECT THE SURVEY
+    EXISTS TO PREVENT DOES NOT LIVE IN THE PLAY-BY-PLAY. 2003-2008 `targets`
+    is a `stats_player_week` column, and a sweep that reads only the PBP walks
+    straight past its own worked example.
+    """
+    import re as _re
+    rx = _re.compile("^" + _re.escape(pattern).replace(r"\{season\}", r"(\d{4})") + "$")
     seen = {}
     for day in pull_days():
         d = os.path.join(archive_root(), day)
         for name in os.listdir(d):
-            m = re.match(r"^play_by_play_(\d{4})\.parquet$", name)
+            m = rx.match(name)
             if m:
                 seen[int(m.group(1))] = (os.path.join(d, name), day)
     return [(s, *seen[s]) for s in sorted(seen)]
+

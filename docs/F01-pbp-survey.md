@@ -4,10 +4,27 @@ TRACK F · cs-analytics · `C:\Users\Ethan Davis\code\cs-analytics`
 
 Reproduce everything below with:
 
-    python -m analytics.survey --scan       # 28 seasons, ~6s
+    python -m analytics.survey --scan            # 4 datasets, 81 files, ~10s
     python -m analytics.survey --report
     python -m analytics.survey --report --steps
+    python -m analytics.survey --silent-zeros
     python -m analytics.survey --column air_yards
+    python -m analytics.survey --dataset weekly_stats --column targets
+
+The survey covers **four** seasonal nflverse feeds, not one — 81 files,
+2,564,753 rows:
+
+| dataset | asset | seasons |
+|---|---|---|
+| `pbp` | `play_by_play_{season}.parquet` | 1999–2026 (28) |
+| `weekly_stats` | `stats_player_week_{season}.parquet` | 1999–2026 (28) |
+| `snap_counts` | `snap_counts_{season}.parquet` | 2012–2026 (15; 2012 is empty) |
+| `participation` | `pbp_participation_{season}.parquet` | 2016–2025 (10) |
+
+The play-by-play is the subject, but **the defect this survey exists to prevent
+is not a play-by-play column** — 2003–08 `targets` lives in `stats_player_week`,
+and a sweep reading only the PBP walks past its own worked example. The filename
+patterns are read from `nflverse.DATASETS`, not repeated.
 
 Measured 2026-09-17 against the mirror on disk. Nothing here is estimated.
 
@@ -185,6 +202,54 @@ Bonferroni, a wind feature built on the 2020s is running on two-thirds of the
 slate at best. **This is also why the live weather feed is Open-Meteo and not
 nflverse** — independent of the "filled after the game" point, the nflverse
 column is not even complete after the game.
+
+### 2.9 The silent-zero class — non-null, and zero, for a run of seasons
+
+`python -m analytics.survey --silent-zeros`. This is the `qb_hit` shape, swept
+for deliberately: a column that is **present, populated and exactly zero** for
+consecutive seasons. No null check can see it. A mean returns a number and the
+number is wrong. It has already shipped once on this site.
+
+**13 columns across the four datasets.** `snap_counts` and `participation` are
+clean — zero each, which is a result rather than a gap.
+
+| dataset | column | zero seasons | rows in the run | non-null in the run |
+|---|---|---|---|---|
+| weekly | **`def_tackles_for_loss`** | **2003–2011** (9) | 1 | 1.000 |
+| weekly | **`def_tackles_for_loss_yards`** | **2003–2011** (9) | 1 | 1.000 |
+| weekly | **`targets`** | 2003–2008 (6) | 54 | 1.000 |
+| weekly | `receiving_air_yards` | 2003–2008 | 44 | 1.000 |
+| weekly | `racr` | 2003–2008 | 39 | 0.211 |
+| weekly | `receiving_yards_after_catch` | **2000–2005** | 0 | 1.000 |
+| pbp | `no_huddle` | 1999–2002 | 24 | 1.000 |
+| weekly | `air_yards_share` | 2006–2008 | 41 | 1.000 |
+| weekly | `def_qb_hits` | 2003–2005 | 2 | 1.000 |
+| weekly | `passing_air_yards` | 2003–2005 | 3 | 1.000 |
+| weekly | `pacr` | 2003–2005 | 2 | 0.037 |
+| pbp | `qb_hit` | 2003–2005 | 1 | 0.969 |
+| pbp | `special_teams_play` | 2003–2004 | 3 | 1.000 |
+
+**`def_tackles_for_loss` is the longest run in the archive and was unknown.**
+1,796 player-weeks in 2002, **0 in every season 2003–2011**, 1,843 in 2012, and
+`nonnull` is 1.000 throughout. A career-TFL figure over that span silently
+zeroes nine seasons.
+
+Two things this sweep taught about how to write it:
+
+- **"Effectively zero", not "exactly zero".** Required to be exactly 0, the
+  first version returned two columns and **missed `targets`** — league counts
+  for 2003–2008 are 3, 5, 0, 67, 14, 17, so five of the six seasons are not
+  exactly zero. It now flags at or below 2% of the column's own reference and
+  **prints the row count**, so a reader sees "54 rows in six seasons" rather
+  than taking the word "zero" on trust.
+- **A NULL run is excluded on purpose.** `air_yards` 1999–2005 is null, belongs
+  to §2.2, and is loud. Including it here would bury the three columns that
+  actually need this sweep under thirty-six that do not.
+
+One fragment worth naming so nobody builds on it: `passing_air_yards` is not
+zero in 1999–2002 — it carries ~350 of ~17,000 player-weeks, about 2%, and PBP
+`pass_length` shows the same 1% fragment in 1999. A partially charted 2% season
+is not a season. Air yards begin 2006.
 
 ### 2.6 Sparse — populated in fewer than five seasons
 

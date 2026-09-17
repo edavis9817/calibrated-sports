@@ -29,9 +29,10 @@ def _db(columns, tmp_path):
             inf = int(rows * share)
             # informative implies non-null; a "zero" cliff is non-null and 0.
             nn = rows if by_season.get("nonnull_when_empty") else inf
-            con.execute("INSERT INTO f_pbp_columns VALUES (?,?,?,?,?,?,?,?,?)",
-                        (season, col, "Float64", rows, max(nn, inf), inf,
-                         2, "2026-09-09", 0))
+            con.execute(
+                "INSERT INTO f_pbp_columns VALUES (?,?,?,?,?,?,?,?,?,?)",
+                ("pbp", season, col, "Float64", rows, max(nn, inf), inf,
+                 2, "2026-09-09", 0))
     con.commit()
     return con
 
@@ -142,8 +143,8 @@ def test_the_real_archive_reproduces_the_three_known_cliffs():
 def test_the_report_is_not_empty_and_names_its_denominator():
     con = paths.connect(read_only=True)
     found = survey.anomalies(con)
-    total = con.execute(
-        "SELECT COUNT(DISTINCT column_name) FROM f_pbp_columns").fetchone()[0]
+    total = con.execute("SELECT COUNT(DISTINCT column_name) FROM "
+                        "f_pbp_columns WHERE dataset='pbp'").fetchone()[0]
     assert total > 300
     assert 0 < len(found) < total, "everything or nothing flagged is a bug"
 
@@ -156,12 +157,12 @@ def test_every_headline_figure_in_the_report_is_reproducible():
     con = paths.connect(read_only=True)
     n_seasons, plays, games, cols = con.execute(
         "SELECT COUNT(*), SUM(rows), SUM(games), MAX(columns_n) "
-        "FROM f_pbp_files").fetchone()
+        "FROM f_pbp_files WHERE dataset='pbp'").fetchone()
     assert (n_seasons, plays, games, cols) == (28, 1282384, 7289, 372)
-    assert con.execute("SELECT MIN(season), MAX(season) "
-                       "FROM f_pbp_files").fetchone() == (1999, 2026)
+    assert con.execute("SELECT MIN(season), MAX(season) FROM f_pbp_files "
+                       "WHERE dataset='pbp'").fetchone() == (1999, 2026)
     assert con.execute("SELECT rows, games FROM f_pbp_files "
-                       "WHERE season=2026").fetchone() == (2756, 16)
+                       "WHERE dataset='pbp' AND season=2026").fetchone() == (2756, 16)
 
 
 @needs_scan
@@ -179,10 +180,71 @@ def test_the_anomaly_counts_in_the_report_are_reproducible():
 def test_the_dead_and_dtype_changing_columns_are_still_the_named_ones():
     con = paths.connect(read_only=True)
     dead = [r[0] for r in con.execute(
-        "SELECT column_name FROM f_pbp_columns GROUP BY column_name "
-        "HAVING MAX(nonnull) = 0 ORDER BY column_name")]
+        "SELECT column_name FROM f_pbp_columns WHERE dataset='pbp' "
+        "GROUP BY column_name HAVING MAX(nonnull) = 0 ORDER BY column_name")]
     assert dead == ["lateral_sack_player_id", "lateral_sack_player_name"]
     moving = [r[0] for r in con.execute(
-        "SELECT column_name FROM f_pbp_columns GROUP BY column_name "
-        "HAVING COUNT(DISTINCT dtype) > 1 ORDER BY column_name")]
+        "SELECT column_name FROM f_pbp_columns WHERE dataset='pbp' "
+        "GROUP BY column_name HAVING COUNT(DISTINCT dtype) > 1 "
+        "ORDER BY column_name")]
     assert moving == ["goal_to_go", "xyac_median_yardage"]
+
+
+# =============================================================================
+# the silent-zero class: non-null, and zero, for a run of seasons
+# =============================================================================
+
+def test_the_sweep_catches_a_run_of_exact_zeros(tmp_path):
+    con = _db({"qb_hit": {**{s: 0.06 for s in SEASONS},
+                          2003: 0.0, 2004: 0.0, 2005: 0.0,
+                          "nonnull_when_empty": True}}, tmp_path)
+    found = {r[0]: r for r in survey.silent_zeros(con)}
+    assert found["qb_hit"][2] == [(2003, 2005)]
+
+
+def test_the_sweep_catches_A_RUN_THAT_IS_NOT_EXACTLY_ZERO(tmp_path):
+    """THE ONE THE FIRST VERSION MISSED, AND IT IS THE WORKED EXAMPLE.
+
+    League `targets` for 2003-2008 is 3, 5, 0, 67, 14, 17 - five of the six
+    seasons are not exactly zero. A sweep requiring == 0 returns two unrelated
+    columns and walks past the defect it is named after."""
+    counts = {2003: 3, 2004: 5, 2005: 0, 2006: 67, 2007: 14, 2008: 17}
+    rows = 45000
+    con = _db({"targets": {**{s: 0.25 for s in SEASONS},
+                           **{s: c / rows for s, c in counts.items()},
+                           "nonnull_when_empty": True}}, tmp_path)
+    found = {r[0]: r for r in survey.silent_zeros(con)}
+    assert "targets" in found, "the sweep missed its own worked example"
+    assert found["targets"][2] == [(2003, 2008)]
+    assert found["targets"][5] == sum(counts.values())   # rows, quoted not trusted
+
+
+def test_a_column_that_is_NULL_in_the_run_is_not_a_silent_zero(tmp_path):
+    """A null cliff is loud and belongs to `anomalies`. Reporting it here too
+    would bury the three columns that actually need this sweep."""
+    con = _db({"air_yards": {s: (0.0 if s < 2006 else 0.37) for s in SEASONS}},
+              tmp_path)
+    assert "air_yards" not in {r[0] for r in survey.silent_zeros(con)}
+
+
+def test_a_single_zero_season_is_not_a_run(tmp_path):
+    con = _db({"x": {**{s: 0.1 for s in SEASONS}, 2010: 0.0,
+                     "nonnull_when_empty": True}}, tmp_path)
+    assert "x" not in {r[0] for r in survey.silent_zeros(con)}
+
+
+@needs_scan
+def test_the_real_silent_zero_class_is_the_thirteen_named_in_the_report():
+    """Section 2.9. Nine seasons of `def_tackles_for_loss` is the longest run
+    in the archive; `targets` is the one that shipped."""
+    con = paths.connect(read_only=True)
+    pbp = {r[0]: r[2] for r in survey.silent_zeros(con, dataset="pbp")}
+    wk = {r[0]: r[2] for r in survey.silent_zeros(con, dataset="weekly_stats")}
+    assert set(pbp) == {"no_huddle", "qb_hit", "special_teams_play"}
+    assert pbp["qb_hit"] == [(2003, 2005)]
+    assert wk["targets"] == [(2003, 2008)]
+    assert wk["def_tackles_for_loss"] == [(2003, 2011)]
+    assert len(wk) == 10
+    # snap_counts and participation are clean, and that is a result, not a skip
+    assert survey.silent_zeros(con, dataset="snap_counts") == []
+    assert survey.silent_zeros(con, dataset="participation") == []
