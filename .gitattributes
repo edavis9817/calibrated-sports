@@ -1,19 +1,17 @@
 # Line endings are a property of the COMMIT, not of the machine that made it.
 #
-# Without this file normalisation depends on each contributor's `core.autocrlf`.
-# This machine has it on, so the index happens to be LF - but a clone with
-# `autocrlf=false` commits CRLF, and part of this repo is PUBLIC. The web repo's
-# `contract-in-sync` job curls `web/contract/v2/contract.schema.json` from
-# GitHub and diffs it against its vendored copy BYTE FOR BYTE, so a CRLF commit
-# breaks another track's build without touching a line of content.
-#
-# Brief 018 paid for this lesson once already: `models/baseline._fingerprint()`
-# hashed raw bytes, so the same commit hashed differently under different
-# autocrlf settings and verifying a historical version needed a search over 2^n
-# line-ending conventions. The fix there was to remove the degree of freedom.
-# This removes it at the source instead.
+# Without this, normalisation depends on each contributor's `core.autocrlf`, and
+# three tracks write this repo. Brief 018 paid for the same class once:
+# `_fingerprint()` hashed raw bytes, so one commit hashed differently under
+# different autocrlf settings and verifying a historical version needed a search
+# over 2^n conventions. The fix there was to remove the degree of freedom.
 * text=auto
 
-# Fetched over HTTP and compared byte for byte. Pinned in the working tree too,
-# not just in the index, so what a contributor edits is what the gate diffs.
-*.json text eol=lf
+# ONE file, not `*.json`. The web repo's `contract-in-sync` job (ci.yml:62)
+# byte-diffs exactly this path against the canonical public copy; nothing else is
+# compared byte for byte. Pinning every JSON would rewrite `hypotheses.json`,
+# `candidates.json` and `web/slugs/nfl.json` in the working tree of a repo three
+# tracks share - the cross-track rewrite this file exists to prevent. The
+# vendored copy carries the same attribute on its side, so the guarantee holds
+# from both ends.
+web/contract/v2/contract.schema.json text eol=lf

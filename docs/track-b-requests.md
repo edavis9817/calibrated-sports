@@ -152,6 +152,55 @@ measuring export ran to a scratch destination with a scratch slug registry and n
 
 ---
 
+## 6. The model-versus-X verdict should cross the contract as an ENUM, not as a number to re-threshold
+
+**Status:** filed 2026-09-17 by Track A as a contract proposal. Not built; wants Track B's agreement on
+the wording map before the schema moves.
+
+**The problem is item 3, generalised.** Item 3 is a copy fix: "no better than" had to become "identical
+to naive" because a published figure moved. But the reason it *needed* fixing is structural — Track B's
+`compareByLoss` receives two Brier numbers and decides, in TypeScript, whether the difference is worth
+calling a difference. Track A's `hypotheses.json` generator now has to make that same call to write its
+own prose. **That is the same boundary decided twice, in two languages, which is exactly the shape that
+let the settlement rule disagree with itself on 3,272 outcomes.**
+
+The tell is that item 3 is a *cross-track ticket at all*. A figure changed on Track A and a sentence
+became false on Track B, with nothing connecting them but a human noticing.
+
+**The proposal: one boundary decision, in Python, exported as data. One wording decision, in
+TypeScript.** The producer emits the verdict alongside the numbers:
+
+```json
+"comparison": "worse" | "no_better" | "better"
+```
+
+- `worse` / `better` — the bootstrap interval on the difference **excludes zero**.
+- `no_better` — it contains zero. Covers "identical to four decimals" and "different but not
+  distinguishably so", because to a reader those are one claim.
+
+Track A owns the boundary because Track A owns the bootstrap, the game-block resampling and the MDE.
+Nothing about "does this interval exclude zero" is renderable knowledge, and re-deriving it from two
+rounded means on the client cannot reproduce it — 0.1916 vs 0.1916 is not distinguishable from
+0.1916 vs 0.1924 at four decimals, but the intervals differ.
+
+Track B owns the sentence. `compareByLoss` keeps its job and loses its arithmetic: it maps the enum to
+copy and picks register, tense and emphasis. A new wording ships without Track A; a new *threshold*
+cannot ship without Track A, which is the point.
+
+**Shared vectors pin the enum boundary only, never the wording.** A fixture of
+`(est, lo, hi) → comparison` runs in both suites. It fixes where the boundary is and says nothing about
+what either side says about it, so Track B can rewrite every string without touching a test.
+
+**Contract mechanics.** `comparison` is additive under `additionalProperties: false`, so it fails the
+export until the schema moves in the same commit — the usual serial dance: Track A changes the
+contract, Track B regenerates. It belongs next to `model_minus_naive` in `brier`, which already landed.
+
+Worth noting this makes item 3 self-correcting rather than closed: had `comparison` existed, the
+settlement re-run would have flipped `worse` → `no_better` in the same write that moved the figure, and
+the copy would have followed without a ticket.
+
+---
+
 ## 2. `docs/site-architecture.md` is now canonical in `calibrated-sports`
 
 **Status:** the file is in place here; the Track B half is not done.

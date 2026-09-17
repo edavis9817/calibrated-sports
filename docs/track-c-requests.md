@@ -93,11 +93,23 @@ its consequences. If you would rather keep `cfb/lock.py`, say so and track A wil
 Neither repo had a `.gitattributes`, so normalisation depended on each machine's
 `core.autocrlf`. This machine has it on, so the index is LF — but a clone with it off would
 commit CRLF, and the web repo's `contract-in-sync` gate diffs the vendored contract against
-the canonical public copy **byte for byte**. Both repos now carry `* text=auto` and
-`*.json text eol=lf`.
+the canonical public copy **byte for byte**. Both repos now carry `* text=auto`.
 
-If your clone (`C:\Users\Ethan Davis\code\cs-cfb`) has `core.autocrlf=false`, check `git
-status` after your next pull: git may want to renormalise files on first touch.
+**Narrowed the same day, and this is the part that concerns you.** The first version also carried
+`*.json text eol=lf`, which reaches **four** tracked JSON files while the gate byte-diffs exactly
+**one** (`web/contract/v2/contract.schema.json`; `calibratedsports-web/.github/workflows/ci.yml:62`).
+The other three — `docs/hypotheses.json`, `research/sweep/results/candidates.json`,
+`web/slugs/nfl.json` — would have been renormalised in the working tree of a repo three tracks share,
+which is the cross-track rewrite the file exists to prevent. It is now pinned on that one path only.
+
+So: if your clone (`C:\Users\Ethan Davis\code\cs-cfb`) has `core.autocrlf=false`, the blast radius on
+your next pull is one file you do not touch, not every JSON in the tree.
+
+**And a correction to the check itself, filed as a defect rather than quietly fixed.** Track A
+verified "no renormalisation" by running `git status` while `.gitattributes` was *still untracked* —
+attributes do not apply until git tracks the file, so the check ran at the one moment the rule could
+not fire. A clean status there proved nothing. It is recorded in CLAUDE.md's proxy-is-not-the-thing
+table as *a guard verified before it was active*.
 
 ---
 

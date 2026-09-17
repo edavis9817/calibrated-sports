@@ -1381,6 +1381,8 @@ Six incidents in one session, all the same shape. They are cross-referenced, not
 | `changed: 12` | files the export modified | it counts keys differing from *upload state*, not from the previous build |
 | prose describing a manual check | a committed test | "a separate process was refused" in a handoff was a check run by hand during development; the committed test is nested `with` blocks in one process |
 | `pytest -k "lock"` selecting nothing | the tests actually running | "42 deselected" reads like a pass; the filter matched no test name and verified nothing. Only the unfiltered run did |
+| a registry record matching a published figure BY VALUE | that record's identity | R11's pointer was nearly resolved by scanning for `est ≈ 1.8125`; a second record carrying the same number is indistinguishable from the right one, and the scan would silently start returning it. Keyed on `(registry, family, name)` instead — verified unique at 1,171 records across all 8 registries |
+| a guard verified BEFORE it was active | the guard | "no renormalisation" was checked while `.gitattributes` was still untracked — attributes apply only once git tracks the file, so the check ran at the one moment the rule could not fire and a clean `git status` proved nothing |
 
 The tell is always the same: **the check passed and told me nothing.** A result that cannot
 distinguish success from a plausible-looking absence has not been verified. Two habits close most of
@@ -1420,6 +1422,25 @@ assertion discriminate (show it returning the *other* answer on the other input)
   with a README stating the numbers are mock.
 - **Fix guards at the cause.** A guard that matches prose in generated files will fire again on the
   next vendor name.
+- **The commit sequence, in full. Three tracks write this repo, so the remote moves while you work.**
+
+      git fetch
+      git rebase origin/main      # BEFORE the work is staged, not after it is rejected
+      <run the suite>             # against the rebased tree - that is what will be pushed
+      git commit                  # named paths, never -A
+      git fetch                   # again: the remote may have moved during the suite run
+      git push
+
+  The second fetch is not redundant. The suite takes minutes and another track can land in them.
+  A rebase attempted at push time is a rebase attempted with staged work in the way, which is where
+  it fails — `cannot rebase: You have unstaged changes` — and where the temptation to force is.
+  **Rebase, never force.** A push rejection is the protocol working; the answer is to replay onto what
+  arrived, not to overwrite it. Where another track has an uncommitted file in the shared tree,
+  `--autostash` carries it through untouched — do not `git checkout --` a file you did not write.
+
+  **This sequence lives here and only here.** Track C asked whether to copy it into their own notes
+  and Ethan's answer was no. One copy: the settlement rule existed twice and the copies disagreed on
+  3,272 outcomes.
 
 ## Design constraints
 
