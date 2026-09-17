@@ -1306,3 +1306,69 @@ Python 3.12, `polars` for analysis, `httpx` for I/O, `pytest`. All timestamps
 UTC unix seconds named `*_ts`. No secrets in the repo; `.env`, `*.pem` and
 `*.key` gitignored. Windows dev machine — no `&&` in PowerShell, use `$HOME`
 not `~`.
+# Standing rules — Calibrated Sports
+
+Append to `CLAUDE.md` in **both** repos. These were established by measurement or by error during the
+W04/W05 build cycle. They apply without being restated, so proceed on them rather than asking.
+
+## Evidence
+
+- **Measure, don't estimate.** Any number asserted in a brief or in chat is unverified until a script
+  reproduces it. Sizes, rates, counts, coverage — measure before acting. Briefs have been wrong about
+  fee multiples, depth cost, retention windows, coverage limits and table budgets; every one was caught
+  by measuring.
+- **Verify the verifier.** When a check fails, establish which side is wrong before editing anything.
+  Do not change working code to satisfy a broken assertion. Four failures in one round were the
+  checker, not the page.
+- **Assert correctness, not presence.** A test that a tab renders is worthless; assert its destination
+  resolves. Use `satisfies`, not `as`. The gate typechecks everything, not the import graph.
+- **Any assertion that can pass against a placeholder is asserting nothing.** Where a loading state
+  exists, a second test asserts the subject is not it.
+- **Route checks prove nothing about client-rendered content.** curl sees `Loading…`. Anything below
+  the fold needs a render test.
+
+## Data and figures
+
+- **No unsourced figures.** Every number on the site is query-derived or visibly marked placeholder.
+- **A figure the page itself contradicts is worse than a blank.** Suppress it; don't mark it.
+- **Data leads code.** Never ship a consumer ahead of the export it reads. Publish the data, verify it
+  is served, then ship the reader.
+- **Never approximate a historical field from a current one.** Backdating today's team onto past rows
+  renders a wrong career while looking correct.
+- **Components, not derived totals.** Store the parts; compute the aggregate at read time.
+
+## Authority
+
+- **An explicit instruction from Ethan outranks the design files.** Record the departure in `design/`;
+  don't ask permission.
+- **If an instruction in a brief conflicts with an earlier decision of Ethan's, stop and flag it.**
+  Quote both. Do not silently pick one. This has happened and flagging it was correct.
+- **Report anything changed that wasn't asked for, and why** — in every report, without being asked.
+
+## Repo hygiene
+
+- **In a public repo, name paths.** Never `git add -A`. There, staging is a publishing decision.
+- **Design files and mock-data artefacts stay out of the public repo** unless committed deliberately
+  with a README stating the numbers are mock.
+- **Fix guards at the cause.** A guard that matches prose in generated files will fire again on the
+  next vendor name.
+
+## Design constraints
+
+- **Team colour is identity only** — chips, hairlines. Never a chart fill or row background.
+- **The accent gradient is chrome only.** Never on a mark that encodes a number.
+  `--grad-from: oklch(0.555 0.180 267.5)` → `--grad-to: oklch(0.631 0.122 226.9)`. White on the cyan
+  end is ~3.0:1: display type only.
+- **Cleared/missed is non-valenced diverging**, hue-guarded. Green/red reimports the valence the
+  vocabulary exists to remove.
+- **Empty states differ by form, not hue alone.**
+- **`cleared` / `missed`, never win / loss.** In code, labels and copy.
+- **No charting library.** Hand-drawn SVG. Works at 400px.
+- **One register per page** — dense reference or editorial, per `site-design-direction.md`. The player
+  page is the one hybrid and its seam is an explicit section break.
+
+## Reporting
+
+Every report closes with: what was as described and what wasn't; what the real data cannot support,
+flagged rather than faked; what changed unasked; and any decision that belongs to Ethan rather than to
+the agent — stated as options with a recommendation, not as a question without one.
