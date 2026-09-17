@@ -8,6 +8,7 @@ Reproduce everything below with:
     python -m analytics.survey --report
     python -m analytics.survey --report --steps
     python -m analytics.survey --silent-zeros
+    python -m analytics.survey --dead-ends
     python -m analytics.survey --column air_yards
     python -m analytics.survey --dataset weekly_stats --column targets
 
@@ -76,6 +77,9 @@ It counts two kinds of empty separately, and the second is the dangerous one:
 - **null** — the column is NULL. A mean skips it, a join drops it. Loud.
 - **zero** — the column is `0.0` or `""`. A sum includes it and is wrong.
   Silent.
+- **nan** — a float NaN. The worst of the three, because NaN is not NULL:
+  `count()` counts it and `fill_null(0) != 0` is true for it. It inverted a
+  verdict here before it was handled — §2.10.
 
 One caveat on reading the `informative` count: for a column whose zero is a
 real value — `score_differential` at a tie, `posteam_score` before anyone has
@@ -210,46 +214,91 @@ for deliberately: a column that is **present, populated and exactly zero** for
 consecutive seasons. No null check can see it. A mean returns a number and the
 number is wrong. It has already shipped once on this site.
 
-**13 columns across the four datasets.** `snap_counts` and `participation` are
-clean — zero each, which is a result rather than a gap.
+**15 columns across the four datasets.** `snap_counts` and `participation` are
+clean - zero each, which is a result rather than a gap.
 
 | dataset | column | zero seasons | rows in the run | non-null in the run |
 |---|---|---|---|---|
-| weekly | **`def_tackles_for_loss`** | **2003–2011** (9) | 1 | 1.000 |
-| weekly | **`def_tackles_for_loss_yards`** | **2003–2011** (9) | 1 | 1.000 |
-| weekly | **`targets`** | 2003–2008 (6) | 54 | 1.000 |
-| weekly | `receiving_air_yards` | 2003–2008 | 44 | 1.000 |
-| weekly | `racr` | 2003–2008 | 39 | 0.211 |
-| weekly | `receiving_yards_after_catch` | **2000–2005** | 0 | 1.000 |
-| pbp | `no_huddle` | 1999–2002 | 24 | 1.000 |
-| weekly | `air_yards_share` | 2006–2008 | 41 | 1.000 |
-| weekly | `def_qb_hits` | 2003–2005 | 2 | 1.000 |
-| weekly | `passing_air_yards` | 2003–2005 | 3 | 1.000 |
-| weekly | `pacr` | 2003–2005 | 2 | 0.037 |
-| pbp | `qb_hit` | 2003–2005 | 1 | 0.969 |
-| pbp | `special_teams_play` | 2003–2004 | 3 | 1.000 |
+| weekly | **`def_tackles_for_loss`** | **2003-2011** (9) | 1 | 1.000 |
+| weekly | **`def_tackles_for_loss_yards`** | **2003-2011** (9) | 1 | 1.000 |
+| weekly | **`racr`** | **2003-2008** (6) | 39 | 0.211 |
+| weekly | **`receiving_air_yards`** | **2003-2008** (6) | 44 | 1.000 |
+| weekly | **`receiving_yards_after_catch`** | **2000-2005** (6) | 0 | 1.000 |
+| weekly | **`targets`** | **2003-2008** (6) | 54 | 1.000 |
+| pbp | `no_huddle` | 1999-2002 (4) | 24 | 1.000 |
+| pbp | `qb_hit` | 2003-2005 (3) | 1 | 0.969 |
+| weekly | `air_yards_share` | 2006-2008 (3) | 41 | 1.000 |
+| weekly | `def_qb_hits` | 2003-2005 (3) | 2 | 1.000 |
+| weekly | `pacr` | 2003-2005 (3) | 2 | 0.037 |
+| weekly | `passing_air_yards` | 2003-2005 (3) | 3 | 1.000 |
+| pbp | `special_teams_play` | 2003-2004 (2) | 3 | 1.000 |
+| weekly | `target_share` | 2007-2008 (2) | 31 | 0.031 |
+| weekly | `wopr` | 2007-2008 (2) | 31 | 0.031 |
 
 **`def_tackles_for_loss` is the longest run in the archive and was unknown.**
-1,796 player-weeks in 2002, **0 in every season 2003–2011**, 1,843 in 2012, and
+1,796 player-weeks in 2002, **0 in every season 2003-2011**, 1,843 in 2012, and
 `nonnull` is 1.000 throughout. A career-TFL figure over that span silently
 zeroes nine seasons.
 
-Two things this sweep taught about how to write it:
+Three things this sweep taught about how to write it:
 
 - **"Effectively zero", not "exactly zero".** Required to be exactly 0, the
-  first version returned two columns and **missed `targets`** — league counts
-  for 2003–2008 are 3, 5, 0, 67, 14, 17, so five of the six seasons are not
+  first version returned two columns and **missed `targets`** - league counts
+  for 2003-2008 are 3, 5, 0, 67, 14, 17, so five of the six seasons are not
   exactly zero. It now flags at or below 2% of the column's own reference and
   **prints the row count**, so a reader sees "54 rows in six seasons" rather
   than taking the word "zero" on trust.
-- **A NULL run is excluded on purpose.** `air_yards` 1999–2005 is null, belongs
-  to §2.2, and is loud. Including it here would bury the three columns that
-  actually need this sweep under thirty-six that do not.
+- **A NULL run is excluded on purpose.** `air_yards` 1999-2005 is null, belongs
+  to §2.2, and is loud. Including it here would bury the columns that actually
+  need this sweep under thirty-six that do not.
+- **NaN is neither, and it inverted a verdict.** See §2.10.
 
 One fragment worth naming so nobody builds on it: `passing_air_yards` is not
-zero in 1999–2002 — it carries ~350 of ~17,000 player-weeks, about 2%, and PBP
+zero in 1999-2002 - it carries ~350 of ~17,000 player-weeks, about 2%, and PBP
 `pass_length` shows the same 1% fragment in 1999. A partially charted 2% season
 is not a season. Air yards begin 2006.
+
+### 2.10 NaN is not null, is not information, and inverted a verdict
+
+Found 2026-09-17 by the dead-ends detector track C asked for (§2.11), and it is
+a defect in **this survey's own measurement**, not in the data.
+
+`stats_player_week.target_share` is targets divided by zero targets for
+2003-2008, so it is **NaN on essentially every row**: 17,172 of 17,232 in 2003,
+**17,355 of 17,355 in 2005**. NaN is not NULL - polars `count()` counts it and
+`fill_null(0) != 0` is TRUE for it - so the first version scored those six
+seasons as **99.7% informative** and flagged the other twenty-two as the
+anomaly. The verdict came out exactly inverted.
+
+`nonnull` and `informative` now both exclude NaN, and `nan_n` is stored beside
+them so the fact stays visible rather than being folded into a category that
+hides it. What moved:
+
+- `target_share` and `wopr` join the silent-zero class at 2007-2008 (13 -> 15).
+- `air_yards_share`'s reference falls from 0.997 to 0.240 - the earlier figure
+  was NaN inflation.
+- The 98 / 62 / 24 / 12 play-by-play anomaly counts in §2 are **unchanged**.
+  The play-by-play carries no pure-NaN column; this is a derived-ratio problem
+  and `stats_player_week` is where the derived ratios live.
+
+### 2.11 Dead at both ends - the shape an edge-scanning detector cannot see
+
+Track C found `qb_hurry` in the CFB archive zero for 2004-2006 **and**
+2014-2020 around a populated middle, and observed that every cliff detector
+written so far scans from an edge.
+
+`anomalies` scores each season against the column's own median-of-top-five
+reference and never asks where in the series the season sits, so it should
+already flag both ends - but that is reasoning about a detector rather than
+checking it. `survey.dead_ends()` names the shape explicitly and
+`tests/test_analytics_survey.py` drives the exact `qb_hurry` profile through
+it, asserting both runs are recovered and the seven covered seasons counted.
+
+**The answer for the NFL archive: no column in any of the four feeds has this
+shape.** `python -m analytics.survey --dead-ends` returns zero for pbp,
+stats_player_week, snap_counts and participation, and a test pins it. The one
+candidate was `target_share`, and it was the NaN artifact in §2.10 rather than
+the data.
 
 ### 2.6 Sparse — populated in fewer than five seasons
 

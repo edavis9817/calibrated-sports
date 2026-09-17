@@ -147,3 +147,131 @@ def block_bootstrap(blocks, statistic, draws: int = 2000, conf: float = 0.95,
 
 def _isnan(v) -> bool:
     return isinstance(v, float) and v != v
+
+
+# ---------------------------------------------------------------------------
+# the same block bootstrap, over histograms
+# ---------------------------------------------------------------------------
+
+_COUNTS_CACHE = {}
+
+
+def _counts_matrix(n, draws, seed):
+    """draws x n multinomial counts, memoised on (n, draws, seed)."""
+    import numpy as np
+    key = (n, draws, seed)
+    got = _COUNTS_CACHE.get(key)
+    if got is None:
+        rng = np.random.default_rng(seed + n)
+        got = _COUNTS_CACHE[key] = rng.multinomial(
+            n, np.full(n, 1.0 / n), size=draws).astype(float)
+    return got
+
+
+def histogram_bootstrap(hist_by_block, statistics, draws: int = 2000,
+                        conf: float = 0.95, seed: int = 20260917,
+                        rows_by_block=None) -> dict:
+    """Block bootstrap where each block is an integer HISTOGRAM, not a list.
+
+    WHY THIS EXISTS. The air-yard metrics need twelve statistics per player -
+    seven bin shares, four quantiles and a polarity - over 1,571 receivers.
+    Done as twelve independent `block_bootstrap` calls over raw values that is
+    roughly 5e9 python-level operations and does not finish. Air yards are
+    INTEGERS in [-93, 78] (measured, not assumed: 0 of 712,224 rows are
+    fractional), so a game's targets compress losslessly into a fixed-width
+    count vector, resampling games becomes summing rows of a matrix, and every
+    statistic is a function of the summed histogram.
+
+    It is the same estimator. Blocks are resampled with replacement, `n` is the
+    number of blocks, and all statistics share one set of resamples - which
+    also keeps the bin shares coherent with the quantiles drawn beside them.
+
+    IT IS NOT ONLY FOR HISTOGRAMS. Any statistic that can be written as a
+    function of SUMS over the sample works the same way - `analytics.stability`
+    passes a six-wide vector of Pearson sufficient statistics per player and
+    gets the identical estimator for a correlation. What the vector holds is
+    the caller's business; all this needs is that summing vectors is the same
+    as pooling the rows behind them.
+
+    `hist_by_block` is {block_key: 1-D numeric array}. `statistics` is
+    {name: fn(vector) -> float or None}. Returns {name: Estimate}.
+
+    `rows_by_block` says how many raw observations a block's vector stands for.
+    A histogram knows - it is the sum of its bins - but a vector of sufficient
+    statistics does not, and a rule inferring it from the vector would be right
+    for one caller and quietly wrong for the other. Default is the histogram
+    rule; the other caller passes it.
+    """
+    import numpy as np
+    def _rows(k):
+        if rows_by_block is not None:
+            return float(rows_by_block[k])
+        return float(np.asarray(hist_by_block[k]).sum())
+
+    keys = [k for k in hist_by_block if _rows(k) > 0]
+    n = len(keys)
+    rows = int(sum(_rows(k) for k in keys))
+    if n == 0:
+        return {name: Estimate(None, float("-inf"), float("inf"), 0,
+                               "hist%d" % draws, 0) for name in statistics}
+    # dtype is the caller's: integer counts for a histogram, float sums for
+    # sufficient statistics. Casting to int64 here truncated the second use.
+    mat = np.vstack([np.asarray(hist_by_block[k], dtype=float) for k in keys])
+    total = mat.sum(axis=0)
+    point = {name: fn(total) for name, fn in statistics.items()}
+    if n == 1:
+        return {name: Estimate(point[name], float("-inf"), float("inf"), 1,
+                               "hist%d" % draws, rows) for name in statistics}
+    # counts[d, b] = how many times block b was drawn in replicate d. One
+    # multinomial per replicate is exactly sampling n blocks with replacement,
+    # and it turns the whole bootstrap into a single matrix product.
+    #
+    # THE MATRIX IS CACHED BY BLOCK COUNT, which means every subject with the
+    # same number of blocks is resampled with the SAME draws. That is common
+    # random numbers, and it is a deliberate choice: each subject's interval is
+    # still a valid bootstrap of its own blocks, and what it costs is that the
+    # Monte Carlo error is correlated BETWEEN subjects. Nothing here publishes a
+    # contrast between two subjects, so nothing consumes that correlation - and
+    # generating it fresh per subject is ~99% of the runtime across 27,000
+    # player-slices. If a contrast between subjects is ever published, it must
+    # not be built from two of these.
+    counts = _counts_matrix(n, draws, seed)
+    replicates = counts @ mat
+    out = {}
+    for name, fn in statistics.items():
+        vals = [fn(r) for r in replicates]
+        vals = [v for v in vals if v is not None and not _isnan(v)]
+        if not vals or point[name] is None:
+            out[name] = Estimate(point[name], float("-inf"), float("inf"), n,
+                                 "hist%d" % draws, rows)
+            continue
+        vals.sort()
+        lo = vals[int((1 - conf) / 2 * len(vals))]
+        hi = vals[min(len(vals) - 1, int((1 + conf) / 2 * len(vals)))]
+        out[name] = Estimate(point[name], min(lo, point[name]),
+                             max(hi, point[name]), n, "hist%d" % draws, rows)
+    return out
+
+
+def share_bootstrap(blocks, draws: int = 2000, conf: float = 0.95,
+                    seed: int = 20260917, extra=None) -> dict:
+    """A ratio of sums, block-bootstrapped. `blocks` is {key: (num, denom)}.
+
+    Every share in this package has this shape - a player's targets over his
+    team's, his snaps in a bucket over his team's plays in it - and a ratio of
+    sums is additive, so it is a `histogram_bootstrap` over two-wide vectors
+    rather than a python loop that re-pools thousands of tuples per draw. Same
+    estimator, same `n` (blocks), about two orders of magnitude faster.
+
+    `extra` may name further statistics over the summed vector, which is how
+    the game-script elasticity gets its two bucket shares AND their difference
+    out of ONE set of resamples: a difference bootstrapped alongside its parts
+    is one quantity, which is what brief 018 required and what quoting two
+    separate means does not give.
+    """
+    import numpy as np
+    vecs = {k: np.array([float(a), float(b)]) for k, (a, b) in blocks.items()}
+    stats = {"share": lambda v: (v[0] / v[1]) if v[1] else None}
+    stats.update(extra or {})
+    return histogram_bootstrap(vecs, stats, draws=draws, conf=conf, seed=seed,
+                               rows_by_block={k: 1 for k in vecs})

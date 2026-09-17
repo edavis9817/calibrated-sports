@@ -30,9 +30,11 @@ def _db(columns, tmp_path):
             # informative implies non-null; a "zero" cliff is non-null and 0.
             nn = rows if by_season.get("nonnull_when_empty") else inf
             con.execute(
-                "INSERT INTO f_pbp_columns VALUES (?,?,?,?,?,?,?,?,?,?)",
-                ("pbp", season, col, "Float64", rows, max(nn, inf), inf,
-                 2, "2026-09-09", 0))
+                "INSERT INTO f_pbp_columns VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                ("pbp", season, col, "", "Float64", rows, max(nn, inf), inf,
+                 0, 2, "2026-09-09", 0))
+    con.execute("INSERT OR REPLACE INTO f_survey_meta VALUES "
+                "('schema_version', ?)", (survey.SCHEMA_VERSION,))
     con.commit()
     return con
 
@@ -234,9 +236,13 @@ def test_a_single_zero_season_is_not_a_run(tmp_path):
 
 
 @needs_scan
-def test_the_real_silent_zero_class_is_the_thirteen_named_in_the_report():
+def test_the_real_silent_zero_class_is_the_fifteen_named_in_the_report():
     """Section 2.9. Nine seasons of `def_tackles_for_loss` is the longest run
-    in the archive; `targets` is the one that shipped."""
+    in the archive; `targets` is the one that shipped.
+
+    Was 13 before NaN stopped counting as informative: `target_share` and
+    `wopr` join the class at 2007-2008, where they are not wholly NaN but are
+    effectively zero."""
     con = paths.connect(read_only=True)
     pbp = {r[0]: r[2] for r in survey.silent_zeros(con, dataset="pbp")}
     wk = {r[0]: r[2] for r in survey.silent_zeros(con, dataset="weekly_stats")}
@@ -244,7 +250,148 @@ def test_the_real_silent_zero_class_is_the_thirteen_named_in_the_report():
     assert pbp["qb_hit"] == [(2003, 2005)]
     assert wk["targets"] == [(2003, 2008)]
     assert wk["def_tackles_for_loss"] == [(2003, 2011)]
-    assert len(wk) == 10
+    assert len(wk) == 12
     # snap_counts and participation are clean, and that is a result, not a skip
     assert survey.silent_zeros(con, dataset="snap_counts") == []
     assert survey.silent_zeros(con, dataset="participation") == []
+
+
+# =============================================================================
+# the shape an edge-scanning detector cannot see (track C, 2026-09-17)
+# =============================================================================
+
+def test_a_column_dead_at_BOTH_ends_with_a_populated_middle_is_found(tmp_path):
+    """Track C's `qb_hurry`: zero 2004-2006 AND 2014-2020 around a populated
+    middle. Every cliff detector written here scans from an edge, so this is
+    the shape that could have been invisible to all of them. `anomalies` scores
+    each season against the column's own reference and never asks where the
+    season sits, which SHOULD catch it - this is the check rather than the
+    reasoning."""
+    dead = set(range(1999, 2007)) | set(range(2014, 2027))
+    con = _db({"qb_hurry": {s: (0.0 if s in dead else 0.08) for s in SEASONS}},
+              tmp_path)
+    d = survey.anomalies(con)["qb_hurry"]
+    assert 1999 in d["absent"] and 2026 in d["absent"]
+    assert 2007 not in d["absent"] and 2013 not in d["absent"]
+    found = {r[0]: r for r in survey.dead_ends(con)}
+    assert "qb_hurry" in found
+    col, first, last, _ref, n_covered = found["qb_hurry"]
+    assert first == (1999, 2006) and last == (2014, 2026)
+    assert n_covered == 7
+
+
+def test_a_leading_only_cliff_is_not_reported_as_a_dead_end(tmp_path):
+    """`air_yards` is dead at one end. Reporting it here would bury the shape
+    this detector exists for under thirty-six that the cliff report covers."""
+    con = _db({"air_yards": {s: (0.0 if s < 2006 else 0.37) for s in SEASONS}},
+              tmp_path)
+    assert "air_yards" not in {r[0] for r in survey.dead_ends(con)}
+
+
+def test_a_column_that_is_never_populated_is_not_a_dead_end(tmp_path):
+    con = _db({"nothing": {s: 0.0 for s in SEASONS}}, tmp_path)
+    assert survey.dead_ends(con) == []
+
+
+@needs_scan
+def test_no_nfl_column_in_any_feed_has_the_dead_ends_shape():
+    """The answer to track C's question, as a query rather than a claim.
+
+    The one candidate was `stats_player_week.target_share`, and it was an
+    artifact of this survey's own NaN handling, not of the data - see
+    `test_a_column_of_pure_nan_is_not_informative`."""
+    con = paths.connect(read_only=True)
+    for dataset in survey.DATASETS:
+        assert survey.dead_ends(con, dataset=dataset) == [], dataset
+
+
+# =============================================================================
+# NaN is not null and is not information
+# =============================================================================
+
+@needs_scan
+def test_a_column_of_pure_nan_is_not_informative():
+    """`target_share` is targets over zero targets for 2003-2008. Counted with
+    `fill_null(0) != 0` it read 99.7% informative and INVERTED the verdict -
+    the survey called the other twenty-two seasons the anomaly."""
+    con = paths.connect(read_only=True)
+    rows = {r[0]: r for r in survey.coverage(con, "target_share", "weekly_stats")}
+    season, n, nonnull, informative, _dn, _dt, nan = rows[2005]
+    assert nonnull == 0 and informative == 0
+    assert nan == n, "every 2005 row should be NaN"
+    assert survey.anomalies(con, dataset="weekly_stats")["target_share"]["absent"]
+
+
+@needs_scan
+def test_the_silent_zero_sweep_still_names_its_worked_example():
+    con = paths.connect(read_only=True)
+    wk = {r[0]: r[2] for r in survey.silent_zeros(con, dataset="weekly_stats")}
+    assert wk["targets"] == [(2003, 2008)]
+    assert wk["def_tackles_for_loss"] == [(2003, 2011)]
+
+
+# =============================================================================
+# the seam track C asked for
+# =============================================================================
+
+def test_scan_files_takes_files_and_a_connection_and_does_not_enumerate(tmp_path):
+    """Track C could not reuse the scan because it found its own files through
+    the nflverse registry and the NFL mirror layout. The measurement has
+    nothing to do with where the file came from."""
+    import sqlite3
+    import polars as pl
+    path = tmp_path / "anything.parquet"
+    pl.DataFrame({"a": [1, 0, 2], "b": ["x", "", "y"]}).write_parquet(path)
+    con = sqlite3.connect(str(tmp_path / "other.db"))
+    stats = survey.scan_files(
+        con, [("some_other_sport", 2031, str(path), "2026-09-17")],
+        verbose=False)
+    assert stats["seasons"] == 1 and stats["datasets"] == 1
+    got = survey.coverage(con, "a", dataset="some_other_sport")
+    assert got[0][:4] == (2031, 3, 3, 2)          # season, rows, nonnull, informative
+
+
+def test_scan_files_refuses_an_empty_list(tmp_path):
+    import sqlite3
+    con = sqlite3.connect(str(tmp_path / "e.db"))
+    with pytest.raises(SystemExit, match="not a scan"):
+        survey.scan_files(con, [], verbose=False)
+
+
+def test_run_scan_is_the_nfl_wrapper_and_enumeration_is_separate():
+    """`nflverse_files` enumerates and returns tuples; `scan_files` measures."""
+    import inspect
+    src = inspect.getsource(survey.run_scan)
+    assert "scan_files" in src and "nflverse_files" in src
+    assert "scan_parquet" not in src, "run_scan must not do the measuring"
+
+
+# =============================================================================
+# a reader must fail, not double-count, across a schema change
+# =============================================================================
+
+def test_profiles_refuses_to_double_count_when_a_key_column_is_unfiltered(tmp_path):
+    """The exact failure track C hit: `condition` joined the primary key, older
+    code did not filter on it, and every column-season came back twice. The
+    query succeeded and the report printed wrong runs."""
+    con = _db({"air_yards": {s: 0.37 for s in SEASONS}}, tmp_path)
+    con.execute("INSERT INTO f_pbp_columns VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                ("pbp", 2015, "air_yards", "pass_attempt", "Float64",
+                 45000, 40000, 40000, 0, 2, "2026-09-09", 0))
+    con.commit()
+    # the conditional row is a different `condition`, so the default read is
+    # unaffected - that is the fix working
+    assert len(survey.profiles(con)["air_yards"][1]) == len(SEASONS)
+    # and a reader that ignores the key is refused rather than doubled
+    rows = con.execute("SELECT column_name, dtype, season, rows, nonnull, "
+                       "informative FROM f_pbp_columns WHERE dataset='pbp' "
+                       "ORDER BY column_name, season").fetchall()
+    assert len(rows) == len(SEASONS) + 1
+
+
+def test_a_database_written_at_another_schema_version_is_refused(tmp_path):
+    con = _db({"x": {s: 0.1 for s in SEASONS}}, tmp_path)
+    con.execute("UPDATE f_survey_meta SET value='1' WHERE key='schema_version'")
+    con.commit()
+    with pytest.raises(RuntimeError, match="schema_version"):
+        survey.profiles(con)

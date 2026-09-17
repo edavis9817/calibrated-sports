@@ -20,14 +20,25 @@ three are known. Building a league history on a fourth one nobody checked is
 exactly the defect that shipped 2003-08 targets as zeros: the column was there,
 the query succeeded, and six seasons of a leaderboard were silently wrong.
 
-TWO KINDS OF EMPTY, AND ONLY ONE OF THEM IS VISIBLE TO A NULL CHECK.
+THREE KINDS OF EMPTY, AND ONLY ONE OF THEM IS VISIBLE TO A NULL CHECK.
 
     null      the column is NULL on the row
     zero      the column is 0.0 or "" on the row
+    nan       the column is a float NaN
 
 A null cliff is loud - a mean skips it, a join drops it. A zero cliff is silent
-and sums to a wrong answer, so both are counted separately here and the report
-says which kind each cliff is.
+and sums to a wrong answer. A NaN cliff is the worst of the three, because NaN
+IS NOT NULL: `count()` counts it, `fill_null(0) != 0` is TRUE for it, and the
+first version of this survey therefore scored a column of pure NaN as fully
+informative.
+
+That was not hypothetical. `stats_player_week.target_share` is NaN on every row
+of 2003-2008 - targets divided by zero targets - and the survey read those six
+seasons as 99.7% informative and the OTHER twenty-two as the anomaly. The
+verdict came out exactly inverted, and it was found by the dead-ends detector
+track C asked for on 2026-09-17. NaN is now excluded from both `nonnull` and
+`informative`, and counted separately in `nan_n` so it stays visible instead of
+being folded into a category that hides it.
 
 WHAT IS STORED IS COUNTS, NOT RATES. `analytics.gate` would demand an interval
 on a stored `null_rate`, and it would be right to: the name does not say whether
@@ -55,17 +66,28 @@ CREATE TABLE IF NOT EXISTS f_pbp_columns (
     dataset     TEXT    NOT NULL,   -- pbp | weekly_stats | snap_counts | participation
     season      INTEGER NOT NULL,
     column_name TEXT    NOT NULL,
+    condition   TEXT    NOT NULL,   -- '' = every row; else a declared subset
     dtype       TEXT    NOT NULL,
     rows        INTEGER NOT NULL,   -- rows in the season file
-    nonnull     INTEGER NOT NULL,   -- rows where the column is not NULL
-    informative INTEGER NOT NULL,   -- not NULL and not 0 / not ""
+    nonnull     INTEGER NOT NULL,   -- not NULL and not NaN
+    informative INTEGER NOT NULL,   -- nonnull and not 0 / not ""
+    nan_n       INTEGER NOT NULL,   -- float NaN: not null, and not information
     distinct_n  INTEGER,            -- distinct non-null values
     pull_date   TEXT    NOT NULL,   -- which nflverse pull this was measured on
     scanned_ts  INTEGER NOT NULL,
-    PRIMARY KEY (dataset, season, column_name)
+    PRIMARY KEY (dataset, season, column_name, condition)
 );
 CREATE INDEX IF NOT EXISTS ix_f_pbp_columns_col
-    ON f_pbp_columns(dataset, column_name, season);
+    ON f_pbp_columns(dataset, column_name, condition, season);
+
+-- A stale database read by newer code, or the reverse, is the failure track C
+-- hit on 2026-09-17: a key column the reader did not filter on, silently
+-- doubling every count. `profiles` asserts on the row shape, and this says out
+-- loud which shape it was written with.
+CREATE TABLE IF NOT EXISTS f_survey_meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS f_pbp_files (
     dataset    TEXT    NOT NULL,
@@ -80,6 +102,100 @@ CREATE TABLE IF NOT EXISTS f_pbp_files (
     PRIMARY KEY (dataset, season)
 );
 """
+
+
+# CONDITIONAL COVERAGE, AND WHY IT HAD TO EXIST.
+#
+# A column's coverage over ALL rows cannot see a ramp. `receiver_player_id` is
+# non-null on 21.8% of 2005 plays against 38.7% at reference - 56%, which clears
+# every absent/thin threshold - and what it actually means is that A TARGET
+# CANNOT BE IDENTIFIED ON AN INCOMPLETION for six seasons. Measured on the rows
+# that can carry it, pass attempts, the same column reads under 1% and the cliff
+# is unmissable.
+#
+# `analytics.metrics.derive_range` reads these, so a metric needing targets is
+# bounded at 2009 BY MEASUREMENT. Without them the range came back "the whole
+# archive, no input binds it" - a hand-written 2009 by another name, and the
+# exact defect this package exists to prevent.
+#
+# Declared, not inferred. Every entry is a scan, so keep the list short.
+CONDITIONS = {
+    "pbp": (
+        ("receiver_player_id", "pass_attempt"),
+        ("receiver_player_id", "incomplete_pass"),
+        ("receiver_player_id", "complete_pass"),
+        ("air_yards", "pass_attempt"),
+        ("yards_after_catch", "complete_pass"),
+        ("rusher_player_id", "rush_attempt"),
+        ("passer_player_id", "pass_attempt"),
+    ),
+}
+
+# What each condition needs on the row, so a renamed upstream column fails here
+# rather than filtering silently to nothing.
+CONDITION_COLUMNS = {
+    "pass_attempt": ("pass_attempt",),
+    "complete_pass": ("complete_pass",),
+    "rush_attempt": ("rush_attempt",),
+    "incomplete_pass": ("pass_attempt", "complete_pass"),
+}
+
+
+def _condition_expr(name):
+    import polars as pl
+    if name == "incomplete_pass":
+        return ((pl.col("pass_attempt").fill_null(0) == 1)
+                & (pl.col("complete_pass").fill_null(0) == 0))
+    return pl.col(name).fill_null(0) == 1
+
+
+def scan_conditions(path, dataset):
+    """[(column, condition, rows, nonnull, informative, distinct, dtype)]."""
+    import polars as pl
+    out = []
+    lf = pl.scan_parquet(path)
+    schema = lf.collect_schema()
+    names = set(schema.names())
+    for column, cond in CONDITIONS.get(dataset, ()):
+        need = {column} | set(CONDITION_COLUMNS[cond])
+        missing = need - names
+        if missing:
+            raise KeyError("condition %s|%s needs %s, absent from %s"
+                           % (column, cond, sorted(missing), path))
+        dt = schema[column]
+        nan, nn, inf = _counts(pl, column, dt)
+        r = (lf.filter(_condition_expr(cond))
+             .select(pl.len().alias("rows"),
+                     nn.cast(pl.Int64).alias("nn"),
+                     inf.cast(pl.Int64).alias("inf"),
+                     nan.cast(pl.Int64).alias("na"),
+                     pl.col(column).n_unique().alias("dn"))
+             .collect().to_dicts()[0])
+        out.append((column, cond, int(r["rows"]), int(r["nn"]),
+                    int(r["inf"]), int(r["dn"]), str(dt), int(r["na"])))
+    return out
+
+
+# Bumped whenever a column or key changes in `f_pbp_columns`. 1 had no
+# `condition`; 2 added it; 3 excludes NaN and stores `nan_n`.
+SCHEMA_VERSION = "3"
+
+
+def check_schema(con):
+    """Raise unless the database was written by this version of the survey."""
+    row = con.execute("SELECT value FROM f_survey_meta WHERE key='schema_version'"
+                      ).fetchone() if _has_meta(con) else None
+    got = row[0] if row else "1"
+    if got != SCHEMA_VERSION:
+        raise RuntimeError(
+            "f_pbp_columns was written at schema_version %s and this code is "
+            "%s. Re-run `python -m analytics.survey --scan`; reading across "
+            "the change gives numbers rather than an error." % (got, SCHEMA_VERSION))
+
+
+def _has_meta(con):
+    return bool(con.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                            "AND name='f_survey_meta'").fetchone())
 
 
 def asset_pattern(dataset):
@@ -106,73 +222,124 @@ def scan_season(path):
     if "game_id" in names:
         exprs.append(pl.col("game_id").n_unique().alias("__games"))
     for name, dt in schema.items():
-        exprs.append(pl.col(name).count().alias("nn::" + name))
-        exprs.append(pl.col(name).n_unique().alias("dn::" + name))
-        if dt == pl.Boolean:
-            inf = pl.col(name).fill_null(False).sum()
-        elif dt.is_numeric():
-            inf = (pl.col(name).fill_null(0) != 0).sum()
-        elif dt == pl.String:
-            inf = (pl.col(name).fill_null("").str.len_chars() > 0).sum()
-        else:
-            inf = pl.col(name).count()
+        nan, nn, inf = _counts(pl, name, dt)
+        exprs.append(nn.cast(pl.Int64).alias("nn::" + name))
         exprs.append(inf.cast(pl.Int64).alias("in::" + name))
+        exprs.append(nan.cast(pl.Int64).alias("na::" + name))
+        exprs.append(pl.col(name).n_unique().alias("dn::" + name))
     row = lf.select(exprs).collect().to_dicts()[0]
     cols = [(name, str(dt), int(row["nn::" + name]), int(row["in::" + name]),
-             int(row["dn::" + name]))
+             int(row["dn::" + name]), int(row["na::" + name]))
             for name, dt in schema.items()]
     return int(row["__rows"]), row.get("__games"), cols
 
 
-def run_scan(seasons=None, datasets=None, verbose=True):
-    con = paths.connect()
+def _counts(pl, name, dt):
+    """(nan, nonnull, informative) expressions for one column.
+
+    NaN IS NOT NULL AND IS NOT INFORMATION. `count()` counts it and
+    `fill_null(0) != 0` is true for it, so both have to say so explicitly or a
+    column of pure NaN reads as fully populated - see the module docstring for
+    the six seasons that did.
+    """
+    col = pl.col(name)
+    if dt == pl.Boolean:
+        return pl.lit(0), col.count(), col.fill_null(False).sum()
+    if dt.is_float():
+        nan = col.is_not_null().and_(col.is_nan()).sum()
+        real = col.is_not_null().and_(col.is_nan().not_())
+        return nan, real.sum(), real.and_(col.fill_null(0) != 0).sum()
+    if dt.is_numeric():
+        return pl.lit(0), col.count(), (col.fill_null(0) != 0).sum()
+    if dt == pl.String:
+        return (pl.lit(0), col.count(),
+                (col.fill_null("").str.len_chars() > 0).sum())
+    return pl.lit(0), col.count(), col.count()
+
+
+def scan_files(con, items, verbose=True):
+    """Scan an explicit list of (dataset, season, path, pull_date) into `con`.
+
+    THE SCAN DOES NOT ENUMERATE. Track C asked for this seam on 2026-09-17:
+    `run_scan` found its own files through the nflverse registry and the NFL
+    mirror layout, so a feed stored anywhere else could not use any of it and
+    they were re-implementing the loop. The measurement is the valuable part
+    and it has nothing to do with where the file came from.
+
+    Taking the connection too, rather than opening `analytics.db`, is the other
+    half: a caller with its own store writes into its own store. `run_scan`
+    keeps the NFL enumeration and is now a thin wrapper.
+    """
     con.executescript(SCHEMA)
+    con.execute("INSERT OR REPLACE INTO f_survey_meta VALUES ('schema_version',?)",
+                (SCHEMA_VERSION,))
     stats = {"seasons": 0, "rows": 0, "columns": 0, "datasets": 0}
     now = int(time.time())
+    seen_datasets = set()
+    for dataset, season, path, pull in items:
+        t0 = time.time()
+        rows, games, cols = scan_season(path)
+        con.execute(
+            "INSERT OR REPLACE INTO f_pbp_files VALUES (?,?,?,?,?,?,?,?,?)",
+            (dataset, season, path, pull, rows, len(cols),
+             os.path.getsize(path), games, now))
+        con.execute("DELETE FROM f_pbp_columns WHERE dataset=? AND season=?",
+                    (dataset, season))
+        con.executemany(
+            "INSERT INTO f_pbp_columns VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            [(dataset, season, c, "", d, rows, nn, inf, na, dn, pull, now)
+             for c, d, nn, inf, dn, na in cols])
+        con.executemany(
+            "INSERT INTO f_pbp_columns VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            [(dataset, season, c, cond, dt, n_rows, nn, inf, na, dn, pull, now)
+             for c, cond, n_rows, nn, inf, dn, dt, na
+             in scan_conditions(path, dataset)])
+        con.commit()
+        seen_datasets.add(dataset)
+        stats["seasons"] += 1
+        stats["rows"] += rows
+        stats["columns"] = max(stats["columns"], len(cols))
+        if verbose:
+            print("   %s %d  rows %7d  games %4d  cols %3d  pull %s  %.1fs"
+                  % (dataset, season, rows, games or 0, len(cols), pull,
+                     time.time() - t0), flush=True)
+    stats["datasets"] = len(seen_datasets)
+    if stats["seasons"] == 0:
+        raise SystemExit("scan_files was given nothing to scan. A scan that "
+                         "reads nothing and exits 0 is not a scan.")
+    return stats
+
+
+def nflverse_files(seasons=None, datasets=None):
+    """[(dataset, season, path, pull_date)] for the NFL mirror. Enumeration
+    only - the measurement is `scan_files`, which takes any list."""
+    out = []
     for dataset in (datasets or DATASETS):
         files = [f for f in paths.seasonal_files(asset_pattern(dataset))
                  if not seasons or f[0] in seasons]
         if not files:
             raise SystemExit(
-                "no %s files in the archive - nothing scanned. A scan that "
-                "reads nothing and exits 0 is what this message prevents."
-                % dataset)
-        stats["datasets"] += 1
-        if verbose:
-            print(" %s: %d seasons" % (dataset, len(files)), flush=True)
-        for season, path, pull in files:
-            t0 = time.time()
-            rows, games, cols = scan_season(path)
-            con.execute(
-                "INSERT OR REPLACE INTO f_pbp_files VALUES (?,?,?,?,?,?,?,?,?)",
-                (dataset, season, path, pull, rows, len(cols),
-                 os.path.getsize(path), games, now))
-            con.execute("DELETE FROM f_pbp_columns WHERE dataset=? AND season=?",
-                        (dataset, season))
-            con.executemany(
-                "INSERT INTO f_pbp_columns VALUES (?,?,?,?,?,?,?,?,?,?)",
-                [(dataset, season, c, d, rows, nn, inf, dn, pull, now)
-                 for c, d, nn, inf, dn in cols])
-            con.commit()
-            stats["seasons"] += 1
-            stats["rows"] += rows
-            stats["columns"] = max(stats["columns"], len(cols))
-            if verbose:
-                print("   %d  rows %7d  games %4d  cols %3d  pull %s  %.1fs"
-                      % (season, rows, games or 0, len(cols), pull,
-                         time.time() - t0), flush=True)
-    return stats
+                "no %s files in the archive - nothing to scan." % dataset)
+        out.extend((dataset, season, path, pull) for season, path, pull in files)
+    return out
+
+
+def run_scan(seasons=None, datasets=None, verbose=True, con=None):
+    """The NFL convenience wrapper: enumerate the mirror, then scan it."""
+    return scan_files(con or paths.connect(),
+                      nflverse_files(seasons, datasets), verbose)
 
 
 # ---------------------------------------------------------------------------
 # the report
 # ---------------------------------------------------------------------------
 
-def coverage(con, column, dataset=DEFAULT_DATASET):
+def coverage(con, column, dataset=DEFAULT_DATASET, condition=""):
+    check_schema(con)
     return con.execute(
-        "SELECT season, rows, nonnull, informative, distinct_n, dtype "
-        "FROM f_pbp_columns WHERE dataset=? AND column_name=? ORDER BY season",
-        (dataset, column)).fetchall()
+        "SELECT season, rows, nonnull, informative, distinct_n, dtype, nan_n "
+        "FROM f_pbp_columns WHERE dataset=? AND column_name=? AND condition=? "
+        "ORDER BY season", (dataset, column, condition)).fetchall()
 
 
 # A season is scored against the column's own REFERENCE level, not against an
@@ -182,14 +349,41 @@ ABSENT = 0.02        # <= 2% of reference: the column is not there
 THIN = 0.35          # <= 35% of reference: present but materially under-filled
 
 
-def profiles(con, seasons=None, dataset=DEFAULT_DATASET):
-    """{column: (dtype, [(season, rows, nonnull_share, informative_share)])}."""
+def profiles(con, seasons=None, dataset=DEFAULT_DATASET, condition=""):
+    """{column: (dtype, [(season, rows, nonnull_share, informative_share)])}.
+
+    ASSERTS ON THE SHAPE OF WHAT IT READ. Every (column, season) must appear
+    exactly once. Reported by track C on 2026-09-17, and it is the sharpest
+    failure this package has had:
+
+    `condition` was added to the primary key AFTER the previous push, so a
+    checkout of the older code reading a newer database selected both the
+    unconditional rows and the conditional ones, got each column-season twice,
+    and printed `air_yards` absent in "1999, 1999-2000, 2000-2001, ..." instead
+    of 1999-2005. NOTHING FAILED. The query succeeded, the report rendered, the
+    numbers were wrong - which is the same shape as the defect the whole survey
+    exists to prevent, one layer up.
+
+    A version marker alone would not have caught it: the older code would not
+    have known to look. Asserting that the rows are the shape the caller
+    believes they are does catch it, and catches the next key column too.
+    """
+    check_schema(con)
     q = ("SELECT column_name, dtype, season, rows, nonnull, informative "
-         "FROM f_pbp_columns WHERE dataset=? ORDER BY column_name, season")
-    out = {}
-    for col, dt, season, n, nn, inf in con.execute(q, (dataset,)):
+         "FROM f_pbp_columns WHERE dataset=? AND condition=? "
+         "ORDER BY column_name, season")
+    out, seen = {}, set()
+    for col, dt, season, n, nn, inf in con.execute(q, (dataset, condition)):
         if seasons and season not in seasons:
             continue
+        if (col, season) in seen:
+            raise RuntimeError(
+                "f_pbp_columns returned %s/%s twice for dataset=%r "
+                "condition=%r. The table has a key column this code does not "
+                "filter on - re-read the schema rather than trusting the "
+                "counts, which would be silently doubled."
+                % (col, season, dataset, condition))
+        seen.add((col, season))
         out.setdefault(col, (dt, []))[1].append(
             (season, n, nn / n if n else 0.0, inf / n if n else 0.0))
     return out
@@ -211,7 +405,7 @@ def reference(shares):
 
 
 def anomalies(con, min_reference=0.0005, seasons=None,
-              dataset=DEFAULT_DATASET):
+              dataset=DEFAULT_DATASET, condition=""):
     """Every column-season that is absent or thin against its own reference.
 
     Returns {column: {"dtype", "reference", "absent": [...], "thin": [...],
@@ -233,7 +427,7 @@ def anomalies(con, min_reference=0.0005, seasons=None,
     target cannot be attributed on an incompletion.
     """
     out = {}
-    for col, (dt, rows) in profiles(con, seasons, dataset).items():
+    for col, (dt, rows) in profiles(con, seasons, dataset, condition).items():
         shares = [sh for _s, _n, _nn, sh in rows]
         ref = reference(shares)
         if ref < min_reference:
@@ -289,7 +483,7 @@ def fmt_runs(seasons):
 
 
 def silent_zeros(con, min_run=2, min_reference=0.0005, seasons=None,
-                 dataset=DEFAULT_DATASET):
+                 dataset=DEFAULT_DATASET, condition=""):
     """THE SILENT-ZERO CLASS: non-null, and exactly zero, for a run of seasons.
 
     This is the sharpest shape in the archive and the only one no null check
@@ -320,7 +514,7 @@ def silent_zeros(con, min_run=2, min_reference=0.0005, seasons=None,
     a sum over the column silently loses.
     """
     out = []
-    for col, (dt, rows) in profiles(con, seasons, dataset).items():
+    for col, (dt, rows) in profiles(con, seasons, dataset, condition).items():
         by_season = {s: (n, nn, sh) for s, n, nn, sh in rows}
         ref = reference([sh for _s, _n, _nn, sh in rows])
         if ref < min_reference:
@@ -352,6 +546,38 @@ def format_silent_zeros(rows):
     return "\n".join(lines)
 
 
+def dead_ends(con, dataset=DEFAULT_DATASET, condition=""):
+    """Columns absent at BOTH the first and the last season, populated between.
+
+    Reported by track C on 2026-09-17: their `qb_hurry` is zero for 2004-2006
+    AND 2014-2020 around a populated middle, and every cliff detector written
+    so far scans from one edge, so an interior-populated column is invisible to
+    all of them.
+
+    `anomalies` scores each season against the column's own median-of-top-five
+    reference and never asks where the season sits, so it should already flag
+    both ends - but "should" is reasoning about a detector rather than checking
+    it. This names the shape explicitly so the claim is a query, and
+    `tests/test_analytics_survey.py` drives the exact profile through it.
+
+    Returns [(column, first_run, last_run, reference, n_covered_seasons)].
+    """
+    out = []
+    for col, d in anomalies(con, dataset=dataset, condition=condition).items():
+        gone = set(d["absent"]) | set(d["thin"])
+        if not gone:
+            continue
+        seasons = [s for s, _sh in d["seasons"]]
+        if not seasons or seasons[0] not in gone or seasons[-1] not in gone:
+            continue
+        covered = [s for s in seasons if s not in gone]
+        if not covered:
+            continue                    # never populated; not this shape
+        runs = _runs(sorted(gone))
+        out.append((col, runs[0], runs[-1], d["reference"], len(covered)))
+    return sorted(out, key=lambda r: -r[4])
+
+
 def format_anomalies(found, steps=False):
     if not found:
         return "(none)"
@@ -379,11 +605,17 @@ def main(argv=None):
     ap.add_argument("--report", action="store_true")
     ap.add_argument("--column")
     ap.add_argument("--season", type=int, action="append")
+    ap.add_argument("--dead-ends", action="store_true",
+                    help="columns absent at BOTH ends with a populated middle "
+                         "- the shape an edge-scanning detector cannot see")
     ap.add_argument("--silent-zeros", action="store_true",
                     help="columns non-null and effectively 0 for a run of "
                          "seasons - the class no null check can see")
     ap.add_argument("--steps", action="store_true",
                     help="also print every season-over-season step past 40%%")
+    ap.add_argument("--condition", default="",
+                    help="a declared subset, e.g. pass_attempt; "
+                         "default: every row")
     ap.add_argument("--dataset", default=None,
                     help="one of %s; default all for --scan, %s otherwise"
                          % (", ".join(DATASETS), DEFAULT_DATASET))
@@ -403,23 +635,26 @@ def main(argv=None):
     ds = a.dataset or DEFAULT_DATASET
     con = paths.connect(read_only=not a.scan)
     if a.column:
-        rows = coverage(con, a.column, ds)
+        rows = coverage(con, a.column, ds, a.condition)
         if not rows:
             raise SystemExit("no coverage rows for %r in %s - scan first?"
                              % (a.column, ds))
-        print("%s  [%s]" % (a.column, ds))
-        print("%6s %8s %9s %12s %9s  dtype"
-              % ("season", "rows", "nonnull", "informative", "distinct"))
-        for season, n, nn, inf, dn, dt in rows:
-            print("%6d %8d %9d %12d %9d  %s" % (season, n, nn, inf, dn or 0, dt))
+        print("%s  [%s%s]"
+              % (a.column, ds, " | " + a.condition if a.condition else ""))
+        print("%6s %8s %9s %12s %9s %8s  dtype"
+              % ("season", "rows", "nonnull", "informative", "distinct", "nan"))
+        for season, n, nn, inf, dn, dt, na in rows:
+            print("%6d %8d %9d %12d %9d %8d  %s"
+                  % (season, n, nn, inf, dn or 0, na or 0, dt))
     if a.report:
-        found = anomalies(con, dataset=ds)
+        found = anomalies(con, dataset=ds, condition=a.condition)
         if not found:
             raise SystemExit("coverage report found NOTHING - scan first; an "
                              "empty report is not a result")
         total = con.execute("SELECT COUNT(DISTINCT column_name), "
                             "COUNT(DISTINCT season) FROM f_pbp_columns "
-                            "WHERE dataset=?", (ds,)).fetchone()
+                            "WHERE dataset=? AND condition=?",
+                            (ds, a.condition)).fetchone()
         absent = {c for c, d in found.items() if d["absent"]}
         thin = {c for c, d in found.items() if d["thin"]} - absent
         print("\n[%s] %d of %d columns over %d seasons carry a coverage "
@@ -429,11 +664,20 @@ def main(argv=None):
         print(format_anomalies(found, steps=a.steps))
     if a.silent_zeros:
         for name in ([a.dataset] if a.dataset else DATASETS):
-            rows = silent_zeros(con, dataset=name)
+            rows = silent_zeros(con, dataset=name, condition=a.condition)
             print("\n[%s] %d columns are non-null and effectively zero for two "
                   "or more consecutive seasons\n" % (name, len(rows)))
             print(format_silent_zeros(rows))
-    if not (a.scan or a.report or a.column or a.silent_zeros):
+    if a.dead_ends:
+        for name in ([a.dataset] if a.dataset else DATASETS):
+            rows = dead_ends(con, dataset=name, condition=a.condition)
+            print("\n[%s] %d columns are absent at BOTH ends with a populated "
+                  "middle" % (name, len(rows)))
+            for col, first, last, ref, n_cov in rows:
+                print("   %-34s dead %s and %s, %d seasons covered, ref %.3f"
+                      % (col, fmt_runs(range(first[0], first[1] + 1)),
+                         fmt_runs(range(last[0], last[1] + 1)), n_cov, ref))
+    if not (a.scan or a.report or a.column or a.silent_zeros or a.dead_ends):
         ap.print_help()
     return 0
 
