@@ -17,8 +17,9 @@ COMPONENTS, NOT DERIVED VALUES. Averages, percentages, shares, longs, QBR and
 EPA are not stored: shares are recomputed from `targets` / `team_targets`, and
 QBR and EPA are someone else's model output rather than a count.
 
-THERE ARE NO SETTLEMENT, OUTCOME OR HIT-RATE TABLES, and there must not be.
-See `cfb/__init__.py`. `tests/test_ingest_cfb.py` fails if one appears.
+NO AGGREGATE HIT RATES AND NO SETTLEMENT. Per-game grades are permitted only in
+a table keyed on game_id. `cfb.guards.scope_violations(TABLES)` must be empty;
+`tests/test_ingest_cfb.py` fails otherwise.
 """
 
 SPORT = "cfb"
@@ -130,6 +131,25 @@ TABLES = {
         ("total", "REAL"), ("total_open", "REAL"),
         ("home_moneyline", "REAL"), ("away_moneyline", "REAL"),
         ("provider_raw", "TEXT"),
+    ]),
+    # --- the exchange probe capture (cfb/probe_promote.py). `capture` marks
+    # every row as a probe at non-production cadence; see cfb_limitations.
+    "cfb_exchange_markets": (("venue", "market_id"), [
+        ("venue", "TEXT"), ("market_id", "TEXT"), ("event_id", "TEXT"),
+        ("market_type", "TEXT"), ("subject", "TEXT"), ("line", "REAL"), ("title", "TEXT"),
+        ("venue_open_ts", "REAL"), ("venue_close_ts", "REAL"), ("venue_settle_ts", "REAL"),
+        ("venue_result", "TEXT"), ("first_seen_ts", "REAL"), ("last_seen_ts", "REAL"),
+        ("game_id", "INTEGER"), ("match_note", "TEXT"), ("capture", "TEXT"),
+    ]),
+    # The last quote STRICTLY BEFORE the game's CFBD kickoff. `age_s` is how long
+    # before kickoff that quote was taken; `book_state` says whether the price is
+    # a two-sided book or something whose mid means nothing.
+    "cfb_exchange_closes": (("venue", "market_id"), [
+        ("venue", "TEXT"), ("market_id", "TEXT"), ("game_id", "INTEGER"),
+        ("kickoff_ts", "REAL"), ("quote_ts", "REAL"), ("age_s", "REAL"),
+        ("best_bid", "REAL"), ("best_ask", "REAL"), ("mid", "REAL"), ("last", "REAL"),
+        ("volume", "REAL"), ("open_interest", "REAL"), ("book_state", "TEXT"),
+        ("capture", "TEXT"),
     ]),
     # Resolved AT INGEST (CLAUDE.md: "crosswalked at ingest, never in analysis
     # code"). CFBD athlete ids ARE ESPN athlete ids - 20,342 of 22,465 CFBD 2023

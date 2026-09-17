@@ -87,15 +87,36 @@ def test_season_spec_parsing():
 # the schema: stats and usage, never settlement
 # =============================================================================
 
-def test_schema_has_no_settlement_or_hit_rate_shapes():
-    """CFB has no appearance signal, so it cannot carry hit rates, prop history
-    or settlement. If a table shaped like one appears, the design was broken."""
-    banned = re.compile(r"settle|hit_?rate|cleared|missed|outcome|void|prop|over_under|"
-                        r"did_not_play|played|appear", re.I)
-    for table, (_key, cols) in schema.TABLES.items():
-        assert not banned.search(table), table
-        for c, _t in cols:
-            assert not banned.search(c), f"{table}.{c}"
+def test_the_schema_stays_inside_the_scope_boundary():
+    """Stats and usage; per-game grades only where keyed on a game; no aggregate
+    rates and no settlement anywhere."""
+    from cfb import guards
+    assert guards.scope_violations(schema.TABLES) == []
+
+
+@pytest.mark.parametrize("spec,reason", [
+    ({"cfb_player_hit_rates": (("athlete_id",), [("athlete_id", "INTEGER"), ("hit_rate", "REAL")])},
+     "aggregate rate across games"),
+    ({"cfb_prop_history": (("athlete_id", "season"), [("season", "INTEGER"), ("n_cleared", "INTEGER")])},
+     "aggregate rate across games"),
+    ({"cfb_player_l5": (("athlete_id",), [("rec_l5_over", "REAL")])}, "aggregate rate across games"),
+    ({"cfb_season_grades": (("athlete_id", "season"), [("cleared", "INTEGER")])},
+     "a grade in a table not keyed on game_id"),
+    ({"cfb_prop_settlement": (("game_id",), [("void", "INTEGER")])}, "settlement or appearance"),
+    ({"cfb_game_rosters2": (("game_id",), [("did_not_play", "INTEGER")])}, "settlement or appearance"),
+])
+def test_the_guard_catches_each_banned_shape(spec, reason):
+    from cfb import guards
+    assert reason in {v[2] for v in guards.scope_violations(spec)}
+
+
+def test_a_per_game_line_actual_and_grade_is_permitted():
+    """Posted line, actual stat, cleared or missed for that one game."""
+    from cfb import guards
+    spec = {"cfb_player_game_lines": (("game_id", "athlete_id", "market", "provider"), [
+        ("game_id", "INTEGER"), ("athlete_id", "INTEGER"), ("market", "TEXT"),
+        ("provider", "TEXT"), ("line", "REAL"), ("actual", "REAL"), ("cleared", "INTEGER")])}
+    assert guards.scope_violations(spec) == []
 
 
 def test_every_fact_table_carries_sport_and_version_columns(store):
@@ -119,8 +140,9 @@ def test_the_scope_limit_is_one_structural_entry_covering_both_gaps(store):
     assert len(rows) == 1
     lid, consequence, keys = rows[0]
     assert lid == "cfb.stats_and_usage_only"
-    for phrase in ("no settlement", "no hit rates", "no closing-line value"):
-        assert phrase in consequence
+    for phrase in ("Per-game display is permitted", "aggregate hit rate", "no settlement",
+                   "no closing-line value", "never as missed"):
+        assert phrase in consequence, phrase
     keys = json.loads(keys)
     assert "game_rosters.did_not_play_true_rows" in keys and "cfbd_lines.games" in keys
 

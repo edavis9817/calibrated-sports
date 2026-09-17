@@ -12,6 +12,7 @@
     python -m jobs.ingest_cfb --cfbd-lines 2013-2025            # 13 metered requests
     python -m jobs.ingest_cfb --cfbd-week 2026:3                # 2 metered requests
     python -m jobs.ingest_cfb --fetch --season 2026 --cfbd-week latest   # the weekly refresh
+    python -m jobs.ingest_cfb --promote-probe                   # exchange probe -> cfb.db, 0 requests
 
 CFB SHIPS STATS AND USAGE, NOT HIT RATES. No public source says whether a
 college player appeared in a game, so nothing here settles, voids or computes a
@@ -48,8 +49,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import polars as pl
 
 import config
-from cfb import (cfbd, cfbd_normalize, fetch, limitations, normalize, paths, schema, sources,
-                 versioning)
+from cfb import (cfbd, cfbd_normalize, fetch, limitations, normalize, paths, probe_promote,
+                 schema, sources, versioning)
 from cfb.lock import AlreadyRunning, InstanceLock
 
 DEFAULT_MAX_FILES = 200
@@ -445,6 +446,57 @@ def run_parse_cfbd(conn, seasons=None, rebuild=False):
     return totals
 
 
+def promote_probe(conn, probe=None):
+    """The exchange probe capture -> cfb_exchange_markets / cfb_exchange_closes.
+
+    The source is a local database, not a download, so its manifest row points
+    OUTSIDE cfb/raw (`rel_path` starts with 'external:') and its content hash is
+    over the extracted rows: hashing 23.9 GB to identify an archive that is never
+    written again would say nothing the extraction hash does not. Re-running is
+    idempotent - an unchanged extraction reuses the manifest row and changes no
+    fact row."""
+    probe = probe or probe_promote.open_probe()
+    src = probe_promote.probe_path()
+    market_rows, close_rows, measurements = probe_promote.extract(probe, conn)
+    counts = {}
+    for dataset, table, rows in (("probe_markets", "cfb_exchange_markets", market_rows),
+                                 ("probe_closes", "cfb_exchange_closes", close_rows)):
+        csha = hashlib.sha256(json.dumps(sorted(rows), default=str).encode()).hexdigest()
+        rel = f"external:{src}#{dataset}"
+        row = conn.execute("SELECT file_id, content_sha256 FROM cfb_raw_files WHERE rel_path=?",
+                           (rel,)).fetchone()
+        now = time.time()
+        if row and row[1] == csha:
+            fid, fts = row[0], conn.execute("SELECT fetched_ts FROM cfb_raw_files WHERE file_id=?",
+                                            (row[0],)).fetchone()[0]
+        elif row:
+            conn.execute("UPDATE cfb_raw_files SET content_sha256=?, bytes_sha256=?, fetched_ts=? "
+                         "WHERE file_id=?", (csha, csha, now, row[0]))
+            fid, fts = row[0], now
+        else:
+            cur = conn.execute(
+                "INSERT INTO cfb_raw_files (rel_path, dataset, season, repo, tag, asset, bytes, "
+                "bytes_sha256, content_sha256, remote_updated_at, fetched_ts) VALUES "
+                "(?,?,?,?,?,?,?,?,?,?,?)",
+                (rel, dataset, 2026, "local:cfb_probe.db", "probe_capture", probe_promote.PART,
+                 os.path.getsize(src), csha, csha,
+                 datetime.fromtimestamp(os.path.getmtime(src), timezone.utc).isoformat(), now))
+            fid, fts = cur.lastrowid, now
+        conn.commit()
+        conn.execute("BEGIN")
+        ins, closed, same = versioning.apply(conn, dataset, 2026, fid, fts, table, rows,
+                                             label=rel, part=probe_promote.PART)
+        conn.commit()
+        counts[dataset] = {"rows": len(rows), "inserted": ins, "closed": closed, "unchanged": same}
+    conn.executemany(
+        "INSERT INTO cfb_measurements (key, season, value, detail, src_file, measured_ts) "
+        "VALUES (?,?,?,?,?,?) ON CONFLICT(key, season) DO UPDATE SET value=excluded.value, "
+        "detail=excluded.detail, src_file=excluded.src_file, measured_ts=excluded.measured_ts",
+        [(k, 2026, v, d, f"external:{src}", time.time()) for k, v, d in measurements])
+    conn.commit()
+    return counts, measurements
+
+
 def latest_completed_week(conn, season, now=None, settle_hours=12):
     """The most recent (season_type, week) of `season` whose last game started
     at least `settle_hours` ago, from the schedule already in the store - so
@@ -519,7 +571,10 @@ def audit(conn):
         for dirpath, _dirs, files in os.walk(root):
             for f in files:
                 on_disk.add(os.path.relpath(os.path.join(dirpath, f), root).replace(os.sep, "/"))
-    manifest = {r[0] for r in conn.execute("SELECT rel_path FROM cfb_raw_files")}
+    manifest = {r[0] for r in conn.execute("SELECT rel_path FROM cfb_raw_files")
+                if not r[0].startswith("external:")}
+    external = [r[0] for r in conn.execute(
+        "SELECT rel_path FROM cfb_raw_files WHERE rel_path LIKE 'external:%'")]
     unregistered = sorted(on_disk - manifest)
     missing = sorted(manifest - on_disk)
     unreadable = []
@@ -542,7 +597,20 @@ def audit(conn):
         print(f"    MISSING {x}")
     for x, why in unreadable[:20]:
         print(f"    UNREADABLE {x}: {why}")
-    return not (unregistered or missing or unreadable)
+    bad_external = []
+    for rel in external:
+        path = rel[len("external:"):].split("#", 1)[0]
+        try:
+            import sqlite3 as _sq
+            c = _sq.connect(f"file:{path}?mode=ro", uri=True)
+            c.execute("SELECT 1 FROM markets LIMIT 1").fetchone()
+            c.close()
+        except Exception as e:
+            bad_external.append((rel, f"{type(e).__name__}: {e}"))
+    print(f"  external sources {len(external)}  unreadable {len(bad_external)}")
+    for x, why in bad_external:
+        print(f"    UNREADABLE EXTERNAL {x}: {why}")
+    return not (unregistered or missing or unreadable or bad_external)
 
 
 def status(conn):
@@ -572,6 +640,11 @@ def _locked_run(conn, a, plan, cfbd_plan):
     """Facts first, then CFBD. A CFBD refusal must not cost the week its stats,
     so it is reported in the exit code (3) AFTER the free work is done."""
     code = 0
+    if a.promote_probe:
+        counts, m = promote_probe(conn)
+        print(f"probe promotion: {counts}")
+        for k, v, d in m:
+            print(f"  {k:<70} {v}{'  ' + d if d else ''}")
     if a.fetch or a.parse or a.rebuild:
         print(f"plan: {len(plan)} (dataset, season) pairs")
         if a.fetch:
@@ -610,6 +683,32 @@ def _locked_run(conn, a, plan, cfbd_plan):
 
 
 def main(argv=None):
+    """Entry point. With --log, every line and any traceback go to the CFB log
+    and the exit code is written last, so a scheduled run leaves evidence even
+    when it fails before printing anything."""
+    args = sys.argv[1:] if argv is None else argv
+    if "--log" not in args:
+        return _main(argv)
+    import contextlib
+    import traceback
+    path = paths.root("logs", "ingest_cfb.log")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f, contextlib.redirect_stdout(f),             contextlib.redirect_stderr(f):
+        print(f"===== {datetime.now(timezone.utc):%Y-%m-%dT%H:%M:%SZ} start  argv={args}")
+        code = 1
+        try:
+            code = _main(argv)
+        except SystemExit as e:
+            code = e.code if isinstance(e.code, int) else 1
+        except BaseException:
+            traceback.print_exc()
+            code = 1
+        finally:
+            print(f"===== {datetime.now(timezone.utc):%Y-%m-%dT%H:%M:%SZ} exit {code}", flush=True)
+    return code
+
+
+def _main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--fetch", action="store_true", help="download changed assets, then parse")
     ap.add_argument("--parse", action="store_true", help="parse the archive only, 0 requests")
@@ -620,6 +719,10 @@ def main(argv=None):
     ap.add_argument("--season", help="2026 | 2004-2026 | 2019,2021 | all (default all)")
     ap.add_argument("--max-files", type=int, default=DEFAULT_MAX_FILES)
     ap.add_argument("--cfbd-status", action="store_true", help="ledger + /info, 0 metered requests")
+    ap.add_argument("--log", action="store_true",
+                    help="append all output to <STORAGE_DIR>/cfb/logs/ingest_cfb.log (for the scheduler)")
+    ap.add_argument("--promote-probe", action="store_true",
+                    help="exchange probe capture -> cfb.db (read-only on the probe, 0 requests)")
     ap.add_argument("--cfbd-lines", metavar="SEASONS",
                     help="season-level lines, regular+postseason: one metered request per season")
     ap.add_argument("--cfbd-week", metavar="YEAR:WEEK|latest",
@@ -643,7 +746,8 @@ def main(argv=None):
     if a.cfbd_status:
         cfbd_status(connect())
         return 0
-    if not (a.fetch or a.parse or a.rebuild or a.audit or cfbd_plan or a.cfbd_week):
+    if not (a.fetch or a.parse or a.rebuild or a.audit or cfbd_plan or a.cfbd_week
+            or a.promote_probe):
         conn = connect()
         status(conn)
         return 0

@@ -1415,3 +1415,19 @@ the agent — stated as options with a recommendation, not as a question without
 - **A build line in `logger.log` is not evidence of a start today.** Log lines carry
   no date. Date a line by counting midnight rollovers after it, and confirm a start
   against the process's CreationDate.
+- **`python -m jobs.ingest_cfb --promote-probe`** promotes `cfb_probe.db` (read-only)
+  into `cfb_exchange_markets` / `cfb_exchange_closes`, idempotently. Its manifest rows
+  are `external:` and `--audit` checks they open read-only.
+- **C01's name normaliser turns "St." into "state"**, so St. Thomas becomes
+  "state thomas" and does not join. It is copied verbatim into
+  `cfb/probe_promote.py` (a test keeps the copies identical); fix both together
+  if it is ever fixed.
+- **The Odds API, measured from its docs (2026-09-17):** `/sports` and `/events` are
+  free but `/events` lists only in-play and pre-match events - no past games, no
+  markets. `/events/{id}/markets` costs 1 and returns only "recently seen" keys.
+  Historical odds (bulk, featured markets) cost `10 x markets x regions` per call for
+  the whole slate; historical EVENT odds (props) cost `10 x unique markets returned x
+  regions` per event; historical events listing costs 1. So last weekend's prop
+  coverage cannot be measured for free.
+- **Scheduled weekly CFB refresh:** `run_weekly_cfb.cmd` (runs the job with `--log`;
+  output and exit code in `<STORAGE_DIR>/cfb/logs/ingest_cfb.log`).

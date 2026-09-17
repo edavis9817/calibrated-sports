@@ -15,8 +15,8 @@ LIMITATIONS = [
     {
         "id": "cfb.stats_and_usage_only",
         "severity": "structural",
-        "title": ("College football supports statistics and usage - not settlement, "
-                  "hit rates or closing-line value"),
+        "title": ("College football supports statistics, usage and per-game results - "
+                  "not aggregate hit rates, settlement or closing-line value"),
         "statement": (
             "Two gaps in the public data, either of which alone would rule these out. "
             "FIRST, no source records whether a college player appeared in a game. "
@@ -32,11 +32,16 @@ LIMITATIONS = [
             "either, so the value it holds is not known to be the line at kickoff."),
         "consequence": (
             "A game in which a player recorded no statistic cannot be told apart from "
-            "a game the player missed, and no college line can be called a close. CFB "
-            "therefore publishes statistics and usage only: no settlement, no hit "
-            "rates, no prop history and no closing-line value. Any rate computed over "
-            "a college player's games is biased toward games in which a statistic was "
-            "recorded, and nothing in the data can correct it."),
+            "a game the player did not dress for, and no college line can be called a "
+            "close. Per-game display is permitted: the posted line, the actual "
+            "statistic and whether it cleared or missed for that one game - shown only "
+            "where a statistic row exists, and a game with no row is shown as no record, "
+            "never as missed. No aggregate hit rate across games is published, because "
+            "the direction of its error is set by a choice the data cannot inform: "
+            "counting a game with no row as a zero skews the rate toward the under "
+            "(every game a player missed becomes a miss), and dropping it skews toward "
+            "the over (every game played without a recorded statistic disappears). "
+            "Also no settlement and no closing-line value."),
         "evidence_keys": ["game_rosters.did_not_play_true_rows",
                           "game_rosters.team_games",
                           "game_rosters.team_games_full_starting_lineup",
@@ -104,6 +109,31 @@ LIMITATIONS = [
         "evidence_keys": ["cfbd_lines.providers", "cfbd_lines.rows_with_spread_open",
                           "cfbd_lines.rows_with_moneyline",
                           "cfbd_lines.provider_feed_collisions"],
+    },
+    {
+        "id": "cfb.exchange_probe_capture",
+        "severity": "provenance",
+        "title": "College exchange prices come from one weekend's probe, not the logger",
+        "statement": (
+            "Every Kalshi and Polymarket college price is from a probe capture between "
+            "2026-09-10 19:41Z and 2026-09-13 03:34Z, at non-production cadence: game "
+            "markets were polled a median 42s apart on Kalshi and 53s on Polymarket, and "
+            "a second copy of the probe ran from 2026-09-11 16:00Z, doubling the poll rate "
+            "and corrupting the raw shards it appended to. A close is the last quote "
+            "strictly before kickoff, taken a median of 56s and at most 310s before it. "
+            "Polymarket quotes an empty book as 0/1; those closes are labelled, not priced. "
+            "Kalshi closes cover 119 games and Polymarket 129."),
+        "consequence": (
+            "One weekend, at poll-limited resolution: a probe close is a real price at a "
+            "known instant, not a kickoff tick, and no college exchange history exists "
+            "outside that window. This does not lift the ban on closing-line value."),
+        "evidence_keys": ["probe.poll_gap_median_s.cfb_kalshi.quotes:game",
+                          "probe.poll_gap_median_s.cfb_polymarket.quotes:game",
+                          "probe.game_polls_per_hour.cfb_kalshi.after_double_write",
+                          "probe.close_age_median_s", "probe.close_age_max_s",
+                          "probe.games_with_a_close.cfb_kalshi",
+                          "probe.games_with_a_close.cfb_polymarket",
+                          "probe.close_book_state.cfb_polymarket.empty_0_1"],
     },
     {
         "id": "cfb.current_season_rosters_partial",
