@@ -179,6 +179,64 @@ def collected(col, season):
     return True
 
 
+# =============================================================================
+# PER-ROW KEY SETS: a row carries what the player's production justifies
+# =============================================================================
+#
+# One fixed key list for every player means a receiver's page carries eleven
+# defensive zeros and a linebacker's carries the receiving block. Worse, the
+# played-zero path MANUFACTURES them - `{k: 0 for k in PERIOD_KEYS}` writes
+# zeros that were never in the source - which is the silent-zero defect
+# self-inflicted, one day after removing the last one.
+#
+# The populations are mostly disjoint, measured 2026-09-17: 759 players
+# offensive-only, 6,856 defensive-only, 3,233 both. So this is not a tidying
+# preference; it is the difference between a page about a player and a page
+# about the sport's stat vocabulary.
+#
+# THE RULE: emit a key if ANY period has a NON-ZERO value or a NULL for it;
+# omit it only if it is zero in every period.
+#
+# THE NULL CLAUSE IS LOAD-BEARING. `null` means "unknown or not collected" -
+# 2003-08 targets, 2003-2011 def_tfl - and the page renders that absence as
+# "not recorded". Dropping the key would turn a documented gap back into
+# silence, which is the exact defect the silent-zero work removed.
+#
+# USAGE KEYS ARE EXEMPT, for two different reasons:
+#   * `snaps` / `snap_share` - a played-zero row is DEFINED by snaps > 0 with
+#     every stat zero. Applying the rule would delete the one key proving he
+#     played and leave a row asserting nothing.
+#   * `target_share` - the site's usage frame reads `stats[key] ?? null` and
+#     renders null as "not recorded for {season}". An ABSENT key is
+#     indistinguishable from a null one there, so dropping it for a player with
+#     genuinely zero targets would publish "Tgt % is not recorded", which is
+#     false. Absent means "not applicable to this player"; null means "nobody
+#     recorded it". Until the site can tell them apart, the frame's series stay.
+USAGE_KEYS = ("snaps", "snap_share", "target_share")
+STAT_CANDIDATES = tuple(k for k in PERIOD_KEYS if k not in USAGE_KEYS)
+
+
+def emitted_keys(stat_dicts, candidates=STAT_CANDIDATES):
+    """The subset of `candidates` this player's own production justifies.
+
+    Order follows `candidates`, so a re-export of unchanged data is
+    byte-identical and `write_if_changed` stays quiet.
+    """
+    out = []
+    for key in candidates:
+        for stats in stat_dicts:
+            if key not in stats:
+                continue                 # never carried: not evidence of anything
+            value = stats[key]
+            # `is None` before the comparison: a null is KEPT. And `!= 0` rather
+            # than truthiness, because rushing yards can be negative and `if -7`
+            # is the kind of falsy that silently deletes a real figure.
+            if value is None or value != 0:
+                out.append(key)
+                break
+    return tuple(out)
+
+
 def _d(label, fmt, group, higher=True):
     return {"label": label, "format": fmt, "group": group, "higher_is_better": higher}
 
@@ -1015,9 +1073,18 @@ def _totals(periods):
     like a number. So a total spanning ANY uncollected season is null: the honest
     answer is that it cannot be stated, not a sum of the half that exists.
     """
-    shares = [p["stats"]["snap_share"] for p in periods if p["stats"]["snap_share"] is not None]
+    shares = [p["stats"].get("snap_share") for p in periods
+              if p["stats"].get("snap_share") is not None]
     stats = {}
+    # ONLY THE KEYS THE PERIODS CARRY. The period rows now hold what the player's
+    # production justifies, so totalling the full COUNT_KEYS would put
+    # `pass_att: 0` in a receiver's season totals while his game log has no such
+    # column - a file contradicting itself, which is the `season_type: "REG"`
+    # lesson: a row that disagrees with its own siblings is worse than a missing
+    # one.
     for k in COUNT_KEYS:
+        if not any(k in p["stats"] for p in periods):
+            continue
         if k in MISSING_COMPONENTS:
             stats[k] = None
             continue
@@ -1025,7 +1092,7 @@ def _totals(periods):
         if any(not collected(col, p["season"]) for p in periods):
             stats[k] = None
             continue
-        stats[k] = intish(sum(num(p["stats"][k]) for p in periods))
+        stats[k] = intish(sum(num(p["stats"].get(k)) for p in periods))
     stats["snap_share_mean"] = rnd(statistics.fmean(shares)) if shares else None
     return stats
 
@@ -1078,12 +1145,36 @@ def build_players(games, by_player, snaps, xwalk, aliases, slugs, market_keys, g
             periods.extend(played_zero_periods(gsis, rows, snap_index, gidx))
             periods.sort(key=lambda p: (p["season"], p["index"] or 0))
 
+        # A ROW CARRIES WHAT THIS PLAYER'S PRODUCTION JUSTIFIES. Applied here,
+        # once, AFTER the played-zero rows are in - so the key set is decided
+        # over every period the player has, and a zero-production week keeps the
+        # same columns as the rest of his season instead of inventing its own.
+        #
+        # Usage keys survive unconditionally: a played-zero row IS snaps > 0 with
+        # every stat zero, and dropping `snaps` would leave a row asserting
+        # nothing. See emitted_keys() for why a NULL keeps its key.
         if any(p["team"] is None for p in periods):
             unresolved.append({"id": gsis, "name": name, "reason": REASON_NO_TEAM})
 
         by_season = defaultdict(list)
         for p in periods:
             by_season[p["season"]].append(p)
+
+        # PER SEASON, NOT PER CAREER, and the difference is not cosmetic. A
+        # reader opens ONE season file, so the question a key must answer is
+        # "did he do this THAT year". Scoped to the career, a receiver who
+        # scored once in 2025 carries `rec_td: 0` through every other season,
+        # and a back who ran once in 2026 carries `rush_att: 0` back through
+        # 2025 - which is what the guard caught, and it caught the wiring
+        # rather than itself.
+        #
+        # The CAREER total is unaffected: `_totals` keeps any key some period
+        # carries, so summing over every REG period gives the union across
+        # seasons and a one-year stat still appears on the career line.
+        for ps in by_season.values():
+            justified = set(emitted_keys([p["stats"] for p in ps])) | set(USAGE_KEYS)
+            for p in ps:
+                p["stats"] = {k: v for k, v in p["stats"].items() if k in justified}
         season_entries = []
         for season in sorted(by_season):
             ps = by_season[season]

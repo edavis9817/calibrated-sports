@@ -388,6 +388,65 @@ section. Until then those records are unreachable, accepted knowingly.
 
 ---
 
+## 9. Period rows now carry per-player key sets — and `absent` is not `null`
+
+**Status:** producer built and tested 2026-09-18. **Not yet published** — the blast radius is large
+enough that Ethan sees the numbers first.
+
+**What changes.** A period row used to carry one fixed key list for every player. It now carries the
+keys that player's own production justifies:
+
+> emit a key if ANY period has a non-zero value **or** a null for it; omit it only if it is zero in
+> every period.
+
+**Why.** The alternative was eleven defensive zeros on every receiver's page once defenders are
+exported, and the receiving block on every linebacker's. The populations are mostly disjoint —
+**759 players offensive-only, 6,856 defensive-only, 3,233 both** — and the played-zero path
+*manufactured* those zeros (`{k: 0 for k in PERIOD_KEYS}`) rather than reading them from a source.
+That is the silent-zero defect, self-inflicted.
+
+**The blast radius is not small, and it is not confined to defenders.** Measured across the current
+export, **19,201 of 19,201 season files** lose at least one key, a median of **11 of 15**, and
+**67.9% of all key-slots disappear** (3,127,890 → 1,003,502):
+
+| key | files where it is zero in every period |
+|---|---|
+| `ret_td` | 96% |
+| `two_pt` | 92% |
+| `int` / `pass_td` | 91% |
+| `pass_yds` / `pass_cmp` | 87% |
+| `pass_att` | 85% |
+| `rush_td` | 82% |
+| `fum_lost` | 75% |
+| `rec_td` | 65% |
+| `rush_yds` / `rush_att` | 53–55% |
+
+Tables that currently render a column of zeros will find the key absent. `roleColumns` already derives
+columns from the data, so this should mostly be an improvement rather than a break — but it is every
+player page, not a subset.
+
+### The one thing that needs a decision on your side: `absent` vs `null`
+
+The site reads `p.stats[key] ?? null` and renders null as **"{stat} is not recorded for {season}"**.
+That conflates two different facts:
+
+- **`null`** — nobody recorded this stat that season. 2003–08 targets, 2003–2011 `def_tfl`. "Not
+  recorded" is exactly right.
+- **absent** — this player does not accumulate this stat. A receiver has no pass attempts. "Not
+  recorded" is **false**; the honest rendering is to omit the column entirely.
+
+With 68% of key-slots going absent, this stops being a corner case. **The producer preserves the
+distinction** — a null key is still emitted with a null value, precisely so the silent-zero work
+survives — but the site currently cannot tell them apart.
+
+**Until it can, `snaps`, `snap_share` and `target_share` are exempt from the rule and always
+emitted**, because they feed the usage frame where the "not recorded" note is rendered. Dropping
+`target_share` for a receiver with genuinely zero targets would publish "Tgt % is not recorded",
+which is a false statement produced by a correct-looking change. Once the site distinguishes absent
+from null, that exemption can go.
+
+---
+
 ## 2. `docs/site-architecture.md` is now canonical in `calibrated-sports`
 
 **Status:** the file is in place here; the Track B half is not done.

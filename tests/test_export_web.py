@@ -611,3 +611,118 @@ def test_hypotheses_source_uses_only_the_contracts_verdicts():
         assert h["verdict"] in {"retired", "null", "not_testable", "open"}
         assert h["interval"] is None or (len(h["interval"]) == 2 and h["interval"][0] <= h["interval"][1])
         assert os.path.exists(os.path.join(E.ROOT, h["script"])), h["script"]
+
+
+# ============================================================================
+# per-row key sets: a row carries what the player's production justifies
+# ============================================================================
+#
+# THE GUARD Ethan asked for, over BUILT OUTPUT rather than over the pure
+# function. `emitted_keys` having the right behaviour says nothing about the
+# three call sites using it - the period build, played_zero_periods and
+# _totals - and it was the call sites, not the rule, that manufactured zeros.
+
+def _player_season_files(files):
+    return {k: v for k, v in files.items()
+            if "/players/" in k and "summary" not in k and "index" not in k}
+
+
+def test_no_period_row_carries_a_key_that_is_zero_all_season(db):
+    """The rule: a key zero in EVERY period of a file must not be in any row.
+
+    Folding every stat the sport records into one key list puts eleven
+    defensive zeros on a receiver's page and the receiving block on a
+    linebacker's - and the played-zero path MANUFACTURES them, writing zeros
+    that were never in the source.
+    """
+    dest = str(db / "out")
+    E.export(only=["players", "teams", "manifest"], now_ts=NOW, dest=dest)
+    offenders = []
+    for key, doc in _player_season_files(_walk(dest)).items():
+        periods = doc.get("periods") or []
+        candidates = {k for p in periods for k in p["stats"]} - set(E.USAGE_KEYS)
+        for stat in candidates:
+            values = [p["stats"][stat] for p in periods if stat in p["stats"]]
+            if values and all(v == 0 for v in values):
+                offenders.append((key, stat))
+    assert not offenders, f"keys zero in every period but still emitted: {offenders}"
+
+
+def test_a_key_the_player_DOES_accumulate_survives(db):
+    """Discriminating. Without this, an `emitted_keys` returning () always would
+    satisfy the test above while deleting the whole game log."""
+    dest = str(db / "out")
+    E.export(only=["players", "teams", "manifest"], now_ts=NOW, dest=dest)
+    files = _player_season_files(_walk(dest))
+
+    wr = next(v for k, v in files.items() if "/00-A/" in k)
+    wr_keys = {k for p in wr["periods"] for k in p["stats"]}
+    assert "rec" in wr_keys, "the receiver lost his receptions"
+    assert "pass_att" not in wr_keys, "the receiver kept a passing column of zeros"
+
+    qb = next(v for k, v in files.items() if "/00-S1/" in k)
+    qb_keys = {k for p in qb["periods"] for k in p["stats"]}
+    assert "pass_att" in qb_keys, "the quarterback lost his attempts"
+    assert "rec" not in qb_keys, "the quarterback kept a receptions column of zeros"
+
+
+def test_usage_keys_survive_even_when_zero(db):
+    """A played-zero row IS snaps > 0 with every stat zero. If the rule reached
+    `snaps` it would delete the key proving he played, leaving a row that
+    asserts nothing."""
+    dest = str(db / "out")
+    E.export(only=["players", "teams", "manifest"], now_ts=NOW, dest=dest)
+    for key, doc in _player_season_files(_walk(dest)).items():
+        for p in doc["periods"]:
+            assert "snaps" in p["stats"], key
+            assert "snap_share" in p["stats"], key
+
+
+def test_the_key_set_is_per_SEASON_not_per_career(db):
+    """The wiring bug the guard caught. `00-A` catches a touchdown in 2025 and
+    runs the ball in 2026. Scoped to the career, his 2026 file would carry
+    `rec_td: 0` and his 2025 file `rush_att: 0` - each a column of zeros in the
+    season the reader is actually looking at."""
+    dest = str(db / "out")
+    E.export(only=["players", "teams", "manifest"], now_ts=NOW, dest=dest)
+    files = _player_season_files(_walk(dest))
+    y2025 = {k for p in next(v for k, v in files.items() if "/00-A/2025" in k)["periods"]
+             for k in p["stats"]}
+    y2026 = {k for p in next(v for k, v in files.items() if "/00-A/2026" in k)["periods"]
+             for k in p["stats"]}
+    assert "rec_td" in y2025 and "rec_td" not in y2026, "rec_td leaked across seasons"
+    assert "rush_att" in y2026 and "rush_att" not in y2025, "rush_att leaked across seasons"
+
+
+def test_the_CAREER_total_keeps_a_stat_from_any_single_season(db):
+    """The converse, and the thing per-season scoping could plausibly break: a
+    career line must still show a stat the player only ever accumulated once.
+    `_totals` keeps any key some period carries, so the career call gets the
+    union across seasons for free - asserted rather than assumed."""
+    dest = str(db / "out")
+    E.export(only=["players", "teams", "manifest"], now_ts=NOW, dest=dest)
+    summary = next(v for k, v in _walk(dest).items() if k.endswith("00-A/summary.json"))
+    career = summary["career"]["stats"]
+    assert "rec_td" in career, "a 2025-only touchdown vanished from the career line"
+    assert "rush_att" in career, "a 2026-only carry vanished from the career line"
+
+
+def test_season_totals_do_not_carry_a_key_the_periods_dropped(db):
+    """A file that contradicts itself is worse than a missing one - the
+    `season_type: "REG"` lesson. Totalling the full COUNT_KEYS would put
+    `pass_att: 0` in a receiver's season totals while his game log has no such
+    column."""
+    dest = str(db / "out")
+    E.export(only=["players", "teams", "manifest"], now_ts=NOW, dest=dest)
+    files = _walk(dest)
+    for key, doc in files.items():
+        if not key.endswith("summary.json"):
+            continue
+        gsis = key.split("/")[2]
+        period_keys = set()
+        for k2, d2 in _player_season_files(files).items():
+            if f"/{gsis}/" in k2:
+                period_keys |= {k for p in d2["periods"] for k in p["stats"]}
+        for total in doc.get("season_totals", []):
+            extra = set(total["stats"]) - period_keys - {"snap_share_mean"}
+            assert not extra, f"{key}: season_totals carries {extra} absent from every period row"
