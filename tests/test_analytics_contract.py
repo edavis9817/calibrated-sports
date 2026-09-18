@@ -6,16 +6,38 @@ producer suite does not exercise the site's validator, so the rule was one
 mistake away from being unenforced at the point it matters. `AnalyticValue`
 puts it in the contract, which is what both sides compile from.
 """
-import copy
 import json
 import os
 import re
+import sqlite3
 
 import pytest
 
-from analytics import export
+from analytics import export, paths
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# THE STORE GUARD, AT THE TOP RATHER THAN ONE LAYER DOWN. Everything else in
+# this file is pure - schema documents and fixtures - and runs anywhere. Exactly
+# one test reads the live analytics database, and without this it took CI and
+# every store-less machine with it: `paths.connect(read_only=True)` raises at
+# CONNECT on a machine with no store, and `export.build()` raises SystemExit on
+# an empty one, which ends the pytest SESSION rather than failing a test.
+#
+# The assertion inside that test already said "an export that produces nothing
+# cannot be checked", so the empty case was understood - the guard was just
+# below the thing that fails. Same pattern as `tests/test_analytics_survey.py`.
+HAS_METRICS = False
+if os.path.isabs(str(paths.db_path())) and os.path.exists(paths.db_path()):
+    try:
+        HAS_METRICS = paths.connect(read_only=True).execute(
+            "SELECT COUNT(*) FROM f_metrics").fetchone()[0] > 0
+    except sqlite3.Error:
+        HAS_METRICS = False
+
+needs_metrics = pytest.mark.skipif(
+    not HAS_METRICS,
+    reason="no published metrics in analytics.db: run the analytics publishers")
 
 
 @pytest.fixture(scope="module")
@@ -234,16 +256,21 @@ def test_the_exporter_writes_nowhere_near_the_site_export_dir():
 # a builder owns exactly the prefix it fills (track A's incident, 2026-09-18)
 # =============================================================================
 
+def test_the_prefix_this_builder_owns_is_the_top_level_analytics_prefix():
+    """Store-free: the prefix is a property of the module, not of the data."""
+    assert export.OWNED_PREFIX == "analytics/"
+    assert export.PREFIX.startswith(export.OWNED_PREFIX)
+
+
+@needs_metrics
 def test_every_key_this_builder_produces_is_under_the_prefix_it_owns():
     """`sync_keys`' contract is "this builder owns this prefix". A key inside a
     prefix someone ELSE owns is deleted on their next run - which is how twelve
     market keys were lost under `research/`."""
-    from analytics import paths
     con = paths.connect(read_only=True)
     out, _dropped = export.build(con)
     assert out, "an export that produces nothing cannot be checked"
     assert all(k.startswith(export.OWNED_PREFIX) for k in out)
-    assert export.OWNED_PREFIX == "analytics/"
 
 
 def test_sync_deletes_a_stale_key_under_its_own_prefix(tmp_path):
