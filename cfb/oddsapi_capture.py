@@ -120,12 +120,17 @@ def needs_refresh(listing_fetched_ts, listing_events, now):
     return soon and age > REFRESH_NEAR_AGE_S
 
 
-def plan_forward(conn, events, now, cap=oddsapi.FORWARD_WEEKLY_CAP):
+def plan_forward(conn, events, now, cap=None):
     """Decide this tick. Returns (due, missed, skipped):
          due     [(hour_ts, group, credits_left_this_week)] - at most one, the earliest
          missed  [(hour_ts, group)] - first kickoff passed with no snapshot row
          skipped [(hour_ts, group)] - in its window but outside the week's allowance
+    `cap` defaults to `oddsapi.FORWARD_WEEKLY_CAP` READ AT CALL TIME: as a default
+    argument it was bound at import, so raising the constant would not have reached this
+    function and a test could not lower it.
+
     Writes nothing."""
+    cap = oddsapi.FORWARD_WEEKLY_CAP if cap is None else cap
     _path, _params, cost = oddsapi.PAID["odds"]
     groups = hour_groups(events)
     rows = {r[0]: (r[1], r[2]) for r in conn.execute(

@@ -1700,7 +1700,7 @@ the agent — stated as options with a recommendation, not as a question without
   against a pre-registered question.
 - **Odds API CFB spend exists in exactly two shapes** (`cfb/oddsapi.PAID`, params fixed): P1 event
   markets (74 credits LIFETIME, `--odds-p1`) and the forward bulk h2h/spreads/totals capture (3
-  credits per kickoff hour, 45 per CFB week Tue 12:00Z-Tue 12:00Z, `--odds-forward` every 5 min).
+  credits per kickoff hour, 75 per CFB week Tue 12:00Z-Tue 12:00Z, `--odds-forward` every 5 min).
   Kickoff hours come from the Odds API's `commence_time`, never `cfb_games.start_ts`. Anything
   else - historical, props at scale, option B or C - needs a new approved number, and B vs C is
   not proposed until P1's results AND Track A's NFL credit reconciliation are in: the NFL has

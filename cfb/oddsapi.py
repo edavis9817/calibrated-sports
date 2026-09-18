@@ -16,7 +16,7 @@ parameters FIXED here because the cost is a function of them:
                  P1: one pass over the listed events, P1_APPROVED_CREDITS in total
   odds           GET /sports/{sport}/odds?regions=us&markets=h2h,spreads,totals
                  3 credits; the forward capture, one per kickoff hour,
-                 at most FORWARD_WEEKLY_CAP a CFB week
+                 at most FORWARD_WEEKLY_CAP (75) a CFB week
 
 Nothing else can be built: no historical endpoint, no event odds, no other market
 or region. Adding one means a new approved number and a new entry in PAID.
@@ -68,7 +68,16 @@ PAID = {
 # The forward cap is per CFB week, Tuesday 12:00Z to Tuesday 12:00Z.
 P1_APPROVED_CREDITS = 74
 P1_NOT_BEFORE = "2026-09-19T12:00:00Z"     # "Saturday morning": keys fill in near kickoff
-FORWARD_WEEKLY_CAP = 45
+# 75 = the measured maximum week (22 kickoff hours, 66 credits, the 2026-09-01 week)
+# plus about four hours of slack. Ethan, 2026-09-18, raising his own 45: that figure was
+# set before a Saturday was known to hold 14 hours, and it had already bound twice - the
+# 09-01 week by 21 credits and the 09-22 week by 6. Sizing to the measured maximum with no
+# slack reproduces the same condition, and kickoff drift CREATES hours: a 23:30 kickoff
+# moving to 23:33 cost nothing on 2026-09-17, but +90 minutes would have opened a new one.
+# Worst case 75 x 13 weeks ~= 975 credits, about 4.2% of what is spendable above the
+# reserve. A cap is a ceiling, not a spend: quiet weeks still cost 33-45.
+# `research/cfb_forward_cap.py --season-hours` re-derives the schedule this is sized to.
+FORWARD_WEEKLY_CAP = 75
 
 
 class UnexpectedCharge(Exception):

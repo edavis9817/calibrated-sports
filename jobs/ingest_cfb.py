@@ -16,7 +16,7 @@
     python -m jobs.ingest_cfb --promote-probe                   # exchange probe -> cfb.db, 0 requests
     python -m jobs.ingest_cfb --odds-free                       # Odds API /sports + /events, 0 credits
     python -m jobs.ingest_cfb --odds-p1 --lock-wait 900         # P1: 1 credit/event, 74 lifetime, Sat 09-19
-    python -m jobs.ingest_cfb --odds-forward                    # one tick; 3 credits per kickoff hour, 45/week
+    python -m jobs.ingest_cfb --odds-forward                    # one tick; 3 credits per kickoff hour, 75/week
     python -m jobs.ingest_cfb --odds-week                       # this week's kickoff hours and captures, 0 requests
     python -m jobs.ingest_cfb --odds-reparse                    # archive -> observation tables, 0 requests
 

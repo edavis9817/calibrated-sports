@@ -237,9 +237,15 @@ def test_a_late_first_tick_records_a_miss_and_buys_nothing(store):
     assert store.execute("SELECT outcome FROM cfb_odds_snapshots").fetchone()[0] == "missed"
 
 
-def test_a_full_week_of_ticks_never_passes_the_weekly_cap(store):
+def test_a_full_week_of_ticks_never_passes_the_weekly_cap(store, monkeypatch):
     """17 kickoff hours in one CFB week against a 45-credit cap: 15 are bought, the two
-    with the fewest games are skipped, and nothing is missed."""
+    with the fewest games are skipped, and nothing is missed.
+
+    The cap is pinned HERE rather than taken from the shipped constant: this test is
+    about the mechanism, and raising the real cap (45 -> 75 on 2026-09-18) must not
+    quietly turn it into a test of nothing. `test_the_shipped_cap_covers_the_schedule`
+    is the one that watches the real number."""
+    monkeypatch.setattr(oddsapi, "FORWARD_WEEKLY_CAP", 45)
     t0 = _next_week_wednesday()
     per_hour = [5, 1, 8, 8, 2, 9, 9, 9, 7, 6, 6, 4, 3, 3, 3, 2, 1]
     fake = FakeOdds(_events(t0, per_hour))
@@ -336,3 +342,19 @@ def test_a_deduplicated_listing_keeps_the_earlier_fetch_time(store):
     ts2 = store.execute("SELECT fetched_ts FROM cfb_odds_events WHERE src_file_id=?",
                         (again,)).fetchone()[0]
     assert again == first and ts2 == ts1          # same bytes, same archive row, same instant
+
+
+def test_the_shipped_cap_covers_the_measured_schedule():
+    """The real constant, against the season it has to cover.
+
+    22 kickoff hours is the largest CFB week in the 2026 schedule (the 2026-09-01 week),
+    which is 66 credits; `research/cfb_forward_cap.py --season-hours` re-derives it from
+    `cfb_games`. A cap sized exactly to the measured maximum reproduces the condition that
+    made 45 bind twice, and kickoff drift creates hours, so the shipped number carries
+    slack above it. This test is what makes lowering the cap a deliberate act."""
+    measured_max_hours = 22
+    cost_per_hour = oddsapi.PAID["odds"][2]
+    assert oddsapi.FORWARD_WEEKLY_CAP >= measured_max_hours * cost_per_hour, (
+        "the cap no longer covers the biggest week in the schedule")
+    slack_hours = (oddsapi.FORWARD_WEEKLY_CAP - measured_max_hours * cost_per_hour) / cost_per_hour
+    assert slack_hours >= 3, f"only {slack_hours:.0f} hours of slack above the measured maximum"

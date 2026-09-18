@@ -376,7 +376,10 @@ Tuesday 09:00 trigger, and was deleted (confirmed). After creating the real task
   fires in [first kickoff - 8 min, first kickoff - 1 min]. `cfb_odds_snapshots` holds one row per
   hour (primary key), so an hour is never bought twice; outcomes `captured`, `missed`,
   `skipped_weekly_cap`, `refused`, `error` (retried only if it cost 0), `charge_unknown`.
-- Cap: 45 per CFB week (Tuesday 12:00Z to Tuesday 12:00Z). If a week lists more than 15 kickoff
+- Cap: **75** per CFB week (Tuesday 12:00Z to Tuesday 12:00Z), raised from 45 on 2026-09-18: the
+  measured maximum week is 22 kickoff hours = 66 credits (the 09-01 week) and 45 had already
+  bound twice. Simulated tick by tick in `research/cfb_forward_cap.py`; a test fails if the
+  constant drops below the biggest week plus three hours of slack. If a week lists more kickoff
   hours, the hours with the most games are kept and the rest are recorded `skipped_weekly_cap`.
   Week 3 as listed at 2026-09-17 16:44Z: exactly **15 hours = 45**; first window 2026-09-17
   23:22-23:29Z (Pittsburgh v Syracuse 23:30Z).
