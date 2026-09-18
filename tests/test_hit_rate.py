@@ -125,6 +125,44 @@ def test_an_empty_population_states_no_rate():
     assert r["rate"] is None, "0/0 must not render as 0.0"
 
 
+def test_a_ladder_in_ONE_GAME_is_one_event_not_six():
+    """THE SECOND SHARED DENOMINATOR, and the one that shipped wrong. Six
+    thresholds on one player-game settle off the SAME final stat line. They are
+    six claims and one event, so `n` is 6 and `games` is 1."""
+    rungs = [row(line=l, result="over" if l < 6 else "under")
+             for l in (3.5, 4.5, 5.5, 6.5, 7.5, 8.5)]
+    r = stats.hit_rate(rungs)
+    assert r["n"] == 6, "the record counts posted lines"
+    assert r["games"] == 1, "but they are one event"
+    assert r["rate"] == pytest.approx(3 / 6)
+
+
+def test_the_interval_is_built_on_GAMES_and_is_wider_for_it():
+    """Discriminating, and the reason this exists: the same rate on the same
+    rows must produce a WIDER interval than a naive count would."""
+    rungs = [row(line=l, result="over" if l < 6 else "under")
+             for l in (3.5, 4.5, 5.5, 6.5, 7.5, 8.5)]
+    r = stats.hit_rate(rungs)
+    naive_lo, naive_hi = stats.wilson(3, 6)
+    assert (r["hi"] - r["lo"]) > (naive_hi - naive_lo), (
+        "the interval was computed on rungs, not on games")
+
+
+def test_clustering_off_gives_games_equal_to_n():
+    """The escape hatch, and proof the widening is the cluster's doing."""
+    rungs = [row(line=l) for l in (3.5, 4.5, 5.5)]
+    r = stats.hit_rate(rungs, cluster=None)
+    assert r["games"] == r["n"] == 3
+
+
+def test_distinct_games_are_counted_distinctly():
+    """The converse: one rung per week over 17 weeks is 17 events, so games
+    must equal n and nothing is widened away."""
+    rows = [row(week=w) for w in range(1, 18)]
+    r = stats.hit_rate(rows)
+    assert r["n"] == 17 and r["games"] == 17
+
+
 def test_the_interval_comes_with_the_rate():
     """No estimate without its interval and its n - the same rule track F
     enforces in `analytics.gate`."""

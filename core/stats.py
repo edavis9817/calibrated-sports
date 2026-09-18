@@ -80,6 +80,26 @@ def wilson(k, n, z=1.96):
 # same game are two claims - a ladder prices several - so `line` is in the key.
 MARKET_KEY = ("season", "week", "entity_id", "stat", "line")
 
+# ONE INDEPENDENT OBSERVATION. A ladder's rungs are not independent draws: every
+# threshold on a player-game settles off the SAME final stat line, so 6 rungs are
+# 6 claims but 1 event. The rate is computed over claims - "how often did a
+# posted line clear" - and the INTERVAL is computed over events, because that is
+# what the uncertainty is about.
+#
+# MEASURED 2026-09-17, and it is not a rounding detail:
+#
+#     player-game-stat cells 38,061   markets 102,159   inflation 2.68x
+#     receiving_yards  113,409 markets / 10,767 games = 10.53x
+#     receptions        41,945 /         10,293       =  4.08x
+#
+# On one real player: receiving yards at n=1,046 rungs gives [0.4327, 0.4930];
+# the same record on its 53 games gives [0.3438, 0.6034] - 4.3x wider. Publishing
+# the first invites a reader to compare two players and see a difference that the
+# data cannot support. CLAUDE.md has said this since brief 021 ("the effective
+# sample is GAMES, not rungs") and the CFB calibration work collapses to one
+# observation per game for the same reason.
+GAME_KEY = ("season", "week", "entity_id", "stat")
+
 # Imported, not re-declared. `core.settlement` is the single home of the
 # settlement vocabulary and imports nothing, so there is no cycle to dodge - and
 # this session's most expensive defect was a rule that existed twice.
@@ -110,12 +130,24 @@ def pooled_side_violations(rows, fields=MARKET_KEY):
     return [(k, sorted(set(seen[k]))) for k in order if len(seen[k]) > 1]
 
 
-def hit_rate(rows, fields=MARKET_KEY):
-    """How often the OVER cleared, counting each market exactly once.
+def hit_rate(rows, fields=MARKET_KEY, cluster=GAME_KEY):
+    """How often the OVER cleared, counting each market once and each EVENT once.
 
-    -> {"cleared", "n", "rate", "lo", "hi"}; `rate`/`lo`/`hi` are None at n = 0,
-    because 0/0 is not 0.0 and a degenerate interval must not read as a
-    measurement.
+    -> {"cleared", "n", "games", "rate", "lo", "hi"}
+       `n`      claims: posted lines that settled. The record.
+       `games`  independent events behind them. The effective sample.
+       `rate`   cleared / n - over claims, which is what "how often did a posted
+                line clear" means.
+       lo, hi   Wilson on GAMES, not on n. `rate`/`lo`/`hi` are None at n = 0,
+                because 0/0 is not 0.0 and a degenerate interval must not read
+                as a measurement.
+
+    THE INTERVAL IS THE WHOLE POINT OF THE SPLIT. Six rungs on one player-game
+    settle off one final stat line, so they carry one game's worth of evidence,
+    not six. Computing the interval on `n` makes it ~sqrt(n/games) too narrow -
+    measured at 1.64x overall and 3.2x on receiving yards - and the failure is
+    invisible, because the RATE is correct and only the confidence is invented.
+    Pass `cluster=None` for a population that genuinely has one claim per event.
 
     RAISES `PooledSides` on a population carrying any market twice. Refusing is
     the point: the pooled number is not obviously wrong - the rate is right and
@@ -133,6 +165,12 @@ def hit_rate(rows, fields=MARKET_KEY):
     n = len(rows)
     cleared = sum(1 for r in rows if r.get("result") == OVER)
     if not n:
-        return {"cleared": 0, "n": 0, "rate": None, "lo": None, "hi": None}
-    lo, hi = wilson(cleared, n)
-    return {"cleared": cleared, "n": n, "rate": cleared / n, "lo": lo, "hi": hi}
+        return {"cleared": 0, "n": 0, "games": 0, "rate": None, "lo": None, "hi": None}
+    games = n if cluster is None else len(
+        {tuple(r[f] for f in cluster) for r in rows})
+    rate = cleared / n
+    # Wilson needs an integer success count, so the rate is carried onto the
+    # effective sample rather than the raw one. round() keeps k <= games.
+    lo, hi = wilson(min(round(rate * games), games), games)
+    return {"cleared": cleared, "n": n, "games": games,
+            "rate": rate, "lo": lo, "hi": hi}

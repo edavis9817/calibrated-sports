@@ -127,6 +127,33 @@ def test_priority_markets_lead_and_yards_is_not_suppressed(tmp_path):
     assert yards["priority"] is False
 
 
+def test_a_ladder_counts_as_ONE_game_and_widens_the_interval(tmp_path):
+    """THE DEFECT THIS FIXES, end to end. Six thresholds on one player-game are
+    six posted lines and ONE event - they settle off the same final stat line.
+    Publishing an interval built on the six invited a reader to compare two
+    players and see a difference the data cannot support."""
+    rows = []
+    for line, res in ((3.5, "over"), (4.5, "over"), (5.5, "over"),
+                      (6.5, "under"), (7.5, "under"), (8.5, "under")):
+        rows += both_sides(2025, 1, "00-A", "receptions", line, res)
+    rec = E.load_prop_history(store(tmp_path, rows), {"00-A"})["00-A"]["stats"][0]
+    assert rec["n"] == 6, "the record counts posted lines"
+    assert rec["games"] == 1, "but one player-game is one event"
+    assert rec["rate"] == pytest.approx(0.5)
+    naive_lo, naive_hi = S.wilson(3, 6)
+    lo, hi = rec["interval"]
+    assert (hi - lo) > (naive_hi - naive_lo), "interval was built on rungs, not games"
+
+
+def test_games_equals_n_when_each_claim_is_its_own_game(tmp_path):
+    """Discriminating: the widening must come from clustering, not be blanket."""
+    rows = []
+    for wk in range(1, 6):
+        rows += both_sides(2025, wk, "00-A", "receptions", 4.5, "over")
+    rec = E.load_prop_history(store(tmp_path, rows), {"00-A"})["00-A"]["stats"][0]
+    assert rec["n"] == 5 and rec["games"] == 5
+
+
 def test_every_stat_carries_its_interval_and_its_n(tmp_path):
     """No estimate without its interval and its sample count."""
     rows = []

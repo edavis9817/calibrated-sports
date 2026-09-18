@@ -311,10 +311,39 @@ before and is `null` now, and a re-scan confirms **0 remaining zeros inside any 
 
 ```json
 "prop_history": {
-  "stats":   [{"stat", "priority", "n", "cleared", "rate", "interval"}],
+  "stats":   [{"stat", "priority", "n", "games", "cleared", "rate", "interval"}],
   "records": [{"season", "stat", "line", "n", "cleared", "rate", "interval"}]
 }
 ```
+
+### `games` is the sample to quote, NOT `n` — and this is the one thing to get right
+
+`n` counts **posted lines**. `games` counts the **independent events** behind them. They are not the
+same number and the gap is large: a ladder prices several thresholds on one player-game, and every
+rung settles off the *same* final stat line. Measured 2026-09-17 across the whole record:
+
+| stat | markets | player-games | inflation |
+|---|---|---|---|
+| `receiving_yards` | 113,409 | 10,767 | **10.5x** |
+| `receptions` | 41,945 | 10,293 | 4.1x |
+| `sacks` | 15,238 | 4,765 | 3.2x |
+| overall | 102,159 | 38,061 | 2.7x |
+
+`rate` is `cleared / n`, which is the right reading of "how often did a posted line clear".
+**`interval` is computed on `games`**, because that is what the uncertainty is about. On one real
+player, receiving yards at n=1,046 rungs gives `[0.4327, 0.4930]`; the same record on its 53 games
+gives `[0.3438, 0.6034]` — **4.3x wider**.
+
+**This was shipped wrong first and is now corrected on the live export.** The first version built the
+interval on `n`, which made every published interval up to 3.2x too narrow. Track F raised the
+general shape — comparing two intervals side by side is anti-conservative when the subjects share a
+denominator — and measuring it found the shared denominator was not across players (two players never
+share a market; verified, 0 shared keys) but *within* one: the rungs of a ladder.
+
+**So: if the page ever puts two players' rates side by side, the honest sample is `games`.** Quoting
+`n` invites a reader to see a difference the data cannot support. Any aggregation Track B does should
+sum `cleared` and `n` for the rate and sum `games` for the interval — never average rates, and never
+re-derive an interval from `n`.
 
 `null` for a player with no settled props — **not** an empty record, because "no history" and "a
 history of nothing" are different statements. 672 of 3,970 exported players carry one.

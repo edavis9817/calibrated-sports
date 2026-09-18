@@ -743,9 +743,17 @@ def load_prop_history(con, scope):
     this function collapses to one row per market and hands it over.
     """
     by_market = {}
+    # LATEST data_version only, like every other read in this repo. 171 outcomes
+    # carry two settlement rows; today they agree on `result` (measured, 0
+    # disagreements), so taking either was harmless - but "harmless because the
+    # duplicates happen to agree" is not a rule, and a re-derive that changed a
+    # result would make the published record depend on row ordering.
     for season, week, gsis, stat, line, side, result in con.execute(
             "SELECT o.season, o.week, o.entity_id, o.stat, o.line, o.side, s.result "
             "FROM outcome_settlement s JOIN outcomes o ON o.outcome_id = s.outcome_id "
+            "JOIN (SELECT outcome_id, MAX(data_version) dv FROM outcome_settlement "
+            "      GROUP BY outcome_id) latest "
+            "  ON latest.outcome_id = s.outcome_id AND latest.dv = s.data_version "
             "WHERE o.entity_type = 'player' AND s.result IN (?, ?) "
             "ORDER BY o.season, o.week, o.entity_id, o.stat, o.line, o.side",
             (ST.OVER, ST.UNDER)):
@@ -773,7 +781,11 @@ def load_prop_history(con, scope):
             h = core_stats.hit_rate(srows)
             stats_out.append({
                 "stat": stat, "priority": stat in PRIORITY_PROPS,
-                "n": h["n"], "cleared": h["cleared"],
+                # `n` is posted lines, `games` the independent events behind
+                # them. The interval is built on `games` - a ladder's rungs all
+                # settle off one final stat line, so counting them as separate
+                # evidence made the published interval up to 3.2x too narrow.
+                "n": h["n"], "games": h["games"], "cleared": h["cleared"],
                 "rate": rnd(h["rate"]),
                 "interval": None if h["rate"] is None else [rnd(h["lo"]), rnd(h["hi"])]})
         # Priority markets first, in the order the research ranks them; then

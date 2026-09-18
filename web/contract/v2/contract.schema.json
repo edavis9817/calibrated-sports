@@ -632,17 +632,18 @@
     },
 
     "PropHistoryStat": {
-      "description": "One stat's settled record. `priority` marks the markets the research settled on (targets, rush attempts, receptions); it is DATA so the site can word the ordering rather than hard-coding a claim about it. rate and interval are null at n = 0.",
+      "description": "One stat's settled record. `priority` marks the markets the research settled on (targets, rush attempts, receptions); it is DATA so the site can word the ordering rather than hard-coding a claim about it. `n` counts posted lines and `games` counts the independent events behind them - a ladder prices several thresholds on one player-game and they all settle off the same final stat line, so `rate` is over `n` while the INTERVAL is over `games`. Quote games alongside any comparison: n alone overstates the evidence by up to 10x on receiving yards. rate and interval are null at n = 0.",
       "type": "object",
       "properties": {
         "stat": {"type": "string"},
         "priority": {"type": "boolean"},
         "n": {"type": "integer"},
+        "games": {"type": "integer"},
         "cleared": {"type": "integer"},
         "rate": {"type": ["number", "null"]},
         "interval": {"anyOf": [{"$ref": "#/$defs/Interval"}, {"type": "null"}]}
       },
-      "required": ["stat", "priority", "n", "cleared", "rate", "interval"],
+      "required": ["stat", "priority", "n", "games", "cleared", "rate", "interval"],
       "additionalProperties": false
     },
 
