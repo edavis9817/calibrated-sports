@@ -1516,6 +1516,13 @@ W04/W05 build cycle. They apply without being restated, so proceed on them rathe
   exists, a second test asserts the subject is not it.
 - **Route checks prove nothing about client-rendered content.** curl sees `Loading…`. Anything below
   the fold needs a render test.
+- **A guard whose first run is all noise gets switched off.** A guard is only worth what it costs to
+  keep, so the false-positive rate is part of whether it works, not a detail of it. `test_store_guards`
+  matched any `.connect(...)` on its first run and flagged two tests calling
+  `sqlite3.connect(tmp_path / "other.db")` — a temp file, no store in sight. The fix was to match the
+  MODULE (`paths.connect`) rather than the method name. Precision first; a guard nobody trusts is
+  deleted or ignored within the week, and then the class it was written for is unguarded AND believed
+  to be covered.
 
 ### A PROXY IS NOT THE THING
 

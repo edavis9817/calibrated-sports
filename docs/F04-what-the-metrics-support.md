@@ -57,9 +57,30 @@ elasticities are a few hundredths. The interval is wider than the effect for
 most players, and that is the finding: *"he's a garbage-time merchant"* is,
 for 85% of players, not a statement the data supports.
 
-Carries separate best (20.5%), which is consistent with F02 — a backfield
-changes by decision and the decision holds, so the effect is larger relative to
-its noise.
+### Carries separating best is corroboration, and it is worth saying so
+
+Carries separate best at **20.5%**, against 14.1% for targets and 12.0% for
+receptions. F02 found, from a completely different question, that **carry share
+is the one usage metric whose week-to-week deviations persist** (+0.237
+[+0.216, +0.258]) while target and reception share are mean-reverting.
+
+Two questions, one answer: the run game's usage is more structured than the pass
+game's, in the time dimension and in the script dimension alike. The mechanism is
+the same in both — a backfield changes by decision and the decision holds, so
+carry share carries more signal relative to its noise; targets move with
+coverage and script and reset weekly.
+
+**Two findings agreeing is worth more than either alone**, and it is the same
+shape as track B's 110-of-1,584 standing beside their "0 of 17": neither number
+is load-bearing on its own and together they describe one thing.
+
+One distinction worth keeping, because conflating it would be the "agreement
+between two unchecked arguments" trap wearing a better suit. **F02 and F04 are
+independent QUESTIONS over the same facts, not independent data** — both read
+`f_play_usage`. Track B's record and track F's are independent *pipelines* over
+*different sources*, which is the stronger form. Both are real corroboration;
+they are not the same strength, and the headline table above is the stronger
+one.
 
 ---
 
