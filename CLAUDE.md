@@ -1623,6 +1623,15 @@ assertion discriminate (show it returning the *other* answer on the other input)
   and Ethan's answer was no. One copy: the settlement rule existed twice and the copies disagreed on
   3,272 outcomes.
 
+- **On a conflict in an append-only log, each track's row wins in its OWN row** (Ethan, 2026-09-18).
+  `DECISIONS.md` collided on two same-day rows during a rebase: track A had refined the wording of
+  their own row while track F had updated its own. Neither side is "theirs" or "ours" wholesale —
+  taking either half entire would have silently reverted the other track's refinement to a stale
+  copy, which is the same class as overwriting a file you did not write. Resolve row by row, and
+  keep the version written by whoever owns the row. The same applies to CLAUDE.md, where an earlier
+  rebase collapsed three rows upstream: keep their generalisation, append only what is genuinely
+  new.
+
 ## Design constraints
 
 - **Team colour is identity only** — chips, hairlines. Never a chart fill or row background.
