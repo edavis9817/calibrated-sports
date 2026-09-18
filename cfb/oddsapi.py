@@ -69,7 +69,7 @@ PAID = {
 P1_APPROVED_CREDITS = 74
 P1_NOT_BEFORE = "2026-09-19T12:00:00Z"     # "Saturday morning": keys fill in near kickoff
 # 75 = the measured maximum week (22 kickoff hours, 66 credits, the 2026-09-01 week)
-# plus about four hours of slack. Ethan, 2026-09-18, raising his own 45: that figure was
+# plus THREE hours of slack (75 - 66 = 9 credits, 3 credits an hour). Ethan, 2026-09-18, raising his own 45: that figure was
 # set before a Saturday was known to hold 14 hours, and it had already bound twice - the
 # 09-01 week by 21 credits and the 09-22 week by 6. Sizing to the measured maximum with no
 # slack reproduces the same condition, and kickoff drift CREATES hours: a 23:30 kickoff

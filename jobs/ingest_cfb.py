@@ -375,9 +375,15 @@ def archive_cfbd(conn, req, body: bytes, fetched_ts, source="cfbd",
     return cur.lastrowid, "new"
 
 
-def run_cfbd(conn, requests, client=None, max_requests=cfbd.MAX_REQUESTS_PER_RUN):
+def run_cfbd(conn, requests, client=None, max_requests=None):
     """Refuse before spending, spend at most the plan, stop at the reserve.
-    Returns counts; raises BudgetRefused when the run must not start."""
+    Returns counts; raises BudgetRefused when the run must not start.
+
+    `max_requests=None` reads the module cap AT CALL TIME: as a default argument it was
+    bound at import, so editing `cfbd.MAX_REQUESTS_PER_RUN` changed what you read and not
+    what ran. The `min()` below meant the effective cap was right anyway - this is the
+    same shape as the forward-capture cap, caught by the sweep rather than by a symptom."""
+    max_requests = cfbd.MAX_REQUESTS_PER_RUN if max_requests is None else max_requests
     cap = min(max_requests, cfbd.MAX_REQUESTS_PER_RUN)
     if len(requests) > cap:
         raise cfbd.BudgetRefused(f"plan is {len(requests)} metered requests, cap is {cap}; "
@@ -652,11 +658,13 @@ def p1_spent(conn):
         "WHERE purpose='p1'").fetchone()[0]
 
 
-def run_odds_p1(conn, client=None, now=None, max_credits=oddsapi.P1_APPROVED_CREDITS,
-                gap_s=1.0):
+def run_odds_p1(conn, client=None, now=None, max_credits=None, gap_s=1.0):
     """P1: /events/{id}/markets for every pre-match listed event, once, FBS first.
     Lifetime budget P1_APPROVED_CREDITS; not before P1_NOT_BEFORE. Every response is
-    kept verbatim. Stops at the first non-200 or unexpected charge."""
+    kept verbatim. Stops at the first non-200 or unexpected charge.
+
+    `max_credits=None` reads the approved total at CALL time, not at import."""
+    max_credits = oddsapi.P1_APPROVED_CREDITS if max_credits is None else max_credits
     now = time.time() if now is None else now
     not_before = oddsapi.iso_ts(oddsapi.P1_NOT_BEFORE)
     if now < not_before:
