@@ -1477,6 +1477,17 @@ W04/W05 build cycle. They apply without being restated, so proceed on them rathe
 - **Verify the verifier.** When a check fails, establish which side is wrong before editing anything.
   Do not change working code to satisfy a broken assertion. Four failures in one round were the
   checker, not the page.
+- **Grep case-INSENSITIVELY first; narrow only once you have hits.** `grep -i` to establish whether
+  the thing exists at all, then tighten. Not a principle — a keystroke, because the principle already
+  exists three rows down in the proxy table and did not fire three times in one session:
+  - `removing a check` missed the row that reads "**REMOVING** a check's return value";
+  - `Week 0` missed F01's week-0 finding, already tabled under different wording;
+  - `guard returns the statement` missed the same rule living in `DECISIONS.md`.
+
+  Each one produced a **wrong claim in a report** — "track C filed this and I never did it" — before a
+  case-insensitive rerun corrected it. The failure is always in the same direction: a pattern that does
+  not match and a thing that does not exist are indistinguishable, and they lead to opposite actions.
+  Absence is the expensive answer to get wrong, so buy it with the cheap search first.
 - **Exit 0 is not a result.** A script that reports nothing and succeeds is a FAILED script. Assert on
   the SHAPE of what you read before trusting what you print. Three of these in one night, each
   exiting clean and each telling me nothing: a `--tests-out` reader that printed `n/a` for all 28
