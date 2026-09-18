@@ -33,8 +33,8 @@
       {"pattern": "^research/hypotheses\\.json$", "kind": "research.hypotheses"},
       {"pattern": "^research/calibration\\.json$", "kind": "research.calibration"},
       {"pattern": "^research/execution\\.json$", "kind": "research.execution"},
-      {"pattern": "^[a-z0-9]+/analytics/index\\.json$", "kind": "analytics.index"},
-      {"pattern": "^[a-z0-9]+/analytics/[a-z0-9_]+(\\.[a-z0-9_]+)+\\.json$", "kind": "analytics.metric"}
+      {"pattern": "^analytics/[a-z0-9]+/index\\.json$", "kind": "analytics.index"},
+      {"pattern": "^analytics/[a-z0-9]+/[a-z0-9_]+(\\.[a-z0-9_]+)+\\.json$", "kind": "analytics.metric"}
     ]
   },
 

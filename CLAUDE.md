@@ -1755,6 +1755,30 @@ Disk before diagnosis. store.disk_headroom_ok() refuses below 5 GB free, so a fu
   to be removed or computed, not permission.
 
 
+## One builder owns one prefix, and owns exactly what it fills (track A's incident)
+
+`sync_keys(dest, wanted, prefixes)` **deletes every local key under `prefixes` that is not in
+`wanted`**. Its contract is therefore "this builder owns this prefix", and it is a delete
+authorisation, not a hint.
+
+2026-09-18: `sync_keys(dest, research, ["research/"])` ran with a `wanted` set that
+`build_research()` fills with exactly three files, and **twelve market keys under `research/` were
+deleted** — a builder firing on data it does not produce. One incident is enough evidence.
+
+- **A prefix has exactly one builder, and that builder fills all of it.** Not most of it.
+- **Do not fix a collision by widening another builder's `wanted` set.** Two builders sharing one
+  prefix is the defect; adding keys to the other one's list preserves it and hides it.
+- **A new data family gets a new TOP-LEVEL prefix with its own `sync_keys` call.** Nested under
+  someone else's prefix is deletion waiting for their next run. Track F's analytics moved from
+  `{sport}/analytics/` to `analytics/{sport}/` for this reason — the nested form happened to be
+  safe, because the owned prefixes are `nfl/market/`, `nfl/players/`, `nfl/teams/` and `research/`
+  and nothing owns bare `nfl/`, but "happened to be safe" is a fact about today's call sites and
+  not a property of the key.
+- **Assert it, don't remember it.** `tests/test_analytics_contract.py` reads the producer's own
+  `sync_keys` call sites by AST and fails if any owned prefix contains, or is contained by, the
+  analytics prefix; and it proves the delete path both deletes inside the prefix and cannot reach
+  a key outside it. A destructive path that has never been seen to fire is not a guard.
+
 ## Shared denominators, and intervals read side by side (track F, Ethan)
 
 **Any share-of-team figure has a shared denominator, and two teammates' shares are

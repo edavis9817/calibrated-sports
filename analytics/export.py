@@ -11,8 +11,26 @@ nothing here uploads: publishing is a separate decision made elsewhere.
 
 TWO KINDS, BOTH ADDITIVE TO THE CONTRACT:
 
-    {sport}/analytics/index.json        every metric, its range, where to fetch
-    {sport}/analytics/{metric}.json     one metric's envelope and values
+    analytics/{sport}/index.json        every metric, its range, where to fetch
+    analytics/{sport}/{metric}.json     one metric's envelope and values
+
+ANALYTICS IS A TOP-LEVEL PREFIX, AND THAT IS NOT COSMETIC. Track A, 2026-09-18:
+`sync_keys(dest, research, ["research/"])` DELETES every local key under
+`research/` that the research builder did not produce, and `build_research()`
+produces exactly three files. Twelve market keys were deleted that way in one
+night by a builder firing on data it does not produce.
+
+`sync_keys`'s contract is "this builder owns this prefix", so the prefix has to
+be one a single builder fills completely. Anything under a prefix another
+builder owns is deleted on its next run - which is why this is NOT solved by
+adding analytics to some other builder's wanted set. One incident is enough
+evidence.
+
+The first version of this module used `{sport}/analytics/`. That happened to be
+safe - the owned prefixes are `nfl/market/`, `nfl/players/`, `nfl/teams/` and
+`research/`, and nothing owns bare `nfl/` - but "happened to be safe" is a fact
+about today's call sites, not a property of the key. A top-level prefix owned by
+exactly one builder is the property.
 
 THE GATE IS NOW EXPRESSED ON BOTH SIDES. `analytics.gate` refuses an estimate
 without an interval and a sample count in the producer; `AnalyticValue` in the
@@ -40,7 +58,13 @@ from analytics import paths
 
 CONTRACT_PATH = os.path.join("web", "contract", "v2", "contract.schema.json")
 SPORT = "nfl"
-PREFIX = "%s/analytics" % SPORT
+
+# THE PREFIX THIS MODULE OWNS, and the only one it may write or delete under.
+# `keys()` asserts every key it produces starts with it, and `sync()` deletes
+# stale files only under it - a builder must own exactly the prefix it fills,
+# no more and no less.
+OWNED_PREFIX = "analytics/"
+PREFIX = "%s%s" % (OWNED_PREFIX, SPORT)
 
 _CONTRACT = None
 _VALIDATORS = None
@@ -187,17 +211,44 @@ def export_dir():
     return config.storage_path("analytics_export")
 
 
-def write(out, root=None):
+def local_keys(root):
+    """{key: path} for every .json already under this module's OWN prefix."""
+    base = os.path.join(root, *OWNED_PREFIX.strip("/").split("/"))
+    out = {}
+    for dirpath, _dirs, files in os.walk(base):
+        for name in files:
+            if not name.endswith(".json"):
+                continue
+            path = os.path.join(dirpath, name)
+            key = os.path.relpath(path, root).replace(os.sep, "/")
+            out[key] = path
+    return out
+
+
+def sync(out, root=None, dry_run=False):
+    """Write every wanted key; delete stale .json UNDER THIS PREFIX ONLY.
+
+    Same contract as `jobs.export_web.sync_keys` and deliberately the same
+    shape: this builder owns `analytics/` and nothing else, so a metric that
+    stops being published stops being served, and nothing another builder owns
+    is ever in reach. See the module docstring for the incident behind it.
+    """
     root = root or export_dir()
+    stale = [k for k in local_keys(root) if k not in out]
     written = 0
     for key, payload in out.items():
+        assert key.startswith(OWNED_PREFIX), (
+            "%r is outside the prefix this builder owns (%r)" % (key, OWNED_PREFIX))
         path = os.path.join(root, *key.split("/"))
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        text = json.dumps(payload, indent=1, sort_keys=False)
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(text + "\n")
+        if not dry_run:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(json.dumps(payload, indent=1, sort_keys=False) + "\n")
         written += 1
-    return written, root
+    for key in stale:
+        if not dry_run:
+            os.remove(os.path.join(root, *key.split("/")))
+    return written, len(stale), root
 
 
 def main(argv=None):
@@ -223,8 +274,9 @@ def main(argv=None):
              (" - " + ", ".join("%s:%d" % kv for kv in sorted(dropped.items())))
              if dropped else ""))
     if a.write:
-        n, root = write(out)
-        print("wrote %d files under %s" % (n, root))
+        n, deleted, root = sync(out)
+        print("wrote %d files, deleted %d stale, under %s/%s"
+              % (n, deleted, root, OWNED_PREFIX))
     if not (a.check or a.write or a.keys):
         ap.print_help()
     return 0

@@ -140,10 +140,12 @@ def test_the_index_key_and_a_metric_key_do_not_collide(contract):
     def kinds(key):
         return [k for rx, k in pats if rx.match(key)]
 
-    assert kinds("nfl/analytics/index.json") == ["analytics.index"]
-    assert kinds("nfl/analytics/usage_stability.within_lag1.target_share.json") \
+    assert kinds("analytics/nfl/index.json") == ["analytics.index"]
+    assert kinds("analytics/nfl/usage_stability.within_lag1.target_share.json") \
         == ["analytics.metric"]
-    assert kinds("nfl/analytics/pace.plays_per_game.json") == ["analytics.metric"]
+    assert kinds("analytics/nfl/pace.plays_per_game.json") == ["analytics.metric"]
+    # and the OLD shape is no longer a key at all
+    assert kinds("nfl/analytics/index.json") == []
 
 
 def test_every_analytics_kind_has_a_def_and_a_key_pattern(contract):
@@ -173,12 +175,12 @@ def test_the_contract_is_valid_json_schema(contract):
 
 def test_the_exporter_refuses_a_key_matching_no_pattern():
     with pytest.raises(export.ContractError, match="matches no pattern"):
-        export._validated("nfl/nonsense/x.json", {"kind": "analytics.metric"})
+        export._validated("analytics/nonsense/x/y.json", {"kind": "analytics.metric"})
 
 
 def test_the_exporter_refuses_a_payload_whose_kind_contradicts_its_key():
     with pytest.raises(export.ContractError, match="implies kind"):
-        export._validated("nfl/analytics/index.json", _metric())
+        export._validated("analytics/nfl/index.json", _metric())
 
 
 def test_the_exporter_refuses_a_value_without_its_interval():
@@ -186,11 +188,11 @@ def test_the_exporter_refuses_a_value_without_its_interval():
     bad["values"] = [{"subject": "p", "slice": "", "estimate": 0.2,
                       "n": 9, "rows": 9, "method": "block2000"}]
     with pytest.raises(export.ContractError):
-        export._validated("nfl/analytics/a.b.json", bad)
+        export._validated("analytics/nfl/a.b.json", bad)
 
 
 def test_the_exporter_accepts_a_complete_metric():
-    assert export._validated("nfl/analytics/a.b.json", _metric())["metric"] == "a.b"
+    assert export._validated("analytics/nfl/a.b.json", _metric())["metric"] == "a.b"
 
 
 def test_an_unbounded_interval_is_dropped_not_coerced():
@@ -226,3 +228,78 @@ def test_the_exporter_writes_nowhere_near_the_site_export_dir():
     assert d == config.storage_path("analytics_export")
     if config.WEB_EXPORT_DIR:
         assert os.path.abspath(d) != os.path.abspath(config.WEB_EXPORT_DIR)
+
+
+# =============================================================================
+# a builder owns exactly the prefix it fills (track A's incident, 2026-09-18)
+# =============================================================================
+
+def test_every_key_this_builder_produces_is_under_the_prefix_it_owns():
+    """`sync_keys`' contract is "this builder owns this prefix". A key inside a
+    prefix someone ELSE owns is deleted on their next run - which is how twelve
+    market keys were lost under `research/`."""
+    from analytics import paths
+    con = paths.connect(read_only=True)
+    out, _dropped = export.build(con)
+    assert out, "an export that produces nothing cannot be checked"
+    assert all(k.startswith(export.OWNED_PREFIX) for k in out)
+    assert export.OWNED_PREFIX == "analytics/"
+
+
+def test_sync_deletes_a_stale_key_under_its_own_prefix(tmp_path):
+    root = str(tmp_path)
+    stale = tmp_path / "analytics" / "nfl" / "gone.metric.json"
+    stale.parent.mkdir(parents=True)
+    stale.write_text("{}", encoding="utf-8")
+    written, deleted, _ = export.sync({"analytics/nfl/a.b.json": _metric()},
+                                      root=root)
+    assert (written, deleted) == (1, 1)
+    assert not stale.exists()
+    assert (tmp_path / "analytics" / "nfl" / "a.b.json").exists()
+
+
+def test_sync_CANNOT_REACH_A_KEY_OUTSIDE_ITS_PREFIX(tmp_path):
+    """The whole point. A file under another builder's prefix must survive,
+    however stale it looks from here."""
+    root = str(tmp_path)
+    others = ("research/calibration.json", "nfl/market/x.json",
+              "nfl/players/index.json")
+    for other in others:
+        f = tmp_path.joinpath(*other.split("/"))
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("{}", encoding="utf-8")
+    export.sync({"analytics/nfl/a.b.json": _metric()}, root=root)
+    for other in others:
+        assert tmp_path.joinpath(*other.split("/")).exists(), other
+
+
+def test_sync_refuses_to_write_a_key_outside_its_prefix(tmp_path):
+    with pytest.raises(AssertionError, match="outside the prefix"):
+        export.sync({"research/analytics/a.b.json": _metric()},
+                    root=str(tmp_path))
+
+
+def test_the_analytics_prefix_is_owned_by_no_other_builder():
+    """Read the producer's own call sites rather than trusting a comment: no
+    existing `sync_keys` prefix may contain or be contained by `analytics/`."""
+    import ast
+    import inspect
+
+    from jobs import export_web
+    tree = ast.parse(inspect.getsource(export_web))
+    owned = []
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Call)
+                and getattr(node.func, "id", "") == "sync_keys"
+                and len(node.args) >= 3 and isinstance(node.args[2], ast.List)):
+            for elt in node.args[2].elts:
+                if isinstance(elt, ast.Constant):
+                    owned.append(elt.value)
+                elif isinstance(elt, ast.JoinedStr):       # f"{SPORT}/market/"
+                    owned.append("".join(
+                        v.value if isinstance(v, ast.Constant) else "*"
+                        for v in elt.values))
+    assert owned, "found no sync_keys prefixes - the check read nothing"
+    for prefix in owned:
+        assert not prefix.startswith(export.OWNED_PREFIX), prefix
+        assert not export.OWNED_PREFIX.startswith(prefix), prefix

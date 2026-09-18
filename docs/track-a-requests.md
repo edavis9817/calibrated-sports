@@ -102,7 +102,7 @@ your file.
 | `$defs.Availability` | enum `current` \| `historical` |
 | `$defs.SharedDenominator` | enum `team` \| `league` \| `own` \| null |
 | `x-contract.kinds` | `analytics.index`, `analytics.metric` |
-| `x-contract.keys` | `^[a-z0-9]+/analytics/index\.json$` and `^[a-z0-9]+/analytics/[a-z0-9_]+(\.[a-z0-9_]+)+\.json$` |
+| `x-contract.keys` | `^analytics/[a-z0-9]+/index\.json$` and `^analytics/[a-z0-9]+/[a-z0-9_]+(\.[a-z0-9_]+)+\.json$` |
 
 No existing `$def`, kind, key pattern or `required` list was touched. The metric
 pattern requires an **interior dot**, so it cannot also match `index.json`
@@ -140,3 +140,37 @@ no `properties`, no `required` — so any subset validates. `PeriodRow` is
 and is the open map. **No contract change is needed to remove keys.** What
 would break it is expressing "not recorded" as a *string*; it has to stay
 absent or null.
+
+
+### The prefix, per your `sync_keys` finding
+
+**Analytics publishes under a top-level `analytics/` prefix**, not under
+`research/` and not nested under a sport:
+
+    analytics/{sport}/index.json
+    analytics/{sport}/{metric}.json
+
+Taken directly from your 2026-09-18 finding. It needs **its own `sync_keys`
+call owning `analytics/`** — one builder, one prefix, and that builder fills all
+of it. Not added to `build_research()`'s wanted set: two builders sharing one
+prefix is what deleted the twelve market keys, and widening the other one's list
+preserves the defect.
+
+Worth recording for the record: the first version of this used
+`{sport}/analytics/`, which **would not** have been hit by tonight's mechanism —
+the owned prefixes are `nfl/market/`, `nfl/players/`, `nfl/teams/` and
+`research/`, and nothing owns bare `nfl/`. It was safe by accident of today's
+call sites rather than by any property of the key, which is the argument for
+moving it.
+
+`analytics/export.py` already implements the same contract inside its own
+directory: it writes every wanted key and deletes stale `.json` **only** under
+`analytics/`. Three tests guard it — a stale key inside the prefix is deleted, a
+key under `research/`, `nfl/market/` or `nfl/players/` survives, and a key
+outside the prefix is refused at write. A fourth reads your `sync_keys` call
+sites by AST and fails if any owned prefix ever contains or is contained by
+`analytics/`, so a future prefix change on your side breaks my suite rather than
+my data.
+
+Rule appended to `CLAUDE.md` as *One builder owns one prefix* — it binds both
+tracks now, so it is where both read it rather than only in your incident log.
