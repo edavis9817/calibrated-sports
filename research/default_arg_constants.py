@@ -13,14 +13,23 @@ distinguishes the two - the constant says 75, the function uses 45, and both are
 "the cap". Found 2026-09-18 raising that exact constant; this sweep answers how
 many siblings it has.
 
-TWO CLASSES, and only one is dangerous:
+TWO CLASSES, AND THE SPLIT IS ABOUT ODDS OF NOTICING, NOT ABOUT THE FAILURE. Both
+bind at import identically. "Same module, so they move in one diff" is weaker than it
+sounds: a constant at the top of a long file and a default far below it are in one diff
+only if someone happens to edit both.
 
   CROSS-MODULE  `def f(x=other.CONST)` - the attribute can be monkeypatched or
                 reassigned at runtime and the function will never see it. This is
                 the defect. The fix is `x=None` and `x = other.CONST if x is None`.
-  SAME-MODULE   `def f(x=CONST)` where CONST is defined in the same file. Editing
-                the literal changes both, and the two are visible in one diff, so
-                it is a smell rather than a defect - unless a test monkeypatches it.
+  SAME-MODULE   `def f(x=CONST)` where CONST is defined in the same file. Identical
+                semantics; only the chance of spotting it differs.
+
+A SPEND LIMIT IS DANGEROUS WHEREVER IT LIVES, so the categorical rule below applies to
+BOTH classes and outranks any allowlist: a budget-shaped constant must not sit in a
+default argument in a module that can make requests. "Can make requests" is COMPUTED -
+the file imports an HTTP client, or imports a module that does - so nothing has to be
+remembered, and a research script that only reads a database is exempt by construction
+rather than by a line someone maintains.
 
 `tests/test_default_arg_constants.py` pins the cross-module count at zero.
 """
@@ -51,6 +60,60 @@ def module_constants(tree):
             for t in targets:
                 if isinstance(t, ast.Name) and t.id.isupper():
                     out.add(t.id)
+    return out
+
+
+BUDGET_WORDS = ("CAP", "CREDIT", "BUDGET", "RESERVE", "LIMIT", "MAX_REQUESTS", "QUOTA",
+                "SPEND", "COST")
+HTTP_CLIENTS = ("httpx", "requests", "urllib", "aiohttp", "http.client")
+
+
+def _imports(tree):
+    out = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            out.update(a.name.split(".")[0] for a in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            out.add(node.module.split(".")[0])
+            out.update(f"{node.module.split('.')[0]}.{a.name}" for a in node.names)
+    return out
+
+
+def http_capable(root):
+    """{module name} for every module that imports an HTTP client, plus every module
+    that imports one of those. Two passes is enough for this repo's shape; a third
+    would only add modules whose spend is already reachable through a named one."""
+    imports, direct = {}, set()
+    for path in python_files(root):
+        try:
+            tree = ast.parse(open(path, encoding="utf-8").read(), path)
+        except SyntaxError:
+            continue
+        mod = os.path.splitext(os.path.relpath(path, root))[0].replace(os.sep, ".")
+        imports[mod] = _imports(tree)
+        if any(c.split(".")[0] in imports[mod] for c in HTTP_CLIENTS):
+            direct.add(mod)
+    capable = set(direct)
+    for mod, imps in imports.items():
+        if any(d == i or d.endswith("." + i) or i.endswith("." + d.split(".")[-1])
+               for d in direct for i in imps):
+            capable.add(mod)
+    return capable
+
+
+def spend_shaped(root):
+    """[(finding, module)] for budget-named constants defaulted inside a module that can
+    make requests. This is the rule that survives an allowlist going stale."""
+    capable = http_capable(root)
+    out = []
+    for f in findings(root):
+        if not any(w in f[4].upper() for w in BUDGET_WORDS):
+            continue
+        mod = os.path.splitext(f[0])[0].replace("/", ".")
+        owner = f[4].split(".")[0] if f[5] == "cross-module" else None
+        if mod in capable or any(c == owner or c.endswith("." + owner) for c in capable
+                                 if owner):
+            out.append((f, mod))
     return out
 
 
@@ -94,6 +157,11 @@ def main(argv=None):
     print(f"cross-module constants in default-argument position: {len(cross)}")
     for path, line, fn, arg, src, _k in cross:
         print(f"  {path}:{line}  {fn}({arg}={src})")
+    spend = spend_shaped(a.root)
+    print(f"budget-shaped AND in a module that can make requests: {len(spend)}"
+          f"  <- the categorical rule, both classes")
+    for f, mod in spend:
+        print(f"  {f[0]}:{f[1]}  {f[2]}({f[3]}={f[4]})  [{f[5]}]")
     print(f"same-module constants in default-argument position: {len(same)}"
           f"{'' if a.all else '  (--all to list)'}")
     if a.all:
