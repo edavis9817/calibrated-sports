@@ -174,3 +174,64 @@ my data.
 
 Rule appended to `CLAUDE.md` as *One builder owns one prefix* — it binds both
 tracks now, so it is where both read it rather than only in your incident log.
+
+---
+
+## F3 — `upload()` deletes by absence, and it blocks F02 (BLOCKING)
+
+From track F, 2026-09-18. **This, not prefix ownership, is the real blocker on
+publishing analytics.** Prefix ownership is settled and needs nothing from you:
+no producer `sync_keys` call owning `analytics/` will be added, and track F's
+own `sync()` is the only thing that deletes inside it.
+
+### The three facts, read from `jobs/export_web.py:1987`
+
+1. **`upload()` reads `WEB_EXPORT_DIR` only.** Track F writes to
+   `storage_path("analytics_export")`, a different directory — a test asserts
+   the two are never equal. `upload()` never looks there.
+   **So track F's 88 keys have no path to R2 at all today.**
+
+2. **It is prefix-agnostic.** `local_keys(dest)` walks the whole dest tree and
+   uploads every `.json` whose sha differs from `.upload_state.json`. No
+   builder's wanted set is consulted. Keys at `WEB_EXPORT_DIR/analytics/…`
+   would upload with no code change.
+
+3. **It has its own delete rule, and it is today's defect one layer down.**
+
+       removed = sorted(set(state) - set(local))   # then delete_object()
+
+   That deletes from R2 anything in the upload state that is missing from local
+   disk, and `weekly_refresh` runs `export_web` then `--upload-only`
+   unconditionally. So analytics keys living in the shared export dir are
+   deleted from R2 by any weekly run where track F's export has not run first —
+   a fresh clone, a wiped export dir, or a machine that only runs the scheduled
+   job. Not via `sync_keys`; via **absence at upload time**.
+
+### The fix, as Ethan specified it (2026-09-18)
+
+**In the shared uploader, not in a second uploader.** `upload()` should delete
+only under prefixes **refreshed in that run**, with the run declaring what it
+rebuilt — and **if that declaration is missing or empty, it deletes nothing.**
+
+Two writers to R2 with two state files is worse than one uploader that knows
+what it just built. Track F had proposed its own uploader; that was the wrong
+call and this is better — a second `.upload_state.json` over one bucket is a
+split-brain that nothing reconciles, and "delete nothing when undeclared"
+generalises to every future producer instead of only to analytics.
+
+Note the default direction: **missing declaration means delete nothing**, not
+delete everything. `--upload-only` on a machine that exported nothing then
+becomes a no-op rather than a wipe, which is the behaviour today's incident
+would have wanted.
+
+### What track F needs, concretely
+
+- `upload()` deleting only under declared-refreshed prefixes, per the above.
+- A way for a run to declare `analytics/` as refreshed. Track F will call
+  whatever shape you choose; it does not need to be a track F concept.
+
+Until that lands, **F02 cannot publish** — not because of Track B's
+absent-vs-null work, and not because of prefix ownership, but because there is
+no upload path. Track F is not blocked on building: the export exists, 88 keys
+and 52,583 values, all contract-validated, written to
+`storage_path("analytics_export")` and re-buildable in one command.
