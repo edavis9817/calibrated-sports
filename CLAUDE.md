@@ -1496,6 +1496,7 @@ Six incidents in one session, all the same shape. They are cross-referenced, not
 | a guard verified BEFORE it was active | the guard | "no renormalisation" was checked while `.gitattributes` was still untracked — attributes apply only once git tracks the file, so the check ran at the one moment the rule could not fire and a clean `git status` proved nothing |
 | **a PIPELINE's exit code** | **the command's exit code** | `cmd \| tail` reports `tail`'s status, so a SEGFAULTING export read as `exit 0`. Proven, not assumed: `python -c "sys.exit(7)" \| tail` gives `$?=0`, and `set -o pipefail` gives 7. Hit TWICE in one session — the second time in the command written to diagnose the first, which is how thoroughly a masked exit code hides itself. `ci.yml` already sets `pipefail`; ad-hoc diagnostics must too, or capture the status with no pipe in sight |
 | **a stale mtime** | **a part of the job that never ran** | a manifest 8 hours older than its siblings was read as proof the export had stopped early. `write_if_changed` compares through `_canonical()`, which strips `generated_at`, so a part that never ran is byte-identical to one that ran and produced the same content — and a fully successful re-run duly reported `manifest [0,0]`. The mtime could not distinguish the two states, so it was never evidence for either |
+| **a total that reconciles** | **a total that is not double-counted** | NGS `ngs_receiving` carries a **week 0 row that IS the season total**: Ja'Marr Chase 2025 reads 185 targets at week 0 and weeks 1+ sum to exactly 185. Aggregate over all weeks and every figure doubles — and it is the SILENT-ZERO CLASS'S COUSIN, worse in one way. A zero cliff at least produces a number a reader might find odd; a silent double survives every sanity check anyone would apply, because the ratios, the rankings, the shares and the correlations are all unchanged and only the magnitudes move, by a factor that looks like nothing in particular. The reconciliation that catches it is exactly the one that looks redundant: does the part sum to the whole, or IS the whole sitting in the parts |
 | **a non-NULL check** | **a value that is present** | NaN is not NULL. polars `count()` counts it and `fill_null(0) != 0` is TRUE for it, so a column of pure NaN scores as fully populated and fully informative. `stats_player_week.target_share` is targets over ZERO targets for 2003-2008 - NaN on 17,355 of 17,355 rows in 2005 - and the coverage survey read those six seasons as 99.7% informative and flagged the OTHER TWENTY-TWO as the anomaly. **A detector that inverts is worse than one that misses**: a miss leaves you where you started, an inversion hands you the opposite of the truth with a number attached. Count nan separately (`nan_n`) so it can never be folded into a category that hides it |
 | **an interval that is valid on its own** | **an interval a reader may compare with the one beside it** | sharing bootstrap draws across subjects (common random numbers) changes no centre and no width, so each interval stays valid - and it correlates the Monte Carlo error BETWEEN subjects, which is exactly what someone reading two of them side by side consumes. Measured against the per-game correlation between the pair: variance of the eyeballed gap runs 1.571 at rho -0.9, 1.026 at 0, 0.952 at +0.6 relative to independent draws. Above 1 is anti-conservative. Teammates share a denominator and measure rho = -0.215, so the site's commonest side-by-side is the bad half. **Whatever readers will compare must be drawn independently**, and "nothing publishes a contrast" is a claim about the code, not about the product |
 | **`$(git rev-parse origin/main)` read AFTER `git fetch`** | **whether the remote moved** | a freshness guard compared the post-fetch SHA against itself and could only ever print "unchanged". Capture it BEFORE the fetch. Written, and relied on, inside the very protocol step it was meant to protect |
@@ -1707,6 +1708,40 @@ Disk before diagnosis. store.disk_headroom_ok() refuses below 5 GB free, so a fu
   or declared with a kind (definition, gated, record, violation). Declared violations are live debt,
   to be removed or computed, not permission.
 
+
+## Shared denominators, and intervals read side by side (track F, Ethan)
+
+**Any share-of-team figure has a shared denominator, and two teammates' shares are
+therefore mechanically opposed.** Target share, carry share, snap share, route share, red-zone
+share, any "% of team" a future analytic invents: if A's share goes up on a given game, B's goes
+down, because they divide the same total. This is a property of the quantity, not of these five
+metrics, and it applies to every analytic added later and to anything track B renders side by side.
+
+Three consequences, in force without being restated:
+
+- **Resample independently per subject.** Sharing bootstrap draws across subjects (common random
+  numbers) leaves every interval individually valid and correlates the Monte Carlo error *between*
+  them — which is exactly what a reader consumes from two intervals on one screen. For negatively
+  correlated subjects that is **anti-conservative**: measured variance of the eyeballed gap runs
+  1.571 at ρ = −0.9, 1.078 at −0.3, 1.026 at 0, and 0.952 at +0.6, relative to independent draws.
+  Teammates measure ρ = −0.215 on a real slate, so the site's commonest comparison sits on the bad
+  half. `analytics/crn_check.py`; the seed is derived from the subject's own id so this costs
+  nothing in reproducibility.
+- **Two intervals side by side are not a test.** Overlap is not "no difference" and separation is a
+  stricter bar than a direct comparison. Where a genuine contrast between two subjects is wanted,
+  bootstrap the CONTRAST as one quantity over shared blocks — the same rule brief 018 set for the
+  selection gap — never by differencing two separately published intervals.
+- **A share metric must say it is one.** `analytics.metrics.Metric.shares_denominator` names the
+  denominator (`team`, or None), the registry refuses a share-shaped metric that leaves it unset,
+  and it is exported so a page can carry the caveat rather than re-deriving it. A rule that lives
+  only in prose is a rule the next analytic does not know about.
+
+**And the meta-rule, from how this one was nearly missed.** The caching was defended by two
+arguments at once — that no contrast between subjects was published, and that regenerating draws
+was ~99% of runtime. Both were wrong, and neither had been checked: the product's whole idiom is
+side-by-side comparison, and the real cost was 22–208 seconds across 27,000 slices. **Agreement
+between two unchecked arguments is not evidence.** Two reasons pointing the same way feel like
+corroboration and are not; the only thing that makes either one evidence is measuring it.
 
 ## Claims — falsifiability (W07, Ethan)
 

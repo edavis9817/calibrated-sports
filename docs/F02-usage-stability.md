@@ -15,13 +15,31 @@ Measured 2026-09-17 on 1,282,384 plays across 1999–2026.
 
 ## The finding
 
-Week-to-week movement in a receiver's usage does not carry to next week. It is
-very slightly **mean-reverting**, and the interval excludes zero.
+**Target share, week to week:**
 
-Everything that looks like week-to-week predictability is a fact about *which
-player he is*, not about *what he did last week*.
+| | |
+|---|---|
+| correlated the way it is usually read | **+0.532** [+0.514, +0.549] |
+| correlated against the player's own average | **−0.014** [−0.024, −0.003] |
 
-| usage metric | naive week-to-week | **within-player** | between-player | players | player-weeks |
+Those two numbers are the same pairs of weeks, from the same 1,540 players and
+63,481 player-weeks. The first is what "his target share is trending" appeals
+to. The second is what the claim actually asks — *is he above or below his own
+normal, and does that carry?* — and the answer is no, slightly the other way,
+with the interval excluding zero.
+
+**Everything that looks like week-to-week momentum in receiving usage is a fact
+about which player he is, not about what he did last week.**
+
+The difference between the two rows is entirely between-player variance: good
+receivers are targeted a lot every week, so pooling raw weekly pairs across
+players finds them high twice in a row and calls it persistence. Subtracting
+each player's own season average removes the player and leaves the week — and
+there is nothing in it.
+
+### The same decomposition for every usage metric
+
+| usage metric | as usually read | **against his own average** | between-player | players | player-weeks |
 |---|---|---|---|---|---|
 | target share | +0.532 [+0.514, +0.549] | **−0.014 [−0.024, −0.003]** | 0.550 [0.533, 0.566] | 1,540 | 63,481 |
 | targets | +0.488 [+0.471, +0.504] | **−0.015 [−0.026, −0.004]** | 0.511 [0.494, 0.526] | 1,540 | 63,481 |
@@ -35,17 +53,10 @@ contributes many weeks and many seasons and they are not independent of each
 other, so the block is the player. Quoting 63,481 as the sample would make
 every interval about six times too narrow.
 
-**Read the first two numeric columns together.** The naive column is the one a
-"trending" claim is implicitly appealing to: pool every consecutive pair of
-weeks from every player and correlate them, and target share reads **+0.53**.
-Subtract each player's own season average first — which is what "is he trending
-*for him*" actually asks — and the same pairs read **−0.014**.
-
-The gap between those two columns is the whole finding. It is not that usage is
-unpredictable. It is that **all of the predictability is already in the
-player's level, and none of it is in the direction he is moving.**
-
----
+The third column is why the first one is so high: between-player share runs
+0.42–0.73, so most of the variance in weekly usage is which player you are
+looking at. That is not a flaw in the data — it is the reason a prior-usage
+feature works at all. It is only a flaw in reading it as momentum.
 
 ## The one exception, and it is worth naming
 

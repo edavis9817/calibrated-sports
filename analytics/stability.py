@@ -82,7 +82,12 @@ def metric_for(family, kind):
         key="usage_stability.%s.%s" % (family, kind),
         label="%s: %s" % (label, kind),
         unit=unit, subject_type="league", block="player", basis="pbp",
-        availability="current", slice_kind="", requires=REQUIRES[kind])
+        availability="current", slice_kind="",
+        # the underlying weekly quantity is a team share for the *_share kinds;
+        # the published number is one league-wide correlation, so there is no
+        # second subject to compare, but the quantity is named honestly.
+        shares_denominator="team" if kind.endswith("_share") else "own",
+        requires=REQUIRES[kind])
 
 
 def weekly(con, kind, season_from, season_to):

@@ -28,6 +28,7 @@ grew a long-format rule the day this table was designed, because a bare `est`
 matched no estimate pattern and would have walked straight through it.
 """
 import argparse
+import re
 import sys
 import time
 from dataclasses import dataclass, field
@@ -43,6 +44,7 @@ CREATE TABLE IF NOT EXISTS f_metrics (
     block        TEXT    NOT NULL,   -- what the interval resamples: game | player
     basis        TEXT    NOT NULL,   -- pbp | participation
     slice_kind   TEXT    NOT NULL,   -- what `slice` means for this metric
+    shares_denominator TEXT,         -- 'team' when two subjects divide one total
     season_from  INTEGER NOT NULL,
     season_to    INTEGER NOT NULL,
     range_note   TEXT    NOT NULL,
@@ -69,6 +71,13 @@ CREATE INDEX IF NOT EXISTS ix_fmv_metric ON f_metric_values(metric, slice);
 CREATE INDEX IF NOT EXISTS ix_fmv_subject ON f_metric_values(subject_id, metric);
 """
 
+# A metric whose name or description is share-shaped must declare its
+# denominator. Deliberately broad: a false positive costs one keyword argument,
+# a false negative ships a comparison nobody flagged.
+SHARE_SHAPED = re.compile(
+    r"(^|[^a-z])share([^a-z]|$)|(^|_)pct(_|$)|percent|proportion|"
+    r"fraction|(^|_)rate_of(_|$)", re.I)
+
 VALUE_COLS = ("metric", "subject_id", "slice", "season_from", "season_to",
               "est", "lo", "hi", "n", "rows", "method")
 
@@ -92,6 +101,23 @@ class Metric:
     block: str
     basis: str
     availability: str
+    # WHAT TWO SUBJECTS DIVIDE, when they divide anything. `team` for any
+    # share-of-team figure - target share, carry share, snap share, and every
+    # "% of team" a later analytic invents.
+    #
+    # It is a field rather than a note because the property is not about these
+    # metrics, it is about the quantity: two teammates' shares are mechanically
+    # opposed, so their intervals side by side are the comparison that the
+    # bootstrap has to be independent for, and the page has to caveat. A rule
+    # that lives only in prose is a rule the next analytic does not know about.
+    # `own` means the denominator is the subject's own total - an air-yard bin
+    # share divides that player's targets, so two players share nothing and the
+    # side-by-side caveat does not apply. It is an explicit answer, because the
+    # alternative is that every false positive of `SHARE_SHAPED` gets silenced
+    # by a default and the real ones go with them.
+    #
+    # `SHARE_SHAPED` below refuses a share metric that leaves this unset.
+    shares_denominator: str = None
     # What `slice` means for THIS metric - a script bucket, a down bucket, a
     # season, an air-yard bin. `f_metric_values` is one long table for every
     # analytic, so without this a reader cannot tell a slice of '2019' from a
@@ -107,6 +133,22 @@ class Metric:
                              % (gate.AVAILABILITY,))
         if self.block not in ("game", "player", "team"):
             raise ValueError("block must name what the interval resamples")
+        if self.shares_denominator not in (None, "team", "league", "own"):
+            raise ValueError(
+                "shares_denominator names what two subjects divide: 'team', "
+                "'league', 'own' (the subject's own total - nothing is shared "
+                "with another subject), or None for a metric that is not a "
+                "share at all")
+        text = "%s %s %s" % (self.key, self.label, self.unit)
+        if SHARE_SHAPED.search(text) and self.shares_denominator is None:
+            raise ValueError(
+                "metric %r looks like a share but does not say what two "
+                "subjects divide. Set shares_denominator to 'team' or "
+                "'league' if they divide one total, or to 'own' if the "
+                "denominator is the subject's own - two teammates' shares are "
+                "mechanically opposed and a page reading their intervals side "
+                "by side has to know which case it is. 'own' is an answer; "
+                "silence is not." % self.key)
 
 
 def derive_range(con, metric: Metric):
@@ -208,6 +250,7 @@ def register(con, metric: Metric):
     row = {"metric": metric.key, "label": metric.label, "unit": metric.unit,
            "subject_type": metric.subject_type, "block": metric.block,
            "basis": metric.basis, "slice_kind": metric.slice_kind,
+           "shares_denominator": metric.shares_denominator,
            "season_from": lo, "season_to": hi,
            "range_note": note, "availability": metric.availability,
            "requires": ";".join(
@@ -219,9 +262,10 @@ def register(con, metric: Metric):
         raise AssertionError("metric %r does not carry its usable range: %s"
                              % (metric.key, problems))
     con.execute(
-        "INSERT OR REPLACE INTO f_metrics VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT OR REPLACE INTO f_metrics VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         tuple(row[k] for k in ("metric", "label", "unit", "subject_type",
-                               "block", "basis", "slice_kind", "season_from",
+                               "block", "basis", "slice_kind",
+                               "shares_denominator", "season_from",
                                "season_to", "range_note", "availability",
                                "requires"))
         + (int(time.time()),))
@@ -266,13 +310,14 @@ def envelope(con, metric_key: str) -> dict:
     """
     m = con.execute(
         "SELECT metric, label, unit, subject_type, block, basis, slice_kind, "
-        "season_from, season_to, range_note, availability, requires "
-        "FROM f_metrics WHERE metric=?", (metric_key,)).fetchone()
+        "shares_denominator, season_from, season_to, range_note, "
+        "availability, requires FROM f_metrics WHERE metric=?",
+        (metric_key,)).fetchone()
     if not m:
         raise KeyError("no such metric: %r" % metric_key)
     keys = ("metric", "label", "unit", "subject_type", "block", "basis",
-            "slice_kind", "season_from", "season_to", "range_note",
-            "availability", "requires")
+            "slice_kind", "shares_denominator", "season_from", "season_to",
+            "range_note", "availability", "requires")
     env = dict(zip(keys, m))
     env["values"] = [
         {"subject_id": s, "slice": sl, "est": e, "lo": lo, "hi": hi,

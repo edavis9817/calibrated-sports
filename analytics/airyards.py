@@ -70,6 +70,10 @@ def metric_for(role, family):
         availability="current",
         slice_kind={"bins": "air_yard_bin", "quantiles": "percentile",
                     "polarity": ""}[family],
+        # OWN, not team: a bin share divides this player's own targets, so two
+        # players share no denominator and are not mechanically opposed. The
+        # side-by-side caveat that applies to target share does not apply here.
+        shares_denominator="own",
         requires=ROLES[role])
 
 

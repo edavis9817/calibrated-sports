@@ -180,6 +180,7 @@ def metric_for(kind):
         key="role.%s_share" % kind, label=spec["label"], unit=spec["unit"],
         subject_type="player", block="game", basis=spec["basis"],
         availability=spec["availability"], slice_kind="down_bucket",
+        shares_denominator="team",
         requires=spec["requires"])
 
 

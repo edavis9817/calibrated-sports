@@ -73,6 +73,9 @@ def metric_for(kind: str) -> metrics.Metric:
               "when leading by 7+" % kind),
         subject_type="player", block="game", basis="pbp",
         availability="current", slice_kind="script_bucket",
+        # his share of the TEAM's plays of that kind: two teammates divide one
+        # total, so their intervals side by side carry the caveat.
+        shares_denominator="team",
         requires=REQUIRES[kind])
 
 

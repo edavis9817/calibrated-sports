@@ -212,3 +212,68 @@ def test_the_resampling_matrix_is_not_memoised_across_subjects():
     src = inspect.getsource(intervals)
     assert "_COUNTS_CACHE" not in src
     assert "subject" in inspect.signature(intervals._counts_matrix).parameters
+
+
+# =============================================================================
+# shared denominators (track F standing rule, Ethan 2026-09-17)
+# =============================================================================
+
+def _metric(**kw):
+    from analytics.metrics import Metric
+    base = dict(key="x.y", label="L", unit="u", subject_type="player",
+                block="game", basis="pbp", availability="current")
+    base.update(kw)
+    return Metric(**base)
+
+
+@pytest.mark.parametrize("key,unit", [
+    ("usage.target_share", "share of team targets"),
+    ("usage.snap_pct", "snaps as a percent of team plays"),
+    ("x.route_share", "share of team routes"),
+    ("x.redzone_proportion", "proportion of team red-zone looks"),
+])
+def test_a_share_shaped_metric_must_say_what_two_subjects_divide(key, unit):
+    """The rule is about the QUANTITY, not about the five metrics that exist.
+    Any future share-of-team figure has the same property: two teammates
+    divide one total, so their shares are mechanically opposed."""
+    with pytest.raises(ValueError, match="two subjects divide"):
+        _metric(key=key, unit=unit)
+
+
+def test_own_is_an_answer_and_silence_is_not():
+    """An air-yard bin share divides the player's OWN targets, so two players
+    share nothing. That has to be stated, not left to a default - otherwise
+    every false positive is silenced by the same mechanism as the real ones."""
+    m = _metric(key="air_yards.bins", unit="share of targets in each band",
+                shares_denominator="own")
+    assert m.shares_denominator == "own"
+
+
+def test_a_metric_that_is_not_a_share_needs_no_denominator():
+    m = _metric(key="pace.seconds_per_play", unit="seconds between snaps")
+    assert m.shares_denominator is None
+
+
+def test_an_unknown_denominator_is_refused():
+    with pytest.raises(ValueError, match="names what two subjects divide"):
+        _metric(key="x.share", unit="share of team", shares_denominator="teem")
+
+
+def test_every_published_share_metric_declares_team_or_own():
+    """Drives the real metric constructors, so a new analytic that forgets
+    fails here rather than at publish time on the dev box."""
+    from analytics import airyards, pace, role, script, stability
+    built = ([script.metric_for(k) for k in script.KINDS]
+             + [role.metric_for(k) for k in role.KINDS]
+             + [pace.metric_for(k, p) for k in pace.KINDS for p in (False, True)]
+             + [airyards.metric_for(r, f) for r in airyards.ROLES
+                for f in ("bins", "quantiles", "polarity")]
+             + [stability.metric_for(f, k) for f in stability.FAMILIES
+                for k in stability.KINDS])
+    assert len(built) > 25
+    for m in built:
+        if m.shares_denominator == "team":
+            assert "share" in m.key or "share" in m.unit.lower()
+    teams = {m.key for m in built if m.shares_denominator == "team"}
+    assert "role.touch_share" in teams and "role.onfield_share" in teams
+    assert "air_yards.bins.receiver" not in teams

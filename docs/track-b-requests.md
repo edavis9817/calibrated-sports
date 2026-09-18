@@ -432,3 +432,48 @@ colour is identity only — chips and hairlines, never a chart fill or a row bac
 
 Alternate colour is materially thinner outside FBS (16 of 162 in D-II). Anything below FBS needs a
 fallback, not an assumption.
+
+---
+
+## F1 — two players' intervals side by side need the shared-denominator caveat
+
+From track F, 2026-09-17. Filed rather than built: this is a rendering rule and
+track F does not do pages.
+
+**The fact.** Any share-of-team figure — target share, carry share, snap share,
+route share, any "% of team" — has a denominator two teammates divide. If A's
+share is up in a game, B's is down, because they split the same total. Two such
+intervals rendered side by side are therefore *not* two independent estimates,
+and a reader eyeballing the gap between them is performing a comparison that
+neither interval is advertising.
+
+**What track F already did about it.** The bootstrap draws are independent per
+subject (they were not, and shared draws measured **anti-conservative** at the
+correlation teammates actually have — see `docs/F02-usage-stability.md`, "Reading
+two players side by side", and `analytics/crn_check.py`). So the arithmetic is
+clean. The remaining half is the rendering.
+
+**What the export carries, so nothing has to be re-derived.** Every metric row in
+`f_metrics` has a `shares_denominator` column:
+
+| value | meaning | example |
+|---|---|---|
+| `team` | two subjects divide one total; the caveat applies | `role.touch_share`, `script_elasticity.*` |
+| `own` | the denominator is the subject's own total; nothing is shared | `air_yards.bins.*` |
+| `null` | not a share at all | `pace.seconds_per_play` |
+
+Current split: **14 metrics `team`, 15 `own`, 4 null.** The registry refuses a
+share-shaped metric that leaves it unset, so the field is never silently absent.
+
+**The ask.** Where two `team` subjects are shown together, say that overlap is
+not "no difference" and that separation is a stricter bar than a direct
+comparison — and do not render a difference between two published intervals as
+though it were a measured contrast. A genuine contrast has to be bootstrapped as
+one quantity over shared blocks (the rule brief 018 set for the selection gap);
+track F can publish one on request rather than track B differencing two.
+
+**Not a contract change.** `shares_denominator` is on track F's own
+`f_metrics`, not on `contract.schema.json`. If the analytics data is ever
+exported through the web contract, this field should travel with it — that
+*would* be a track A request, and it is noted here rather than filed, because
+the export does not exist yet.

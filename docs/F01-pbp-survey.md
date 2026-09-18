@@ -425,8 +425,16 @@ Three things about NGS that do matter, all measured:
   it covers and it cannot be a spine for anything that needs a roster.
 - **Week 0 is the season total, and it sums to the weeks.** Ja'Marr Chase 2025:
   the week-0 row reads 185 targets and weeks 1+ sum to exactly 185. A naive
-  aggregation over all weeks double-counts every season by precisely 2×, which
-  is the same silent-doubling shape as §2.12.
+  aggregation over all weeks double-counts every season by precisely 2×.
+
+  **This is the silent-zero class's cousin, and it is worse in one way.** A zero
+  cliff at least produces a figure a reader might find odd. A silent double
+  survives every sanity check anyone would apply: the ratios are unchanged, the
+  rankings are unchanged, the shares are unchanged, the correlations are
+  unchanged, and only the magnitudes move — by a factor that looks like nothing
+  in particular. The reconciliation that catches it is exactly the one that
+  looks redundant: does the part sum to the whole, or *is* the whole sitting in
+  among the parts. Tabled in CLAUDE.md as its own row.
 - **`player_gsis_id` is on all three files**, so it joins to the spine with no
   crosswalk.
 
