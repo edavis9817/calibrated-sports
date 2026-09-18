@@ -112,6 +112,15 @@ measured against a different book than the one you bet at, depends on this.
 Player identity: nflverse `gsis_id`, crosswalked **at ingest**, never in
 analysis code.
 
+**A text-parsed name column is never a key** (track C, A-C1; applies to every
+track). In `cfbfastR_cfb_pbp`, `rusher_player_name` ran 0.37 of plays in 2024,
+0.21 in 2025 and **0.000 in 2026** while `rush_player_id` held flat at
+0.35-0.36; `sack_player_name` and `sack_players` went the same way. Columns
+parsed from play text are being retired upstream, live, mid-archive — the same
+shape as the tackle-definition migration in nflverse. Key and join on ids.
+`cfb.pbp_scope.key_column()` refuses the name columns by name and by
+`_player_name` shape.
+
 ## Layers
 
 `FACTS → FEATURES → BELIEFS → DECISIONS`. Each layer reads only the previous
@@ -1477,6 +1486,14 @@ W04/W05 build cycle. They apply without being restated, so proceed on them rathe
   against the count you expected, and fail loudly when it is zero.
 - **Assert correctness, not presence.** A test that a tab renders is worthless; assert its destination
   resolves. Use `satisfies`, not `as`. The gate typechecks everything, not the import graph.
+- **A guard returns the statement it approved, never a bare boolean**, and the result is carried
+  rather than discarded (track C, A-C1; applies to guards already built, not only new ones).
+  `cfb.pbp_scope.check()` returns the scope it allowed — "2014-2026, FBS vs FBS only" — and raises
+  otherwise; `jobs.ingest_cfb.audit()` returns an `AuditReport` whose `.statement` is one log line and
+  whose `.clean` is the verdict. **The report REFUSES truth-testing** — `__bool__` raises — because
+  supporting it reinstates the `if audit(conn):` that drops the statement, while merely omitting it
+  makes every instance truthy and turns `assert audit(store)` into an assertion about nothing. See the
+  proxy table's `__bool__` row for what that costs.
 - **An assertion about a DEFINITION says nothing about its CALL SITES.** Extracting a duplicated rule
   deleted two functions and left two live calls to them in `research/bookvbook.py`, behind a suite of
   800 passing tests. The guard asserted the definition existed exactly once — but the risk was in the
@@ -1514,6 +1531,8 @@ Six incidents in one session, all the same shape. They are cross-referenced, not
 | **a total that reconciles** | **a total that is not double-counted** | NGS `ngs_receiving` carries a **week 0 row that IS the season total**: Ja'Marr Chase 2025 reads 185 targets at week 0 and weeks 1+ sum to exactly 185. Aggregate over all weeks and every figure doubles — and it is the SILENT-ZERO CLASS'S COUSIN, worse in one way. A zero cliff at least produces a number a reader might find odd; a silent double survives every sanity check anyone would apply, because the ratios, the rankings, the shares and the correlations are all unchanged and only the magnitudes move, by a factor that looks like nothing in particular. The reconciliation that catches it is exactly the one that looks redundant: does the part sum to the whole, or IS the whole sitting in the parts |
 | **a non-NULL check** | **a value that is present** | NaN is not NULL. polars `count()` counts it and `fill_null(0) != 0` is TRUE for it, so a column of pure NaN scores as fully populated and fully informative. `stats_player_week.target_share` is targets over ZERO targets for 2003-2008 - NaN on 17,355 of 17,355 rows in 2005 - and the coverage survey read those six seasons as 99.7% informative and flagged the OTHER TWENTY-TWO as the anomaly. **A detector that inverts is worse than one that misses**: a miss leaves you where you started, an inversion hands you the opposite of the truth with a number attached. Count nan separately (`nan_n`) so it can never be folded into a category that hides it |
 | **an interval that is valid on its own** | **an interval a reader may compare with the one beside it** | sharing bootstrap draws across subjects (common random numbers) changes no centre and no width, so each interval stays valid - and it correlates the Monte Carlo error BETWEEN subjects, which is exactly what someone reading two of them side by side consumes. Measured against the per-game correlation between the pair: variance of the eyeballed gap runs 1.571 at rho -0.9, 1.026 at 0, 0.952 at +0.6 relative to independent draws. Above 1 is anti-conservative. Teammates share a denominator and measure rho = -0.215, so the site's commonest side-by-side is the bad half. **Whatever readers will compare must be drawn independently**, and "nothing publishes a contrast" is a claim about the code, not about the product |
+| **a command that returned** | **the work it actually did** | (track C, A-C3) `git checkout <path>` CANNOT restore a file git does not track: mutation-testing a guard in a new file, the restore silently did nothing and left mutated code on disk, surfacing only because someone grepped for the mutation instead of trusting the exit code. And piping a long scan through `head` truncates the WORK, not the output — a 36-file rescan died on SIGPIPE after four files and the next command read the half-built table and printed a clean, plausible "0 silent-zero runs". Redirect to a file and tail it; verify a restore by looking at the file |
+| **an object with no `__bool__`** | **a check that can fail** | (track C, A-C4) a guard returning a bare boolean is weak — `if check(x):` discards what it learned — but REMOVING the return value is worse: an object with no `__bool__` and no `__len__` is TRUTHY, so every `assert check(x)` keeps passing and now asserts nothing, including when the check fails. Seven `assert ingest_cfb.audit(store)` sites would have gone green and vacuous with no diff to notice. The strong form REFUSES truth-testing (`__bool__` raises, naming `.clean` and `.statement`) so every stale call site fails loudly the moment the return type changes. Generalised: when a return value stops meaning what call sites assume, make the old usage RAISE, never merely stop being supported |
 | **`$(git rev-parse origin/main)` read AFTER `git fetch`** | **whether the remote moved** | a freshness guard compared the post-fetch SHA against itself and could only ever print "unchanged". Capture it BEFORE the fetch. Written, and relied on, inside the very protocol step it was meant to protect |
 
 The tell is always the same: **the check passed and told me nothing.** A result that cannot
