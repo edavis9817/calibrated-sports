@@ -17,7 +17,9 @@
       "market": "MarketFile",
       "research.hypotheses": "HypothesesFile",
       "research.calibration": "CalibrationResearchFile",
-      "research.execution": "ExecutionFile"
+      "research.execution": "ExecutionFile",
+      "analytics.index": "AnalyticsIndexFile",
+      "analytics.metric": "AnalyticMetricFile"
     },
     "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.execution"],
     "keys": [
@@ -30,7 +32,9 @@
       {"pattern": "^[a-z0-9]+/market/[^/]+/\\d{4}-\\d+\\.json$", "kind": "market"},
       {"pattern": "^research/hypotheses\\.json$", "kind": "research.hypotheses"},
       {"pattern": "^research/calibration\\.json$", "kind": "research.calibration"},
-      {"pattern": "^research/execution\\.json$", "kind": "research.execution"}
+      {"pattern": "^research/execution\\.json$", "kind": "research.execution"},
+      {"pattern": "^[a-z0-9]+/analytics/index\\.json$", "kind": "analytics.index"},
+      {"pattern": "^[a-z0-9]+/analytics/[a-z0-9_]+(\\.[a-z0-9_]+)+\\.json$", "kind": "analytics.metric"}
     ]
   },
 
@@ -929,6 +933,139 @@
         "rule": {"type": "string"}
       },
       "required": ["schema_version", "generated_at", "kind", "sport", "source", "series", "spread_to_volatility", "rule"],
+      "additionalProperties": false
+    },
+
+    "Availability": {
+      "description": "Can this metric answer a question about the CURRENT season? `historical` is not a defect - a participation-derived metric structurally cannot, because that feed refreshes only after the postseason - but it has to be said rather than discovered when a live page renders an empty panel. Derived from the metric's measured coverage, not declared: the producer refuses `current` on a metric whose inputs stop before the live season.",
+      "type": "string",
+      "enum": ["current", "historical"]
+    },
+
+    "SharedDenominator": {
+      "description": "What two SUBJECTS divide, when they divide anything. `team` is any share-of-team figure - target share, carry share, snap share - where two teammates split one total and their shares are therefore mechanically opposed; two such intervals rendered side by side are not two independent estimates and the page must say so. `own` means the denominator is the subject's own total (an air-yard bin share divides that player's targets), so nothing is shared and the caveat does not apply. `null` means the metric is not a share at all. `own` is an explicit answer, not a default: the producer refuses a share-shaped metric that leaves this unset.",
+      "type": ["string", "null"],
+      "enum": ["team", "league", "own", null]
+    },
+
+    "AnalyticValue": {
+      "description": "One published number, its interval and its sample. THE INTERVAL AND `n` ARE REQUIRED AND NOT NULLABLE - that is the whole point of this kind. Every stats site publishes point estimates; publishing the uncertainty is what makes these ours, and expressing the rule here means the CONSUMER refuses a bare rate rather than trusting the producer's own gate. `n` is INDEPENDENT UNITS - games, or players - never rows: a player's targets inside one game share a game plan, and counting rows as the sample makes an interval roughly sqrt(rows-per-block) too narrow.",
+      "type": "object",
+      "properties": {
+        "subject": {
+          "description": "A gsis_id, a team abbreviation, or `_league` for a league-wide figure.",
+          "type": "string"
+        },
+        "slice": {
+          "description": "The bucket within the metric, or \"\" for the headline value. What it means is given once by the metric's `slice_kind`.",
+          "type": "string"
+        },
+        "estimate": {"type": ["number", "null"]},
+        "interval": {"$ref": "#/$defs/Interval"},
+        "n": {
+          "description": "Independent units the interval was built on, not rows. Never zero: nothing measured is not a value.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "rows": {
+          "description": "Raw observations, when they exceed `n`. Published beside it because the gap between them is usually an order of magnitude and only one of the two is the sample.",
+          "type": ["integer", "null"]
+        },
+        "method": {
+          "description": "How the interval was constructed - `block2000`, `hist2000`, `wilson95`, `t95`. An interval hides its own construction; this does not.",
+          "type": "string"
+        }
+      },
+      "required": ["subject", "slice", "estimate", "interval", "n", "rows", "method"],
+      "additionalProperties": false
+    },
+
+    "AnalyticMetricFile": {
+      "description": "One analytic: what it measures, the range over which it can be trusted, and every value. The range fields are on the ENVELOPE and never repeated per value - repeating them is the duplication that lets two copies disagree.",
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "analytics.metric"},
+        "sport": {"type": "string"},
+        "metric": {"type": "string"},
+        "label": {"type": "string"},
+        "unit": {
+          "description": "What the number IS, in words. A page renders this rather than inventing a caption.",
+          "type": "string"
+        },
+        "subject_type": {"type": "string", "enum": ["player", "team", "league"]},
+        "block": {
+          "description": "What the interval resamples - the unit of independence.",
+          "type": "string",
+          "enum": ["game", "player", "team"]
+        },
+        "basis": {
+          "description": "Which feed it is computed from: pbp, participation, ngs. A participation-derived metric can never serve the current season.",
+          "type": "string"
+        },
+        "slice_kind": {
+          "description": "What `slice` means for this metric - a script bucket, a down bucket, a season, an air-yard bin - or \"\" when the metric has a single headline value. One long value table serves every analytic, so without this a reader cannot tell a slice of \"2019\" from a slice of \"3rd_short\".",
+          "type": "string"
+        },
+        "shares_denominator": {"$ref": "#/$defs/SharedDenominator"},
+        "season_from": {"type": "integer"},
+        "season_to": {"type": "integer"},
+        "range_note": {
+          "description": "Why the range is what it is, in words, naming the input that bounds it. DERIVED from measured coverage, not typed: a hand-written bound stops being true when upstream moves and nothing notices.",
+          "type": "string"
+        },
+        "availability": {"$ref": "#/$defs/Availability"},
+        "requires": {
+          "description": "The measured columns the range was derived from, as `dataset.column` or `dataset.column|condition`.",
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "values": {"type": "array", "items": {"$ref": "#/$defs/AnalyticValue"}}
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "metric", "label", "unit", "subject_type", "block", "basis", "slice_kind", "shares_denominator", "season_from", "season_to", "range_note", "availability", "requires", "values"],
+      "additionalProperties": false
+    },
+
+    "AnalyticsIndexEntry": {
+      "description": "A metric as a LISTING needs it. Deliberately not a copy of the metric envelope - it carries what a list renders plus where to fetch the rest.",
+      "type": "object",
+      "properties": {
+        "metric": {"type": "string"},
+        "key": {
+          "description": "The data key holding this metric's values.",
+          "type": "string"
+        },
+        "label": {"type": "string"},
+        "unit": {"type": "string"},
+        "subject_type": {"type": "string", "enum": ["player", "team", "league"]},
+        "shares_denominator": {"$ref": "#/$defs/SharedDenominator"},
+        "season_from": {"type": "integer"},
+        "season_to": {"type": "integer"},
+        "range_note": {"type": "string"},
+        "availability": {"$ref": "#/$defs/Availability"},
+        "value_count": {"type": "integer", "minimum": 0},
+        "subject_count": {"type": "integer", "minimum": 0}
+      },
+      "required": ["metric", "key", "label", "unit", "subject_type", "shares_denominator", "season_from", "season_to", "range_note", "availability", "value_count", "subject_count"],
+      "additionalProperties": false
+    },
+
+    "AnalyticsIndexFile": {
+      "description": "Every analytic available for a sport, with its usable range, so a page can list them without fetching each one.",
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "analytics.index"},
+        "sport": {"type": "string"},
+        "source": {
+          "description": "The store and build the figures came from, so a number on a page can be traced to one.",
+          "type": "string"
+        },
+        "metrics": {"type": "array", "items": {"$ref": "#/$defs/AnalyticsIndexEntry"}}
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "source", "metrics"],
       "additionalProperties": false
     }
   }

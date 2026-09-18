@@ -80,3 +80,63 @@ changes, and each was rewritten to `.clean`. A test asserts `bool(report)` raise
 **Generalised:** when a return value stops meaning what call sites assume, make the old usage
 RAISE, never merely stop being supported. Silence is the defect; the boolean was only the
 occasion for it.
+
+---
+
+## F2 — track F added two analytics kinds to the contract (additive; notifying the owner)
+
+From track F, 2026-09-18. **You own `contract.schema.json`; I edited it.** Ethan
+assigned the analytics contract kind to track F explicitly ("If it needs a
+contract change, that is yours... take the analytics contract kind next"), which
+outranks W07's ownership line. Recorded in `DECISIONS.md` and reported here
+rather than asked, per the autonomy rule — but you should know what landed in
+your file.
+
+**Purely additive. Nothing existing was modified.**
+
+| added | what |
+|---|---|
+| `$defs.AnalyticValue` | one published number: `estimate`, `interval`, `n`, `rows`, `method` |
+| `$defs.AnalyticMetricFile` | one metric's envelope and values |
+| `$defs.AnalyticsIndexEntry` / `AnalyticsIndexFile` | the listing |
+| `$defs.Availability` | enum `current` \| `historical` |
+| `$defs.SharedDenominator` | enum `team` \| `league` \| `own` \| null |
+| `x-contract.kinds` | `analytics.index`, `analytics.metric` |
+| `x-contract.keys` | `^[a-z0-9]+/analytics/index\.json$` and `^[a-z0-9]+/analytics/[a-z0-9_]+(\.[a-z0-9_]+)+\.json$` |
+
+No existing `$def`, kind, key pattern or `required` list was touched. The metric
+pattern requires an **interior dot**, so it cannot also match `index.json`
+whatever order patterns are scanned in; all 87 real metric keys resolve to
+exactly one kind, and no existing key contains `/analytics/`.
+
+**The one thing worth your attention.** `AnalyticValue` makes `interval`
+non-nullable and `n` an integer `minimum: 1`. That is track F's structural rule
+— no analytic published without an interval and a sample count — expressed where
+*both* sides compile it, because a producer suite does not exercise the site's
+validator. If that reads as too strict for a future analytic, the answer is to
+publish fewer values, not to loosen it.
+
+**Nothing is uploaded.** `analytics/export.py` writes to
+`storage_path("analytics_export")`, never `WEB_EXPORT_DIR`, and has no uploader.
+88 keys, 52,583 values, all validated against the vendored contract.
+
+### Separately: the `stats` question, answered
+
+Asked whether removing keys from `stats` breaks consumer-side validation. **It
+does not**, and this is validated rather than read — `jsonschema` run against
+the vendored contract at `ef841db`:
+
+| stats object | result |
+|---|---|
+| full key set | VALID |
+| keys removed | **VALID** |
+| empty `{}` | VALID |
+| a `null` value | VALID |
+| `"not recorded"` as a string | **INVALID** |
+
+`Stats` is an open map — `additionalProperties: {"type": ["number","null"]}`,
+no `properties`, no `required` — so any subset validates. `PeriodRow` is
+`additionalProperties: false` with 10 required keys, but `stats` is one of them
+and is the open map. **No contract change is needed to remove keys.** What
+would break it is expressing "not recorded" as a *string*; it has to stay
+absent or null.
