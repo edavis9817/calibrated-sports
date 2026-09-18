@@ -4,6 +4,21 @@ Read before proposing or writing code. This file exists so decisions survive
 across sessions instead of being re-litigated or quietly violated. If a decision
 is not written here or in `DECISIONS.md`, a future session will not know it.
 
+## Agreement between two unchecked arguments is not evidence
+
+Two reasons pointing the same way feel like corroboration. They are not. Nothing
+makes either one evidence except measuring it, and the fact that they agree is
+usually what stops anyone measuring either.
+
+Earned three times in two days. The worked case is the bootstrap cache under
+*Shared denominators*: it was defended both by "nothing published is a contrast
+between subjects" and by "regenerating draws is ~99% of runtime". Both were
+false, neither had been checked, and the agreement is what made it feel settled.
+
+The check is the same one the proxy table asks: **which of these two did I
+measure?** If the answer is neither, there is one argument, not two, and it is
+an assumption.
+
 ## What this is
 
 A pipeline that turns public NFL data into **probability distributions over
@@ -1732,9 +1747,16 @@ Three consequences, in force without being restated:
   bootstrap the CONTRAST as one quantity over shared blocks — the same rule brief 018 set for the
   selection gap — never by differencing two separately published intervals.
 - **A share metric must say it is one.** `analytics.metrics.Metric.shares_denominator` names the
-  denominator (`team`, or None), the registry refuses a share-shaped metric that leaves it unset,
-  and it is exported so a page can carry the caveat rather than re-deriving it. A rule that lives
-  only in prose is a rule the next analytic does not know about.
+  denominator (`team`, `league`, `own`, or None), the registry refuses a share-shaped metric that
+  leaves it unset, and it is exported so a page can carry the caveat rather than re-deriving it. A
+  rule that lives only in prose is a rule the next analytic does not know about.
+- **Where the classification is genuinely ambiguous, take the error that costs a sentence.**
+  `usage_stability.*_share` is declared `team`, and `own` is defensible on the published shape — a
+  correlation over 1,540 players is not itself a team-divided quantity. The tiebreaker is NOT an
+  argument about what the field means, because both readings of that are sound. It is the
+  asymmetry of being wrong: declaring `team` unnecessarily costs one sentence of caveat nobody
+  needed, while declaring `own` wrongly OMITS that sentence from a comparison readers make anyway.
+  The costs are not symmetric, so the decision does not rest on resolving the ambiguity.
 
 **And the meta-rule, from how this one was nearly missed.** The caching was defended by two
 arguments at once — that no contrast between subjects was published, and that regenerating draws

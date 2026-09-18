@@ -83,9 +83,13 @@ def metric_for(family, kind):
         label="%s: %s" % (label, kind),
         unit=unit, subject_type="league", block="player", basis="pbp",
         availability="current", slice_kind="",
-        # the underlying weekly quantity is a team share for the *_share kinds;
-        # the published number is one league-wide correlation, so there is no
-        # second subject to compare, but the quantity is named honestly.
+        # `team` for the *_share kinds. `own` is defensible here and the
+        # choice is NOT an argument about what the field means: a correlation
+        # over 1,540 players is not itself a team-divided quantity, and both
+        # readings are sound. The tiebreaker is the asymmetry of being wrong -
+        # `team` costs one sentence of caveat nobody needed, `own` omits that
+        # sentence from a comparison readers make anyway. Under genuine
+        # ambiguity, take the error that costs a sentence.
         shares_denominator="team" if kind.endswith("_share") else "own",
         requires=REQUIRES[kind])
 

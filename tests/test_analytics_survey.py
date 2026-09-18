@@ -395,3 +395,69 @@ def test_a_database_written_at_another_schema_version_is_refused(tmp_path):
     con.commit()
     with pytest.raises(RuntimeError, match="schema_version"):
         survey.profiles(con)
+
+
+# =============================================================================
+# NGS: the week-0 silent double, and the trap that found a second one
+# =============================================================================
+
+def test_week_zero_reconciliation_catches_a_smaller_total(tmp_path):
+    """`week0 < sum(weeks)` means week 0 is NOT the season total any more, and
+    the double-count trap has changed shape. That must refuse."""
+    import polars as pl
+
+    from analytics import ngs
+    df = pl.DataFrame({
+        "season": [2025] * 4, "week": [0, 1, 2, 3],
+        "player_gsis_id": ["p"] * 4, "targets": [5, 4, 4, 4]})
+    exact, short, over = ngs.assert_week_zero_reconciles(df, "receiving", "targets")
+    assert over == 1 and exact == 0
+
+
+def test_week_zero_reconciliation_accepts_a_total_that_exceeds_its_weeks(tmp_path):
+    """NGS filters WEEKLY rows too: a player below the weekly threshold has no
+    row for that week while his targets still count in the season total. Found
+    by this check refusing at 1,166 of 1,325 receiving rows when it was written
+    as an equality - the refusal was right and the equality was wrong."""
+    import polars as pl
+
+    from analytics import ngs
+    df = pl.DataFrame({
+        "season": [2025] * 4, "week": [0, 1, 2, 3],
+        "player_gsis_id": ["p"] * 4, "targets": [20, 5, 5, 5]})
+    exact, short, over = ngs.assert_week_zero_reconciles(df, "receiving", "targets")
+    assert (exact, short, over) == (0, 1, 0)
+
+
+def test_week_zero_reconciliation_recognises_an_exact_total(tmp_path):
+    import polars as pl
+
+    from analytics import ngs
+    df = pl.DataFrame({
+        "season": [2025] * 4, "week": [0, 1, 2, 3],
+        "player_gsis_id": ["p"] * 4, "targets": [15, 5, 5, 5]})
+    assert ngs.assert_week_zero_reconciles(df, "receiving", "targets") == (1, 0, 0)
+
+
+def test_no_ngs_column_is_declared_a_pbp_twin_without_an_expression():
+    """A column in PBP_TWIN with an expression claims the play-by-play can
+    reproduce it. That claim is measured by --redundancy, and a typo'd column
+    name would silently become a 'candidate' instead of being checked."""
+    from analytics import ngs
+    for family, cols in ngs.PBP_TWIN.items():
+        assert cols, family
+        for col, expr in cols.items():
+            assert expr is None or "(" in expr, (family, col, expr)
+    assert len(ngs.UNIQUE) == 18
+
+
+@needs_scan
+def test_ngs_week_zero_is_excluded_from_the_built_table():
+    """The silent double, guarded on the real data."""
+    con = paths.connect(read_only=True)
+    if not con.execute("SELECT 1 FROM sqlite_master WHERE name='f_ngs_week'"
+                       ).fetchone():
+        pytest.skip("f_ngs_week not built")
+    assert con.execute("SELECT COUNT(*) FROM f_ngs_week WHERE week=0"
+                       ).fetchone()[0] == 0
+    assert con.execute("SELECT MIN(week) FROM f_ngs_week").fetchone()[0] == 1
