@@ -497,6 +497,34 @@ COMMITTED `survey.SCHEMA` does not have, so every column-season is stored twice 
 "1999,1999-2000,2000-2001,..." instead of "1999-2005"). Their working copy is ahead of
 their push. Track C's insert names its columns so the extra column cannot shift it.
 
+## 10c. The CFB export (2026-09-18)
+
+`python -m jobs.export_cfb_web --out <dir>` - 0 requests, 0 credits, no network, and **no
+publish path**: `upload()` deletes by absence and `weekly_refresh` runs `--upload-only` on a
+schedule, so a CFB key on R2 would be deleted by the next NFL-only run (track F's F3).
+Publishing waits for that fix. `--findings` prints the contract findings; `--dry-run`
+validates without writing.
+
+- **141 files, 14.6 MB**: `sports.json`, `cfb/manifest.json`, 138 FBS team files, and an
+  EMPTY `cfb/players/index.json`. Validated against the REAL contract through
+  `jobs.export_web.validate_contract` + `assert_stats_defined` - reused, not reimplemented,
+  and nothing in `jobs/export_web.py` is edited.
+- Team files carry schedule (2004+, with CFBD spread/total where held), per-season offence
+  and defence splits from the box score, and the current roster with usage shares.
+  `snap_share` is null everywhere and always will be (`cfb.stats_and_usage_only`).
+- Honesty fixes made during the build, each visible in the output: `counts.games` scoped to
+  exported teams (20,954, not the store's 46,184), `current.stale` COMPUTED from
+  `latest_completed_week` rather than hardcoded false, and `opponent_abbr` recovered from
+  the teams feed (54,974 sides of 46,296 games carry none) with exactly one left as "" -
+  never invented.
+- **Seven contract findings filed to track A as A-C5**, none worked around: the team key
+  pattern forbids hyphens; abbreviations are not unique in this sport; no field anywhere for
+  division or per-season conference (26 FBS teams moved in 2026); `RosterEntry.games` is
+  non-nullable and CFB has no appearance signal; the player index is the page list;
+  `counts` has no scope and is closed; `opponent_abbr` is non-nullable. Three non-findings
+  recorded too, so they are not re-opened.
+- Tests: `tests/test_export_cfb_web.py`, 10, against a synthetic store.
+
 ## 11. Decisions taken, with the why
 
 **Ethan's decisions (do not re-open):** CFB ships statistics, usage and per-game results — no

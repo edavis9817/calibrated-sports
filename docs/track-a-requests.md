@@ -235,3 +235,73 @@ absent-vs-null work, and not because of prefix ownership, but because there is
 no upload path. Track F is not blocked on building: the export exists, 88 keys
 and 52,583 values, all contract-validated, written to
 `storage_path("analytics_export")` and re-buildable in one command.
+
+## A-C5. The contract is not yet sport-agnostic: seven findings from the CFB export
+
+**Status:** filed 2026-09-18 by track C. Nothing worked around, nothing published. The
+export builds locally and validates against the real contract today - these are the places
+it had to bend the SPORT to fit, which is the answer to the question CFB was chosen to ask.
+
+Reproduce: `python -m jobs.export_cfb_web --dry-run` (0 requests) and
+`python -m jobs.export_cfb_web --findings`.
+
+Contract findings from the CFB export - filed to track A, never worked around here.
+Every figure is from `cfb.db` and reproduced by `python -m jobs.export_cfb_web`.
+
+C-1  A TEAM KEY CANNOT CONTAIN A HYPHEN, so a sport whose teams are multi-word schools
+     has no readable team URL. The key table says `^[a-z0-9]+/teams/[a-z0-9]+\.json$`;
+     `cfb/teams/alabama-crimson-tide.json` fails validation and `cfb/teams/ala.json`
+     passes. NFL cannot see this: its slugs ARE abbreviations. So CFB team URLs are
+     abbreviation-shaped by the contract's choice, not the sport's.
+
+C-2  ABBREVIATIONS ARE NOT UNIQUE IN THIS SPORT, and two parts of the contract assume
+     they are. `team_colors` is keyed on abbreviation: 69 abbreviations collide across
+     divisions in 2026 and 86 colour rows are dropped to keep the map legal. Combined
+     with C-1, the same collision lands in the URL space the moment a second division
+     is exported.
+
+C-3  A SPORT WITH DIVISIONS AND MOVING CONFERENCES HAS NOWHERE TO SAY SO.
+     `SportManifest.teams` is {slug, abbr, name} and `TeamFile.identity` the same three,
+     both closed. CFB 2026 holds fbs 138, fcs 128, ii 162, iii 242, and 26 FBS teams
+     changed conference between 2025 and 2026 - conference is a per-SEASON fact with no
+     field at any level. This export ships FBS only: a scope the contract forced.
+
+C-4  `RosterEntry.games` IS A NON-NULLABLE INTEGER AND CFB CANNOT ANSWER IT HONESTLY.
+     No public source records whether a college player dressed, so the only available
+     number is games with a stat row - a lower bound that reads as an appearance count.
+     On the Alabama 2026 roster that is 0 for 116 of 126 players. `snap_share` beside it
+     is nullable and correctly null; the field that cannot be null is the one the sport
+     cannot produce.
+
+C-5  THE PLAYER INDEX IS THE PAGE LIST, so a sport cannot publish players without
+     publishing pages. `IndexPlayer.slug` is a required string, and a slug is a URL.
+     CFB holds 645,777 box rows and 372,638 roster rows and ships no player pages, so
+     this export writes an EMPTY index rather than mint URLs track B has not built.
+     `counts.players` then reads 0 while the store holds thousands, and `counts` is
+     closed (`additionalProperties: false`, five fixed keys), so there is nowhere to say
+     "held, not published".
+
+C-6  `counts` HAS NO SCOPE. `counts.teams` counts exported teams (138) while
+     `counts.games` counted every scored game the store holds (46,184) until this export
+     narrowed it by hand to games involving an exported team (20,954). Both are correct
+     numbers about different populations, and the file cannot say which it means.
+
+C-7  `ScheduleGame.opponent_abbr` IS A NON-NULLABLE STRING and the feed often has none:
+     54,974 of the two sides across 46,296 games from 2004 carry no abbreviation, mostly
+     non-FBS opponents. The teams feed recovers all but ONE, which is emitted as "" -
+     an invented code would look like an identity the sport does not have.
+
+NON-FINDINGS, recorded so they are not re-opened:
+  * Coaches. `TeamFile.coaches` and `ScheduleGame.coach` are required keys with nullable
+    values, no CFB coach feed is ingested, and an empty array plus nulls is honest. The
+    contract behaved correctly.
+  * Stat keys. `Stats` deliberately does not enumerate keys, so CFB's own keys fit with
+    no change - the part of the contract that is genuinely sport-agnostic.
+  * `period_type`. Declaring "week" worked exactly as intended.
+
+**What track C is NOT asking for.** No change is needed for this export to validate - it
+does. These are findings about what the contract can EXPRESS, filed while track A is inside
+the contract this week so they can be batched rather than forcing a second pass. Track C
+proposes no shapes: C-3 and C-5 in particular interact with track B's page structure and
+with the NFL side's own coverage vocabulary (A5), and one mechanism should serve both
+sports rather than one per sport.
