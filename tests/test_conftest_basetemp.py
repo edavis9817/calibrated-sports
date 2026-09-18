@@ -53,8 +53,74 @@ def test_a_configured_store_moves_basetemp_onto_its_disk(tmp_path, monkeypatch):
     store = tmp_path / "data"
     store.mkdir()
     chosen = configure(monkeypatch, str(store / "market_log.db"))
-    assert chosen == str(store / conftest.BASETEMP_NAME)
+    assert os.path.dirname(chosen) == str(store / conftest.BASETEMP_NAME)
+    # Restored to the test it belongs to. Replacing this body left the assertion
+    # stranded at the end of a LATER test, where `chosen` is not defined - a
+    # NameError that only fired because the suite ran it. Selecting a path is
+    # not the same as creating it, and pytest is handed a directory it expects
+    # to exist.
     assert os.path.isdir(chosen), "the hook must create the directory it selects"
+
+
+# ---------------------------------------------------------------- per-run dirs
+#
+# ONE SHARED BASETEMP DOES NOT SURVIVE THIS STORE. pytest deletes and recreates
+# the directory it is handed, but on Windows a directory cannot be unlinked
+# while any process holds a handle inside it - and background exports run
+# against this drive for minutes. The delete fails (WinError 145), the recreate
+# fails (WinError 183), and every `tmp_path` test ERRORS AT SETUP.
+#
+# Measured 2026-09-18: 8 errors in `test_web_contract.py` in the working tree
+# while a clean clone of the same commit passed 23/23 and the full suite passed
+# 1186 - a combination that reads exactly like a regression in whatever landed
+# most recently. The next person to hit it may be another track.
+
+def test_each_run_gets_its_own_directory(tmp_path, monkeypatch):
+    """Two runs must not be handed the same path. The old assertion - basetemp
+    equals `<store>/pytest-tmp` - would have passed a hook that collided every
+    single time, which is the whole defect."""
+    store = tmp_path / "data"
+    store.mkdir()
+    first = configure(monkeypatch, str(store / "market_log.db"))
+    second = configure(monkeypatch, str(store / "market_log.db"))
+    assert first != second
+    assert os.path.dirname(first) == os.path.dirname(second)
+
+
+def test_the_sweep_survives_a_directory_it_cannot_remove(tmp_path):
+    """THE PROPERTY THAT MATTERS MOST. A locked leftover is the normal case on
+    this box; a sweep that raised would fail the suite it is housekeeping for,
+    which is strictly worse than the residue it is clearing."""
+    parent = tmp_path / "pytest-tmp"
+    parent.mkdir()
+    dirs = []
+    for i in range(6):
+        d = parent / f"run-{i}"
+        d.mkdir()
+        (d / "f.txt").write_text("x", encoding="utf-8")
+        dirs.append(d)
+
+    held = open(dirs[0] / "f.txt", encoding="utf-8")       # oldest, and locked
+    try:
+        conftest._sweep(str(parent), keep=3)               # must not raise
+    finally:
+        held.close()
+
+    left = {p.name for p in parent.iterdir()}
+    assert "run-5" in left and "run-4" in left, "the newest runs were swept"
+    assert len(left) <= 4, f"nothing was swept: {sorted(left)}"
+
+
+def test_the_sweep_keeps_the_newest_and_never_raises_on_an_empty_parent(tmp_path):
+    """Discriminating: a `_sweep` that always returned early would satisfy the
+    test above. It must actually remove something, and tolerate a missing dir."""
+    parent = tmp_path / "pytest-tmp"
+    parent.mkdir()
+    for i in range(5):
+        (parent / f"run-{i}").mkdir()
+    conftest._sweep(str(parent), keep=2)
+    assert len(list(parent.iterdir())) == 2, "the sweep removed nothing"
+    conftest._sweep(str(tmp_path / "does-not-exist"), keep=2)   # must not raise
 
 
 def test_an_unconfigured_store_leaves_pytest_alone(monkeypatch):
@@ -86,17 +152,26 @@ def test_a_store_on_another_drive_does_not_kill_the_run(tmp_path, monkeypatch):
 
     monkeypatch.setattr(conftest.os.path, "commonpath", boom)
     chosen = configure(monkeypatch, str(store / "market_log.db"))
-    assert chosen == str(store / conftest.BASETEMP_NAME)
+    assert os.path.dirname(chosen) == str(store / conftest.BASETEMP_NAME)
 
 
 def test_it_never_selects_the_store_root(tmp_path, monkeypatch):
     """pytest DELETES and recreates basetemp. Selecting the store root would
-    wipe the logger's database."""
+    wipe the logger's database.
+
+    ASSERTS THE PROPERTY, NOT THE PATH. This used to read
+    `basename(chosen) == BASETEMP_NAME`, which pinned the old single-directory
+    shape rather than the safety rule - and would have passed a hook that handed
+    every run the SAME directory, which is the collision this file now exists to
+    prevent. What matters is that the chosen path is neither the store root nor
+    anything outside the dedicated parent.
+    """
     store = tmp_path / "data"
     store.mkdir()
     chosen = configure(monkeypatch, str(store / "market_log.db"))
     assert os.path.abspath(chosen) != os.path.abspath(str(store))
-    assert os.path.basename(chosen) == conftest.BASETEMP_NAME
+    assert os.path.dirname(chosen) == str(store / conftest.BASETEMP_NAME)
+    assert os.path.abspath(chosen).startswith(os.path.abspath(str(store)) + os.sep)
 
 
 def test_it_refuses_to_write_into_the_checkout(monkeypatch):
