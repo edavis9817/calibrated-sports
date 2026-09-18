@@ -61,6 +61,13 @@ SPORT_NAME = "NFL"
 PERIOD_TYPE = "week"
 PARTS = ("players", "teams", "market", "research", "manifest")
 STATE_FILE = ".upload_state.json"
+
+# The one line an export prints so a caller in the SAME JOB can learn which
+# prefixes it rebuilt and hand them to the uploader. Producer (`main`) and
+# consumer (`parse_refreshed`) live in this file together so they cannot drift;
+# a test drives the real one into the real other with no fake in between,
+# because two fictions can agree with each other while neither matches reality.
+REFRESHED_SENTINEL = "REFRESHED"
 # The same record, mirrored into the bucket it describes. Local-only meant that
 # losing the machine cost a 22,927-object re-upload instead of one download.
 # The `_state/` prefix is deliberately unreachable through the site's /data/
@@ -1774,6 +1781,16 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
     assert_numeric_stack()
     dest = dest or require_setting("WEB_EXPORT_DIR")
     parts = set(only or PARTS)
+    # THE DECLARATION: the prefixes this run actually rebuilt, accumulated beside
+    # the sync_keys calls that own them and returned to the caller. `upload()`
+    # deletes only inside these. It is never written to a file - a stale copy on
+    # disk would authorise deletions for a run that did not happen.
+    #
+    # The prefix literals stay AT the call sites rather than moving into a shared
+    # helper: tests/test_prefix_ownership.py resolves them from the AST and
+    # asserts zero call sites it cannot evaluate, so routing them through a
+    # variable would blind the guard that keeps track A out of `analytics/`.
+    refreshed = []
     now_ts = time.time() if now_ts is None else now_ts
     generated_at = iso(now_ts)
     t0 = time.time()
@@ -1807,6 +1824,7 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
         summary["retention_holds"] = hold_published_markets(published_markets, now_ts, dry_run)
         assert_stats_defined(market, STAT_DEFINITIONS)
         summary["market"] = sync_keys(dest, market, [f"{SPORT}/market/"], dry_run)
+        refreshed.append(f"{SPORT}/market/")
         summary["market_census"] = census
         summary["market_players"] = sorted((m["identity"]["name"] or m["identity"]["id"])
                                            for m in market.values())
@@ -1849,13 +1867,16 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
         index_obj = {**envelope("player_index", generated_at), "players": index}
         summary["players"] = sync_keys(dest, {**player_files, f"{SPORT}/players/index.json": index_obj},
                                        [f"{SPORT}/players/"], dry_run)
+        refreshed.append(f"{SPORT}/players/")
     if "teams" in parts:
         teams = build_teams(games, weeks, snaps, scope, xwalk, slugs, generated_at)
         assert_stats_defined(teams, STAT_DEFINITIONS)
         summary["teams"] = sync_keys(dest, teams, [f"{SPORT}/teams/"], dry_run)
+        refreshed.append(f"{SPORT}/teams/")
     if "research" in parts:
         research = build_research(generated_at)
         summary["research"] = sync_keys(dest, research, ["research/"], dry_run)
+        refreshed.append("research/")
     if "manifest" in parts:
         src = con.execute("SELECT MAX(data_version) FROM nflverse_versions "
                           "WHERE dataset = 'weekly_stats'").fetchone()[0]
@@ -1886,6 +1907,10 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
                          else count_rungs({k: json.load(open(p, encoding="utf-8"))
                                            for k, p in local_keys(dest).items()
                                            if k in set(market_keys.values())})}
+    # The manifest part deliberately owns no prefix (it passes []), so a
+    # manifest-only run returns [] here: DECLARED, and owns nothing. That is a
+    # different fact from `None`, which means nobody said - see `upload()`.
+    summary["refreshed"] = refreshed
     summary["runtime_s"] = round(time.time() - t0, 1)
     if current["stale"]:
         log(f"WARN nflverse is late: {current['stale_reason']}")
@@ -1984,9 +2009,44 @@ def load_upload_state(dest, client, bucket, log=print):
     return remote, "r2"
 
 
-def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORKERS):
-    """Upload keys whose sha256 differs from the local upload record, delete keys
-    that were removed. The record (.upload_state.json) is never uploaded."""
+def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORKERS,
+           refreshed=None):
+    """Upload keys whose sha256 differs from the local upload record, and delete
+    keys that were removed FROM A PREFIX THIS RUN REFRESHED.
+
+    `refreshed` is the declaration: the prefixes the run that produced this
+    export actually rebuilt. It is PASSED, never persisted - see below.
+
+    WHY DELETION IS SCOPED. The old rule was `set(state) - set(local)`: a key in
+    the upload record and not on disk was deleted from R2. That reads absence as
+    intent, and absence is not information. `local_keys(dest)` walks
+    WEB_EXPORT_DIR only, so every key any OTHER producer publishes - track F's 88
+    analytics keys, written to its own root - computes as "removed" and is
+    deleted on the next run. `weekly_refresh` runs `--upload-only`
+    unconditionally, so that is a SCHEDULED deletion, not a hazard someone might
+    trigger. Same defect as `sync_keys` owning a prefix it does not fill, one
+    layer down and remote, where there is no local copy to restore from.
+
+    NONE AND [] BOTH WITHHOLD, AND ARE REPORTED DIFFERENTLY.
+      None - no declaration. The caller did not say what it rebuilt, so nothing
+             is known about what SHOULD be absent. Withhold.
+      []   - declared, and owns nothing (a manifest-only run). Also withhold, but
+             it is a different fact and a reader should be able to tell them
+             apart when `removed_withheld` is non-zero.
+
+    READING `removed_withheld`:
+      * non-zero with NO declaration is expected and benign - the run simply did
+        not say, so nothing was deleted.
+      * non-zero WITH a declaration is a SIGNAL: keys went missing locally that
+        lie outside every prefix the run rebuilt, which should not happen in a
+        full run. If the declaration ever silently stops being threaded through,
+        a climbing `removed_withheld` is the only thing that will say so.
+
+    THE DECLARATION IS NEVER WRITTEN DOWN. It travels as an argument, from the
+    run that produced it, and nowhere else. Persisting it would let a stale copy
+    authorise deletions for a run that never happened - this same defect wearing
+    a fresh coat.
+    """
     dest = dest or require_setting("WEB_EXPORT_DIR")
     if not (config.WEB_R2_ACCESS_KEY_ID and config.WEB_R2_SECRET_ACCESS_KEY):
         log("R2 upload not configured (WEB_R2_ACCESS_KEY_ID / WEB_R2_SECRET_ACCESS_KEY unset) - "
@@ -2005,10 +2065,30 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
         sha = hashlib.sha256(data).hexdigest()
         if state.get(key) != sha:
             todo.append((key, data, sha))
-    removed = sorted(set(state) - set(local))
+    absent = sorted(set(state) - set(local))
+    # Absence fails toward KEEPING data. A key is deleted only when the run that
+    # produced this export says it rebuilt the prefix the key lives under.
+    if refreshed is None:
+        removed, withheld, declared = [], absent, None
+    else:
+        removed = [k for k in absent if any(k.startswith(p) for p in refreshed)]
+        withheld = [k for k in absent if k not in set(removed)]
+        declared = list(refreshed)
     result = {"configured": True, "bucket": bucket, "considered": len(local),
               "changed": len(todo), "uploaded": 0, "deleted": 0, "bytes": 0,
-              "removed": len(removed), "state_source": state_source}
+              "removed": len(removed), "removed_withheld": len(withheld),
+              "declared_prefixes": declared, "state_source": state_source}
+    if withheld:
+        # Surfaced on every run, because the number only matters when someone
+        # sees it. A declaration that silently stops being threaded shows up
+        # here and nowhere else.
+        if declared is None:
+            log(f"  {len(withheld):,} key(s) absent locally and NOT deleted: this run "
+                "declared no refreshed prefixes, so absence carries no information")
+        else:
+            log(f"  WARN {len(withheld):,} key(s) absent locally but outside every declared "
+                f"prefix {declared} - not deleted. In a full run this should be 0; a "
+                "climbing count means the declaration is not reaching the uploader")
     if dry_run:
         return result
 
@@ -2043,9 +2123,16 @@ def main(argv=None):
     ap.add_argument("--upload", action="store_true", help="export, then upload changed keys to R2")
     ap.add_argument("--upload-only", action="store_true",
                     help="upload the existing local export without exporting again")
+    ap.add_argument("--refreshed", default=None,
+                    help="space-separated prefixes the export that produced this tree rebuilt. "
+                         "Deletion from R2 is scoped to these. Omit it and NOTHING is deleted: "
+                         "absence is not information. Never read from a file - pass it from the "
+                         "export run that produced the tree, in the same job.")
     a = ap.parse_args(argv)
+    refreshed = None
     if not a.upload_only:
         s = export(only=a.only, dry_run=a.dry_run)
+        refreshed = s.get("refreshed")
         printable = {k: v for k, v in s.items()
                      if k not in ("unresolved", "market_players", "slug_collisions")}
         print(json.dumps(printable, indent=1, default=str))
@@ -2053,9 +2140,32 @@ def main(argv=None):
               f"{len(s['slug_collisions'])}")
         if s.get("market_players") is not None:
             print(f"market players ({len(s['market_players'])}): {', '.join(s['market_players'][:40])}")
+        # THE SENTINEL. One line, last, so a caller in the same job can read what
+        # this run rebuilt and hand it to the uploader on the command line.
+        # Deliberately not the JSON summary: parsing that couples two jobs to a
+        # shape that changes often, and a failed parse is indistinguishable from
+        # a run that declared nothing - which is the exact distinction this
+        # whole mechanism exists to preserve. An ABSENT sentinel means "no
+        # declaration"; an empty one means "declared, owns nothing".
+        print(REFRESHED_SENTINEL + " " + " ".join(refreshed))
+    elif a.refreshed is not None:
+        refreshed = a.refreshed.split()
     if a.upload or a.upload_only:
-        print(json.dumps(upload(dry_run=a.dry_run), indent=1))
+        print(json.dumps(upload(dry_run=a.dry_run, refreshed=refreshed), indent=1))
     return 0
+
+
+def parse_refreshed(text):
+    """The prefixes from an export's stdout, or None when it did not say.
+
+    The consumer half of the sentinel, kept beside the producer so the two
+    cannot drift apart in separate files. Returns None for absent - no
+    declaration - and [] for a run that declared it rebuilt nothing.
+    """
+    for line in reversed((text or "").splitlines()):
+        if line.startswith(REFRESHED_SENTINEL):
+            return line[len(REFRESHED_SENTINEL):].split()
+    return None
 
 
 if __name__ == "__main__":

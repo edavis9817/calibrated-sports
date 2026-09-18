@@ -1,4 +1,5 @@
 """Contract v2: the web export honours docs/web-schema.md."""
+import ast
 import io
 import json
 import os
@@ -496,11 +497,92 @@ def test_upload_sends_only_changed_keys_and_deletes_removed_ones(tmp_path, creds
     E.write_if_changed(E.local_path(dest, "nfl/manifest.json"), {"kind": "x", "changed": True})
     os.remove(E.local_path(dest, "nfl/players/00-A/summary.json"))
     s3c = FakeS3()
-    r3 = E.upload(dest=dest, client=s3c, log=lambda *_: None)
+    # THE DECLARATION IS WHAT AUTHORISES THE DELETE, and this assertion used to
+    # run without one. That was the old rule - absence alone meant "delete" - and
+    # under it every key any OTHER producer writes computes as removed, because
+    # local_keys() walks WEB_EXPORT_DIR and nothing else. The run now has to say
+    # it rebuilt the prefix the key lives under.
+    r3 = E.upload(dest=dest, client=s3c, log=lambda *_: None, refreshed=["nfl/players/"])
     assert list(_data_puts(s3c)) == ["nfl/manifest.json"]
     assert s3c.deletes == ["nfl/players/00-A/summary.json"] and r3["deleted"] == 1
+    assert r3["removed_withheld"] == 0
     state = json.load(open(os.path.join(dest, E.STATE_FILE), encoding="utf-8"))
     assert "nfl/players/00-A/summary.json" not in state
+
+
+def test_without_a_declaration_NOTHING_is_deleted(tmp_path, creds):
+    """Absence is not information, and this is the defect it closes.
+
+    `weekly_refresh` runs `--upload-only` unconditionally, so under the old rule
+    track F's 88 analytics keys - written to their own root, invisible to
+    `local_keys` - were a SCHEDULED deletion on the next ordinary Tuesday. Not a
+    hazard someone might trigger: what the design did on its own.
+    """
+    dest = str(tmp_path / "exp")
+    _seed(dest)
+    first = FakeS3()
+    E.upload(dest=dest, client=first, log=lambda *_: None)
+    os.remove(E.local_path(dest, "nfl/players/00-A/summary.json"))
+
+    s3 = FakeS3(objects=dict(first.objects))
+    lines = []
+    r = E.upload(dest=dest, client=s3, log=lines.append, refreshed=None)
+
+    assert s3.deletes == [] and r["deleted"] == 0
+    assert r["removed_withheld"] == 1 and r["declared_prefixes"] is None
+    # The object survives in the bucket AND in the record, so a later run that
+    # does declare the prefix can still remove it. Withholding defers; it does
+    # not forget.
+    assert "nfl/players/00-A/summary.json" in s3.objects
+    state = json.load(open(os.path.join(dest, E.STATE_FILE), encoding="utf-8"))
+    assert "nfl/players/00-A/summary.json" in state
+    assert any("declared no refreshed prefixes" in ln for ln in lines)
+
+
+def test_a_declaration_that_does_not_cover_the_key_withholds_it_and_warns(tmp_path, creds):
+    """The signal case: keys vanished from outside every prefix the run rebuilt.
+
+    In a full run this should be 0, so a climbing count is how a declaration
+    that silently stops being threaded through announces itself.
+    """
+    dest = str(tmp_path / "exp")
+    _seed(dest)
+    first = FakeS3()
+    E.upload(dest=dest, client=first, log=lambda *_: None)
+    os.remove(E.local_path(dest, "nfl/players/00-A/summary.json"))
+
+    s3 = FakeS3(objects=dict(first.objects))
+    lines = []
+    r = E.upload(dest=dest, client=s3, log=lines.append, refreshed=["nfl/teams/"])
+
+    assert s3.deletes == [] and r["deleted"] == 0
+    assert r["removed_withheld"] == 1 and r["declared_prefixes"] == ["nfl/teams/"]
+    assert any("outside every declared prefix" in ln for ln in lines)
+
+
+def test_none_and_empty_both_withhold_and_are_still_told_apart(tmp_path, creds):
+    """They do the same thing and MEAN different things.
+
+    None is "nobody said". [] is a manifest-only run declaring it rebuilt no
+    prefix - the manifest `sync_keys` call passes [] on purpose. A reader
+    looking at a non-zero `removed_withheld` needs to know which one it was
+    before deciding whether the number is benign.
+    """
+    dest = str(tmp_path / "exp")
+    _seed(dest)
+    first = FakeS3()
+    E.upload(dest=dest, client=first, log=lambda *_: None)
+    os.remove(E.local_path(dest, "nfl/players/00-A/summary.json"))
+
+    said_nothing = E.upload(dest=dest, client=FakeS3(objects=dict(first.objects)),
+                            log=lambda *_: None, refreshed=None)
+    declared_empty = E.upload(dest=dest, client=FakeS3(objects=dict(first.objects)),
+                              log=lambda *_: None, refreshed=[])
+
+    assert said_nothing["deleted"] == declared_empty["deleted"] == 0
+    assert said_nothing["removed_withheld"] == declared_empty["removed_withheld"] == 1
+    assert said_nothing["declared_prefixes"] is None
+    assert declared_empty["declared_prefixes"] == []
 
 
 def test_the_upload_record_is_mirrored_into_the_bucket_but_is_not_site_data(tmp_path, creds):
@@ -602,6 +684,165 @@ def test_upload_not_configured_is_logged_and_exits_zero(tmp_path, monkeypatch):
     assert E.upload(dest=dest, log=lines.append) == {"configured": False}
     assert "R2 upload not configured" in lines[0]
     assert E.main(["--upload-only"]) == 0
+
+
+# --------------------------------------------------- the declaration, end to end
+
+def test_the_sentinel_the_export_PRINTS_is_the_one_the_parser_READS(db, monkeypatch, capsys):
+    """END TO END, with no fake in between.
+
+    The producer is the real `main()`, the consumer is the real
+    `parse_refreshed()`, and the text between them is real stdout. Two fakes
+    agreeing with each other is exactly the failure this excludes: a test
+    asserting main() prints "REFRESHED ..." and separately that the parser reads
+    "REFRESHED ..." would stay green while the two used different sentinels, and
+    the only symptom in production is deletions quietly never happening.
+    """
+    dest = str(db / "exp")
+    monkeypatch.setattr(config, "WEB_EXPORT_DIR", dest)
+
+    # `--only`, not a whole run: `research` resolves a model version and this
+    # fixture has no predictions, so a full export raises before it can print.
+    # The part list is not what is under test - the path from main()'s stdout to
+    # the parser is, and it is the REAL one in both directions.
+    assert E.main(["--only", "players", "--only", "teams"]) == 0
+    out = capsys.readouterr().out
+
+    refreshed = E.parse_refreshed(out)
+    assert refreshed is not None, f"the export printed no sentinel line:\n{out[-400:]}"
+    assert set(refreshed) == {f"{E.SPORT}/players/", f"{E.SPORT}/teams/"}, refreshed
+    # And it discriminates: a run that rebuilt the players prefix must not be
+    # read as one that rebuilt everything.
+    assert f"{E.SPORT}/market/" not in refreshed and "research/" not in refreshed
+
+
+def test_every_sync_keys_PREFIX_is_also_DECLARED_to_the_uploader():
+    """The two readers of the same literals must agree, checked statically.
+
+    `sync_keys(dest, wanted, prefixes)` says which prefixes a builder OWNS;
+    `refreshed.append(...)` says which it DECLARES to the uploader. They are
+    written one line apart and nothing but habit keeps them in step. A prefix
+    owned but not declared can never be deleted from R2 - keys the export
+    stopped producing would accumulate forever, silently, which is the failure
+    the declaration exists to make safe rather than to reintroduce. One declared
+    but not owned would authorise deleting keys this builder does not make.
+
+    Static, so it covers `research/` - which cannot be exported on a fixture
+    with no predictions - and it fails on any literal it cannot evaluate rather
+    than checking the subset it understood.
+    """
+    tree = ast.parse(open(os.path.join(E.ROOT, "jobs", "export_web.py"), encoding="utf-8").read())
+    fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "export")
+
+    def literal(node):
+        """A string from a Constant or an f-string over SPORT, else None."""
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        if isinstance(node, ast.JoinedStr):
+            out = []
+            for part in node.values:
+                if isinstance(part, ast.Constant) and isinstance(part.value, str):
+                    out.append(part.value)
+                elif (isinstance(part, ast.FormattedValue)
+                        and isinstance(part.value, ast.Name) and part.value.id == "SPORT"):
+                    out.append(E.SPORT)
+                else:
+                    return None
+            return "".join(out)
+        return None
+
+    owned, declared, unresolved = set(), set(), 0
+    for node in ast.walk(fn):
+        if not isinstance(node, ast.Call):
+            continue
+        name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+        if name == "sync_keys":
+            if len(node.args) < 3 or not isinstance(node.args[2], (ast.List, ast.Tuple)):
+                unresolved += 1                      # prefixes built at runtime
+                continue
+            for element in node.args[2].elts:
+                value = literal(element)
+                if value is None:
+                    unresolved += 1
+                else:
+                    owned.add(value)
+        elif (name == "append" and isinstance(getattr(node.func, "value", None), ast.Name)
+                and node.func.value.id == "refreshed" and node.args):
+            value = literal(node.args[0])
+            if value is None:
+                unresolved += 1
+            else:
+                declared.add(value)
+
+    assert unresolved == 0, f"{unresolved} literal(s) this guard cannot evaluate"
+    assert owned, "the AST walk found no sync_keys prefixes - exit 0 is not a result"
+    assert owned == declared, (
+        f"sync_keys owns {sorted(owned)} but export() declares {sorted(declared)}; "
+        f"owned-not-declared {sorted(owned - declared)} can never be deleted from R2, "
+        f"declared-not-owned {sorted(declared - owned)} would delete another builder's keys")
+
+
+def test_a_partial_run_declares_only_what_it_rebuilt(db, monkeypatch):
+    dest = str(db / "exp")
+    monkeypatch.setattr(config, "WEB_EXPORT_DIR", dest)
+    assert E.export(dest=dest, now_ts=NOW, only=["teams"])["refreshed"] == [f"{E.SPORT}/teams/"]
+
+
+def test_a_manifest_only_run_declares_EMPTY_not_none(db, monkeypatch):
+    """The manifest `sync_keys` call passes [] on purpose - it owns no prefix.
+    So the run declared, and owns nothing. `[]` and `None` reach `upload()` as
+    different facts."""
+    dest = str(db / "exp")
+    monkeypatch.setattr(config, "WEB_EXPORT_DIR", dest)
+    refreshed = E.export(dest=dest, now_ts=NOW, only=["manifest"])["refreshed"]
+    assert refreshed == [] and refreshed is not None
+
+
+@pytest.mark.parametrize("prefixes", [[], ["nfl/players/"], ["nfl/players/", "research/"]])
+def test_the_declaration_round_trips_through_the_command_line(prefixes):
+    """The wire format is a space-joined line, which is how weekly_refresh sends
+    it. An empty declaration must survive as [] rather than collapsing to None."""
+    assert E.parse_refreshed(E.REFRESHED_SENTINEL + " " + " ".join(prefixes)) == prefixes
+
+
+def test_no_sentinel_parses_to_NONE_and_never_to_EMPTY():
+    """The distinction the whole mechanism exists to preserve. If a failed parse
+    returned [], "nobody said" would be indistinguishable from "declared, owns
+    nothing" - and both withhold today, so the bug would be invisible until the
+    day one of them was allowed to delete."""
+    assert E.parse_refreshed("summary\nunresolved ids: 0") is None
+    assert E.parse_refreshed("") is None
+    assert E.parse_refreshed(None) is None
+    assert E.parse_refreshed(E.REFRESHED_SENTINEL) == []
+    assert E.parse_refreshed(E.REFRESHED_SENTINEL + " ") == []
+
+
+def test_the_parser_takes_the_LAST_sentinel_line(db):
+    """stdout carries a whole run's logging ahead of it, and a docstring or a log
+    line could legitimately contain the word. The sentinel is printed last."""
+    text = f"REFRESHED is the word\n{E.REFRESHED_SENTINEL} nfl/teams/"
+    assert E.parse_refreshed(text) == ["nfl/teams/"]
+
+
+def test_upload_only_with_no_flag_declares_nothing(tmp_path, monkeypatch, creds):
+    """`--upload-only` without `--refreshed` must not invent a declaration."""
+    dest = str(tmp_path / "exp")
+    _seed(dest)
+    monkeypatch.setattr(config, "WEB_EXPORT_DIR", dest)
+    seen = {}
+    monkeypatch.setattr(E, "upload", lambda **kw: seen.update(kw) or {"configured": False})
+    assert E.main(["--upload-only"]) == 0
+    assert seen["refreshed"] is None
+
+
+def test_upload_only_with_an_empty_flag_declares_EMPTY(tmp_path, monkeypatch, creds):
+    dest = str(tmp_path / "exp")
+    _seed(dest)
+    monkeypatch.setattr(config, "WEB_EXPORT_DIR", dest)
+    seen = {}
+    monkeypatch.setattr(E, "upload", lambda **kw: seen.update(kw) or {"configured": False})
+    assert E.main(["--upload-only", "--refreshed", ""]) == 0
+    assert seen["refreshed"] == []
 
 
 def test_hypotheses_source_uses_only_the_contracts_verdicts():

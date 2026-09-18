@@ -43,7 +43,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config  # noqa: E402
 import store  # noqa: E402
-from jobs.export_web import SPORT, ConfigError, local_path, require_setting  # noqa: E402
+from jobs.export_web import (SPORT, ConfigError, local_path,  # noqa: E402
+                             parse_refreshed, require_setting)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCE = "weekly_refresh"
@@ -149,8 +150,16 @@ def _run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fet
     # Archive-only re-derivation, so it runs even with --skip-ingest.
     step("headshots", [py, "-m", "jobs.ingest_headshots", "--season", str(season)], fatal=False)
     step("map", [py, "-m", "jobs.map_markets", "--venue", "kalshi"], fatal=False)
-    if step("export", [py, "-m", "jobs.export_web"], fatal=True).returncode != 0:
+    exported = step("export", [py, "-m", "jobs.export_web"], fatal=True)
+    if exported.returncode != 0:
         return 1
+    # THE DECLARATION, read from the run that just produced the tree and carried
+    # to the uploader on the command line. Never from a file: a stale copy would
+    # authorise deletions for a run that did not happen.
+    refreshed = parse_refreshed(exported.stdout)
+    if refreshed is None:
+        log("WARN", "export printed no REFRESHED line - the uploader will delete nothing. "
+                    "Keys removed from the export will linger in R2 until this is fixed")
     commit_slug_registry(runner, log)
 
     local = None
@@ -164,8 +173,31 @@ def _run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fet
     except (OSError, ValueError, KeyError) as e:
         log("WARN", f"could not read the local manifest after export: {e}")
 
-    if step("upload", [py, "-m", "jobs.export_web", "--upload-only"], fatal=True).returncode != 0:
+    upload_cmd = [py, "-m", "jobs.export_web", "--upload-only"]
+    if refreshed is not None:
+        upload_cmd += ["--refreshed", " ".join(refreshed)]
+    uploaded = step("upload", upload_cmd, fatal=True)
+    if uploaded.returncode != 0:
         return 2
+    # `removed_withheld` MEANS TWO DIFFERENT THINGS and is read differently.
+    # With no declaration it is expected: nothing was said, so nothing was
+    # deleted. WITH a declaration it is a signal - keys vanished locally from
+    # outside every prefix the run rebuilt, which should not happen in a full
+    # run. If the threading above ever silently breaks, a climbing number here
+    # is the only thing that will say so, and only if someone sees it.
+    try:
+        stats = json.loads(uploaded.stdout)
+    except (ValueError, TypeError):
+        stats = {}
+    withheld = stats.get("removed_withheld") or 0
+    if withheld and refreshed is not None:
+        log("WARN", f"upload withheld {withheld} deletion(s) OUTSIDE the declared prefixes "
+                    f"{refreshed} - in a full run this should be 0; a climbing count means "
+                    "the declaration is not reaching the uploader")
+    elif withheld:
+        log("INFO", f"upload withheld {withheld} deletion(s): no prefixes were declared")
+    else:
+        log("INFO", f"upload deleted {stats.get('deleted', 0)}, withheld 0")
 
     site = getattr(config, "WEB_SITE_URL", None)
     if not site:

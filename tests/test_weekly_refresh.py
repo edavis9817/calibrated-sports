@@ -9,17 +9,51 @@ from types import SimpleNamespace
 import pytest
 
 import config
+from jobs import export_web as E
 from jobs import weekly_refresh as W
 
 
 class Runner:
-    def __init__(self, fail=()):
+    """A fake that answers PER STEP, because the steps now talk to each other.
+
+    It returned stdout="ok" for everything, which was honest while nothing read
+    a step's output. The export step now prints the REFRESHED sentinel and the
+    upload step prints its JSON summary, and `_run` reads both - so a fake that
+    still said "ok" to both would drive only the no-declaration and
+    unparseable-summary paths while looking like an ordinary passing run. That
+    is a stand-in producing the same green as the thing.
+
+    `refreshed=None` means the export printed NO sentinel; `refreshed=()` means
+    it declared it rebuilt nothing. Those are different facts downstream.
+    """
+
+    def __init__(self, fail=(), refreshed=("nfl/players/", "nfl/teams/"), upload_stats=None):
         self.calls, self.fail = [], set(fail)
+        self.refreshed = refreshed
+        self.upload_stats = upload_stats
+
+    def stdout_for(self, step):
+        if step == "export" and self.refreshed is not None:
+            # The real main() prints its JSON summary first and the sentinel
+            # last, so the parser has to find one line among many.
+            return ('{"counts": {}}\nunresolved ids: 0\n'
+                    + E.REFRESHED_SENTINEL + " " + " ".join(self.refreshed))
+        if step == "upload":
+            return json.dumps(self.upload_stats if self.upload_stats is not None
+                              else {"configured": True, "deleted": 0, "removed_withheld": 0})
+        return "ok"
 
     def __call__(self, cmd, cwd=None, capture_output=True, text=True):
         self.calls.append(cmd)
-        return SimpleNamespace(returncode=1 if self.name(cmd) in self.fail else 0,
-                               stdout="ok", stderr="")
+        step = self.name(cmd)
+        return SimpleNamespace(returncode=1 if step in self.fail else 0,
+                               stdout=self.stdout_for(step), stderr="")
+
+    def cmd_for(self, step):
+        for c in self.calls:
+            if self.name(c) == step:
+                return c
+        raise AssertionError(f"no {step} step ran: {self.names()}")
 
     @staticmethod
     def name(cmd):
@@ -211,6 +245,94 @@ def test_a_missing_dependency_fails_loudly_before_any_step_runs(env, monkeypatch
     assert W.run(runner=r, log=log_to(tmp_path)) == 4
     assert r.names() == [], "no step may run when a dependency is missing"
     assert "jsonschema" in seen[-1][2]
+
+
+# ------------------------------------------- the declaration reaches the uploader
+
+def test_the_export_declaration_reaches_the_upload_command_line(env):
+    """THE SECOND HALF OF THE MECHANISM. `upload()` can scope its deletions, but
+    only if somebody tells it what was rebuilt - and this job is the only caller
+    that runs an export and an upload in the same breath. A safe default nobody
+    teaches is a permanent leak: unthreaded, every weekly run withholds every
+    deletion forever and R2 grows keys the export stopped producing.
+    """
+    tmp, _ = env
+    r = Runner(refreshed=("nfl/players/", "nfl/teams/"))
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+
+    cmd = r.cmd_for("upload")
+    assert "--refreshed" in cmd, f"the upload step got no declaration: {cmd}"
+    assert cmd[cmd.index("--refreshed") + 1] == "nfl/players/ nfl/teams/"
+
+
+def test_the_declaration_comes_from_the_export_THAT_JUST_RAN(env):
+    """Passed, never persisted. The value on the upload command line is whatever
+    this run's export printed - so a different export prints a different
+    declaration, and no stale copy can authorise a deletion for a run that did
+    not happen."""
+    tmp, _ = env
+    r = Runner(refreshed=("research/",))
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    cmd = r.cmd_for("upload")
+    assert cmd[cmd.index("--refreshed") + 1] == "research/"
+
+
+def test_an_export_that_declares_nothing_passes_an_EMPTY_flag_not_no_flag(env):
+    """A manifest-only run owns no prefix and says so. That is DECLARED-and-empty,
+    which reaches the uploader as `--refreshed ""` and is a different fact from
+    the flag being absent."""
+    tmp, _ = env
+    r = Runner(refreshed=())
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    cmd = r.cmd_for("upload")
+    assert "--refreshed" in cmd
+    assert cmd[cmd.index("--refreshed") + 1] == ""
+
+
+def test_an_export_with_no_sentinel_warns_and_passes_no_flag_at_all(env):
+    """The other answer on the other input. If the sentinel ever stops being
+    printed, the job must not invent a declaration - it withholds every deletion
+    and says so in the log."""
+    tmp, _ = env
+    r = Runner(refreshed=None)
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    assert "--refreshed" not in r.cmd_for("upload")
+    assert "printed no REFRESHED line" in read_log(tmp)
+
+
+def test_withheld_deletions_are_surfaced_where_a_human_will_see_them(env):
+    """`removed_withheld` non-zero WITH a declaration is the signal that the
+    threading broke. It is only worth computing if it is printed."""
+    tmp, _ = env
+    r = Runner(upload_stats={"configured": True, "deleted": 0, "removed_withheld": 7})
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    log = read_log(tmp)
+    assert "WARN" in log and "7 deletion(s) OUTSIDE" in log
+
+
+def test_withheld_with_NO_declaration_is_reported_as_benign_not_as_a_warning(env):
+    """Same number, different reading. Nothing was declared, so nothing was
+    deleted and nothing is wrong - crying WARN here would train a reader to
+    ignore the line that matters."""
+    tmp, _ = env
+    r = Runner(refreshed=None,
+               upload_stats={"configured": True, "deleted": 0, "removed_withheld": 7})
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    log = read_log(tmp)
+    assert "7 deletion(s): no prefixes were declared" in log
+    assert "7 deletion(s) OUTSIDE" not in log
+
+
+def test_an_unparseable_upload_summary_does_not_fail_the_job(env):
+    """Bookkeeping must not break the job. An upload that exits 0 but prints
+    something unexpected is still a successful upload."""
+    tmp, _ = env
+
+    class Garbled(Runner):
+        def stdout_for(self, step):
+            return "not json" if step == "upload" else super().stdout_for(step)
+
+    assert W.run(runner=Garbled(), log=log_to(tmp), fetch=matching_fetch) == 0
 
 
 def test_preflight_names_the_real_imports_the_subprocesses_need():

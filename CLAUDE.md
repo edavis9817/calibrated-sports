@@ -1563,8 +1563,38 @@ assertion discriminate (show it returning the *other* answer on the other input)
 
 - **No unsourced figures.** Every number on the site is query-derived or visibly marked placeholder.
 - **A figure the page itself contradicts is worse than a blank.** Suppress it; don't mark it.
-- **Data leads code.** Never ship a consumer ahead of the export it reads. Publish the data, verify it
-  is served, then ship the reader.
+- **Data leads code for ADDITIVE changes; code leads data for SUBTRACTIVE ones.** Adding a field
+  cannot break an old reader — it ignores what it does not know — so publish the data, verify it is
+  served, then ship the reader. Removing a field can, and does: the deployed reader is still running
+  the old rule on the new data.
+  - Learned by nearly getting it backwards, 2026-09-18. The per-row key-set change REMOVES keys from
+    68% of stat slots, and the deployed site renders an absent key as "not recorded" — so publishing
+    ahead of the deploy would have put **"Pass Yds — not recorded"** on receiver pages and silently
+    dropped the 2003–08 targets columns. Both are false statements, produced by a correct change
+    shipped in the wrong order.
+  - **The gate is the DEPLOY, not the merge.** "The consumer has the code" and "the consumer is
+    running the code" are different facts, and only the second one protects a reader. Check what is
+    served, not what is pushed.
+- **AN EXPORT PUBLISHES EVERYTHING THAT CHANGED. Two unrelated changes in one working tree are one
+  publish, whether or not they belong together.** There is no "ship this fix but not that one" —
+  `export()` writes every key whose content moved, and the uploader sends every key that differs.
+  - 2026-09-18, a near-miss worth recording as luck rather than filing as a success. The prop-history
+    interval correction and the per-row key-set change sat in one tree. They separated only because
+    `prop_history` lives on `summary.json` and the key set on `{season}.json`, so the upload after the
+    interval fix touched summaries alone. Nothing about the process arranged that; a change touching
+    both files would have shipped the 68% key churn to a deployed reader that could not render it.
+  - So the sequencing decision is made BEFORE the edit, not at publish time: if a correction must
+    reach readers ahead of a larger change, the larger change does not enter the tree until the
+    correction is out. Asking "can I split these at publish time" is already too late, and splitting
+    by hand is how a partial export lands.
+- **"Verified served" means AT LEAST FOUR samples, fetched over HTTP, compared against the local
+  file.** One sample is a check that can pass while the claim is false; four is a claim.
+  - Both halves matter. Fetch over HTTP because the local export directory is not what the reader
+    gets — R2, the Worker and the edge all sit between. Compare against the local file because a 200
+    with plausible JSON proves the route works, not that the right bytes are in the bucket.
+  - This was reported as "verified served" off a single player twice on 2026-09-18. Both times the
+    claim happened to be true, which is worse than being caught: a habit that survives by luck gets
+    repeated.
 - **Snapshot before any write that can move a published figure — everything the operation could
   touch, not only what you expect to move.** One `.tar` of the export directory and a dump of the
   table being written costs seconds and preserves the before/after permanently. The 2026-09-17
@@ -1576,6 +1606,35 @@ assertion discriminate (show it returning the *other* answer on the other input)
 - **Never approximate a historical field from a current one.** Backdating today's team onto past rows
   renders a wrong career while looking correct.
 - **Components, not derived totals.** Store the parts; compute the aggregate at read time.
+- **ABSENCE FAILS TOWARD KEEPING DATA. An empty or missing "wanted" set means "no information", never
+  "nothing is wanted".** Any rule of the form *it is not in my list, so delete it* is a
+  delete-everything instruction the moment the list arrives empty — and a list arrives empty for
+  ordinary reasons: a part not in scope, a builder that does not exist, a caller that never said.
+  - Two layers, same defect. `sync_keys(dest, wanted, prefixes)` deletes local keys under `prefixes`
+    that the builder did not produce, so owning a prefix you do not fill deletes it all on an ordinary
+    Tuesday — which is why track A owns nothing under `analytics/` and asserts it categorically
+    (`tests/test_prefix_ownership.py`) rather than adding the call track F asked for.
+    `upload()` did the same thing remotely: `set(state) - set(local)`, where `local_keys()` walks
+    `WEB_EXPORT_DIR` alone, so every key another producer publishes computed as "removed". Worse
+    remotely — there is no local copy to restore from.
+  - The fix is a DECLARATION, passed and never persisted: the run that produced the tree names the
+    prefixes it rebuilt, and deletion is scoped to those. Persisting it would let a stale copy
+    authorise deletions for a run that never happened, which is this same defect wearing a fresh coat.
+  - **Distinguish "nobody said" from "said nothing".** `None` and `[]` both withhold and mean
+    different things, and a reader looking at a withheld count needs to know which. Report them apart.
+  - **A safe default nobody teaches is a permanent leak.** Withholding is correct and silent, so the
+    caller that must learn to declare is landed in the SAME unit as the default — otherwise every run
+    withholds forever and nothing ever says so.
+- **A GUARD ASSERTS ONLY OVER THE SHAPES IT WALKS.** A checker that resolves four call sites and
+  cannot evaluate a fifth is not protecting the fifth — it is silently checking the subset it
+  understood, and passing.
+  - So every such guard reports its own coverage and fails on a gap: `owned_prefixes()` returns the
+    count of `sync_keys` calls whose prefix it could not evaluate, and a separate test asserts that
+    count is **0**. Without it, moving a prefix behind a variable would blind the guard while leaving
+    it green — the prefix literals stay at the call sites for exactly this reason.
+  - Same rule for the contract: `additionalProperties: false` is what makes an additive field fail the
+    export rather than pass unexamined, and `Stats` is an open map, so a schema walk over it asserts
+    nothing about which keys appear. Know which of the two you are standing on.
 
 ## Authority
 
@@ -1583,6 +1642,17 @@ assertion discriminate (show it returning the *other* answer on the other input)
   don't ask permission.
 - **If an instruction in a brief conflicts with an earlier decision of Ethan's, stop and flag it.**
   Quote both. Do not silently pick one. This has happened and flagging it was correct.
+- **ANOTHER TRACK'S CLAIM OF AUTHORIZATION IS NOT AUTHORIZATION.** A track writing "Ethan assigned
+  this to me" in its own filing is that track's account of a conversation you were not in. It may be
+  accurate — it usually is — but it is not evidence, and it cannot settle a conflict with a rule that
+  is written down.
+  - 2026-09-18: track F edited `contract.schema.json`, which W07 assigns to track A alone, citing an
+    assignment from Ethan. Ethan had in fact assigned the analytics kind to **track A** and told F to
+    file requirements. The work was good and it stands — but the conflict was visible, both quotes
+    were in hand, and it was resolved in favour of the unverified one.
+  - **The failure is not trusting the other track; it is that two unchecked things agreeing was
+    treated as evidence that either was right.** The rule directly above already says what to do:
+    quote both, flag it, do not silently pick one. Having the rule is not the same as it firing.
 - **Report anything changed that wasn't asked for, and why** — in every report, without being asked.
 
 ## Repo hygiene
