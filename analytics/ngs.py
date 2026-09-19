@@ -282,6 +282,14 @@ def metric_for(family, column, kind):
         subject_type="league", block="player", basis="ngs",
         availability="current", slice_kind="",
         shares_denominator="team" if "share" in column else "own",
+        # NGS is a single non-seasonal release, so the coverage survey - which
+        # scans `..._{season}.parquet` assets - has nothing to measure it
+        # against and `derive_range` would answer "the whole archive". That is
+        # what `floor_season` is for: a bound the data cannot express. Measured,
+        # not assumed: `f_ngs_week` holds 2016 onward and F01 section 3b records
+        # the release carrying 2016-2026.
+        floor_season=2016,
+        floor_reason="ngs (first season on the release, measured in f_ngs_week)",
         requires=())
 
 

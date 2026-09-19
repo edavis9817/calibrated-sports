@@ -283,6 +283,20 @@ def publish(con, metric: Metric, values, season_from=None, season_to=None):
     row = register(con, metric)
     lo = season_from if season_from is not None else row["season_from"]
     hi = season_to if season_to is not None else row["season_to"]
+    # THE ENVELOPE MAY NOT CONTRADICT ITS OWN VALUES. `ngs_stability` published
+    # a registry range of 1999-2026 around values stamped 2016-2026, because the
+    # metric declared `requires=()` and `derive_range` duly answered "the whole
+    # archive; no input binds it". Both halves were internally consistent and
+    # the file said two different things - the same shape as a period row
+    # labelled REG beside `label='Super Bowl'`. A caller narrowing the range
+    # here is a caller whose Metric has not declared its floor.
+    if (lo, hi) != (row["season_from"], row["season_to"]):
+        raise AssertionError(
+            "metric %r derives the range %d-%d but is publishing values as "
+            "%d-%d. The envelope would contradict its own values. Declare the "
+            "bound on the Metric - `requires=` where the survey can measure it, "
+            "or `floor_season=` where it cannot - rather than passing it here."
+            % (metric.key, row["season_from"], row["season_to"], lo, hi))
     problems = gate.column_violations("f_metric_values", VALUE_COLS)
     if problems:
         raise AssertionError("f_metric_values does not satisfy the gate: %s"
