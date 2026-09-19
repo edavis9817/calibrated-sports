@@ -506,6 +506,55 @@ through handlers; `games` had none because it could not be null.
 C-2, C-5 and C-6 were deferred. C-5 and C-6 want coverage-and-scope vocabulary, and **item 7's A5
 `stat_coverage` is that vocabulary** — they should land with it rather than as a second mechanism.
 
+### The data is already published, and that ordering was load-bearing
+
+`market_definitions` is live in the served manifest as of 2026-09-19T01:29:18Z — one key uploaded,
+bytes verified against the local export, all 8 entries present, `stat: null` on `anytime_td`,
+`sacks` and `tackles_assists`. Five other keys were sampled and confirmed **unchanged**, so nothing
+else moved.
+
+That order was not a convention, it was the thing that keeps your site up. `REQUIRED_KEYS` is
+GENERATED from the contract, and `validateEnvelope` (`lib/schema.ts:71`) does:
+
+```ts
+const missing = REQUIRED_KEYS[kind].filter((k) => !(k in o));
+if (missing.length > 0) return { ok: false, reason: "shape", ..., missing };
+```
+
+The deployed build was generated from the OLD contract, so it does not know the key and ignores it —
+additive changes are safe because this check only looks for what is ABSENT. But the moment you
+re-vendor and regenerate, `REQUIRED_KEYS.sport_manifest` gains `market_definitions`, and from then on
+the served manifest **must** carry it. It already does. Had you regenerated first, line 72 would have
+fired and every page would have rendered "data format changed" on a missing required key.
+
+### Two things in your own tests, found while checking the above
+
+1. **`tests/schema.test.ts:16-20` will fail misleadingly on re-vendor.** The fixture hard-codes the
+   manifest's top-level keys, and its own comment says it: *"Every top-level key
+   REQUIRED_KEYS.sport_manifest lists, and no more - the list is generated from the contract, so a
+   key added there must appear here or these tests fail for the wrong reason."* It needs
+   `market_definitions: {}` added. Reported rather than fixed — it is your file.
+
+2. **Additive tolerance is real but UNGUARDED, and that is the more important one.** Nothing in the
+   `describe` block asserts that an unknown extra top-level key is accepted. Tighten line 71 to an
+   exact key-set match and **every existing test still passes** — while silently breaking the rule
+   that the whole publish order rests on. The property the producer relies on is currently a
+   property of the implementation, not of the suite.
+
+   A test shaped like the others would close it:
+
+   ```ts
+   it("accepts a key it has never heard of, which is why additive changes are safe", () => {
+     expect(validateEnvelope({ ...manifest, some_future_field: 1 },
+       "sport_manifest", "nfl/manifest.json", "nfl").ok).toBe(true);
+   });
+   ```
+
+   Track A has the mirror of this on its side: the contract closes its objects
+   (`additionalProperties: false`) so an additive field fails the EXPORT until the contract moves.
+   The two halves are deliberate and opposite — strict at write, lenient at read — and only one of
+   them is currently tested.
+
 ---
 
 ## 2. `docs/site-architecture.md` is now canonical in `calibrated-sports`
