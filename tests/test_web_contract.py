@@ -44,11 +44,40 @@ def test_every_kind_names_a_def_that_exists_and_every_def_is_reachable():
     assert not orphans, f"unreferenced $defs: {sorted(orphans)}"
 
 
+# Sport names, and words that name a sport without being one. The first four are
+# the original list. `college`, `fbs` and `fcs` were added 2026-09-18 after this
+# guard PASSED a contract whose own new text read "no public college source
+# records whether a player dressed" and "mostly non-FBS opponents" - its stated
+# principle was broader than the tokens it walked, so it was green while the
+# document it protects named a sport twice in plain English.
+SPORT_TOKENS = ("nfl", "mlb", "nba", "ncaa", "college", "fbs", "fcs")
+
+
 def test_the_contract_names_no_sport():
-    """Sport-specific values live in a sport's manifest or the site's config."""
+    """Sport-specific values live in a sport's manifest or the site's config.
+
+    The measurements BEHIND a rule may name a sport; they belong in
+    docs/web-schema.md, in DECISIONS.md and in the cross-track filings. This
+    document carries the shape only.
+    """
     text = json.dumps(E.CONTRACT).lower()
-    for token in ("nfl", "mlb", "nba", "ncaa"):
-        assert token not in text, f"the contract names a sport: {token}"
+    named = [t for t in SPORT_TOKENS if t in text]
+    assert not named, f"the contract names a sport: {named}"
+
+
+def test_the_sport_name_guard_can_actually_FIRE():
+    """A token list that matches nothing passes forever and says nothing.
+
+    Driven into the other answer on the other input: a planted name must be
+    caught, and caught by the token that names it. Without this, shortening the
+    list to () would leave every test above green.
+    """
+    import copy
+    for token, planted_text in (("nfl", "NFL only."), ("college", "a college feed")):
+        planted = copy.deepcopy(E.CONTRACT)
+        planted["$defs"]["Stats"]["description"] += " " + planted_text
+        text = json.dumps(planted).lower()
+        assert [t for t in SPORT_TOKENS if t in text] == [token], token
 
 
 def test_closed_objects_are_the_default():
