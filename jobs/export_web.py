@@ -1645,6 +1645,36 @@ def count_rungs(market_files):
                for m in market_files.values() for c in m.get("components", []))
 
 
+def count_markets_by_team(market_files):
+    """{team slug: distinct priced markets} across published market files.
+
+    A MARKET, not a priced player. A component is a market when it was QUOTED -
+    `basis == "MARKET"` with a non-empty ladder - so a player with receptions and
+    rush attempts priced is TWO, and one with only receptions is one. `rec_yds`
+    is DERIVED and `td` is ANCHORED: neither was quoted, so neither is a market,
+    and a `rush_att` component carrying `rungs: []` because no ladder was listed
+    counts as nothing.
+
+    Counting players instead was the first version and it was wrong. The card's
+    label says "markets" and its empty state says "No ladder" - both name the
+    market, not the person - and `market_keys` is one file key per player, so it
+    is structurally incapable of seeing the difference.
+
+    KEYED ON THE SLUG, because that is what a market file holds:
+    `identity.team` is `team_slug(team)` ("buf"), while TEAM_NAMES is keyed on
+    the abbreviation ("BUF"). Counting one against the other returns 0 for every
+    team and looks exactly like a slate with no ladders.
+    """
+    out = Counter()
+    for m in market_files.values():
+        team = (m.get("identity") or {}).get("team")
+        if not team:
+            continue
+        out[team] += sum(1 for c in m.get("components", [])
+                         if c.get("basis") == "MARKET" and c.get("rungs"))
+    return out
+
+
 def load_team_colors(con):
     """Team colours keyed on the abbreviation AS PUBLISHED.
 
@@ -1690,7 +1720,7 @@ def load_team_groupings(con):
     return {a: {"conference": c, "division": d} for a, c, d in rows}
 
 
-def team_season_summaries(games, season, index, market_keys):
+def team_season_summaries(games, season, markets_by_slug):
     """{abbr: TeamSeasonSummary} for the CURRENT regular season.
 
     Track B's A14: the teams board wants a record, points and a market count per
@@ -1714,8 +1744,6 @@ def team_season_summaries(games, season, index, market_keys):
     `points_for` and `points_against` are NULL before a team has played, not 0:
     no games is a different statement from no points.
     """
-    priced = Counter(p["team"] for p in index
-                     if p["id"] in market_keys and p.get("team"))
     out = {}
     for abbr in TEAM_NAMES:
         played = [g for g in games.values()
@@ -1736,7 +1764,9 @@ def team_season_summaries(games, season, index, market_keys):
             "cleared": tally["W"], "missed": tally["L"], "tied": tally["T"],
             "points_for": intish(pf) if played else None,
             "points_against": intish(pa) if played else None,
-            "markets": priced.get(abbr, 0),
+            # DISTINCT PRICED MARKETS, not priced players - and looked up by
+            # SLUG, because that is how a market file names its team.
+            "markets": markets_by_slug.get(team_slug(abbr), 0),
         }
     return out
 
@@ -2064,27 +2094,35 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
         research = build_research(generated_at)
         summary["research"] = sync_keys(dest, research, ["research/"], dry_run)
         refreshed.append("research/")
+    # THE MARKET OBJECTS, RESOLVED ONCE for every count derived from them.
+    # Rungs come from the emitted objects when this run built them; on a run
+    # without the market part they are read back off disk, because defaulting to
+    # 0 there would publish "0 rungs" beside a non-zero market count, which reads
+    # as a broken ladder rather than as a partial run.
+    #
+    # Hoisted out of the manifest branch 2026-09-19. `summary["counts"]` below
+    # says it "mirrors the manifest's counts exactly" and was deriving `rungs`
+    # INDEPENDENTLY - its own disk read, its own call - so the claim was an
+    # intention rather than a guarantee. Two derivations of one number in one
+    # function is how a run report comes to disagree with the file it just
+    # wrote. This also drops the third `local_keys()` read; the summary already
+    # paid for one on every run, so resolving once is strictly less work.
+    if "market" in parts:
+        market_files = market
+    else:
+        on_disk = local_keys(dest)
+        market_files = {k: json.load(open(on_disk[k], encoding="utf-8"))
+                        for k in market_keys.values() if k in on_disk}
+    rungs = count_rungs(market_files)
+
     if "manifest" in parts:
         src = con.execute("SELECT MAX(data_version) FROM nflverse_versions "
                           "WHERE dataset = 'weekly_stats'").fetchone()[0]
-        # Rungs come from the emitted market objects when this run built them.
-        # On a manifest-only run they are not in scope, so they are read back
-        # off disk: defaulting to 0 there would publish "0 rungs" beside a
-        # non-zero market count, which reads as a broken ladder rather than as
-        # a partial run.
-        if "market" in parts:
-            rungs = count_rungs(market)
-        else:
-            on_disk = local_keys(dest)
-            rungs = count_rungs({
-                k: json.load(open(on_disk[k], encoding="utf-8"))
-                for k in market_keys.values() if k in on_disk
-            })
         manifest = build_manifest(games, current, index, market_keys, unresolved, src, note,
                                   generated_at, rungs, load_team_colors(con),
                                   load_team_groupings(con),
-                                  team_season_summaries(games, current["season"], index,
-                                                        market_keys))
+                                  team_season_summaries(games, current["season"],
+                                                        count_markets_by_team(market_files)))
         assert_stats_defined({f"{SPORT}/manifest.json": manifest}, STAT_DEFINITIONS)
         summary["manifest"] = sync_keys(dest, {f"{SPORT}/manifest.json": manifest,
                                                "sports.json": build_sports(generated_at)},
@@ -2093,10 +2131,7 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
     # Mirrors the manifest's counts exactly. A run report that says something
     # different from the file it just wrote is worse than one that says less.
     summary["counts"] = {"players": len(index), "teams": len(TEAM_NAMES), "market": len(market_keys),
-                         "games": played(games), "rungs": count_rungs(market) if "market" in parts
-                         else count_rungs({k: json.load(open(p, encoding="utf-8"))
-                                           for k, p in local_keys(dest).items()
-                                           if k in set(market_keys.values())})}
+                         "games": played(games), "rungs": rungs}
     # The manifest part deliberately owns no prefix (it passes []), so a
     # manifest-only run returns [] here: DECLARED, and owns nothing. That is a
     # different fact from `None`, which means nobody said - see `upload()`.

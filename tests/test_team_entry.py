@@ -22,7 +22,16 @@ import os
 import pytest
 from jsonschema import Draft202012Validator
 
+import config
 from jobs import export_web as E
+
+# The shared store fixture, same import the contract suite uses. Two tests below
+# run a real export to prove the run report and the manifest derive their counts
+# from one place; without this they collect as ERRORS rather than failures, and
+# an error is not a failure - the run still ends in a passing count, which is
+# how two tests written to guard the riskiest edit came within one line of being
+# decorative.
+from tests.test_export_web import NOW, _walk, db  # noqa: F401  (shared fixture)
 
 DEFS = E.CONTRACT["$defs"]
 
@@ -104,7 +113,7 @@ def test_the_summary_counts_wins_losses_AND_TIES():
         "b": _game(2026, 2, "NE", "BUF", 30, 17),    # BUF missed
         "c": _game(2026, 3, "BUF", "NYJ", 21, 21),   # BUF tied
     }
-    out = E.team_season_summaries(games, 2026, [], {})
+    out = E.team_season_summaries(games, 2026, {})
     buf = out["BUF"]
     assert (buf["games"], buf["cleared"], buf["missed"], buf["tied"]) == (3, 1, 1, 1)
     assert buf["points_for"] == 24 + 17 + 21
@@ -119,12 +128,12 @@ def test_cleared_missed_and_tied_ALWAYS_SUM_TO_GAMES():
         "b": _game(2026, 2, "NE", "BUF", 30, 17),
         "c": _game(2026, 3, "BUF", "NYJ", 21, 21),
     }
-    for abbr, s in E.team_season_summaries(games, 2026, [], {}).items():
+    for abbr, s in E.team_season_summaries(games, 2026, {}).items():
         assert s["cleared"] + s["missed"] + s["tied"] == s["games"], abbr
 
 
 def test_an_unplayed_team_reports_null_points_not_zero():
-    out = E.team_season_summaries({}, 2026, [], {})
+    out = E.team_season_summaries({}, 2026, {})
     buf = out["BUF"]
     assert buf["games"] == 0
     assert buf["points_for"] is None and buf["points_against"] is None
@@ -138,20 +147,63 @@ def test_unplayed_games_and_other_seasons_are_excluded():
         "lastyr": _game(2025, 1, "BUF", "MIA", 10, 7),
         "post": _game(2026, 19, "BUF", "KC", 27, 24, gtype="WC"),
     }
-    assert E.team_season_summaries(games, 2026, [], {})["BUF"]["games"] == 1
+    assert E.team_season_summaries(games, 2026, {})["BUF"]["games"] == 1
 
 
-def test_markets_counts_PRICED_PLAYERS_on_that_team():
-    index = [{"id": "00-A", "team": "BUF"}, {"id": "00-B", "team": "BUF"},
-             {"id": "00-C", "team": "MIA"}, {"id": "00-D", "team": None}]
-    out = E.team_season_summaries({}, 2026, index, {"00-A": "k1", "00-C": "k2", "00-D": "k3"})
-    assert out["BUF"]["markets"] == 1
+def _market_file(team_slug, *components):
+    return {"identity": {"id": "x", "team": team_slug}, "components": list(components)}
+
+
+def _quoted(stat, rungs=1):
+    return {"stat": stat, "basis": "MARKET", "rungs": [{"line": 4.5}] * rungs}
+
+
+def test_markets_counts_DISTINCT_PRICED_MARKETS_not_priced_players():
+    """A player with two stats priced is TWO markets. The card's label says
+    markets and its empty state says "No ladder" - both name the market, not the
+    person. Counting players was the first version and it was wrong."""
+    files = {
+        "a": _market_file("buf", _quoted("rec"), _quoted("rush_att")),   # one player, 2
+        "b": _market_file("buf", _quoted("rec")),                        # another, 1
+        "c": _market_file("mia", _quoted("rec")),
+    }
+    by_team = E.count_markets_by_team(files)
+    out = E.team_season_summaries({}, 2026, by_team)
+    assert out["BUF"]["markets"] == 3
     assert out["MIA"]["markets"] == 1
     assert out["NE"]["markets"] == 0
 
 
+def test_only_QUOTED_components_are_markets():
+    """DERIVED and ANCHORED were never quoted, so neither is a market - and a
+    MARKET component with an empty ladder is not one either."""
+    files = {"a": _market_file(
+        "buf",
+        _quoted("rec"),
+        {"stat": "rec_yds", "basis": "DERIVED", "note": "from receptions"},
+        {"stat": "td", "basis": "ANCHORED", "note": "scaled"},
+        {"stat": "rush_att", "basis": "MARKET", "rungs": []},   # listed nowhere
+    )}
+    assert E.count_markets_by_team(files)["buf"] == 1
+
+
+def test_the_count_joins_on_SLUG_because_that_is_what_a_market_file_holds():
+    """`identity.team` is a slug ("buf"); TEAM_NAMES is keyed on the
+    abbreviation ("BUF"). Joining one against the other returns 0 for every team
+    and looks exactly like a slate with no ladders."""
+    by_team = E.count_markets_by_team({"a": _market_file("buf", _quoted("rec"))})
+    assert set(by_team) == {"buf"}, "the map is slug-keyed"
+    assert E.team_season_summaries({}, 2026, by_team)["BUF"]["markets"] == 1
+    # the other answer: an abbr-keyed map must NOT resolve
+    assert E.team_season_summaries({}, 2026, {"BUF": 9})["BUF"]["markets"] == 0
+
+
+def test_a_market_file_with_no_team_is_skipped_not_crashed():
+    assert E.count_markets_by_team({"a": {"identity": {}, "components": [_quoted("rec")]}}) == {}
+
+
 def test_every_published_team_gets_a_row_even_with_no_data():
-    out = E.team_season_summaries({}, 2026, [], {})
+    out = E.team_season_summaries({}, 2026, {})
     assert set(out) == set(E.TEAM_NAMES), "a listing needs a row per team, not per team with data"
 
 
@@ -164,6 +216,34 @@ def test_division_is_NOT_split_into_a_bare_region():
     body = src.split("def load_team_groupings", 1)[1].split("\ndef ", 1)[0]
     assert ".split(" not in body, "the grouping loader must not decompose the source value"
     assert "team_division" in body and "team_conf" in body
+
+
+def test_the_run_report_and_the_manifest_derive_rungs_from_ONE_source(db, monkeypatch):
+    """`summary["counts"]` claims to mirror the manifest exactly.
+
+    It used to derive `rungs` independently - its own disk read, its own call -
+    so the claim was an intention. Two derivations of one number in one function
+    is how a run report comes to disagree with the file it just wrote, and
+    nothing asserted they matched. This does.
+    """
+    dest = str(db / "out")
+    monkeypatch.setattr(config, "WEB_EXPORT_DIR", dest)
+    summary = E.export(only=["players", "manifest"], now_ts=NOW, dest=dest)
+    manifest = _walk(dest)["nfl/manifest.json"]
+    assert summary["counts"]["rungs"] == manifest["counts"]["rungs"]
+    assert summary["counts"]["market"] == manifest["counts"]["market"]
+    assert summary["counts"]["players"] == manifest["counts"]["players"]
+
+
+def test_a_run_without_the_market_part_still_resolves_its_counts(db, monkeypatch):
+    """The hoisted block runs on EVERY path, so the `if "market" in parts` guard
+    is load-bearing: `market` is never bound on a run that did not build it, and
+    an unguarded reference would be a NameError in every export at once."""
+    dest = str(db / "out")
+    monkeypatch.setattr(config, "WEB_EXPORT_DIR", dest)
+    summary = E.export(only=["teams"], now_ts=NOW, dest=dest)
+    assert summary["counts"]["rungs"] == 0, "no market part, nothing on disk yet"
+    assert "teams" in summary
 
 
 def test_the_contract_carries_the_teams_ref_rather_than_an_inline_shape():

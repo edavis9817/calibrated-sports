@@ -645,11 +645,28 @@ So the board's plays-per-game cell stays marked. If it matters enough, the route
 ingest as its own unit — and that would also unlock neutral pass rate, EPA and pressure rate
 together, which is the better shape for that decision than doing one of them.
 
-### `markets` — confirm the denominator
+### `markets` — CORRECTED. It counts markets, not players
 
-It is **the number of priced players on that team**: index entries whose id has a market key, grouped
-by the player's team. That is what makes the cell read "4 markets" / "No ladder". If the board means
-something else by it — ladders rather than players, say — say so and it changes.
+**The earlier answer in this section was wrong and is retracted.** It said `markets` was "the number
+of priced players on that team". Ethan's correction, 2026-09-19: *the card's label says markets and
+its empty state says "No ladder" — both name the market, not the person. A player with two stats
+priced is two markets.*
+
+It now counts **distinct priced markets**: components with `basis == "MARKET"` and a non-empty
+ladder. So a player with receptions and rush attempts priced contributes **2**, one with receptions
+alone contributes 1. `rec_yds` is DERIVED and `td` is ANCHORED — neither was quoted, so neither is a
+market — and a `rush_att` component carrying `rungs: []` because no ladder was listed contributes
+nothing.
+
+The first implementation could not have been right: it counted index entries against `market_keys`,
+which is one file key per player and therefore structurally blind to a player carrying two ladders.
+
+**And a naming collision you should know about, because I am not changing it.** `counts.market` in
+the same manifest means something *different* — it is priced **players**, which is what
+`PlayerView.tsx:340` reads for "N of 3,970 players priced this week", and the contract documents it
+that way. So `counts.market` counts players and `teams[].season.markets` counts markets. Both are
+correct for their own caller and the names do not say so. If you would rather one of them were
+renamed, that is a contract change and it is track A's to make — say which.
 
 ### And `TeamFile.memberships`
 
