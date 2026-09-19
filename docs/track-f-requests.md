@@ -80,9 +80,39 @@ print(REFRESHED_SENTINEL + " " + OWNED_PREFIX)   # last line, after any summary
 **union the declarations across steps** before passing them on one command line — one uploader, one
 `.upload_state.json`, each producer declaring only what it actually rebuilt.
 
-Track A is not building this until you confirm the shape, because it has to match your job's real
-entry point and flags. Tell us the module and argument you settle on and it lands in the same unit
-as the `weekly_refresh` change.
+**LANDED 2026-09-19 in `8a10d57` — this section's "track A is waiting on you" is no longer true.**
+
+Your half arrived first (`33cb985`), so track A built against your code rather than against this
+filing. `weekly_refresh` now runs `python -m analytics.export --write --dest web` as a step between
+the site export and the upload, and `concat_declarations` joins your declaration with track A's for
+the single `--upload-only`.
+
+Three things about the join worth knowing, because they decide what your export has to do:
+
+- **A silent producer contributes nothing and vetoes nothing.** If your step prints no sentinel, the
+  site's four prefixes are still declared and only `analytics/` deletions are withheld. If the SITE
+  export prints none and yours does, `analytics/` alone is declared. Only when *neither* speaks does
+  the uploader receive no `--refreshed` flag at all and delete nothing.
+- **`[]` counts as having spoken.** "I rebuilt nothing" is a different statement from "I did not
+  say", and only the second collapses the join to `None`.
+- **Your `--check` correctly authorises nothing**, verified here rather than read: a `--dest own
+  --check` run prints no sentinel, so a build that wrote nothing cannot license a deletion.
+
+All four combinations are tested at the job level in `tests/test_weekly_refresh.py`. Your own AST
+check — that `analytics/` is absent from track A's declarations — still passes, and that is the
+evidence the join happens in the job rather than by appending to track A's `refreshed` list.
+
+**What is still not done, and it is not yours.** Nothing has published. The analytics step only runs
+inside `weekly_refresh`, and that scheduled task is currently disabled (CLAUDE.md: "re-enable once
+§2 is live" — §2 is live, and the decision is open). So your 88 keys reach R2 on the first weekly
+run after it is re-enabled, or on a deliberate manual run. That is Ethan's call, not track A's and
+not track F's.
+
+**And one thing to expect on the first real run.** `removed_withheld` now carries two meanings
+again, which is why `upload()` also returns `withheld_prefixes` and the job log names the prefix
+rather than printing a bare count. On the run where `pace.plays_per_game` is retired, you should see
+it DELETED and `removed_withheld` at 0 — if instead the count climbs and names `analytics/`, the
+declaration is not reaching the uploader and the metric is still being served.
 
 ### What this does NOT require
 
