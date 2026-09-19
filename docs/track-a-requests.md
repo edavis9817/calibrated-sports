@@ -305,3 +305,73 @@ the contract this week so they can be batched rather than forcing a second pass.
 proposes no shapes: C-3 and C-5 in particular interact with track B's page structure and
 with the NFL side's own coverage vocabulary (A5), and one mechanism should serve both
 sports rather than one per sport.
+
+---
+
+## F4 — the analytics upload path: one half works, the other needs a declaration
+
+From track F, 2026-09-18, after F3 landed. **Measured against the shipped code,
+not assumed** — `tests/test_analytics_upload_path.py` exercises `upload()` with
+a fake client and the results below are its assertions.
+
+The scoped-deletion design is right and the `None` / `[]` distinction with
+`removed_withheld` is the part that will catch a declaration silently going
+missing. Two facts follow from it for analytics.
+
+### 1. Publishing works with no change from you
+
+`local_keys(dest)` walks the whole `WEB_EXPORT_DIR` tree, and uploading is not
+scoped. A key at `WEB_EXPORT_DIR/analytics/nfl/…` uploads. **Track F therefore
+needs to write into `WEB_EXPORT_DIR/analytics/`** rather than its own directory,
+and that is track F's change, not yours.
+
+### 2. Stale analytics keys never propagate, and that is the gap
+
+Deletion is scoped to declared prefixes. Your export declares **four prefixes
+across five `sync_keys` call sites** — `{SPORT}/market/`, `{SPORT}/players/`,
+`{SPORT}/teams/`, `research/`; the manifest call owns nothing and declares
+nothing. **None of them is `analytics/`.**
+
+Measured, with a stale `analytics/nfl/pace.plays_per_game.json` in the upload
+record and absent from disk:
+
+| run declares | stale analytics key | your own stale key | `removed_withheld` |
+|---|---|---|---|
+| your four prefixes | **withheld** | deleted | ≥ 1 |
+| your four **+ `analytics/`** | deleted | deleted | 0 |
+| nothing (`None`) | withheld | withheld | 2 |
+
+So a metric track F stops publishing stays served from R2 indefinitely, and the
+only thing that would ever say so is a climbing `removed_withheld` — which your
+docstring already identifies as the signal, and which would be reading as
+"benign" because it is mixed in with an undeclared-run case.
+
+**This is the mechanism working as designed. It is not a defect in F3.** The
+declaration simply has no owner for a prefix your export does not build.
+
+### The ask, and the options as I see them
+
+Something must declare `analytics/`, and only on a run that actually rebuilt it.
+Per your own rule the declaration must travel from the run that produced the
+tree and never be persisted, so track F cannot just add a constant somewhere.
+
+- **A —** `analytics/export.py` prints the same `REFRESHED` sentinel, and
+  `weekly_refresh` concatenates both runs' declarations before calling
+  `--upload-only --refreshed "…"`. Uses the mechanism exactly as built; the
+  change is in `weekly_refresh`, which is yours.
+- **B —** track F's export runs as a `--only` part of `jobs/export_web.py` and
+  appends `analytics/` to `refreshed` like your other four. Cleanest from the
+  uploader's side, but it puts track F code in your file, which W07 forbids and
+  I am not proposing unilaterally.
+- **C —** leave it. Analytics keys upload and never un-publish. Defensible only
+  while no metric is ever retired, and F04 has already recommended retiring
+  `pace.plays_per_game`, so it is false on day one.
+
+**Recommendation: A.** It keeps one uploader, keeps the declaration travelling
+from the run that produced it, and needs nothing from track F except printing a
+sentinel your `parse_refreshed` already knows how to read.
+
+**Track F is not publishing until this is settled in writing.** The export is
+built and validated — 88 keys, 52,583 values — and writing it into
+`WEB_EXPORT_DIR` before the deletion half has an owner would put keys in the
+bucket that nothing can ever remove.

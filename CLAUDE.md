@@ -1852,6 +1852,15 @@ Disk before diagnosis. store.disk_headroom_ok() refuses below 5 GB free, so a fu
 - **Wording comes from the interval.** Excludes zero → "worse than" / "better than"; includes it →
   "no better than". "Identical" only on a match at the precision the file publishes. **No interval,
   no verdict**: state the figures and stop ("well calibrated" was removed for exactly this).
+- **Generating copy from data is a consistency check on the data.** Not a side benefit - a reason to
+  keep generating even where a sentence would be quicker to type. A number can be wrong and look
+  fine; a SENTENCE has to name the thing, and naming it is when two halves that disagree are forced
+  to say so. Writing the analytics page copy found `ngs_stability` publishing a registry range of
+  1999-2026 around values stamped 2016-2026: nothing about the numbers was wrong, both halves were
+  internally consistent, and the file said two different things. It surfaced only because the
+  sentence had to state a range. A hand-written caption would have stated whichever range the author
+  remembered and the contradiction would have survived. Guarded now at `metrics.publish`, which
+  refuses when the two differ.
 - `tests/handwrittenClaims.test.ts` enforces it. Every comparative phrase in rendered text is computed
   or declared with a kind (definition, gated, record, violation). Declared violations are live debt,
   to be removed or computed, not permission.
