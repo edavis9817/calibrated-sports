@@ -206,9 +206,17 @@ not yet measured and the retention arithmetic depends on it.**
 `(?<!I)NFL(?!X)` plus an NCAA/college exclusion plus a category guard.
 
 **College football (measured by `cfb_probe.py`, 2026-09-10 to 09-12, 56h)**
-- **There are no single-game player props.** 47,553 markets across 97 NCAAF
-  series on Kalshi and not one of them prices a player's receptions, carries,
-  targets or yards for a game. Everything player-named is a SEASON leader
+- **There are no single-game player props ON KALSHI** - and that is a fact about the
+  EXCHANGE, not about the sport. Measured 2026-09-19 (P1, 74 credits,
+  `research/cfb_p1_markets.py`): US SPORTSBOOKS list 26 player-prop keys on college
+  games, on 55 of 74 events in one week-4 slate - `player_receptions` on 31 events,
+  `player_rush_yds` on 36, `player_pass_yds` on 39, anytime TD on 54. DraftKings and
+  FanDuel list the most keys; betus, fanatics and lowvig list none. So "CFB has no
+  player props" is true of Kalshi and false of the market. What has NOT changed: the
+  appearance gap still bans hit rates and settlement, and the model loses to the close
+  in every season (brief 023), so this reopens no betting case - it reopens the question
+  of what CFB DATA is purchasable, at ~3,700 credits for a 5-market usage pull over a
+  slate. 47,553 markets across 97 NCAAF series on Kalshi price none of it. Everything player-named is a SEASON leader
   future closing 2027-01-07 ("Nick Rinaldi records the most sacks in the SEC").
   What looks like a prop is team-level: `KXNCAAFTEAMRECYDS` is "Texas: 325+
   receiving yards", `KXNCAAFTEAMTD` is "Utah: 4+ rushing touchdowns".

@@ -523,7 +523,18 @@ validates without writing.
   non-nullable and CFB has no appearance signal; the player index is the page list;
   `counts` has no scope and is closed; `opponent_abbr` is non-nullable. Three non-findings
   recorded too, so they are not re-opened.
-- Tests: `tests/test_export_cfb_web.py`, 10, against a synthetic store.
+- Tests: `tests/test_export_cfb_web.py`, 13, against a synthetic store plus one that reads
+  the real store for FBS slug uniqueness (skipped where `cfb.db` is absent, e.g. CI).
+- **C-1 CLOSED 2026-09-19.** Track A widened the team key pattern; team files are now
+  `cfb/teams/alabama-crimson-tide.json` from `cfb_teams.slug`. Track A also applied two
+  forced manifest lines under the new written rule (`docs/track-c-requests.md` C-A5) -
+  reviewed and correct, including the `division` false friend: `cfb_teams.division` is
+  identical to `classification` on all 138 FBS rows (verified here, 0 differing), so the
+  real grouping for this sport is `conference` and publishing `division` would collapse
+  every team into one bucket.
+- **Still not published**, and the reason has moved on: analytics goes to R2 first as a
+  watched manual run, CFB follows once that path has been exercised with someone reading
+  the output.
 
 ## 11. Decisions taken, with the why
 

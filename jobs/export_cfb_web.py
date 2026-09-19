@@ -33,6 +33,7 @@ WHAT IS EXPORTED, and the coverage is stated rather than implied:
 import argparse
 import json
 import os
+import re
 import sqlite3
 import sys
 import time
@@ -84,13 +85,26 @@ def stat_definitions():
 # reads
 # ---------------------------------------------------------------------------
 
-def team_slug(abbr, name):
-    """The contract's team key pattern is `^[a-z0-9]+/teams/[a-z0-9]+\\.json$` - NO
-    HYPHENS - so a team slug must be abbreviation-shaped: `alabama-crimson-tide` is not a
-    legal key and `ala` is. See finding C-2: CFB abbreviations are not unique across
-    divisions, so the URL space inherits the collision the colour map already has."""
-    slug = "".join(ch for ch in (abbr or "").lower() if ch.isalnum())
-    return slug or "".join(ch for ch in slugify(name) if ch.isalnum())
+KEY_SLUG = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+
+
+def team_slug(feed_slug, abbr, name):
+    """The school's own slug - `alabama-crimson-tide` - now that the key pattern allows it.
+
+    C-1 filed that `^[a-z0-9]+/teams/[a-z0-9]+\\.json$` forbade hyphens, so CFB team URLs
+    were abbreviation-shaped by the contract's choice rather than the sport's, and CFB
+    abbreviations are not unique (69 collide across divisions in 2026). Track A widened the
+    pattern to `[a-z0-9][a-z0-9-]*` on 2026-09-19 - backward compatible, since `kc` still
+    matches - so the readable form is used from here. Nothing CFB was ever published, so
+    this changed no URL that existed.
+
+    The feed's slug is preferred, the abbreviation is the fallback, and `build` REFUSES on a
+    duplicate: a slug is a URL, and two teams at one URL is not a display problem."""
+    for candidate in (feed_slug, slugify(name), (abbr or "").lower()):
+        c = (candidate or "").strip("-")
+        if c and KEY_SLUG.match(c):
+            return c
+    raise ValueError(f"no legal slug for {name!r} (feed {feed_slug!r}, abbr {abbr!r})")
 
 
 def teams(con, season=CURRENT_SEASON, classification=CLASSIFICATION):
@@ -99,7 +113,7 @@ def teams(con, season=CURRENT_SEASON, classification=CLASSIFICATION):
         "alternate_color FROM cfb_teams WHERE season=? AND classification=? AND "
         "valid_to_ts IS NULL ORDER BY display_name", (season, classification)).fetchall()
     return [{"team_id": r[0], "abbr": r[1], "name": r[2],
-             "slug": team_slug(r[1], r[2]), "conference": r[4],
+             "slug": team_slug(r[3], r[1], r[2]), "conference": r[4],
              "color": r[5], "alternate_color": r[6]} for r in rows]
 
 
@@ -295,6 +309,10 @@ def build(con, generated_at=None):
     done_week = done[1] if done else None
     stale = bool(done_week is not None and (last_week or 0) < done_week)
 
+    dupes = {t["slug"] for t in ts if [x["slug"] for x in ts].count(t["slug"]) > 1}
+    if dupes:
+        raise ValueError(f"two exported teams share a slug, which is a URL: "
+                         f"{sorted((t['name'], t['slug']) for t in ts if t['slug'] in dupes)}")
     for t in ts:
         sched = schedule_rows(con, t["team_id"], lines, abbrs, blank_abbrs)
         team_seasons = sorted({s["season"] for s in sched})
@@ -401,11 +419,13 @@ def export(out_dir, dry_run=False, verbose=True):
 FINDINGS = r"""Contract findings from the CFB export - filed to track A, never worked around here.
 Every figure is from `cfb.db` and reproduced by `python -m jobs.export_cfb_web`.
 
-C-1  A TEAM KEY CANNOT CONTAIN A HYPHEN, so a sport whose teams are multi-word schools
-     has no readable team URL. The key table says `^[a-z0-9]+/teams/[a-z0-9]+\.json$`;
-     `cfb/teams/alabama-crimson-tide.json` fails validation and `cfb/teams/ala.json`
-     passes. NFL cannot see this: its slugs ARE abbreviations. So CFB team URLs are
-     abbreviation-shaped by the contract's choice, not the sport's.
+C-1  CLOSED 2026-09-19 by track A. A team key could not contain a hyphen
+     (`^[a-z0-9]+/teams/[a-z0-9]+\.json$`), so a sport whose teams are multi-word schools
+     had no readable team URL and CFB's were abbreviation-shaped by the contract's choice.
+     NFL structurally could not see it: its slugs ARE abbreviations. The pattern is now
+     `^[a-z0-9]+/teams/[a-z0-9][a-z0-9-]*\.json$` - backward compatible, all 23,209
+     existing keys still resolve - and this export emits `cfb/teams/alabama-crimson-tide.json`
+     from the school's own slug. No published URL changed, because nothing was published.
 
 C-2  ABBREVIATIONS ARE NOT UNIQUE IN THIS SPORT, and two parts of the contract assume
      they are. `team_colors` is keyed on abbreviation: 69 abbreviations collide across

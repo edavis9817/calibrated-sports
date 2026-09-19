@@ -75,14 +75,64 @@ def test_the_export_validates_against_the_real_contract(store):
     X.validate_contract(files)              # raises on any violation
     X.assert_stats_defined(files, files["cfb/manifest.json"]["stat_definitions"])
     assert set(files) >= {"sports.json", "cfb/manifest.json", "cfb/players/index.json",
-                          "cfb/teams/aaa.json", "cfb/teams/bbb.json"}
+                          "cfb/teams/alpha-state-aces.json", "cfb/teams/beta-tech-bears.json"}
 
 
-def test_team_slugs_are_abbreviation_shaped_because_the_key_pattern_forbids_hyphens(store):
-    """`^[a-z0-9]+/teams/[a-z0-9]+\\.json$`: `alpha-state-aces` is not a legal key."""
+def test_team_slugs_are_the_schools_own_and_are_legal_keys(store):
+    """C-1 closed 2026-09-19: the key pattern allows hyphens, so the readable slug is used.
+
+    Before that, `cfb/teams/alpha-state-aces.json` failed validation and `aaa.json` passed -
+    CFB URLs were abbreviation-shaped by the contract's choice, on a sport whose
+    abbreviations are not unique."""
     files, _ = X.build(store)
-    assert "cfb/teams/aaa.json" in files
-    assert not any("-" in k.split("/")[-1] for k in files if "/teams/" in k)
+    assert "cfb/teams/alpha-state-aces.json" in files
+    assert "cfb/teams/aaa.json" not in files          # the retired abbreviation key
+    keys = [k.split("/")[-1][: -len(".json")] for k in files if "/teams/" in k]
+    assert all(X.KEY_SLUG.match(k) for k in keys), keys
+    X.validate_contract(files)              # the widened pattern accepts these keys
+
+
+def test_two_teams_cannot_share_a_slug_because_a_slug_is_a_url(store):
+    X._insert_dupe = None
+    store.execute(
+        "INSERT INTO cfb_teams (season, team_id, abbreviation, display_name, slug, "
+        "classification, conference_name, color, sport, src_dataset, src_season, "
+        "src_file_id, row_sha, valid_from_ts) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (SEASON, 4, "AA2", "Alpha State Aces", "alpha-state-aces", "fbs", "Conf A",
+         "002b5c", "cfb", "test", SEASON, 1, "y", 1.0))
+    store.commit()
+    with pytest.raises(ValueError, match="share a slug"):
+        X.build(store)
+
+
+def test_a_slug_falls_back_before_it_invents(store):
+    assert X.team_slug("alpha-state-aces", "AAA", "Alpha State Aces") == "alpha-state-aces"
+    assert X.team_slug(None, "AAA", "Alpha State Aces") == "alpha-state-aces"   # from the name
+    assert X.team_slug(None, "AAA", None) == "aaa"                              # from the abbr
+    with pytest.raises(ValueError):
+        X.team_slug(None, None, None)
+
+
+@pytest.mark.skipif(not os.path.exists(paths.db_path()),
+                    reason="reads the real cfb.db, which CI has no copy of")
+def test_the_real_fbs_slugs_are_unique_and_legal():
+    """The uniqueness pin flagged when C-1 was filed. Measured 2026-09-19 on season 2026:
+    138 FBS slugs, all legal, none colliding. Across ALL divisions there is exactly ONE
+    collision - `tba`, twice - and both rows are placeholder fixtures ("TBA"), not two
+    schools, which is why widening the export beyond FBS needs this test to stay green
+    rather than to be relaxed."""
+    import sqlite3
+    con = sqlite3.connect(f"file:{paths.db_path()}?mode=ro", uri=True)
+    rows = con.execute("SELECT slug, display_name, classification FROM cfb_teams WHERE "
+                       "season=? AND valid_to_ts IS NULL", (SEASON,)).fetchall()
+    con.close()
+    fbs = [r for r in rows if r[2] == "fbs"]
+    assert len(fbs) >= 130
+    assert all(r[0] and X.KEY_SLUG.match(r[0]) for r in fbs)
+    dupes = {r[0] for r in fbs if [x[0] for x in fbs].count(r[0]) > 1}
+    assert dupes == set(), sorted(dupes)
+    all_dupes = {r[0] for r in rows if r[0] and [x[0] for x in rows].count(r[0]) > 1}
+    assert all_dupes <= {"tba"}, sorted(all_dupes)
 
 
 def test_a_colliding_abbreviation_drops_a_colour_row_and_says_so(store):
@@ -95,7 +145,7 @@ def test_roster_games_count_stat_rows_and_snap_share_is_null(store):
     """No CFB source records whether a player dressed: `games` is a LOWER BOUND, and the
     contract's non-nullable integer cannot say that (finding C-3)."""
     files, _ = X.build(store)
-    roster = {r["name"]: r for r in files["cfb/teams/aaa.json"]["roster"]}
+    roster = {r["name"]: r for r in files["cfb/teams/alpha-state-aces.json"]["roster"]}
     assert roster["Player One"]["games"] == 1
     assert roster["Player Two"]["games"] == 0        # rostered, no stat row, did not "miss"
     assert all(r["snap_share"] is None for r in roster.values())
@@ -118,7 +168,7 @@ def test_counts_games_is_scoped_to_the_exported_teams(store):
 
 def test_an_opponent_abbreviation_is_recovered_not_invented(store):
     files, _ = X.build(store)
-    week1 = [g for g in files["cfb/teams/aaa.json"]["schedule"] if g["index"] == 1][0]
+    week1 = [g for g in files["cfb/teams/alpha-state-aces.json"]["schedule"] if g["index"] == 1][0]
     assert week1["opponent_abbr"] == "BBB"       # null in the game row, found in the feed
     assert week1["result"] == "W" and week1["points_for"] == 31
 
