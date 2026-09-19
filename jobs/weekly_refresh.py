@@ -118,6 +118,41 @@ def commit_slug_registry(runner, log):
     return True
 
 
+def concat_declarations(*declared):
+    """Concatenate what each producer said it rebuilt, preserving None vs [].
+
+    Two producers now write into WEB_EXPORT_DIR - track A's site export and
+    track F's analytics export - and ONE uploader deletes from one bucket
+    against one state file. Each declares only the prefix it actually built, and
+    this joins them for the single `--upload-only` call.
+
+    THE DISTINCTION SURVIVES THE JOIN, which is the whole point of the helper
+    rather than a `+`:
+
+      * every producer silent  -> None. Nobody said anything, so the uploader is
+        given no `--refreshed` flag and deletes NOTHING. Absence is not
+        information, and that is the safe direction.
+      * any producer spoke     -> the union of what was said. A silent producer
+        contributes nothing; it does not suppress the others, and it does not
+        turn their declaration into a deletion authority over its own prefix.
+      * a producer that said `[]` counts as HAVING SPOKEN. "I rebuilt nothing"
+        is a different statement from "I did not say", and only the first should
+        stop the result collapsing to None.
+
+    Order is preserved and duplicates dropped, so the flag stays readable and a
+    prefix declared by two producers authorises the same deletions once.
+    """
+    spoke = [d for d in declared if d is not None]
+    if not spoke:
+        return None
+    out = []
+    for one in spoke:
+        for prefix in one:
+            if prefix not in out:
+                out.append(prefix)
+    return out
+
+
 def _run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fetch_json):
     """Exit code: 0 ok (including stale and validation warnings), 1 export failed,
     2 upload failed, 4 configuration missing."""
@@ -156,10 +191,32 @@ def _run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fet
     # THE DECLARATION, read from the run that just produced the tree and carried
     # to the uploader on the command line. Never from a file: a stale copy would
     # authorise deletions for a run that did not happen.
-    refreshed = parse_refreshed(exported.stdout)
-    if refreshed is None:
-        log("WARN", "export printed no REFRESHED line - the uploader will delete nothing. "
-                    "Keys removed from the export will linger in R2 until this is fixed")
+    site_declared = parse_refreshed(exported.stdout)
+    if site_declared is None:
+        log("WARN", "export printed no REFRESHED line - the uploader will delete nothing "
+                    "under the site's prefixes. Keys removed from the export linger in R2")
+
+    # TRACK F'S ANALYTICS EXPORT IS A SECOND PRODUCER INTO THE SAME TREE, and it
+    # declares the one prefix it owns. `--dest web` writes into
+    # WEB_EXPORT_DIR/analytics/ and prints the same REFRESHED sentinel; `--dest
+    # own` is the default and reaches nothing, so the flag is what makes this a
+    # publishing run. Track F gates the sentinel on the write, so a `--check`
+    # rebuilds nothing and authorises nothing.
+    #
+    # NON-FATAL, deliberately: analytics is not the site. A failure here must
+    # degrade like ingest and map rather than abort a refresh whose export has
+    # already succeeded - and a failed run declares nothing, so its prefix is
+    # simply not authorised for deletion, which is the safe direction.
+    analytics = step("analytics", [py, "-m", "analytics.export", "--write", "--dest", "web"],
+                     fatal=False)
+    analytics_declared = (parse_refreshed(analytics.stdout)
+                          if analytics.returncode == 0 else None)
+    if analytics_declared is None:
+        log("WARN", "the analytics export declared nothing - stale analytics keys will NOT be "
+                    "removed from R2. A retired metric stays served indefinitely and a climbing "
+                    "removed_withheld is the only evidence it is still there")
+
+    refreshed = concat_declarations(site_declared, analytics_declared)
     commit_slug_registry(runner, log)
 
     local = None
@@ -190,12 +247,16 @@ def _run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fet
     except (ValueError, TypeError):
         stats = {}
     withheld = stats.get("removed_withheld") or 0
+    where = stats.get("withheld_prefixes") or []
     if withheld and refreshed is not None:
-        log("WARN", f"upload withheld {withheld} deletion(s) OUTSIDE the declared prefixes "
-                    f"{refreshed} - in a full run this should be 0; a climbing count means "
-                    "the declaration is not reaching the uploader")
+        log("WARN", f"upload withheld {withheld} deletion(s) under {where or 'unknown prefixes'} "
+                    f"- OUTSIDE every declared prefix {refreshed}. In a full run this should be 0. "
+                    "Each withheld key stays served from R2 with nothing else to say so, so either "
+                    "a declaration is not reaching the uploader or a producer writing into this "
+                    "tree is not declaring its own prefix")
     elif withheld:
-        log("INFO", f"upload withheld {withheld} deletion(s): no prefixes were declared")
+        log("INFO", f"upload withheld {withheld} deletion(s) under {where}: no prefixes were "
+                    "declared, so absence carried no information and nothing was removed")
     else:
         log("INFO", f"upload deleted {stats.get('deleted', 0)}, withheld 0")
 

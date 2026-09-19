@@ -27,9 +27,20 @@ class Runner:
     it declared it rebuilt nothing. Those are different facts downstream.
     """
 
-    def __init__(self, fail=(), refreshed=("nfl/players/", "nfl/teams/"), upload_stats=None):
+    # `analytics_refreshed` DEFAULTS TO SILENT, and that matters. Defaulting it
+    # to ("analytics/",) made every test that thinks about only the site export
+    # gain a second declaring producer it never asked for - six tests started
+    # describing a world they were not written for, and one of them asserted
+    # "no prefixes were declared" while the job had just been handed
+    # `--refreshed analytics/`. A default that grants an authority the caller
+    # did not request is the same shape as the safe-default rule in CLAUDE.md,
+    # pointing the wrong way. Silent is also production's state until track F
+    # publishes, so the four cases opt IN.
+    def __init__(self, fail=(), refreshed=("nfl/players/", "nfl/teams/"), upload_stats=None,
+                 analytics_refreshed=None):
         self.calls, self.fail = [], set(fail)
         self.refreshed = refreshed
+        self.analytics_refreshed = analytics_refreshed
         self.upload_stats = upload_stats
 
     def stdout_for(self, step):
@@ -38,6 +49,12 @@ class Runner:
             # last, so the parser has to find one line among many.
             return ('{"counts": {}}\nunresolved ids: 0\n'
                     + E.REFRESHED_SENTINEL + " " + " ".join(self.refreshed))
+        if step == "analytics" and self.analytics_refreshed is not None:
+            # Track F prints the sentinel only on `--dest web`; a --check run
+            # rebuilds nothing and declares nothing, which this models by
+            # passing analytics_refreshed=None.
+            return ("88 keys, 52583 values, all validated\n"
+                    + E.REFRESHED_SENTINEL + " " + " ".join(self.analytics_refreshed))
         if step == "upload":
             return json.dumps(self.upload_stats if self.upload_stats is not None
                               else {"configured": True, "deleted": 0, "removed_withheld": 0})
@@ -68,6 +85,13 @@ class Runner:
             return "upload"
         if "export_web" in s:
             return "export"
+        # Checked AFTER export_web and it does not matter: "analytics.export"
+        # contains no "export_web", so the two cannot be confused. Without this
+        # branch the step falls through to `return s`, `stdout_for` never sees
+        # "analytics", the fake answers "ok", and every declaration test below
+        # would quietly exercise the no-sentinel path while passing.
+        if "analytics.export" in s:
+            return "analytics"
         return s
 
     def names(self):
@@ -121,8 +145,11 @@ def test_steps_run_in_order_and_touch_git_only_for_the_slug_registry(env):
     assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
     # python steps only: `git commit -m <message>` also contains "-m"
     py_steps = [c[c.index("-m") + 1] for c in r.calls if c and c[0] != "git" and "-m" in c]
+    # `analytics.export` sits between the site export and the upload: it is a
+    # SECOND PRODUCER into the same tree, and it has to have written before the
+    # one uploader runs.
     assert py_steps == ["jobs.ingest_nflverse", "jobs.ingest_headshots", "jobs.map_markets",
-                        "jobs.export_web", "jobs.export_web"]
+                        "jobs.export_web", "analytics.export", "jobs.export_web"]
     git_calls = [c for c in r.calls if c and c[0] == "git"]
     assert git_calls, "the refresh should check the slug registry"
     assert all(c[-1] == W.SLUG_PATH and c[-2] == "--" for c in git_calls)
@@ -257,7 +284,7 @@ def test_the_export_declaration_reaches_the_upload_command_line(env):
     deletion forever and R2 grows keys the export stopped producing.
     """
     tmp, _ = env
-    r = Runner(refreshed=("nfl/players/", "nfl/teams/"))
+    r = Runner(refreshed=("nfl/players/", "nfl/teams/"), analytics_refreshed=None)
     assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
 
     cmd = r.cmd_for("upload")
@@ -271,7 +298,7 @@ def test_the_declaration_comes_from_the_export_THAT_JUST_RAN(env):
     declaration, and no stale copy can authorise a deletion for a run that did
     not happen."""
     tmp, _ = env
-    r = Runner(refreshed=("research/",))
+    r = Runner(refreshed=("research/",), analytics_refreshed=None)
     assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
     cmd = r.cmd_for("upload")
     assert cmd[cmd.index("--refreshed") + 1] == "research/"
@@ -282,7 +309,7 @@ def test_an_export_that_declares_nothing_passes_an_EMPTY_flag_not_no_flag(env):
     which reaches the uploader as `--refreshed ""` and is a different fact from
     the flag being absent."""
     tmp, _ = env
-    r = Runner(refreshed=())
+    r = Runner(refreshed=(), analytics_refreshed=None)
     assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
     cmd = r.cmd_for("upload")
     assert "--refreshed" in cmd
@@ -294,7 +321,7 @@ def test_an_export_with_no_sentinel_warns_and_passes_no_flag_at_all(env):
     printed, the job must not invent a declaration - it withholds every deletion
     and says so in the log."""
     tmp, _ = env
-    r = Runner(refreshed=None)
+    r = Runner(refreshed=None, analytics_refreshed=None)
     assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
     assert "--refreshed" not in r.cmd_for("upload")
     assert "printed no REFRESHED line" in read_log(tmp)
@@ -304,10 +331,12 @@ def test_withheld_deletions_are_surfaced_where_a_human_will_see_them(env):
     """`removed_withheld` non-zero WITH a declaration is the signal that the
     threading broke. It is only worth computing if it is printed."""
     tmp, _ = env
-    r = Runner(upload_stats={"configured": True, "deleted": 0, "removed_withheld": 7})
+    r = Runner(analytics_refreshed=None,
+               upload_stats={"configured": True, "deleted": 0, "removed_withheld": 7,
+                             "withheld_prefixes": ["nfl/market/"]})
     assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
     log = read_log(tmp)
-    assert "WARN" in log and "7 deletion(s) OUTSIDE" in log
+    assert "WARN" in log and "7 deletion(s) under ['nfl/market/']" in log
 
 
 def test_withheld_with_NO_declaration_is_reported_as_benign_not_as_a_warning(env):
@@ -315,12 +344,13 @@ def test_withheld_with_NO_declaration_is_reported_as_benign_not_as_a_warning(env
     deleted and nothing is wrong - crying WARN here would train a reader to
     ignore the line that matters."""
     tmp, _ = env
-    r = Runner(refreshed=None,
-               upload_stats={"configured": True, "deleted": 0, "removed_withheld": 7})
+    r = Runner(refreshed=None, analytics_refreshed=None,
+               upload_stats={"configured": True, "deleted": 0, "removed_withheld": 7,
+                             "withheld_prefixes": ["nfl/market/"]})
     assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
     log = read_log(tmp)
-    assert "7 deletion(s): no prefixes were declared" in log
-    assert "7 deletion(s) OUTSIDE" not in log
+    assert "no prefixes were declared" in log
+    assert "OUTSIDE every declared prefix" not in log
 
 
 def test_an_unparseable_upload_summary_does_not_fail_the_job(env):
@@ -333,6 +363,132 @@ def test_an_unparseable_upload_summary_does_not_fail_the_job(env):
             return "not json" if step == "upload" else super().stdout_for(step)
 
     assert W.run(runner=Garbled(), log=log_to(tmp), fetch=matching_fetch) == 0
+
+
+# ------------------------------- two producers, one uploader (F4)
+
+def _refreshed_arg(r):
+    """The value passed to `--refreshed`, or None if the flag is absent."""
+    cmd = r.cmd_for("upload")
+    return cmd[cmd.index("--refreshed") + 1] if "--refreshed" in cmd else None
+
+
+def test_the_fake_actually_answers_the_analytics_step():
+    """Before trusting any case below: the step must be CLASSIFIED, or the fake
+    returns "ok", the sentinel is never seen, and all four cases collapse into
+    the same no-declaration path while passing."""
+    cmd = [sys_exe(), "-m", "analytics.export", "--write", "--dest", "web"]
+    assert Runner().name(cmd) == "analytics", (
+        "unclassified, the step falls through to 'ok' and every case below "
+        "silently tests the no-declaration path")
+    # BOTH ANSWERS, because "the fake can talk" and "the fake always talks" are
+    # different facts and only one of them makes the four cases meaningful.
+    declaring = Runner(analytics_refreshed=("analytics/",))
+    assert E.REFRESHED_SENTINEL in declaring.stdout_for("analytics")
+    assert "analytics/" in declaring.stdout_for("analytics")
+    assert E.REFRESHED_SENTINEL not in Runner(analytics_refreshed=None).stdout_for("analytics")
+
+
+def sys_exe():
+    import sys
+    return sys.executable
+
+
+def test_case1_site_declares_four_and_analytics_is_silent(env):
+    """Track A's prefixes are authorised; analytics deletions are WITHHELD.
+    This is today's state until track F publishes, and it is the safe one."""
+    tmp, _ = env
+    r = Runner(refreshed=("nfl/market/", "nfl/players/", "nfl/teams/", "research/"),
+               analytics_refreshed=None)
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    assert _refreshed_arg(r) == "nfl/market/ nfl/players/ nfl/teams/ research/"
+    assert "analytics/" not in _refreshed_arg(r)
+    assert "analytics export declared nothing" in read_log(tmp)
+
+
+def test_case2_only_analytics_declares(env):
+    """A site export that printed no sentinel must not suppress track F's
+    declaration - a silent producer contributes nothing, it does not veto."""
+    tmp, _ = env
+    r = Runner(refreshed=None, analytics_refreshed=("analytics/",))
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    assert _refreshed_arg(r) == "analytics/"
+
+
+def test_case3_both_declare_and_the_two_are_concatenated(env):
+    tmp, _ = env
+    r = Runner(refreshed=("nfl/players/", "research/"), analytics_refreshed=("analytics/",))
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    assert _refreshed_arg(r) == "nfl/players/ research/ analytics/"
+
+
+def test_case4_neither_declares_so_the_flag_is_ABSENT_and_nothing_is_deleted(env):
+    """Not `--refreshed ""` - the flag must be gone entirely. Empty means
+    "declared, owns nothing"; absent means "nobody said", and only the second
+    makes the uploader withhold every deletion."""
+    tmp, _ = env
+    r = Runner(refreshed=None, analytics_refreshed=None)
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    assert _refreshed_arg(r) is None
+    assert "--refreshed" not in r.cmd_for("upload")
+
+
+def test_the_analytics_step_runs_the_publishing_command(env):
+    """`--dest web` is what writes into WEB_EXPORT_DIR and prints the sentinel;
+    the default `own` reaches nothing."""
+    tmp, _ = env
+    r = Runner()
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    cmd = r.cmd_for("analytics")
+    assert "analytics.export" in cmd
+    assert "--write" in cmd
+    # `--dest web` is the publishing path; the default `own` reaches nothing, so
+    # asserting the flag is present is not enough - its VALUE is the whole point.
+    assert cmd[cmd.index("--dest") + 1] == "web"
+
+
+def test_a_failing_analytics_export_degrades_and_declares_nothing(env):
+    """Analytics is not the site. A failure must not abort a refresh whose
+    export already succeeded - and it must not authorise deleting under a
+    prefix nothing rebuilt."""
+    tmp, _ = env
+    r = Runner(fail={"analytics"})
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    assert "analytics/" not in (_refreshed_arg(r) or "")
+    assert "upload" in r.names(), "the refresh must still reach the upload"
+
+
+def test_the_withheld_warning_NAMES_the_prefix(env):
+    """A bare count cannot say whether withheld keys are benign or a retired
+    metric that will stay served forever. The prefix is the subject."""
+    tmp, _ = env
+    r = Runner(upload_stats={"configured": True, "deleted": 0, "removed_withheld": 3,
+                             "withheld_prefixes": ["analytics/"]})
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    log = read_log(tmp)
+    assert "WARN" in log and "analytics/" in log and "3 deletion(s)" in log
+
+
+# ----------------------------------------- the join itself, directly
+
+def test_concat_preserves_none_versus_empty():
+    """The distinction has to survive the join or the safe default is lost."""
+    assert W.concat_declarations(None, None) is None
+    assert W.concat_declarations([], None) == []
+    assert W.concat_declarations(None, []) == []
+    assert W.concat_declarations(["a/"], None) == ["a/"]
+    assert W.concat_declarations(None, ["b/"]) == ["b/"]
+
+
+def test_concat_unions_in_order_without_duplicates():
+    assert W.concat_declarations(["a/", "b/"], ["b/", "c/"]) == ["a/", "b/", "c/"]
+
+
+def test_a_silent_producer_does_not_suppress_a_speaking_one():
+    """The failure that would matter: if `None` from one producer collapsed the
+    whole result to None, one silent export would disable every deletion."""
+    assert W.concat_declarations(None, ["analytics/"]) == ["analytics/"]
+    assert W.concat_declarations(["nfl/teams/"], None) == ["nfl/teams/"]
 
 
 def test_preflight_names_the_real_imports_the_subprocesses_need():

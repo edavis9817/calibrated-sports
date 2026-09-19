@@ -2267,6 +2267,12 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
     result = {"configured": True, "bucket": bucket, "considered": len(local),
               "changed": len(todo), "uploaded": 0, "deleted": 0, "bytes": 0,
               "removed": len(removed), "removed_withheld": len(withheld),
+              # WHICH prefix went unclaimed, not just how many keys did. Once a
+              # second producer writes into this tree, a bare count cannot say
+              # whether the withheld keys are a benign undeclared run or a
+              # retired metric that will stay served from R2 forever. The count
+              # is the signal; this is its subject.
+              "withheld_prefixes": sorted({k.split("/")[0] + "/" for k in withheld}),
               "declared_prefixes": declared, "state_source": state_source}
     if withheld:
         # Surfaced on every run, because the number only matters when someone
@@ -2277,8 +2283,11 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
                 "declared no refreshed prefixes, so absence carries no information")
         else:
             log(f"  WARN {len(withheld):,} key(s) absent locally but outside every declared "
-                f"prefix {declared} - not deleted. In a full run this should be 0; a "
-                "climbing count means the declaration is not reaching the uploader")
+                f"prefix {declared} - not deleted. They sit under "
+                f"{sorted({k.split('/')[0] + '/' for k in withheld})}, which nothing in this run "
+                "claimed to have rebuilt. In a full run this should be 0; a climbing count means "
+                "either the declaration is not reaching the uploader, or a producer that writes "
+                "into this tree is not declaring its own prefix")
     if dry_run:
         return result
 

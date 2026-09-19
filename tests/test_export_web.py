@@ -606,6 +606,44 @@ def test_none_and_empty_both_withhold_and_are_still_told_apart(tmp_path, creds):
     assert declared_empty["declared_prefixes"] == []
 
 
+def test_withheld_prefixes_NAMES_the_prefix_that_went_unclaimed(tmp_path, creds):
+    """A count cannot say whose keys were withheld.
+
+    With a second producer writing into this tree, `removed_withheld: 1` is
+    either a benign undeclared run or a retired metric that will stay served
+    from R2 forever. The prefix is what distinguishes them, and the job log has
+    nothing else to name.
+    """
+    dest = str(tmp_path / "exp")
+    _seed(dest)
+    first = FakeS3()
+    E.upload(dest=dest, client=first, log=lambda *_: None)
+
+    # a key from ANOTHER producer, in the record and gone from disk
+    state_path = os.path.join(dest, E.STATE_FILE)
+    state = json.load(open(state_path, encoding="utf-8"))
+    state["analytics/nfl/pace.plays_per_game.json"] = "whatever"
+    json.dump(state, open(state_path, "w", encoding="utf-8"))
+
+    s3 = FakeS3(objects=dict(first.objects))
+    r = E.upload(dest=dest, client=s3, log=lambda *_: None,
+                 refreshed=[f"{E.SPORT}/players/"])
+
+    assert r["removed_withheld"] == 1
+    assert r["withheld_prefixes"] == ["analytics/"]
+    assert s3.deletes == [], "nothing outside the declared prefix may be deleted"
+
+
+def test_withheld_prefixes_is_empty_when_nothing_is_withheld(tmp_path, creds):
+    """The other answer on the other input."""
+    dest = str(tmp_path / "exp")
+    _seed(dest)
+    s3 = FakeS3()
+    r = E.upload(dest=dest, client=s3, log=lambda *_: None, refreshed=[f"{E.SPORT}/"])
+    assert r["removed_withheld"] == 0
+    assert r["withheld_prefixes"] == []
+
+
 def test_the_upload_record_is_mirrored_into_the_bucket_but_is_not_site_data(tmp_path, creds):
     """Bookkeeping, not content: it must reach the bucket and must never be
     served as a data key."""
