@@ -646,3 +646,93 @@ track F can publish one on request rather than track B differencing two.
 exported through the web contract, this field should travel with it — that
 *would* be a track A request, and it is noted here rather than filed, because
 the export does not exist yet.
+
+---
+
+## F2 — the analytics row shape, banded rather than ranked
+
+From track F, 2026-09-19. You reached the no-numbered-leaderboard conclusion
+independently; this is the row shape that follows from it, with the bands
+already computed so nothing has to be re-derived on your side.
+
+### Why there is no rank
+
+`docs/F04-what-the-metrics-support.md` measured how many subjects are
+distinguishable from a typical one. Between **28% and 56%** of rows in any of
+these metrics are not. A numbered list asserts an ordering between every
+adjacent pair; the data supports an ordering between **bands**, not between
+rows. F04 measured separation from the median and did **not** measure whether
+adjacent ranks separate — so a rank would be a claim nobody has checked.
+
+### The band IS the verdict, and it is already computed
+
+Three bands, from `analytics/claims.py`, each from that subject's own interval
+against the metric's null:
+
+| band | meaning |
+|---|---|
+| `above` | the 95% interval clears the null on the high side |
+| `indistinguishable` | the interval covers the null |
+| `below` | the interval clears the null on the low side |
+| `insufficient` | fewer than 5 blocks — the interval is not read at all |
+
+`insufficient` fires on **0 of 52,583 values today** (smallest published `n` is
+8 against a threshold of 5). It is in the enum because it is reachable, and the
+count is worth rendering as a zero rather than omitting.
+
+### Band sizes, measured
+
+| metric | above | indistinguishable | below | total |
+|---|---:|---:|---:|---:|
+| `role.onfield_share` | 3,944 | 2,944 | 3,643 | 10,531 |
+| `role.touch_share` | 2,162 | **4,788** | 1,831 | 8,781 |
+| `air_yards.quantiles.receiver` | 1,823 | 2,321 | 2,140 | 6,284 |
+| `script_elasticity.targets` | 593 | **1,905** | 589 | 3,087 |
+| `script_elasticity.carries` | 679 | 1,143 | 593 | 2,415 |
+| `air_yards.polarity.receiver` | 424 | 748 | 399 | 1,571 |
+| `pace.seconds_per_play.by_season` | 135 | 583 | 143 | 861 |
+
+**The middle band is the largest in every one of them.** That is the page, not
+a caveat on it.
+
+### The row
+
+Every field is already in `f_metric_values` and `f_metrics`; nothing new has to
+be produced.
+
+```json
+{
+  "metric": "script_elasticity.targets",
+  "subject": "00-0036355",
+  "slice": "",
+  "verdict": "above",
+  "estimate": 0.0808,
+  "interval": [0.0254, 0.1500],
+  "n": 14,
+  "null": 0.0,
+  "sentence": "Share of his team's targets when trailing by 7+, minus the same share when leading by 7+ - used more when his team is trailing: +8.1 points of share (95% interval 2.5 to 15.0, n=14 games)."
+}
+```
+
+- **`interval` and `n` are not optional.** The contract already enforces it —
+  `AnalyticValue` makes `interval` non-nullable and `n` an integer `minimum: 1`
+  — so a row without them cannot exist upstream. A row that renders without
+  them re-creates a point estimate at the last hop.
+- **`null` is on the row** because it differs by metric. An elasticity's null is
+  zero; a share's null is the median subject. "Cannot be distinguished from
+  zero target share" would be true and absurd.
+- **`sentence` is generated**, from `analytics/claims.py`. Render it, or word it
+  yourself in `lib/claims` from the fields — both satisfy the rule. What must
+  not happen is transcribing it into a component, which makes it hand-written
+  one layer down.
+
+### Sort order, since it is not a rank
+
+Sort within a band by `estimate`, and label the band. Do not number across
+bands, and do not number within one — two rows inside `indistinguishable` are
+by construction not distinguishable from each other.
+
+If you want an ordering claim between two specific subjects, ask and track F
+will bootstrap the contrast as one quantity over shared blocks. It is **not**
+the difference of two published intervals; brief 018 set that rule for the
+selection gap and it holds here.

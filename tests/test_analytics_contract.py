@@ -227,9 +227,12 @@ def test_an_unbounded_interval_is_dropped_not_coerced():
     assert not export._finite(None, 2.0)
 
 
-def test_the_exporter_writes_nowhere_near_the_site_export_dir():
-    """`WEB_EXPORT_DIR` is track A's and its uploader reads it. Track F writing
-    there would put unreviewed keys where the site looks."""
+def test_the_exporter_defaults_away_from_the_site_export_dir():
+    """It CAN write into `WEB_EXPORT_DIR` now - track A request F4 approved that
+    path - but only when asked, and `own` stays the default. The original rule
+    was "do not put unreviewed keys where the uploader looks"; what changed is
+    that the keys are reviewed and the path has an owner for both halves, not
+    that the rule was wrong."""
     import ast
     import inspect
 
@@ -240,16 +243,19 @@ def test_the_exporter_writes_nowhere_near_the_site_export_dir():
     # explanation from a live reference. CLAUDE.md records the same trap from
     # the other direction: a docstring explaining a removal quotes the old name
     # by design, so assert on the references.
-    tree = ast.parse(inspect.getsource(export))
-    referenced = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
-    referenced |= {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
-    assert "WEB_EXPORT_DIR" not in referenced
-    assert not {r for r in referenced if "export_web" in r}
-
     d = export.export_dir()
     assert d == config.storage_path("analytics_export")
     if config.WEB_EXPORT_DIR:
         assert os.path.abspath(d) != os.path.abspath(config.WEB_EXPORT_DIR)
+
+    # `--dest web` is opt-in: the default path must not resolve to track A's
+    # tree, checked by AST so a docstring mentioning the name cannot satisfy it.
+    tree = ast.parse(inspect.getsource(export.main))
+    defaults = [kw.value.value for node in ast.walk(tree)
+                if isinstance(node, ast.Call)
+                for kw in node.keywords
+                if kw.arg == "default" and isinstance(kw.value, ast.Constant)]
+    assert "own" in defaults, defaults
 
 
 # =============================================================================
@@ -330,3 +336,43 @@ def test_the_analytics_prefix_is_owned_by_no_other_builder():
     for prefix in owned:
         assert not prefix.startswith(export.OWNED_PREFIX), prefix
         assert not export.OWNED_PREFIX.startswith(prefix), prefix
+
+
+# =============================================================================
+# the REFRESHED sentinel (track A request F4, approved 2026-09-18)
+# =============================================================================
+
+def test_the_sentinel_is_the_one_track_A_parses():
+    """Not a string this module invented. Both halves of the sentinel live in
+    `jobs/export_web.py` so they cannot drift; a third copy here would be the
+    drift surface that arrangement exists to close."""
+    from jobs.export_web import REFRESHED_SENTINEL, parse_refreshed
+    line = export.refreshed_sentinel()
+    assert line.startswith(REFRESHED_SENTINEL)
+    stdout = "\n".join(["noise", line, ""])
+    assert parse_refreshed(stdout) == [export.OWNED_PREFIX]
+
+
+def test_the_sentinel_declares_exactly_the_prefix_this_builder_owns():
+    """Declaring a prefix is authorising deletion under it. Declaring more than
+    it fills is the `sync_keys` incident with extra steps."""
+    from jobs.export_web import parse_refreshed
+    declared = parse_refreshed(export.refreshed_sentinel())
+    assert declared == ["analytics/"]
+    assert declared == [export.OWNED_PREFIX]
+
+
+def test_the_sentinel_is_printed_only_on_a_write_to_the_published_tree():
+    """A --check must not authorise deletions: nothing was rebuilt."""
+    import ast
+    import inspect
+    tree = ast.parse(inspect.getsource(export.main))
+    calls = [n for n in ast.walk(tree)
+             if isinstance(n, ast.Call)
+             and getattr(n.func, "id", "") == "print"
+             and any(isinstance(arg, ast.Call)
+                     and getattr(arg.func, "id", "") == "refreshed_sentinel"
+                     for arg in n.args)]
+    assert len(calls) == 1, "the sentinel should be printed from exactly one place"
+    src = inspect.getsource(export.main)
+    assert 'a.dest == "web"' in src

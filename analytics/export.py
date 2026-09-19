@@ -203,6 +203,33 @@ def build(con):
     return out, dropped
 
 
+def refreshed_sentinel():
+    """The line track A's `parse_refreshed` reads, declaring what this run built.
+
+    The sentinel STRING is imported from `jobs.export_web` rather than repeated:
+    the producer and consumer of it live together there so they cannot drift,
+    and a third copy here would be the drift surface that arrangement exists to
+    close. Imported lazily so this module has no import-time dependency on the
+    site exporter.
+
+    DECLARING IS NOT THE SAME AS BEING ALLOWED TO DELETE. The declaration says
+    "this run rebuilt `analytics/`", which is true only when the run actually
+    wrote the tree. `main` prints it on a write and never on a --check.
+    """
+    from jobs.export_web import REFRESHED_SENTINEL
+    return "%s %s" % (REFRESHED_SENTINEL, OWNED_PREFIX)
+
+
+def web_export_dir():
+    """Track A's export tree, where `upload()` looks. Refused unless set."""
+    import config
+    if not config.WEB_EXPORT_DIR:
+        raise SystemExit(
+            "WEB_EXPORT_DIR is unset, so there is nowhere to publish to. "
+            "Refusing rather than guessing a path.")
+    return config.WEB_EXPORT_DIR
+
+
 def export_dir():
     """Track F's own export directory, resolved through config - never a
     literal, and never `WEB_EXPORT_DIR`: that one is track A's and writing into
@@ -257,6 +284,11 @@ def main(argv=None):
                     help="build and validate without writing")
     ap.add_argument("--write", action="store_true")
     ap.add_argument("--keys", action="store_true")
+    ap.add_argument("--dest", choices=("own", "web"), default="own",
+                    help="`own` (default) writes to this track's directory and "
+                         "reaches nothing; `web` writes into WEB_EXPORT_DIR, "
+                         "where track A's uploader will find it. `web` is the "
+                         "publishing path and prints the REFRESHED sentinel.")
     a = ap.parse_args(argv)
     con = paths.connect(read_only=True)
     out, dropped = build(con)
@@ -274,9 +306,16 @@ def main(argv=None):
              (" - " + ", ".join("%s:%d" % kv for kv in sorted(dropped.items())))
              if dropped else ""))
     if a.write:
-        n, deleted, root = sync(out)
+        root = web_export_dir() if a.dest == "web" else export_dir()
+        n, deleted, root = sync(out, root=root)
         print("wrote %d files, deleted %d stale, under %s/%s"
               % (n, deleted, root, OWNED_PREFIX))
+        if a.dest == "web":
+            # LAST LINE, and only on a real write into the published tree.
+            # `weekly_refresh` concatenates this with track A's own declaration
+            # before calling the uploader, which is what lets a retired metric
+            # actually leave the bucket (track A request F4).
+            print(refreshed_sentinel())
     if not (a.check or a.write or a.keys):
         ap.print_help()
     return 0
