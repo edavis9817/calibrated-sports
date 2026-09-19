@@ -291,6 +291,46 @@ STAT_DEFINITIONS = {
     "def_safeties": _d("Safeties", "int", "team_defense"),
 }
 
+
+def _m(label, stat, note=None):
+    return {"label": label, "stat": stat, **({"note": note} if note else {})}
+
+
+# THE MARKET VOCABULARY, WHICH IS NOT THE STAT VOCABULARY. Measured 2026-09-18
+# on the real export: all 8 of these names appear in `prop_history` across 672
+# players and 25,529 records, and NOT ONE is a `stat_definitions` key - so the
+# site could render a hit rate and had no way to say what the rate was about.
+# The producer already spelled the same claim two ways: a market file's
+# components carry `rec` and `rush_att`, while prop_history carries `receptions`
+# and `rush_attempts`.
+#
+# `stat` IS NULL WHERE NO PUBLISHED STAT IS THE SAME CLAIM, and every null here
+# is measured rather than assumed. Scanning every shape a stat key can appear in
+# - period rows, season totals, career, team splits and market components - puts
+# `def_sacks` and `def_tkl_ast` in TEAM SPLITS ONLY, with no player-level
+# counterpart. That is the same fact as the 681 defenders who have settled props
+# and no page. A null is a real state, not a gap to fill in later: pointing a
+# market at a near-miss key would publish a false equivalence, which is the
+# failure the contract exists to prevent.
+MARKET_DEFINITIONS = {
+    "receptions": _m("Receptions", "rec"),
+    "receiving_yards": _m("Receiving Yards", "rec_yds"),
+    "rush_attempts": _m("Rush Attempts", "rush_att"),
+    "rush_yards": _m("Rushing Yards", "rush_yds"),
+    "passing_yards": _m("Passing Yards", "pass_yds"),
+    "sacks": _m("Sacks", None,
+                "def_sacks is published only inside team splits; this sport exports no "
+                "player-level defensive stats yet"),
+    "tackles_assists": _m("Tackles + Assists", None,
+                          "settles on the SUM of def_tkl_solo, def_tkl_with_assist and "
+                          "def_tkl_ast - no single published key is the same claim, and all "
+                          "three are team-splits only"),
+    "anytime_td": _m("Anytime TD", None,
+                     "a binary claim - did he score at all - while `td` is a count. The two "
+                     "are not the same question and pointing one at the other would state "
+                     "something false"),
+}
+
 _BASE_WEIGHTS = {"rec": 1, "rec_yds": 0.1, "rec_td": 6, "rush_yds": 0.1, "rush_td": 6,
                  "pass_yds": 0.04, "pass_td": 4, "int": -2, "fum_lost": -2, "two_pt": 2,
                  # A return touchdown is 6 points in essentially every league,
@@ -368,6 +408,15 @@ class ConfigError(RuntimeError):
 
 class StatDefinitionError(AssertionError):
     """A stat key is used in a file but not defined in the sport manifest."""
+
+
+class MarketDefinitionError(AssertionError):
+    """A MARKET key is used in a file but not defined in the sport manifest.
+
+    A sibling of StatDefinitionError rather than a reuse of it, because the two
+    name different vocabularies and a reader of the failure needs to know which
+    one is short.
+    """
 
 
 class ContractError(AssertionError):
@@ -646,6 +695,42 @@ def assert_stats_defined(files, definitions):
     if missing:
         detail = "; ".join(f"{k} (e.g. {sorted(v)[0]})" for k, v in sorted(missing.items()))
         raise StatDefinitionError(f"stat keys used but not in stat_definitions: {detail}")
+
+
+def market_keys_used(obj):
+    """Every MARKET key a contract file uses, by kind.
+
+    Separate from `stat_keys_used` on purpose: markets and stats are different
+    vocabularies, so one lookup table cannot serve both without one of the two
+    answers being wrong.
+
+    THIS IS THE SHAPE THE OTHER GUARD DOES NOT WALK, and that was not a
+    suspicion - it was demonstrated on 2026-09-18, both answers on both inputs.
+    `stat_keys_used` has five branches (player_season, player_summary, team,
+    market, sport_manifest) and its player_summary branch reads only
+    `season_totals[].stats` and `career.stats`. A planted
+    `totally_not_a_real_stat_key` inside `prop_history` was ACCEPTED by
+    `assert_stats_defined`, while the same key in `career.stats` RAISED. So
+    25,529 published records had never been checked against any vocabulary,
+    while `docs/web-schema.md` asserted that every stat key in every file was.
+    A guard asserts only over the shapes it walks.
+    """
+    keys = set()
+    if obj.get("kind") == "player_summary":
+        history = obj.get("prop_history") or {}
+        keys |= {s["stat"] for s in history.get("stats", [])}
+        keys |= {r["stat"] for r in history.get("records", [])}
+    return keys
+
+
+def assert_markets_defined(files, definitions):
+    missing = defaultdict(set)
+    for key, obj in files.items():
+        for k in market_keys_used(obj) - set(definitions):
+            missing[k].add(key)
+    if missing:
+        detail = "; ".join(f"{k} (e.g. {sorted(v)[0]})" for k, v in sorted(missing.items()))
+        raise MarketDefinitionError(f"market keys used but not in market_definitions: {detail}")
 
 
 _VALIDATORS = None
@@ -1581,6 +1666,7 @@ def build_manifest(games, current, index, market_keys, unresolved, source_versio
                     "stale": current["stale"], "stale_reason": current["stale_reason"]},
         "seasons": sorted({g["season"] for g in games.values()}),
         "stat_definitions": STAT_DEFINITIONS,
+        "market_definitions": MARKET_DEFINITIONS,
         "scoring_presets": SCORING_PRESETS,
         "scoring_note": scoring_note,
         "teams": [{"slug": team_slug(a), "abbr": a, "name": n} for a, n in TEAM_NAMES.items()],
@@ -1864,6 +1950,10 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
 
     if "players" in parts:
         assert_stats_defined(player_files, STAT_DEFINITIONS)
+        # Beside its sibling, not somewhere else: the two vocabularies are
+        # checked at the same choke point so neither can be forgotten while the
+        # other is remembered.
+        assert_markets_defined(player_files, MARKET_DEFINITIONS)
         index_obj = {**envelope("player_index", generated_at), "players": index}
         summary["players"] = sync_keys(dest, {**player_files, f"{SPORT}/players/index.json": index_obj},
                                        [f"{SPORT}/players/"], dry_run)

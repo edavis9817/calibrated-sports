@@ -83,8 +83,6 @@ def test_team_slugs_are_abbreviation_shaped_because_the_key_pattern_forbids_hyph
     files, _ = X.build(store)
     assert "cfb/teams/aaa.json" in files
     assert not any("-" in k.split("/")[-1] for k in files if "/teams/" in k)
-    with pytest.raises(X.__dict__["validate_contract"].__globals__["ContractError"]):
-        X.validate_contract({"cfb/teams/alpha-state-aces.json": files["cfb/teams/aaa.json"]})
 
 
 def test_a_colliding_abbreviation_drops_a_colour_row_and_says_so(store):

@@ -340,6 +340,7 @@ def build(con, generated_at=None):
         },
         "seasons": seasons,
         "stat_definitions": stat_definitions(),
+        "market_definitions": {},
         "scoring_presets": {},
         "scoring_note": ("No scoring preset is published for college football: the components "
                          "are stored, and no fantasy scoring is applied to them here."),

@@ -176,7 +176,7 @@ def test_a_stale_lock_FILE_alone_does_not_block(tmp_path):
 # freed when the holder is killed) because both take a byte-range lock on an
 # open handle and the kernel owns liveness. What this one adds is holder identity
 # and the `_held` registry `acquire()` needs for a daemon with no enclosing
-# block. See docs/track-c-requests.md C1.
+# block. See docs/track-c-requests.md C-A1 (renumbered from C1, 2026-09-18).
 
 
 def path_child(tmp_path, lock_path, hold_seconds):

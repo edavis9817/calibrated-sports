@@ -27,6 +27,39 @@ The rule: **when a design file and an explicit instruction conflict, the
 instruction wins and the departure is recorded here** so it is not
 re-litigated.
 
+### Contract changes land as ONE BATCH, not one at a time (W07 §"What stays serial")
+
+`docs/W07-parallel-tracks.md:134` says: *"Contract changes. One at a time, track
+A, and track B regenerates after."*
+
+Ethan, 2026-09-18: *"Queued behind the uploader, in one contract batch:
+market_definitions, and Track C's A-C5 findings."*
+
+The instruction wins, and the departure is recorded here rather than asked
+about.
+
+**Why the check mattered more than the answer.** This was twice reported as a
+conflict between the instruction and *an earlier decision of Ethan's*, which
+would have required stopping and flagging both quotes. It is not one: no
+`DECISIONS.md` row mentions "serial" at all (searched case-insensitively across
+all 229 rows), and the rule lives only in the design file, beside "Deploys. Data
+leads code, always." The two `docs/track-b-requests.md` restatements — item 1's
+*"Contract changes stay serial"* and item 6's *"the usual serial dance"* — are
+track A's own prose quoting the design file, not independent authority. Treating
+them as corroboration is the failure `CLAUDE.md` opens with: agreement between
+two unchecked arguments is not evidence, and here both were the same argument
+wearing two hats.
+
+**What batching costs and buys.** One regeneration for track B instead of
+several, and one red `contract-in-sync` window instead of several — the vendored
+copy at `calibratedsports-web/contract/v2/contract.schema.json` is byte-identical
+to canonical today (`9d061b5767…`, 49,625 bytes), so any change here turns their
+CI red until they re-vendor. Serial would have meant that happening four times.
+What it costs is a larger single diff, which is why the batch is scoped to what
+Ethan named — `market_definitions` plus track C's A-C5 findings — and not
+widened to the other filed contract items (`seasons_degraded`, `comparison`,
+`stat_coverage`).
+
 ### The game log carries Season and team on every row (W05 §1)
 
 The design shows a **per-season** log — `Game log · 2026`, rows like

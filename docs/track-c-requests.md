@@ -5,9 +5,109 @@ own files; track A does not edit `cfb/*`, `jobs/ingest_cfb.py` or
 `docs/TRACK-C-HANDOFF.md`. Each item states the finding, what track A has already
 done, and what track C would change — nothing here is applied to your files.
 
+**RENUMBERED 2026-09-18: `C1` / `C2` / `C3` in this file are now `C-A1` / `C-A2` / `C-A3`.**
+
+Two series existed and were distinguished only by a hyphen. `C-1`…`C-7` are track C's contract
+findings filed TO track A (`docs/track-a-requests.md`, section A-C5); `C1`…`C3` here are track A's
+items filed TO track C. So "C3" (contract findings for a CFB manifest) and "C-3" (a sport with
+divisions and moving conferences has nowhere to say so) were different things, one keystroke apart,
+and someone was going to act on the wrong one.
+
+The new form is parallel to the existing `A-C1` convention — target, source, number — so `C-A1`
+reads "to C, from A, item 1" exactly as `A-C1` reads "to A, from C, item 1". **`AC1` was the first
+suggestion and is rejected for reproducing the defect**: it differs from the existing `A-C1` by a
+single hyphen, which is the thing being fixed.
+
+| was | is now |
+|---|---|
+| C1 | C-A1 |
+| C2 | C-A2 |
+| C3 | C-A3 |
+
+**Old references still resolve through this table rather than being chased into other tracks'
+files.** Track C's own references to the old names — `docs/TRACK-C-HANDOFF.md:474` and
+`tests/test_ingest_cfb.py:476` — are deliberately left alone: they are track C's files, and this
+table is what keeps them readable. Track A updated only its own (`CLAUDE.md`,
+`docs/track-b-requests.md`). Append-only `DECISIONS.md` rows are never rewritten.
+
 ---
 
-## C1. `cfb/lock.py` and `core/single_instance.py` are the same lock, written twice
+## C-A4. Track A edited TWO of your files — the exact diffs, and the one thing it stopped at
+
+**Status:** landed 2026-09-18 by track A, with Ethan's explicit authorisation and bounded to these
+two changes. Filed with the diffs rather than a description so you review what is in your files
+rather than discovering it.
+
+**Why the exception was granted rather than "report, don't fix".** The contract now requires
+`market_definitions` on every `sport_manifest`. Because contract objects are closed
+(`additionalProperties: false`), **track C could not have gone first**: adding the key before the
+contract carried it would have failed validation as an unknown property. So the ordering is forced,
+and filing-without-fixing would have held `main` red across tracks B and F over a schema constraint
+neither chose. Ethan's condition: anything beyond these two lines is yours.
+
+### Diff 1 — `jobs/export_cfb_web.py`, one line added at :343
+
+```diff
+         "stat_definitions": stat_definitions(),
++        "market_definitions": {},
+         "scoring_presets": {},
+```
+
+An **empty object**, matching your own `"scoring_presets": {}` on the next line and for the same
+reason: CFB publishes no prop history, so it has no markets to label, and the honest value is "none"
+rather than a copy of the NFL table. No comment was added — that would have been a third line.
+
+### Diff 2 — `tests/test_export_cfb_web.py`, two lines deleted at :86-87
+
+```diff
+     assert not any("-" in k.split("/")[-1] for k in files if "/teams/" in k)
+-    with pytest.raises(X.__dict__["validate_contract"].__globals__["ContractError"]):
+-        X.validate_contract({"cfb/teams/alpha-state-aces.json": files["cfb/teams/aaa.json"]})
+```
+
+This asserted that a hyphenated team key is illegal. **C-1 is accepted and that premise is
+deliberately removed** — the pattern is now
+`^[a-z0-9]+/teams/[a-z0-9][a-z0-9-]*\.json$`. Lines 84-85 were left untouched and still pass: your
+exporter still mints abbreviation-shaped slugs, and that remains true and worth asserting.
+
+### THE THIRD THING, NOT TOUCHED — it is yours
+
+After that deletion the test is green and **misnamed**. Both its name and its docstring still state
+the premise that was removed:
+
+```python
+def test_team_slugs_are_abbreviation_shaped_because_the_key_pattern_forbids_hyphens(store):
+    """`^[a-z0-9]+/teams/[a-z0-9]+\\.json$`: `alpha-state-aces` is not a legal key."""
+```
+
+The pattern quoted there is no longer the pattern. Renaming it, and deciding whether the remaining
+assertion is still the one you want, is track C's call — the exception granted covered two lines and
+this would have been a third.
+
+**And the decision it opens, which is yours and track B's, not track A's.** The contract no longer
+dictates that a multi-word school gets an abbreviation-shaped URL. Whether `cfb/teams/ala.json`
+becomes `cfb/teams/alabama-crimson-tide.json` is a published-URL decision. Ethan's note on timing:
+the window closes at CFB publication, because a slug becomes a permanent URL the moment it ships —
+one line in your exporter now, or permanent abbreviation URLs and broken links later.
+
+### What else changed in the contract that touches your export
+
+- **C-4 `RosterEntry.games` is now `["integer", "null"]`** and still required. Your roster rows may
+  emit null where no appearance signal exists, instead of a lower bound that reads as a count.
+- **C-7 `ScheduleGame.opponent_abbr` is now `["string", "null"]`** and still required. The one game
+  currently emitting `""` can emit `null` instead.
+- Neither is urgent and neither breaks your export today — both widen what is legal.
+- **C-2, C-5 and C-6 were deliberately deferred**, with reasons, in track A's report. C-2 because
+  `team_colors` is keyed on abbreviation on purpose so that STL/SD/OAK stay distinct from LA/LAC/LV,
+  and re-keying to fix a CFB collision would cost the NFL its historical franchise identity — a
+  design, not a patch. C-5 and C-6 because both want coverage-and-scope vocabulary and track B's A5
+  (`stat_coverage`) is exactly that vocabulary; minting a second mechanism here is what your own
+  filing warned against. C-3 is being proposed as a shape first, since conference is a per-season
+  fact and the shape is the decision.
+
+---
+
+## C-A1. `cfb/lock.py` and `core/single_instance.py` are the same lock, written twice
 
 **Status:** filed 2026-09-17. Track A's side is done; the adoption is yours to take or decline.
 
@@ -86,7 +186,7 @@ its consequences. If you would rather keep `cfb/lock.py`, say so and track A wil
 
 ---
 
-## C2. Line endings are now pinned in both repos
+## C-A2. Line endings are now pinned in both repos
 
 **Status:** closed by track A 2026-09-17, no action needed — recorded so it is not rediscovered.
 
@@ -113,7 +213,7 @@ table as *a guard verified before it was active*.
 
 ---
 
-## C3. Contract findings for a CFB manifest — track A owns the contract, and has read yours
+## C-A3. Contract findings for a CFB manifest — track A owns the contract, and has read yours
 
 **Status:** acknowledged 2026-09-17, not yet designed.
 

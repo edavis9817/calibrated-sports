@@ -28,7 +28,7 @@
       {"pattern": "^[a-z0-9]+/players/index\\.json$", "kind": "player_index"},
       {"pattern": "^[a-z0-9]+/players/[^/]+/summary\\.json$", "kind": "player_summary"},
       {"pattern": "^[a-z0-9]+/players/[^/]+/\\d{4}\\.json$", "kind": "player_season"},
-      {"pattern": "^[a-z0-9]+/teams/[a-z0-9]+\\.json$", "kind": "team"},
+      {"pattern": "^[a-z0-9]+/teams/[a-z0-9][a-z0-9-]*\\.json$", "kind": "team"},
       {"pattern": "^[a-z0-9]+/market/[^/]+/\\d{4}-\\d+\\.json$", "kind": "market"},
       {"pattern": "^research/hypotheses\\.json$", "kind": "research.hypotheses"},
       {"pattern": "^research/calibration\\.json$", "kind": "research.calibration"},
@@ -78,6 +78,24 @@
         "description": {"type": "string"}
       },
       "required": ["label", "format", "group", "higher_is_better"],
+      "additionalProperties": false
+    },
+
+    "MarketDefinition": {
+      "description": "One market a prop-history record can name, and how to say it. This is a SECOND vocabulary beside stat_definitions on purpose: a market and a stat are different claims, and the producer already spells them differently - market file components carry stat keys (rec, rush_att, td) while prop_history carries market names (receptions, rush_attempts, anytime_td). Measured 2026-09-18 on the real export: all 8 market names in prop_history are absent from stat_definitions, across 672 players and 25,529 records, and nothing caught it because jobs/export_web.stat_keys_used never walked prop_history - assert_stats_defined accepted a planted nonsense key there while raising on the same key in career.stats.",
+      "type": "object",
+      "properties": {
+        "label": {"type": "string"},
+        "stat": {
+          "description": "The stat_definitions key this market settles on, or NULL when no published stat is the same claim. Null is a real state and not a gap to be filled later: anytime_td is a binary claim while td is a count, and sacks and tackles_assists settle on columns this sport publishes only inside team splits - measured, not assumed. Pointing a market at a near-miss key would state something false, which is the failure the contract exists to prevent.",
+          "type": ["string", "null"]
+        },
+        "note": {
+          "description": "Why stat is null, when it is. Required reading for anyone tempted to fill it in.",
+          "type": "string"
+        }
+      },
+      "required": ["label", "stat"],
       "additionalProperties": false
     },
 
@@ -229,7 +247,10 @@
         "kickoff_ts": {"type": ["number", "null"]},
         "home": {"type": "boolean"},
         "opponent": {"description": "The opponent's team slug.", "type": "string"},
-        "opponent_abbr": {"type": "string"},
+        "opponent_abbr": {
+          "description": "NULLABLE (finding C-7): the opponent's short code, or null where the feed carries none. In one sport's archive more than half of all opponent sides outside the current era have no abbreviation, mostly opponents from outside the published scope. Null rather than an invented code, because a fabricated abbreviation would look like an identity the sport does not have - and rather than an empty string, which renders as a gap that says nothing about why.",
+          "type": ["string", "null"]
+        },
         "points_for": {"type": ["number", "null"]},
         "points_against": {"type": ["number", "null"]},
         "result": {"enum": ["W", "L", "T", null]},
@@ -269,7 +290,10 @@
         },
         "name": {"type": ["string", "null"]},
         "position": {"type": ["string", "null"]},
-        "games": {"type": "integer"},
+        "games": {
+          "description": "NULLABLE (finding C-4): games the player appeared in, or null where the sport has no appearance signal at all. A sport that records whether a player dressed answers this with a number. A sport that does not can only count games carrying a stat row, which is a LOWER BOUND that reads as an appearance count - on one real roster it is 0 for nearly the whole squad. The asymmetry is the argument: every share beside it was already nullable and degrades honestly, while the one field that could not be null was the one a sport may be unable to produce. A confident 0 is a worse answer than no answer. The measurements behind this live in docs/web-schema.md, which may name a sport; this document may not.",
+          "type": ["integer", "null"]
+        },
         "snap_share": {"type": ["number", "null"]},
         "target_share": {"type": ["number", "null"]},
         "carry_share": {"type": ["number", "null"]},
@@ -501,6 +525,11 @@
         },
         "seasons": {"type": "array", "items": {"type": "integer"}},
         "stat_definitions": {"type": "object", "additionalProperties": {"$ref": "#/$defs/StatDefinition"}},
+        "market_definitions": {
+          "description": "Labels for the market keys prop_history uses, keyed by market key. Without this the site has no way to word a prop-history row: it reads stat names that stat_definitions does not define, so it can render a rate and not what the rate is about.",
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/MarketDefinition"}
+        },
         "scoring_presets": {"type": "object", "additionalProperties": {"$ref": "#/$defs/ScoringPreset"}},
         "scoring_note": {"type": "string"},
         "teams": {
@@ -563,7 +592,7 @@
           }
         }
       },
-      "required": ["schema_version", "generated_at", "kind", "sport", "name", "period_type", "current", "seasons", "stat_definitions", "scoring_presets", "scoring_note", "teams", "team_colors", "counts", "unresolved_ids"],
+      "required": ["schema_version", "generated_at", "kind", "sport", "name", "period_type", "current", "seasons", "stat_definitions", "market_definitions", "scoring_presets", "scoring_note", "teams", "team_colors", "counts", "unresolved_ids"],
       "additionalProperties": false
     },
 

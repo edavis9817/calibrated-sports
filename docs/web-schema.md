@@ -142,6 +142,11 @@ research/execution.json
     "rec_yds": {"label": "Rec Yds", "format": "int", "group": "receiving", "higher_is_better": true},
     "snap_share": {"label": "Snap %", "format": "pct", "group": "usage", "higher_is_better": true}
   },
+  "market_definitions": {
+    "receptions": {"label": "Receptions", "stat": "rec"},
+    "anytime_td": {"label": "Anytime TD", "stat": null,
+                   "note": "a binary claim, while `td` is a count"}
+  },
   "scoring_presets": {
     "ppr":      {"label": "PPR", "weights": {"rec": 1, "rec_yds": 0.1, "rec_td": 6, "rush_yds": 0.1, "rush_td": 6,
                                              "pass_yds": 0.04, "pass_td": 4, "int": -2, "fum_lost": -2, "two_pt": 2},
@@ -151,14 +156,27 @@ research/execution.json
   },
   "scoring_note": "Scored from the components present. fum_lost and two_pt are null in the NFL source table and score 0; against nflverse's own PPR the median difference is 0.00, p99 2.00.",
   "teams": [{"slug": "buf", "abbr": "BUF", "name": "Buffalo Bills"}],
-  "counts": {"players": 3971, "teams": 32, "market": 11},
+  "counts": {"players": 3970, "teams": 32, "market": 0, "games": 7293, "rungs": 0},
   "unresolved_ids": [{"id": "...", "name": null, "reason": "not in player_xwalk"}]
 }
 ```
 
 - **`stat_definitions` is the ONLY place stat labels, formats and groups
   exist.** Every stat key used in any file of this sport must be defined here,
-  and the export asserts it.
+  and the export asserts it — over the shapes its guard walks, which is the part
+  this sentence used to overstate. `stat_keys_used` reads period rows, season
+  totals, career, team splits and scoring presets; it does **not** read
+  `prop_history`, which names MARKETS rather than stats and is covered by
+  `market_definitions` below. Demonstrated 2026-09-18: a planted nonsense key
+  inside `prop_history` was accepted while the same key in `career.stats` raised.
+- **`market_definitions` is the second vocabulary, and it is not optional.**
+  `prop_history` names markets — `receptions`, `anytime_td` — and none of those
+  8 names is a `stat_definitions` key, across 672 players and 25,529 records.
+  Each entry carries `label` and a `stat` that points at a `stat_definitions`
+  key **or is null** when no published stat is the same claim: `anytime_td` is
+  binary where `td` is a count, and `sacks` / `tackles_assists` settle on columns
+  published only inside team splits. A null is a measured state, not a gap —
+  pointing a market at a near-miss key would publish a false equivalence.
 - **`format`** is one of `int`, `dec1`, `dec2`, `pct` or `signed_dec1`.
 - **`group`** is free text owned by the sport. The site orders groups from
   `config/sports/{sport}.ts`, not from here.
@@ -274,6 +292,18 @@ game logs.
 - Team slugs are lower-case abbreviations of the current franchise:
   `lv`, `lac`, `la`.
 - Every key in `offense` and `defense` must be defined in `stat_definitions`.
+- **`roster[].games` is NULLABLE** (finding C-4). NFL answers it from snap counts and always emits a
+  number. A sport with no appearance signal — no public college source records whether a player
+  dressed — can only count games with a stat row, which is a lower bound that reads as an appearance
+  count: 0 for 116 of 126 players on one real 2026 roster. The asymmetry is the argument. Every share
+  beside it (`snap_share`, `target_share`, `carry_share`) was already nullable and degraded honestly;
+  the one field that could not be null was the one the sport cannot produce.
+- **`schedule[].opponent_abbr` is NULLABLE** (finding C-7). 54,974 of the two sides across 46,296
+  college games from 2004 carry no abbreviation, mostly non-FBS opponents. Null rather than an
+  invented code, which would look like an identity the sport does not have, and rather than an empty
+  string, which renders as a gap that says nothing about why.
+- **Both stay REQUIRED.** Nullable is not optional: the key is always present, and its value says
+  whether the answer is known. An absent key and a null one are different statements.
 
 ## {sport}/market/{id}/{period_key}.json — kind `market`
 

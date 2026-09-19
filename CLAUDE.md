@@ -440,7 +440,7 @@ writes it, which is luck holding a guarantee up.
     it is empty.
   - Same shape as snap counts (2013+): a stat that does not exist before season
     N needs vocabulary the contract does not have. Filed to track B as A5, and
-    one mechanism must serve both sports — see `docs/track-c-requests.md` C3.
+    one mechanism must serve both sports — see `docs/track-c-requests.md` C-A3.
 - **THE SILENT-ZERO CLASS: a column that is present, populated and ZERO for a run
   of seasons. No null check can see it, and a mean over it returns a number that
   is wrong.** Targets are one row of this class, not a special case. Track F swept
@@ -1653,6 +1653,22 @@ assertion discriminate (show it returning the *other* answer on the other input)
   - **The failure is not trusting the other track; it is that two unchecked things agreeing was
     treated as evidence that either was right.** The rule directly above already says what to do:
     quote both, flag it, do not silently pick one. Having the rule is not the same as it firing.
+- **AN ATTRIBUTION IS A CLAIM LIKE ANY OTHER, AND IT IS CHECKED THE SAME WAY.** Before treating
+  something as a constraint *from a person*, find where it is actually written. "Ethan decided this"
+  and "a design file says this" carry opposite weight — an explicit instruction outranks a design
+  file, per the first rule in this section — so getting the attribution wrong inverts what you should
+  do with it.
+  - 2026-09-18: blocked **twice** on whether contract changes must land one at a time, reporting it
+    as a conflict between Ethan's "one contract batch" instruction and an earlier decision of his.
+    It is not his. **No `DECISIONS.md` row mentions "serial" at all** (searched case-insensitively
+    across all 229 rows), and the rule lives only in `docs/W07-parallel-tracks.md` under a heading
+    called "What stays serial". The two restatements in `docs/track-b-requests.md` are track A's own
+    prose quoting that same design file, which made one argument look like three — the
+    agreement-between-unchecked-arguments failure this file opens with, wearing a different hat.
+  - **The cost is symmetric with an unverified figure, and worse in one way.** An unchecked number
+    produces a wrong claim; an unchecked attribution produces a wrong *action* — here, stopping work
+    and asking for permission the rules had already granted, twice, while reporting a blocker that
+    did not exist.
 - **Report anything changed that wasn't asked for, and why** — in every report, without being asked.
 
 ## Repo hygiene

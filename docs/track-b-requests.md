@@ -249,7 +249,7 @@ keyed by stat and season range, so one fetch covers every page:
 ```
 
 **One mechanism, both gaps, both sports.** Snap counts begin in 2013 and CFB has the same shape
-(`docs/track-c-requests.md` C3). Today `slotState.ts` hard-codes its own prose about which seasons
+(`docs/track-c-requests.md` C-A3). Today `slotState.ts` hard-codes its own prose about which seasons
 support which slot; that prose should read from this declaration instead, or it is the same fact
 written twice — which is the defect that cost this session 3,272 outcomes.
 
@@ -444,6 +444,67 @@ emitted**, because they feed the usage frame where the "not recorded" note is re
 `target_share` for a receiver with genuinely zero targets would publish "Tgt % is not recorded",
 which is a false statement produced by a correct-looking change. Once the site distinguishes absent
 from null, that exemption can go.
+
+---
+
+## 10. The contract moved — four changes, and your CI goes red until you re-vendor
+
+**Status:** landed 2026-09-18 by track A. **Nothing was blocked on your side before this and now
+something is**, which is the reason this is filed rather than left to a red build to announce.
+
+`calibratedsports-web/contract/v2/contract.schema.json` was **byte-identical** to canonical before
+this change (`9d061b5767…`, 49,625 bytes), so `contract-in-sync` is green today and **this change is
+what turns it red**. Re-vendor, then `npm run check` will tell you the generated types are stale.
+
+### The four changes
+
+| change | shape | who it is for |
+|---|---|---|
+| `market_definitions` **added and REQUIRED** on `SportManifest` | `{key: {label, stat, note?}}`, `stat` nullable | you — it is the labels for `prop_history` |
+| team key pattern **widened** | `^[a-z0-9]+/teams/[a-z0-9][a-z0-9-]*\.json$` | track C (C-1); no NFL key changes |
+| `RosterEntry.games` **now nullable** | `["integer", "null"]`, still required | track C (C-4) |
+| `ScheduleGame.opponent_abbr` **now nullable** | `["string", "null"]`, still required | track C (C-7) |
+
+### `market_definitions` is the one you asked for
+
+You filed that `stat_definitions` has no keys for `receptions`, `receiving_yards` or `anytime_td`.
+Measured on the real export: **all 8 market names carried by `prop_history` are absent from
+`stat_definitions`**, across 672 players and 25,529 records — and nothing caught it, because
+`stat_keys_used` never walked `prop_history`. A planted nonsense key there was accepted while the
+same key in `career.stats` raised.
+
+So `prop_history[].stat` now has a vocabulary. `stat` points at a `stat_definitions` key, **or is
+null** where no published stat is the same claim, with a `note` saying why:
+
+    receptions  -> rec          receiving_yards -> rec_yds     rush_attempts -> rush_att
+    rush_yards  -> rush_yds     passing_yards   -> pass_yds
+    sacks            -> null    "def_sacks is published only inside team splits"
+    tackles_assists  -> null    "settles on the SUM of three columns, all team-splits only"
+    anytime_td       -> null    "a binary claim, while `td` is a count"
+
+**Do not fall back to a near-miss when `stat` is null.** `anytime_td` is not `td`; the nulls are
+measured, not missing.
+
+### Your build will break in exactly four places, and that is the mechanism working
+
+`lib/schema.generated.ts` currently declares `opponent_abbr: string` and `games: number`. After
+regeneration both carry `| null`, and `tsc` fails at:
+
+- `components/views/TeamView.tsx:101` — the results-strip `title` interpolates `opponent_abbr`
+- `components/views/TeamView.tsx:174` — the Opponent column's `sort` key
+- `components/views/TeamView.tsx:176` — `` `${g.home ? "vs" : "@"} ${g.opponent_abbr}` ``
+- `components/views/TeamView.tsx:272` — the roster `G` column renders and sorts `r.games` raw
+
+That is **code leads data, enforced by the compiler rather than by anyone remembering**: NFL keeps
+emitting non-null for both fields, so **no published figure moves**. Nothing renders differently
+until a sport that cannot answer those fields publishes. Note the asymmetry the finding rests on —
+`snap_share`, `target_share` and `carry_share` beside `games` were already nullable and already go
+through handlers; `games` had none because it could not be null.
+
+### Nothing else in this batch needs you
+
+C-2, C-5 and C-6 were deferred. C-5 and C-6 want coverage-and-scope vocabulary, and **item 7's A5
+`stat_coverage` is that vocabulary** — they should land with it rather than as a second mechanism.
 
 ---
 
