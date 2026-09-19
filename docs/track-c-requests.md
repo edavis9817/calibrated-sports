@@ -107,6 +107,72 @@ one line in your exporter now, or permanent abbreviation URLs and broken links l
 
 ---
 
+## C-A5. Two more forced lines in `jobs/export_cfb_web.py` — the exact diffs
+
+**Status:** applied 2026-09-19 by track A, with Ethan's authorisation, bounded to these two edits.
+Second time this has been necessary, and it is now a written rule in `CLAUDE.md` rather than a
+case-by-case judgement: *when `additionalProperties: false` forces a dependent producer's manifest
+change to land in the same commit as the contract change requiring it, the contract owner makes that
+edit in the dependent track's file and files the exact diff. Anything beyond the forced lines is the
+owning track's.*
+
+Track C could not have gone first: adding either key before the contract carried it would have failed
+as an unknown property. Measured breakage before the fix — 10 violations, 2 failing tests, both in
+`tests/test_export_cfb_web.py`, both `ContractError`, and **no test edit was needed** because both
+run through `X.build` / `X.export`.
+
+### Diff 1 — the team file, `:313`
+
+```diff
+             "identity": {"slug": t["slug"], "abbr": t["abbr"], "name": t["name"]},
++            "memberships": [],
+             "seasons": team_seasons,
+```
+
+`TeamFile.memberships` is C-3's per-season grouping history and is now required. Empty is the honest
+value for an export that publishes none — an empty array says "none published", an absent key says
+nothing. The NFL ships it empty too, for the same reason.
+
+### Diff 2 — the manifest listing, `:346`
+
+```diff
+-        "teams": [{"slug": t["slug"], "abbr": t["abbr"], "name": t["name"]} for t in ts],
++        "teams": [{"slug": t["slug"], "abbr": t["abbr"], "name": t["name"],
++                   "conference": t["conference"],
++                   "division": None,
++                   "classification": CLASSIFICATION,
++                   "season": None}
++                  for t in ts],
+```
+
+Every value is sourced, and none required a query change:
+
+- **`conference`** — `teams()` already selects `conference_name` and returns it as `t["conference"]`.
+  Measured on the real store, season 2026: **138 of 138 FBS teams populated**, 11 distinct
+  conferences. Not the 44% a whole-table count gives — that figure spans all 827 rows including the
+  classifications this export does not ship, and quoting it would have misstated your scope.
+- **`classification`** — your own module constant. Every exported team is FBS by construction,
+  because it is the query's filter.
+- **`season`** — null. `TeamSeasonSummary` is the NFL's current-season shape (record, points,
+  markets); whether CFB publishes an equivalent is track C's call, not something to infer.
+- **`division` is NULL, AND THIS IS THE ONE TO READ TWICE.** `cfb_teams.division` holds `'fbs'` on
+  all 138 FBS rows — **identical to `classification`, 0 differing rows**. It is not a sub-conference
+  grouping; it is the classification under another name. A by-name mapping `division -> division`
+  would publish `"fbs"` as the grouping and collapse all 138 teams into a single bucket on any board
+  that groups by it. The real grouping for this sport is `conference`.
+
+That last point is the third false friend in two days, after `C3` vs `C-3` and the word "division"
+meaning a competitive tier in one sport and a sub-conference group in another. The contract's
+`division` is "the grouping a listing groups by"; your column of the same name is not that.
+
+### Nothing else was touched
+
+The stale test name flagged in C-A4 (`test_team_slugs_are_abbreviation_shaped_because_the_key_pattern_forbids_hyphens`,
+whose docstring still quotes the retired pattern) is untouched and still yours, as is the decision
+about whether CFB team URLs move to readable slugs now that the contract permits hyphens.
+
+---
+
 ## C-A1. `cfb/lock.py` and `core/single_instance.py` are the same lock, written twice
 
 **Status:** filed 2026-09-17. Track A's side is done; the adoption is yours to take or decline.

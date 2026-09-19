@@ -378,7 +378,28 @@ def test_manifest_carries_period_type_presets_and_teams(db):
     assert m["current"]["period"] == {"index": 2, "label": "Week 2", "key": "2026-2"}
     assert set(m["scoring_presets"]) == {"ppr", "half", "standard"}
     assert m["scoring_presets"]["half"]["weights"]["rec"] == 0.5
-    assert {"slug": "buf", "abbr": "BUF", "name": "Buffalo Bills"} in m["teams"]
+    # THE ENTRY, NOT A LITERAL DICT. teams[] gained conference, division,
+    # classification and a season summary (track B's A14, track C's C-3), so an
+    # exact-match assertion encodes the OLD shape rather than the requirement -
+    # the same way the upload test asserted a deletion that no longer needs no
+    # declaration. Rewritten to the property, not deleted to go green.
+    buf = next(t for t in m["teams"] if t["abbr"] == "BUF")
+    assert (buf["slug"], buf["name"]) == ("buf", "Buffalo Bills")
+    assert set(buf) == {"slug", "abbr", "name", "conference", "division",
+                        "classification", "season"}
+    # THIS FIXTURE INSERTS NO `nfl_teams` ROWS, so the grouping source is
+    # ABSENT. Null is the only honest answer and the export must not invent one
+    # - and note what that means about this test: it CANNOT tell a correct read
+    # from a missing source, because both produce null. The real values are
+    # exercised against the store, never here.
+    assert buf["conference"] is None and buf["division"] is None
+    assert buf["classification"] is None, "this sport has no competitive tier"
+    # The season summary is present and internally consistent. `tied` exists
+    # precisely so this identity holds on a drawn game.
+    season = buf["season"]
+    assert set(season) == {"games", "cleared", "missed", "tied",
+                           "points_for", "points_against", "markets"}
+    assert season["cleared"] + season["missed"] + season["tied"] == season["games"]
 
 
 def test_counts_games_played_not_games_scheduled(db):

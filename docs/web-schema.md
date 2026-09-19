@@ -155,7 +155,10 @@ research/execution.json
     "standard": {"label": "Standard", "weights": {"rec": 0, "...": "otherwise as ppr"}, "bonuses": []}
   },
   "scoring_note": "Scored from the components present. fum_lost and two_pt are null in the NFL source table and score 0; against nflverse's own PPR the median difference is 0.00, p99 2.00.",
-  "teams": [{"slug": "buf", "abbr": "BUF", "name": "Buffalo Bills"}],
+  "teams": [{"slug": "buf", "abbr": "BUF", "name": "Buffalo Bills",
+             "conference": "AFC", "division": "AFC East", "classification": null,
+             "season": {"games": 1, "cleared": 1, "missed": 0, "tied": 0,
+                        "points_for": 36, "points_against": 31, "markets": 4}}],
   "counts": {"players": 3970, "teams": 32, "market": 0, "games": 7293, "rungs": 0},
   "unresolved_ids": [{"id": "...", "name": null, "reason": "not in player_xwalk"}]
 }
@@ -304,6 +307,36 @@ game logs.
   string, which renders as a gap that says nothing about why.
 - **Both stay REQUIRED.** Nullable is not optional: the key is always present, and its value says
   whether the answer is known. An absent key and a null one are different statements.
+- **`memberships` is this team's grouping per season**, and it is EMPTY for the NFL today. Membership
+  is a per-season fact — 26 FBS teams changed conference between 2025 and 2026 — but `nfl_teams`
+  carries one row per abbreviation with no season column, so no history exists in the store to
+  publish. An empty array states that; an absent key would not. The **current** season's grouping is
+  in the sport manifest, so a listing costs one fetch.
+
+### `manifest.teams[]` carries the grouping and the current season (A14, C-3)
+
+It was `{slug, abbr, name}`, which meant one figure per team cost 32 team-file reads on an index
+page — the cost `counts` exists to remove. It now carries `conference`, `division`,
+`classification` and a `season` summary.
+
+- **`division` is published exactly as the source records it** and is never decomposed. nflverse's
+  `team_division` already contains the conference — the eight values are `"AFC East"` through
+  `"NFC West"`, checked rather than assumed — and no bare region is stored anywhere. Splitting it
+  into `"West"` would publish a structure the sport does not record, and it would be the wrong shape
+  for a sport whose groupings are conferences rather than conference-plus-region.
+- **`classification` is null for the NFL.** It is the competitive tier, which this sport has not got.
+- **`season` is components, not derived totals**: season sums, which the reader divides by `games`,
+  and `cleared`/`missed`/**`tied`** rather than a record string, because integers cannot disagree
+  with one another the way a string disagrees with its own parts.
+- **`tied` was not requested and is required anyway.** `ScheduleGame.result` is already
+  `W`/`L`/`T`/null, so a `{games, cleared, missed}` triple silently loses a drawn result:
+  `cleared + missed` stops equalling `games` and nothing says why.
+- **`points_for` / `points_against` are null before a team has played**, not 0 — no games is a
+  different statement from no points.
+- **`plays` is absent, not null.** It was requested and there is no source: the store holds no play
+  count and no play-by-play table, so it needs exactly the ingest the request itself excluded. A
+  permanently-null field would promise a figure that is never coming; approximating it from attempts
+  and carries would publish an unsourced number that looks sourced.
 
 ## {sport}/market/{id}/{period_key}.json — kind `market`
 

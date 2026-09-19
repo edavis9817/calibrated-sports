@@ -99,6 +99,66 @@
       "additionalProperties": false
     },
 
+    "TeamSeasonSummary": {
+      "description": "The CURRENT season's figures for one team, computed once at export so an index listing every team costs ONE read instead of opening every team file - the same reason `counts` exists. Which season it describes is `current.season`; it is deliberately not repeated here, because two statements of one fact can disagree. Components, never derived totals: `cleared`/`missed`/`tied` rather than a record string, since integers cannot disagree with each other the way a string and its parts can, and season totals rather than per-game rates, which a reader divides by `games`.",
+      "type": "object",
+      "properties": {
+        "games": {"type": "integer"},
+        "cleared": {"type": "integer"},
+        "missed": {"type": "integer"},
+        "tied": {
+          "description": "Required because the sport has them. A {games, cleared, missed} triple silently loses a drawn result - cleared + missed stops equalling games and nothing says why - so the third outcome is a field rather than an omission.",
+          "type": "integer"
+        },
+        "points_for": {"type": ["integer", "null"]},
+        "points_against": {
+          "description": "Null, not zero, before a team has played: no games is not the same statement as no points.",
+          "type": ["integer", "null"]
+        },
+        "markets": {"type": "integer"}
+      },
+      "required": ["games", "cleared", "missed", "tied", "points_for", "points_against", "markets"],
+      "additionalProperties": false
+    },
+
+    "TeamEntry": {
+      "description": "One team in the sport manifest's listing. `conference`, `division` and `classification` are three fields rather than one because the same word means different things across sports: a competitive tier in one, a sub-conference grouping in another. Each is published AS THE SOURCE HOLDS IT and never decomposed - where a source stores a grouping as a single atom, splitting it would invent a structure the sport does not record. All three are nullable and all three are required: a sport states what it has, and says null for what it does not, because an absent key and a null one are different statements.",
+      "type": "object",
+      "properties": {
+        "slug": {"type": "string"},
+        "abbr": {"type": "string"},
+        "name": {"type": "string"},
+        "conference": {"type": ["string", "null"]},
+        "division": {
+          "description": "The grouping a listing groups by, exactly as the source records it. It may or may not embed the conference - that is the source's choice, not the contract's.",
+          "type": ["string", "null"]
+        },
+        "classification": {
+          "description": "The competitive tier, where a sport has one. Null where it does not.",
+          "type": ["string", "null"]
+        },
+        "season": {
+          "description": "Current-season figures, or null where the sport publishes none.",
+          "anyOf": [{"$ref": "#/$defs/TeamSeasonSummary"}, {"type": "null"}]
+        }
+      },
+      "required": ["slug", "abbr", "name", "conference", "division", "classification", "season"],
+      "additionalProperties": false
+    },
+
+    "TeamMembership": {
+      "description": "One team's grouping in ONE season. Membership is a per-season fact, not a team attribute: 26 teams in one league changed conference between two consecutive seasons, so a single current value cannot describe a historical row. The current season's values live in the manifest, where one fetch answers 'what is the league now'; the history lives here, beside the schedule that already carries per-season truth.",
+      "type": "object",
+      "properties": {
+        "season": {"type": "integer"},
+        "conference": {"type": ["string", "null"]},
+        "division": {"type": ["string", "null"]},
+        "classification": {"type": ["string", "null"]}
+      },
+      "required": ["season", "conference", "division", "classification"],
+      "additionalProperties": false
+    },
+
     "ScoringPreset": {
       "description": "Scoring is data, not code. The site runs one scoring function over these weights, so a preset and a user's custom scoring share a code path (site-architecture 3.1).",
       "type": "object",
@@ -533,17 +593,9 @@
         "scoring_presets": {"type": "object", "additionalProperties": {"$ref": "#/$defs/ScoringPreset"}},
         "scoring_note": {"type": "string"},
         "teams": {
+          "description": "Every team this sport publishes, carrying the current-season grouping and figures a listing needs. Extended 2026-09-19 for track B's A14 and track C's C-3: it was {slug, abbr, name} and nothing else, so one figure per team meant opening every team file on an index page - precisely the cost `counts` was exported to remove.",
           "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "slug": {"type": "string"},
-              "abbr": {"type": "string"},
-              "name": {"type": "string"}
-            },
-            "required": ["slug", "abbr", "name"],
-            "additionalProperties": false
-          }
+          "items": {"$ref": "#/$defs/TeamEntry"}
         },
         "team_colors": {
           "description": "Team colours keyed on the abbreviation AS PUBLISHED, not the current franchise: STL, SD and OAK are separate entries from LA, LAC and LV, so a game keeps the identity it was played under. Colours only - a hex value is a fact about a team, a logo is a trademark. Sourced from the sport's own reference feed, never hand-typed. Wider than `teams`, which lists the current franchises that have pages.",
@@ -740,6 +792,11 @@
           "additionalProperties": false
         },
         "seasons": {"type": "array", "items": {"type": "integer"}},
+        "memberships": {
+          "description": "This team's grouping per season. The CURRENT season's values live in the sport manifest, so a listing costs one fetch; the history lives here, beside the schedule that already carries per-season truth. May be empty where a sport publishes no membership history - an empty array is an honest statement that none is published, which is a different thing from the key being absent.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/TeamMembership"}
+        },
         "schedule": {"type": "array", "items": {"$ref": "#/$defs/ScheduleGame"}},
         "splits": {"type": "array", "items": {"$ref": "#/$defs/TeamSplit"}},
         "roster": {"type": "array", "items": {"$ref": "#/$defs/RosterEntry"}},
@@ -756,7 +813,7 @@
           }
         }
       },
-      "required": ["schema_version", "generated_at", "kind", "sport", "identity", "seasons", "schedule", "splits", "roster", "coaches"],
+      "required": ["schema_version", "generated_at", "kind", "sport", "identity", "seasons", "memberships", "schedule", "splits", "roster", "coaches"],
       "additionalProperties": false
     },
 

@@ -1544,7 +1544,7 @@ Six incidents in one session, all the same shape. They are cross-referenced, not
 | `pytest -k "lock"` selecting nothing | the tests actually running | "42 deselected" reads like a pass; the filter matched no test name and verified nothing. Only the unfiltered run did |
 | a registry record matching a published figure BY VALUE | that record's identity | R11's pointer was nearly resolved by scanning for `est ≈ 1.8125`; a second record carrying the same number is indistinguishable from the right one, and the scan would silently start returning it. Keyed on `(registry, family, name)` instead — verified unique at 1,171 records across all 8 registries |
 | a guard verified BEFORE it was active | the guard | "no renormalisation" was checked while `.gitattributes` was still untracked — attributes apply only once git tracks the file, so the check ran at the one moment the rule could not fire and a clean `git status` proved nothing |
-| **a PIPELINE's exit code** | **the command's exit code** | `cmd \| tail` reports `tail`'s status, so a SEGFAULTING export read as `exit 0`. Proven, not assumed: `python -c "sys.exit(7)" \| tail` gives `$?=0`, and `set -o pipefail` gives 7. Hit TWICE in one session — the second time in the command written to diagnose the first, which is how thoroughly a masked exit code hides itself. `ci.yml` already sets `pipefail`; ad-hoc diagnostics must too, or capture the status with no pipe in sight |
+| **ANYTHING BETWEEN THE COMMAND AND `$?`** | **the command's exit code** | `$?` holds the status of the LAST thing that ran, which is rarely the thing you meant. Three instances, each a different carrier: (1) `cmd \| tail` reports `tail`'s status, so a SEGFAULTING export read as `exit 0` — proven, not assumed: `python -c "sys.exit(7)" \| tail` gives `$?=0` and `set -o pipefail` gives 7; (2) the same pipe inside the command written to DIAGNOSE the first, which is how thoroughly a masked exit code hides itself; (3) a bare `echo` interposed between a subshell and `echo "full exit=$?"`, which reported `full exit=0` while pytest had just failed 2 tests — caught only because the same script also grepped `FAILED`, so the wrong line and the right one were both on screen. The generalisation the first two rows missed: it is not about pipes. Capture into a variable on the very next line (`RC=$?`), or use `PIPESTATUS[0]`, and never let a convenience `echo` sit in between. `ci.yml` and `push_protocol.sh` do this correctly; ad-hoc diagnostics are where it keeps recurring |
 | **a stale mtime** | **a part of the job that never ran** | a manifest 8 hours older than its siblings was read as proof the export had stopped early. `write_if_changed` compares through `_canonical()`, which strips `generated_at`, so a part that never ran is byte-identical to one that ran and produced the same content — and a fully successful re-run duly reported `manifest [0,0]`. The mtime could not distinguish the two states, so it was never evidence for either |
 | **a total that reconciles** | **a total that is not double-counted** | NGS `ngs_receiving` carries a **week 0 row that IS the season total**: Ja'Marr Chase 2025 reads 185 targets at week 0 and weeks 1+ sum to exactly 185. Aggregate over all weeks and every figure doubles — and it is the SILENT-ZERO CLASS'S COUSIN, worse in one way. A zero cliff at least produces a number a reader might find odd; a silent double survives every sanity check anyone would apply, because the ratios, the rankings, the shares and the correlations are all unchanged and only the magnitudes move, by a factor that looks like nothing in particular. The reconciliation that catches it is exactly the one that looks redundant: does the part sum to the whole, or IS the whole sitting in the parts |
 | **a non-NULL check** | **a value that is present** | NaN is not NULL. polars `count()` counts it and `fill_null(0) != 0` is TRUE for it, so a column of pure NaN scores as fully populated and fully informative. `stats_player_week.target_share` is targets over ZERO targets for 2003-2008 - NaN on 17,355 of 17,355 rows in 2005 - and the coverage survey read those six seasons as 99.7% informative and flagged the OTHER TWENTY-TWO as the anomaly. **A detector that inverts is worse than one that misses**: a miss leaves you where you started, an inversion hands you the opposite of the truth with a number attached. Count nan separately (`nan_n`) so it can never be folded into a category that hides it |
@@ -1669,6 +1669,23 @@ assertion discriminate (show it returning the *other* answer on the other input)
     produces a wrong claim; an unchecked attribution produces a wrong *action* — here, stopping work
     and asking for permission the rules had already granted, twice, while reporting a blocker that
     did not exist.
+- **WHEN A CLOSED CONTRACT FORCES A DEPENDENT PRODUCER'S HAND, THE CONTRACT OWNER MAKES THAT EDIT
+  AND FILES THE EXACT DIFF.** `additionalProperties: false` means a dependent track **cannot go
+  first**: adding the newly-required key before the contract carries it fails as an unknown property.
+  So "report, don't fix" does not leave their build red — it leaves `main` red across every other
+  track, over a schema constraint none of them chose.
+  - **The rule.** Where a contract change forces a dependent producer's file or manifest shape to
+    change in the SAME commit, the contract owner makes that minimal edit in the dependent track's
+    file and files **the exact diff, not a description**, so the owning track reviews what landed
+    rather than discovering it from a failing build.
+  - **The boundary is the forced lines and nothing else.** A test name left stale beside the edit, a
+    comment the change made wrong, a decision about published URLs — all of it stays with the owning
+    track. If a third thing needs changing, stop and report it rather than extending the exception.
+  - **This is a structural exception with a stated boundary, not standing permission** to edit
+    another track's files. It became a rule because it was granted case by case twice in one day for
+    the identical structural reason — `market_definitions`, then `TeamEntry` and `memberships` — and
+    will be required by every sport added after this one. A judgement call that recurs on a schedule
+    is a protocol step that has not been written down yet.
 - **Report anything changed that wasn't asked for, and why** — in every report, without being asked.
 
 ## Repo hygiene

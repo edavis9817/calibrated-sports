@@ -311,6 +311,7 @@ def build(con, generated_at=None):
         files[f"{SPORT}/teams/{t['slug']}.json"] = {
             **envelope("team", generated_at, SPORT),
             "identity": {"slug": t["slug"], "abbr": t["abbr"], "name": t["name"]},
+            "memberships": [],
             "seasons": team_seasons,
             "schedule": sched,
             "splits": sp,
@@ -344,7 +345,12 @@ def build(con, generated_at=None):
         "scoring_presets": {},
         "scoring_note": ("No scoring preset is published for college football: the components "
                          "are stored, and no fantasy scoring is applied to them here."),
-        "teams": [{"slug": t["slug"], "abbr": t["abbr"], "name": t["name"]} for t in ts],
+        "teams": [{"slug": t["slug"], "abbr": t["abbr"], "name": t["name"],
+                   "conference": t["conference"],
+                   "division": None,
+                   "classification": CLASSIFICATION,
+                   "season": None}
+                  for t in ts],
         "team_colors": color_map,
         "counts": {
             "players": 0,

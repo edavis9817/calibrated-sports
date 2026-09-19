@@ -527,6 +527,32 @@ re-vendor and regenerate, `REQUIRED_KEYS.sport_manifest` gains `market_definitio
 the served manifest **must** carry it. It already does. Had you regenerated first, line 72 would have
 fired and every page would have rendered "data format changed" on a missing required key.
 
+### YOUR CI IS RED RIGHT NOW, and the fix is already sitting in your working tree
+
+Measured 2026-09-19 from the **refs**, not from working copies:
+
+| | sha256 (first 24) | bytes |
+|---|---|---|
+| `calibrated-sports` `origin/main` — canonical | `6e5d043e8c74bea4023b21d8` | 52,963 |
+| `calibratedsports-web` `origin/main` — vendored | `9d061b576766fa6568971a4e` | 49,625 |
+
+`contract-in-sync` curls the canonical file and byte-diffs your vendored copy, so it fails on its
+next run for `main`. **You have already done the work**: your working tree carries uncommitted
+modifications to BOTH `contract/v2/contract.schema.json` and `lib/schema.generated.ts`, and that
+working copy hashes to `6e5d043e…` — the current canonical. It is re-vendored and regenerated
+locally and not pushed.
+
+**Why this is stated rather than inferred.** Track A cannot see your CI (the repo is not readable
+unauthenticated from here), and "the mechanism must produce red" is not the same fact as "red was
+observed". What IS observed is the two refs above. Track A's first check compared the two files on
+DISK, which showed them identical and would have led to telling you the opposite — the working copy
+standing in for what CI checks out. The tell was that `git log -- contract/v2/contract.schema.json`
+carried no commit newer than `5bff8d5` ("Vendor the analytics kinds"), which predates track A's
+contract change entirely, while the file on disk contained it.
+
+Nothing is blocked on track A's side and no further contract change is queued ahead of you — push
+when the design pass is at a natural stopping point.
+
 ### Two things in your own tests, found while checking the above
 
 1. **`tests/schema.test.ts:16-20` will fail misleadingly on re-vendor.** The fixture hard-codes the
@@ -554,6 +580,83 @@ fired and every page would have rendered "data format changed" on a missing requ
    (`additionalProperties: false`) so an additive field fails the EXPORT until the contract moves.
    The two halves are deliberate and opposite — strict at write, lenient at read — and only one of
    them is currently tested.
+
+---
+
+## 11. A14 accepted and built — with three deviations, one of which removes a figure
+
+**Status:** built 2026-09-19, **not yet pushed** — it is held behind a cross-track decision, not
+behind anything of yours. Ethan approved A14 as the highest-leverage item in track A's queue.
+
+`manifest.teams[]` was `{slug, abbr, name}`. It now carries:
+
+```json
+{
+  "slug": "buf", "abbr": "BUF", "name": "Buffalo Bills",
+  "conference": "AFC", "division": "AFC East", "classification": null,
+  "season": {"games": 1, "cleared": 1, "missed": 0, "tied": 0,
+             "points_for": 36, "points_against": 31, "markets": 4}
+}
+```
+
+Ranks need nothing, as you said: the site computes them from the 32 rows it already has.
+
+### 1. `tied` is added, and you did not ask for it
+
+`ScheduleGame.result` is already `W`/`L`/`T`/null — **this sport has ties**. A `{games, cleared,
+missed}` triple silently loses a drawn result: `cleared + missed` stops equalling `games` and nothing
+on the page says why. Implementing the requested shape faithfully would have published a record that
+drops a result, so the third outcome is a field. A producer test asserts
+`cleared + missed + tied == games` for every team, which the schema itself cannot express.
+
+### 2. `division` is `"AFC East"` — exactly as you asked, and track A nearly got it wrong
+
+Track C's C-3 (approved in the same round) wanted `conference` and `division` as separate fields, and
+track A proposed splitting `"AFC East"` into `"AFC"` + `"East"`. **That was wrong and the source
+settled it.** nflverse's `team_division` stores the grouping as ONE ATOM — the eight values are
+`"AFC East"` through `"NFC West"`, checked rather than assumed — and no bare region is recorded
+anywhere. Splitting it would publish a decomposition the sport does not have.
+
+So `division` is the atom you asked for, `conference` is `team_conf` beside it, and your board groups
+by `division` directly. Worth noting the tension, because your own A13 rule pointed the other way:
+components rather than derived totals argues for splitting, and here there are no components in the
+source to publish. The rule holds; the data has only one part.
+
+`classification` is the competitive tier, null for this sport. It exists for C-3.
+
+### 3. `plays` IS NOT EXPORTED, and this one costs you a cell
+
+**There is no source for it.** The store has no play-count column in any table and no play-by-play
+table at all — only `nfl_games`, `nfl_player_week` and `nfl_teams`. A team play count needs exactly
+the play-by-play ingest that A14 itself excluded for neutral pass rate, EPA per play and pressure
+rate: *"those need play-by-play context, they are a different ingest."* `plays` is in the same
+position and the filing did not notice.
+
+Two things track A deliberately did **not** do:
+
+- **Not exported as a permanently-null field.** A key that is always null is a promise of a figure
+  that is not coming, and it invites an empty column that never fills.
+- **Not approximated** from attempts plus carries per team-game. That would produce a plausible
+  number, indistinguishable on the page from a sourced one, and the standing rule is that every
+  figure is query-derived or visibly marked. An approximation here is the worst case: it looks
+  sourced.
+
+So the board's plays-per-game cell stays marked. If it matters enough, the route is a play-by-play
+ingest as its own unit — and that would also unlock neutral pass rate, EPA and pressure rate
+together, which is the better shape for that decision than doing one of them.
+
+### `markets` — confirm the denominator
+
+It is **the number of priced players on that team**: index entries whose id has a market key, grouped
+by the player's team. That is what makes the cell read "4 markets" / "No ladder". If the board means
+something else by it — ladders rather than players, say — say so and it changes.
+
+### And `TeamFile.memberships`
+
+C-3 adds a per-season membership history to the team file. **It ships EMPTY for this sport**:
+`nfl_teams` holds one row per abbreviation with no season column, so there is no history in the store
+to publish. An empty array says that; an absent key would not. The current season's grouping is in
+the manifest, which is what your board reads.
 
 ---
 

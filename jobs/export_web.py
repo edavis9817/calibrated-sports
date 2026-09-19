@@ -1418,6 +1418,16 @@ def build_teams(games, weeks, snaps, scope, xwalk, slugs, generated_at):
         files[f"{SPORT}/teams/{slug}.json"] = {
             **envelope("team", generated_at),
             "identity": {"slug": slug, "abbr": abbr, "name": name},
+            # EMPTY ON PURPOSE, and staged rather than deferred. Membership is a
+            # per-season fact (track C's C-3: 26 teams in one league changed
+            # conference between two consecutive seasons), but `nfl_teams` holds
+            # ONE row per abbreviation with no season column - there is no
+            # history in the store to publish. An empty array says "none is
+            # published", which is a different statement from the key being
+            # absent, and it is the honest one until a per-season source exists.
+            # The CURRENT season's grouping is in the manifest, where a listing
+            # can read it in the fetch it already makes.
+            "memberships": [],
             "seasons": seasons, "schedule": schedule, "splits": splits, "roster": roster,
             "coaches": [{"season": s, "head_coach": c.most_common(1)[0][0]}
                         for s, c in sorted(coaches.items())]}
@@ -1654,8 +1664,85 @@ def load_team_colors(con):
     return {a: {"primary": c1, "secondary": c2} for a, c1, c2 in rows if c1}
 
 
+def load_team_groupings(con):
+    """Conference and division keyed on the abbreviation AS PUBLISHED.
+
+    The same join and the same rule as `load_team_colors`: newest
+    `data_version` per abbreviation, and NOT folded through FRANCHISE, because
+    STL and LA are different identities and keying on the published
+    abbreviation is what keeps them apart. Wider than TEAM_NAMES for the same
+    reason - the table carries 36 rows including STL, SD, OAK and the LAR that
+    nflverse publishes alongside LA.
+
+    PUBLISHED AS THE SOURCE HOLDS THEM, and this is the part worth knowing:
+    `team_division` ALREADY CONTAINS THE CONFERENCE. The eight values are
+    "AFC East" through "NFC West" - measured, not assumed - and no bare region
+    is stored anywhere. So `division` is that atom verbatim and is never split
+    into "West". Splitting it would publish a decomposition the source does not
+    record, and it would be the wrong shape for a sport whose groupings are
+    conferences rather than conference-plus-region.
+    """
+    rows = con.execute(
+        "SELECT t.team_abbr, t.team_conf, t.team_division FROM nfl_teams t "
+        "JOIN (SELECT team_abbr, MAX(data_version) dv FROM nfl_teams GROUP BY team_abbr) v "
+        "ON v.team_abbr = t.team_abbr AND v.dv = t.data_version"
+    ).fetchall()
+    return {a: {"conference": c, "division": d} for a, c, d in rows}
+
+
+def team_season_summaries(games, season, index, market_keys):
+    """{abbr: TeamSeasonSummary} for the CURRENT regular season.
+
+    Track B's A14: the teams board wants a record, points and a market count per
+    team, and `manifest.teams` carried {slug, abbr, name}. Getting one figure per
+    team meant opening 32 team files on an index page, which is the exact cost
+    `counts` was exported to remove - so the board shipped with its figures
+    marked rather than inventing them.
+
+    COMPONENTS, NOT DERIVED TOTALS. Season totals go out and the reader divides
+    by `games`; `cleared`/`missed`/`tied` go out rather than a record string,
+    because three integers cannot disagree with one another the way a string can
+    disagree with its own parts.
+
+    TIED IS HERE BECAUSE THE SPORT HAS TIES, and A14 did not ask for it.
+    `ScheduleGame.result` is already `W`/`L`/`T`/null, so a {games, cleared,
+    missed} triple silently loses a drawn result: `cleared + missed` stops
+    equalling `games` and nothing on the page says why. Implementing the
+    requested shape faithfully would have published a record that drops a
+    result.
+
+    `points_for` and `points_against` are NULL before a team has played, not 0:
+    no games is a different statement from no points.
+    """
+    priced = Counter(p["team"] for p in index
+                     if p["id"] in market_keys and p.get("team"))
+    out = {}
+    for abbr in TEAM_NAMES:
+        played = [g for g in games.values()
+                  if g["season"] == season and g["game_type"] == "REG"
+                  and abbr in (g["home_team"], g["away_team"])
+                  and g["home_score"] is not None and g["away_score"] is not None]
+        tally = Counter()
+        pf = pa = 0
+        for g in played:
+            home = g["home_team"] == abbr
+            for_, against = ((g["home_score"], g["away_score"]) if home
+                             else (g["away_score"], g["home_score"]))
+            pf += for_
+            pa += against
+            tally[result_of(for_, against)] += 1
+        out[abbr] = {
+            "games": len(played),
+            "cleared": tally["W"], "missed": tally["L"], "tied": tally["T"],
+            "points_for": intish(pf) if played else None,
+            "points_against": intish(pa) if played else None,
+            "markets": priced.get(abbr, 0),
+        }
+    return out
+
+
 def build_manifest(games, current, index, market_keys, unresolved, source_version, scoring_note,
-                   generated_at, rungs, team_colors):
+                   generated_at, rungs, team_colors, team_groupings, team_seasons):
     return {
         **envelope("sport_manifest", generated_at),
         "name": SPORT_NAME,
@@ -1669,7 +1756,17 @@ def build_manifest(games, current, index, market_keys, unresolved, source_versio
         "market_definitions": MARKET_DEFINITIONS,
         "scoring_presets": SCORING_PRESETS,
         "scoring_note": scoring_note,
-        "teams": [{"slug": team_slug(a), "abbr": a, "name": n} for a, n in TEAM_NAMES.items()],
+        # Published as the source holds them: `division` is nflverse's
+        # `team_division`, which ALREADY contains the conference ("NFC West"),
+        # and is not split into a bare region the source never records.
+        # `classification` is null because this sport has no competitive tier -
+        # a null, not an invented value.
+        "teams": [{"slug": team_slug(a), "abbr": a, "name": n,
+                   "conference": (team_groupings.get(a) or {}).get("conference"),
+                   "division": (team_groupings.get(a) or {}).get("division"),
+                   "classification": None,
+                   "season": team_seasons.get(a)}
+                  for a, n in TEAM_NAMES.items()],
         "team_colors": team_colors,
         "counts": {"players": len(index), "teams": len(TEAM_NAMES), "market": len(market_keys),
                    "games": played(games), "rungs": rungs},
@@ -1984,7 +2081,10 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
                 for k in market_keys.values() if k in on_disk
             })
         manifest = build_manifest(games, current, index, market_keys, unresolved, src, note,
-                                  generated_at, rungs, load_team_colors(con))
+                                  generated_at, rungs, load_team_colors(con),
+                                  load_team_groupings(con),
+                                  team_season_summaries(games, current["season"], index,
+                                                        market_keys))
         assert_stats_defined({f"{SPORT}/manifest.json": manifest}, STAT_DEFINITIONS)
         summary["manifest"] = sync_keys(dest, {f"{SPORT}/manifest.json": manifest,
                                                "sports.json": build_sports(generated_at)},
