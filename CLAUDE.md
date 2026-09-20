@@ -1644,12 +1644,23 @@ assertion discriminate (show it returning the *other* answer on the other input)
     players release omitted `pfr_id` for 75 players and `espn_id` for 38 that the 09-17 release
     carried, and all 113 values were erased. The 09-14 and 09-18 parquets are ~11 KB smaller than
     their neighbours, so omission recurs — this is a property of the feed, not one bad day.
-  - **The consequence is a SILENT DROP, not a visible gap**, which is why it outranks its size.
-    `pfr_id` is the join key into `nfl_snap_counts`, so `pfr_id IS NULL` matches nothing and those
-    players fall out of `jobs/settle_outcomes.py`, `models/features.py`, `research/shrinkage.py` and
-    `research/walkforward.py` as a shortfall nobody counts — the same shape as the missing-stat-row
-    defect that inflated the realized over rate. 0.07% of snap rows is small; a join that quietly
-    returns fewer rows is not.
+  - **The consequence CLASS is a silent drop; the measured impact of THIS incident was zero. Both
+    halves are the finding.** `pfr_id` is the join key into `nfl_snap_counts`, and
+    `jobs/settle_outcomes.py`, `models/features.py`, `research/shrinkage.py` and
+    `research/walkforward.py` all join `player_xwalk` on it (verified by grep, not recalled), so a
+    null there removes a player as a shortfall nobody counts rather than as a visible gap — the same
+    shape as the missing-stat-row defect that inflated the realized over rate. But every one of the
+    80 affected players has `last_season` **2010**, and `nfl_snap_counts` starts in 2013, so not one
+    of the 113 lost values could ever have matched a snap row. Measured either side of the recovery:
+    232 orphan rows before, 232 after, **0 moved**.
+  - **The 232 figure was MISATTRIBUTED, and that is the transferable lesson.** 232 of 329,365 snap
+    rows (0.07%) whose `pfr_player_id` matches no crosswalk row is a real, pre-existing population
+    with nothing to do with this defect. It was measured earlier in the same session and then
+    attached to this incident because both were about a null `pfr_id`. A true mechanism and a true
+    number, welded together without checking that the number described the mechanism — *agreement
+    between two unchecked arguments*, one layer below where that rule usually fires, and it reached a
+    pushed commit (`3b9e2f5`) before measurement caught it. Recovery was still right: the values are
+    data we held and unsaid, and the next release can strip a cohort that does matter.
   - The fix is `store.upsert_preserving(table, cols, rows, conflict, preserve)`: a named column falls
     back to the stored value when the incoming one is NULL, every other column takes the new value. A
     RESTATEMENT must still win — correcting a fact is invariant 6's whole point — and only silence is
