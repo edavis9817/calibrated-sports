@@ -164,7 +164,24 @@ def build_crosswalk(data: bytes, version: str = None):
                 seen.add(a)
                 aliases.append((a, gid, src, last_season))
 
-    store.replace_rows("player_xwalk", xw_cols, rows, None)
+    # The external ids are PRESERVED when the release omits them. nflverse
+    # drops a populated id column between releases - measured 2026-09-19: the
+    # 09-19 file omitted pfr_id for 75 players and espn_id for 38 that 09-17
+    # carried - and a whole-row write nulls every one of them. `pfr_id IS NULL`
+    # then matches nothing in the snap-count join, so those players are dropped
+    # from settlement and three research scripts SILENTLY, as a shortfall rather
+    # than a visible gap. A restated id still wins; only silence is refused.
+    #
+    # sleeper_id and yahoo_id are deliberately NOT preserved: sleeper_id is
+    # hardcoded None on line ~148 and neither is populated in the store (0.0%),
+    # so preserving them would protect nothing and imply a guarantee we do not
+    # have.
+    store.upsert_preserving("player_xwalk", xw_cols, rows,
+                            ("gsis_id",), ("pfr_id", "espn_id", "pff_id"))
+    # player_alias has the INVERSE exposure and is left alone on purpose: rows
+    # are never deleted, so a retired alias accumulates rather than vanishing.
+    # That is a staleness problem, not a data-loss one, and fixing it is a
+    # deletion decision that belongs in its own unit.
     store.replace_rows("player_alias",
                        ("alias", "gsis_id", "source", "last_season"),
                        aliases, None)

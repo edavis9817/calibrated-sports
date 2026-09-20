@@ -1258,6 +1258,17 @@ def replace_rows(table: str, cols, rows, key_cols):
     Deliberately NOT a blanket delete-and-reload: an older data_version must
     survive untouched, because proving a backtest used only what was known at
     the time is the whole point of versioning these tables.
+
+    `key_cols` IS VESTIGIAL - accepted, never read. The slice that gets
+    replaced is whatever the table's PRIMARY KEY says it is, so the parameter
+    names a behaviour this function does not implement. Left in the signature
+    rather than removed because nine call sites pass it and that churn was not
+    in scope; do not believe it, and do not add a tenth expecting it to work.
+
+    And note what this does NOT protect: it writes the WHOLE ROW, so a source
+    that re-sends a row with a column gone null erases the stored value. For a
+    table without `data_version` that is a silent delete - see
+    `upsert_preserving` below, and the `player_xwalk` incident behind it.
     """
     if not rows:
         return 0
@@ -1266,6 +1277,56 @@ def replace_rows(table: str, cols, rows, key_cols):
         c.executemany(
             f"INSERT OR REPLACE INTO {table} ({','.join(cols)}) "
             f"VALUES ({placeholders})", rows)
+    return len(rows)
+
+
+def upsert_preserving(table: str, cols, rows, conflict, preserve):
+    """Upsert rows, NEVER nulling a held value in one of `preserve`.
+
+    A whole-row write against a feed that can OMIT a column it published last
+    week is a silent delete: what the newest release does not say, you unsay,
+    permanently, and nothing records that you used to know it. That is the
+    absence-versus-null defect one layer below `sync_keys` - there the missing
+    thing is a key, here it is a field inside a row that is still present, so
+    no key count and no row count moves and nothing looks wrong.
+
+    Measured 2026-09-19 on this exact table: the 09-19 players release omitted
+    `pfr_id` for 75 players and `espn_id` for 38 that the 09-17 release
+    carried, and `replace_rows` unsaid all 113.
+
+    So a column named in `preserve` falls back to what is stored when the
+    incoming value is NULL, and every other column takes the new value:
+
+        pfr_id = COALESCE(excluded.pfr_id, player_xwalk.pfr_id)
+
+    The asymmetry is the point. A CHANGED value is a restatement, and
+    restatement is the correction path for a fact (invariant 6) - it must
+    win. An ABSENT value is silence, and silence must not destroy evidence
+    that is still sitting in the raw archive.
+
+    Not a new idiom: `record_health` uses it on `watermark`/`last_ok_ts` and
+    `upsert_outcomes` on `event_id`. The identity table simply never got it.
+    """
+    if not rows:
+        return 0
+    cols, conflict, preserve = tuple(cols), tuple(conflict), tuple(preserve)
+    unknown = [c for c in conflict + preserve if c not in cols]
+    if unknown:
+        raise ValueError(f"{table}: not in cols: {unknown}")
+    overlap = [c for c in preserve if c in conflict]
+    if overlap:
+        raise ValueError(f"{table}: a key cannot be preserved: {overlap}")
+    updates = [f"{c}=COALESCE(excluded.{c}, {table}.{c})" if c in preserve
+               else f"{c}=excluded.{c}"
+               for c in cols if c not in conflict]
+    if not updates:
+        raise ValueError(f"{table}: every column is a key; nothing to update")
+    placeholders = ",".join("?" * len(cols))
+    with db() as c:
+        c.executemany(
+            f"INSERT INTO {table} ({','.join(cols)}) VALUES ({placeholders}) "
+            f"ON CONFLICT({','.join(conflict)}) DO UPDATE SET "
+            + ", ".join(updates), rows)
     return len(rows)
 
 

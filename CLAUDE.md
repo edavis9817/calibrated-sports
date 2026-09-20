@@ -1633,6 +1633,34 @@ assertion discriminate (show it returning the *other* answer on the other input)
   - **A safe default nobody teaches is a permanent leak.** Withholding is correct and silent, so the
     caller that must learn to declare is landed in the SAME unit as the default — otherwise every run
     withholds forever and nothing ever says so.
+- **A ROW THAT COMES BACK WITH FEWER FIELDS POPULATED IS A SILENT DELETE.** What the newest release
+  does not say, a whole-row write unsays — permanently, and nothing records that you used to know it.
+  - **The mechanism is narrower than "a wholesale replace", and that wrong description hides it.**
+    `store.replace_rows` is `INSERT OR REPLACE` row by row and **deletes nothing**, so a row the feed
+    stops sending survives untouched: absence of a ROW is safe. The damage is a row still present with
+    a column gone null — the write replaces the whole row, so a field that merely went quiet destroys
+    the stored value. Grepping for `DELETE` finds nothing and the row count never moves.
+  - Measured 2026-09-19 on `player_xwalk`, the identity table every join keys on: the 09-19 nflverse
+    players release omitted `pfr_id` for 75 players and `espn_id` for 38 that the 09-17 release
+    carried, and all 113 values were erased. The 09-14 and 09-18 parquets are ~11 KB smaller than
+    their neighbours, so omission recurs — this is a property of the feed, not one bad day.
+  - **The consequence is a SILENT DROP, not a visible gap**, which is why it outranks its size.
+    `pfr_id` is the join key into `nfl_snap_counts`, so `pfr_id IS NULL` matches nothing and those
+    players fall out of `jobs/settle_outcomes.py`, `models/features.py`, `research/shrinkage.py` and
+    `research/walkforward.py` as a shortfall nobody counts — the same shape as the missing-stat-row
+    defect that inflated the realized over rate. 0.07% of snap rows is small; a join that quietly
+    returns fewer rows is not.
+  - The fix is `store.upsert_preserving(table, cols, rows, conflict, preserve)`: a named column falls
+    back to the stored value when the incoming one is NULL, every other column takes the new value. A
+    RESTATEMENT must still win — correcting a fact is invariant 6's whole point — and only silence is
+    refused. The idiom already existed in `record_health` and `upsert_outcomes`; the identity table
+    never got it. Guarded by `tests/test_crosswalk_merge.py`, which also asserts the *old* behaviour
+    nulled the value, so the preserve tests are known to discriminate.
+  - **Recovery is a REPLAY, never a hand-written UPDATE.** Invariant 2 means the archive still holds
+    the value, so re-running the ordinary derivation over the older release restores it with its
+    provenance intact. Replay oldest-to-newest: the old pass restores what was unsaid, the newest pass
+    re-lands everything that legitimately moved. Publishing a faithful null instead would be a claim
+    you can disprove from a file you already hold.
 - **A GUARD ASSERTS ONLY OVER THE SHAPES IT WALKS.** A checker that resolves four call sites and
   cannot evaluate a fifth is not protecting the fifth — it is silently checking the subset it
   understood, and passing.
