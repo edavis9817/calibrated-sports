@@ -18,7 +18,7 @@ import json
 
 import polars as pl
 
-from cfb import schema
+from cfb import schema as cfb_schema
 
 
 def content_sha256(df: pl.DataFrame) -> str:
@@ -48,6 +48,13 @@ class OutOfOrder(Exception):
 SCOPE = "src_dataset=? AND src_season IS ? AND src_part IS ?"
 
 
+def _schema(mod):
+    """Which schema module describes `table`. Defaults to the CFB one; `feeds` passes
+    its own. The alternative was a second copy of this file, which is the duplication
+    that has cost this project a settlement rule and a lock."""
+    return mod or cfb_schema
+
+
 def latest_version(conn, table, dataset, season, part=None):
     r = conn.execute(f"SELECT MAX(valid_from_ts) FROM {table} WHERE {SCOPE}",
                      (dataset, season, part)).fetchone()[0]
@@ -56,7 +63,8 @@ def latest_version(conn, table, dataset, season, part=None):
     return max(x for x in (r, c, 0.0) if x is not None)
 
 
-def apply(conn, dataset, season, file_id, version_ts, table, rows, label=None, part=None):
+def apply(conn, dataset, season, file_id, version_ts, table, rows, label=None, part=None,
+          schema_mod=None):
     """Diff `rows` against the current rows for (dataset, season) and write the
     difference as of `version_ts`. Idempotent: applying the same file twice
     changes nothing. Returns (inserted, closed, unchanged).
@@ -70,6 +78,7 @@ def apply(conn, dataset, season, file_id, version_ts, table, rows, label=None, p
                          f"{dataset}/{season} already holds {last:.0f}; "
                          f"use --rebuild to replay the archive in order")
 
+    schema = _schema(schema_mod)
     cols = schema.columns(table)
     key = schema.keys(table)
     kidx = [cols.index(k) for k in key]

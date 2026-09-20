@@ -423,3 +423,55 @@ an independent id (`otc_id`) to pivot on.
 
 **Nothing here is urgent and nothing is blocked on it.** `docs/F06` recommends
 against building on this source at all for licensing reasons.
+## A-C6. Three feeds with no kind in the contract: injuries, weather, news
+
+**Status:** filed 2026-09-19 by track C. Ingested, stored, tested, and **not exported** -
+the contract's key table has twelve kinds and none of them fits any of these three, so
+there is nothing to validate against and nothing was invented locally. Reproduce the
+figures with `python -m jobs.ingest_feeds` (0 credits, no key, no network beyond the
+feeds themselves).
+
+**What exists now**, in its own store (`<STORAGE_DIR>/feeds.db`, versioned by ingestion
+time through `cfb.versioning`, raw-first, audited):
+
+| feed | source | rows held | shape |
+|---|---|---:|---|
+| injuries | nflverse `injuries` release, 2009+ | 6,068 (2025) + 428 (2026 so far) | per (season, season_type, week, team, player): report status, primary/secondary injury, practice status |
+| venues | sportsdataverse `cfb_team_info` | 659 CFB venues for 2026, 10 domed | venue_id, name, city, lat, lon, elevation, timezone, **dome** |
+| weather | Open-Meteo (free, keyless) | 296 CFB kickoffs in a 2-day window | temperature, humidity, precipitation, wind, gusts, cloud, at the kickoff HOUR, plus which endpoint answered |
+| news | 4 public RSS documents | 106 items | headline, source, timestamp, link - and nothing else, ever |
+
+**The four things the contract has no vocabulary for.** Track C proposes no shapes; these
+are the properties any shape would have to carry, measured rather than imagined.
+
+1. **A DATED SNAPSHOT.** An injury report is only worth publishing if the site can say
+   what was known at an instant - "Questionable on Saturday morning, Out by kickoff" -
+   and the contract's files are all current-state. The data supports it: upstream
+   publishes `date_modified` for 2009-2024 and **REMOVED it in 2025**, so for the seasons
+   the site is about, our ingestion stamp is the only as-of there is, and it is per row.
+   A kind here needs an as-of in the file, not just in the generator.
+
+2. **A FIELD THAT IS ABSENT FOR A GOOD REASON.** 10 of 659 CFB venues are domed, so a
+   weather row for those games would be noise, not data. The contract's closed objects
+   make "absent because it cannot apply" and "absent because we do not have it"
+   indistinguishable - the same gap C-4 hit with `RosterEntry.games`.
+
+3. **A NUMBER WITH A PRECISION THAT IS NOT ITS UNIT.** Open-Meteo publishes hourly
+   series, so a 19:30 kickoff is described by the 19:00 value. The store keeps
+   `observed_hour_ts` beside `kickoff_ts` so the 30-minute gap is visible. Anything that
+   renders this as "the weather at kickoff" is overstating the source by up to an hour.
+
+4. **SOMEONE ELSE'S CONTENT, CARRIED BUT NOT REPRODUCED.** News is headline, source,
+   timestamp and link. `news_items` has no column that could hold a body
+   (`feeds.schema.NEWS_FORBIDDEN`), the parser never reads `description`, `summary` or
+   `content:encoded`, and a test asserts both plus that no article text reaches the
+   database. The raw document is archived verbatim - that is what raw-first means - and
+   is never parsed into the store. A news kind would need the same boundary stated in
+   the contract rather than trusted to each producer.
+
+**One thing that is not a contract finding but blocks NFL weather.** No feed this project
+trusts carries NFL stadium coordinates. `nflverse/nfldata` has `airports.csv` - an
+AIRPORT, tens of kilometres from the stadium - and using it would be a proxy standing in
+for the thing. CFB has real venue coordinates, which is why weather exists for CFB and
+not for the NFL. Recorded as `feeds.weather_needs_venue_coordinates`; a sourced NFL
+coordinate feed is a decision for Ethan, not something to approximate.

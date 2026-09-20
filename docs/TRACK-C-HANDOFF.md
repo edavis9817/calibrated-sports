@@ -536,6 +536,36 @@ validates without writing.
   watched manual run, CFB follows once that path has been exercised with someone reading
   the output.
 
+## 10d. The three feeds (2026-09-19): injuries, weather, news
+
+`python -m jobs.ingest_feeds` - free, keyless, no credits, own store
+(`<STORAGE_DIR>/feeds.db`) and own archive (`<STORAGE_DIR>/feeds/raw`). Touches no NFL
+code path, opens `market_log.db` never, publishes nothing. Versioning is
+`cfb.versioning.apply` given this package's schema (it now takes `schema_mod=`), not a
+second copy; the feeds META columns were renamed to match what it expects.
+
+    --injuries 2009-2026     nflverse official report -> injury_reports
+    --venues 2026            sportsdataverse cfb_team_info -> venues (lat/lon/dome)
+    --weather --days 3       Open-Meteo at the kickoff HOUR -> weather_at_kickoff
+    --news                   4 RSS documents -> news_items (headline/source/time/link)
+    --injuries-report 2026:2 --as-of 2026-09-20T13:00Z
+    --audit
+
+Held now: 13,175 injury rows (2023-2026), 659 CFB venues (10 domed), 296 weather rows,
+106 news items, 15 raw files, audit clean.
+
+- **Two injury eras, measured:** `date_modified` exists 2009-2024 and was REMOVED in
+  2025; `season_type` exists from 2025 and is absent before. Both are 16 columns, so a
+  column count is not a schema check. The parser keeps the upstream as-of where it
+  exists and falls back to `game_type` for the key where `season_type` does not.
+- **NFL weather is blocked on coordinates**, not on code: no trusted feed carries NFL
+  stadium coordinates and `nfldata/airports.csv` is an airport. CFB has real venue
+  coordinates, so CFB has weather.
+- **Four contract findings filed as A-C6**: a dated snapshot, a field absent for a good
+  reason, a number whose precision is not its unit, and someone else's content carried
+  but not reproduced. No shapes proposed.
+- Tests: `tests/test_ingest_feeds.py`, 14, no network.
+
 ## 11. Decisions taken, with the why
 
 **Ethan's decisions (do not re-open):** CFB ships statistics, usage and per-game results — no
