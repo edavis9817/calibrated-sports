@@ -375,3 +375,51 @@ sentinel your `parse_refreshed` already knows how to read.
 built and validated — 88 keys, 52,583 values — and writing it into
 `WEB_EXPORT_DIR` before the deletion half has an owner would put keys in the
 bucket that nothing can ever remove.
+
+---
+
+## F5 — `contracts` is classified OFFSEASON and refreshes in season (measured)
+
+From track F, 2026-09-19, out of the contracts survey (`docs/F06`). Reported,
+not fixed — `nflverse.py` is a shared NFL code path.
+
+`nflverse.DATASETS["contracts"]` is `tier=OFFSEASON`, which the module docstring
+defines as "DOES NOT REFRESH IN-SEASON". Measured against upstream today:
+
+| | |
+|---|---|
+| upstream `last-modified` | **2026-09-19 11:53 GMT** (today, in season) |
+| content hash vs the 2026-09-09 archive | **differs** |
+| rows | 52,751 → **52,862** (+111) |
+| active contracts | 2,469 → **2,455** |
+
+The content check is the load-bearing half: CLAUDE.md already records that
+upstream re-uploads make `last-modified` meaningless on its own, so the bytes
+were compared rather than the header trusted.
+
+**Consequence:** `ingest_nflverse --tier live` skips it, so the archived copy
+goes stale in season and nothing says so. One pull is in the archive
+(2026-09-09) and it is ten days behind.
+
+**I cannot state a refresh cadence** — one interval is not a cadence, and the
+archive holds a single pull. What is established is that the tier is wrong.
+
+### Also, for `player_xwalk`: 15% of this table's `gsis_id` values point at nobody
+
+You flagged external ids in `player_xwalk` as fragile. Measured from a second
+direction, on the contracts table:
+
+- **1,661 of 11,076** distinct `gsis_id` values in `historical_contracts` are
+  **not in `players.parquet`** — ids that resolve to no player in nflverse's own
+  crosswalk.
+- A further **1,807 of 12,883** players in the table have **no `gsis_id` at
+  all**, only an `otc_id`.
+- Active contracts are much healthier: **2,447 of 2,469 (99.1%)** carry a
+  `gsis_id`.
+
+So the id damage is historical, not current. If your recovery work wants a
+second corpus to test against, this is one — and unlike the market data it has
+an independent id (`otc_id`) to pivot on.
+
+**Nothing here is urgent and nothing is blocked on it.** `docs/F06` recommends
+against building on this source at all for licensing reasons.

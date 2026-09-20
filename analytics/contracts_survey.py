@@ -1,0 +1,215 @@
+"""Is the nflverse contracts table usable, and for what? A survey, not a build.
+
+    python -m analytics.contracts_survey
+    python -m analytics.contracts_survey --upstream   # compare against today's
+
+Same shape as the NGS survey: what exists, what it covers, what it cannot
+answer. A negative answer is a result - "this exists and cannot support four of
+the six" is worth more than a build that discovers it later.
+
+THE TABLE IS `contracts/historical_contracts.parquet` (NOT `contracts.parquet`,
+which 404s). 26 columns, two of them nested lists of structs that carry most of
+the value: `season_history` is per-year cap detail and `contract_history` is
+per-contract terms.
+
+TWO TRAPS THIS MEASURES, both already tabled classes:
+
+  A SILENT DOUBLE inside a nested column. `season_history` carries a row whose
+  `year` is the STRING "Total", and for 98.6% of players it equals the sum of
+  the real years. Explode and sum without excluding it and every cap figure
+  doubles. Same class as NGS week 0, one level less visible because it is
+  inside a list.
+
+  A SILENT ZERO. `year_signed` is 0 on 1,106 rows rather than null, so a filter
+  like `year_signed >= 2010` drops them without saying so and a decade grouping
+  files them under 1980.
+
+Licensing is NOT measurable from the file and is reported separately in
+`docs/F06-contracts-survey.md`, from the terms themselves.
+"""
+import argparse
+import sys
+
+from analytics import paths
+
+ASSET = "historical_contracts.parquet"
+TOTAL_ROW = "Total"
+
+
+def _pl():
+    import polars as pl
+    return pl
+
+
+def load(path=None):
+    pl = _pl()
+    if path is None:
+        got = paths.latest_asset(ASSET)
+        if not got:
+            raise SystemExit("%s is not in the archive - nothing to survey" % ASSET)
+        path, _pull = got
+    return pl.read_parquet(path)
+
+
+def shape(df):
+    pl = _pl()
+    return {"rows": df.height, "columns": len(df.columns),
+            "players_otc": df["otc_id"].n_unique(),
+            "players_gsis": df["gsis_id"].n_unique(),
+            "active_rows": df.filter(pl.col("is_active")).height}
+
+
+def depth(df):
+    """Rows by signing decade. `year_signed == 0` is its own bucket, named."""
+    pl = _pl()
+    out = {}
+    for row in (df.group_by((pl.col("year_signed") // 10 * 10).alias("decade"))
+                .agg(pl.len().alias("rows")).sort("decade").to_dicts()):
+        key = "unknown (year_signed = 0)" if row["decade"] == 0 else "%ds" % row["decade"]
+        out[key] = row["rows"]
+    return out
+
+
+def total_row_trap(df):
+    """(total_rows, real_rows, players, agreeing) for the nested "Total" row.
+
+    `agreeing` is the count where Total equals the sum of the real years - the
+    reconciliation that proves it is a duplicate rather than a distinct fact,
+    the same check the NGS week-0 trap needed.
+    """
+    pl = _pl()
+    sh = (df.select(["otc_id", "season_history"]).explode("season_history")
+          .unnest("season_history"))
+    tot = sh.filter(pl.col("year") == TOTAL_ROW)
+    real = sh.filter((pl.col("year") != TOTAL_ROW) & pl.col("year").is_not_null())
+    t = tot.group_by("otc_id").agg(pl.col("cap_number").sum().alias("t"))
+    r = real.group_by("otc_id").agg(pl.col("cap_number").sum().alias("r"))
+    j = t.join(r, on="otc_id", how="inner").drop_nulls()
+    agree = j.filter((pl.col("t") - pl.col("r")).abs() < 1).height
+    return {"total_rows": tot.height, "real_rows": real.height,
+            "null_year_rows": sh.filter(pl.col("year").is_null()).height,
+            "compared": j.height, "agreeing": agree}
+
+
+def join_to_spine(df, con):
+    """How much of the play-by-play spine has a contract, by era.
+
+    THE ERA SPLIT IS THE ANSWER. A flat "60.6% of the spine joins" hides that
+    the table is effectively a 2015+ table: before 2010 it is nothing, and from
+    2015 it is complete.
+    """
+    pl = _pl()
+    have = set(df["gsis_id"].drop_nulls().to_list())
+    rows = con.execute("SELECT player_id, MAX(season) FROM f_play_usage "
+                       "GROUP BY player_id").fetchall()
+    eras = {}
+    for pid, last in rows:
+        bucket = (last // 5) * 5
+        hit, miss = eras.get(bucket, (0, 0))
+        eras[bucket] = (hit + (pid in have), miss + (pid not in have))
+    spine = {p for p, _ in rows}
+    return {"spine": len(spine), "joined": len(spine & have),
+            "by_era": {"%d-%d" % (b, b + 4): eras[b] for b in sorted(eras)}}
+
+
+def identity(df, players_path=None):
+    """The id questions, which track A flagged as not incidental."""
+    pl = _pl()
+    out = {"rows_with_gsis": df["gsis_id"].drop_nulls().len(),
+           "rows": df.height,
+           "players_otc": df["otc_id"].n_unique(),
+           "players_gsis": df["gsis_id"].n_unique()}
+    out["players_without_any_gsis"] = out["players_otc"] - out["players_gsis"]
+    got = paths.latest_asset("players.parquet") if players_path is None else (players_path, None)
+    if got:
+        known = set(_pl().read_parquet(got[0])["gsis_id"].drop_nulls().to_list())
+        mine = set(df["gsis_id"].drop_nulls().to_list())
+        out["gsis_not_in_players_parquet"] = len(mine - known)
+    act = df.filter(pl.col("is_active"))
+    out["active_players"] = act["otc_id"].n_unique()
+    out["active_with_gsis"] = act["gsis_id"].drop_nulls().n_unique()
+    return out
+
+
+# Fields a cap feature would need, and whether the table has one. Checked
+# against the real schema including both nested structs, so a column appearing
+# upstream later turns a MISSING into a hit without anyone remembering to look.
+NEEDED = {
+    "dead money": ("dead",),
+    "void years": ("void",),
+    "restructures": ("restructur",),
+    "incentives / escalators": ("incentive", "escalat"),
+    "guarantee structure (injury vs full)": ("injury", "vesting", "skill_guarantee"),
+    "cap hit per year": ("cap_number",),
+    "cash paid per year": ("cash_paid",),
+    "guarantee totals": ("guaranteed", "guarantees"),
+    "draft capital": ("draft_round", "draft_overall"),
+}
+
+
+def field_names(df):
+    names = list(df.columns)
+    for col in ("season_history", "contract_history"):
+        inner = df.schema[col].inner
+        names += [f.name for f in inner.fields]
+    return names
+
+
+def gaps(df):
+    names = [n.lower() for n in field_names(df)]
+    return {label: sorted({n for n in names if any(p in n for p in pats)})
+            for label, pats in NEEDED.items()}
+
+
+def restructure_proxy(df):
+    """`status` is the only thing resembling a restructure record."""
+    pl = _pl()
+    ch = (df.select(["otc_id", "contract_history"]).explode("contract_history")
+          .unnest("contract_history"))
+    return {r["status"]: r["len"] for r in
+            ch.group_by("status").agg(pl.len()).sort("len", descending=True)
+            .head(8).to_dicts()}
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--upstream", action="store_true",
+                    help="download today's copy and diff it against the archive")
+    a = ap.parse_args(argv)
+    df = load()
+    con = paths.connect(read_only=True)
+
+    print("SHAPE      ", shape(df))
+    print("DEPTH      ", depth(df))
+    print("IDENTITY   ", identity(df))
+    print("TOTAL TRAP ", total_row_trap(df))
+    j = join_to_spine(df, con)
+    print("SPINE JOIN  %d of %d" % (j["joined"], j["spine"]))
+    for era, (hit, miss) in j["by_era"].items():
+        print("   last seen %s: %4d with, %4d without (%3.0f%%)"
+              % (era, hit, miss, 100 * hit / max(hit + miss, 1)))
+    print("GAPS")
+    for label, found in gaps(df).items():
+        print("   %-38s %s" % (label, found or "ABSENT"))
+    print("RESTRUCTURE PROXY (contract_history.status)")
+    print("  ", restructure_proxy(df))
+
+    if a.upstream:
+        import hashlib
+
+        import httpx
+
+        import nflverse
+        url = nflverse.DATASETS["contracts"].url()
+        r = httpx.get(url, follow_redirects=True, timeout=180)
+        local = paths.latest_asset(ASSET)[0]
+        old = open(local, "rb").read()
+        print("UPSTREAM   last-modified %s" % r.headers.get("last-modified"))
+        print("   content moved: %s  (archived %d bytes, upstream %d)"
+              % (hashlib.sha256(old).hexdigest() != hashlib.sha256(r.content).hexdigest(),
+                 len(old), len(r.content)))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
