@@ -5,21 +5,60 @@ TRACK F · cs-analytics · `C:\Users\Ethan Davis\code\cs-analytics`
     python -m analytics.contracts_survey
     python -m analytics.contracts_survey --upstream
 
-Survey, not a build. Measured 2026-09-19 against the archived pull and against
-today's upstream copy.
+Survey, not a build. Measured 2026-09-19, **corrected and extended
+2026-09-21** with the six planned features now named.
+
+> ### Correction, 2026-09-21 — three counts in the first version were inflated 6.19x
+>
+> **The table is one row per (player, CONTRACT), and every row carries that
+> player's ENTIRE nested history, byte-identical.** The player with 38 contract
+> rows carries the same 8-year `season_history` 38 times. The first version of
+> this survey exploded from the flat frame, so three figures below were
+> multiplied by each player's own row count:
+>
+> | first published | correct |
+> |---|---|
+> | 47,286 `"Total"` rows | **8,955** |
+> | 265,915 real-year rows | **42,970** |
+> | 98.6% Total-equals-sum | **99.88%** (8,944 of 8,955) |
+>
+> Nothing else moved: shape, depth, identity, the join-by-era table, the gap
+> list and the licensing all count rows or distinct values rather than
+> explosions, and were right.
+>
+> **This is a third double-count nested inside the one the survey was written
+> to catch, and it is the worse of the two.** The `"Total"` row multiplies by a
+> constant 2; this multiplies by a per-player variable — median 2, max 38 — so
+> no sanity check on magnitude catches it consistently, and **a ratio of two
+> figures computed the same wrong way comes out right**, which is why the 98.6%
+> agreement looked fine. Combined, a naive explode-and-sum reports
+> **$1,054,673m of cap against a true $112,992m — 9.33x**.
+>
+> `contracts_survey.per_player()` is the fix; every nested accessor goes
+> through it, and a test asserts by AST that any function exploding a nested
+> column calls it first.
 
 ---
 
 ## Verdict first
 
-**The table exists, is richer than expected, and covers 2015 onward completely.
-It cannot answer dead money, void years, restructure economics or guarantee
-structure. And OverTheCap's terms, read rather than assumed, prohibit exactly
-what serving it on a public site would be.**
+**Of the six planned features, two are supportable, one in a reduced form, and
+three are not. And OverTheCap's terms, read rather than assumed, prohibit
+exactly what serving any of them on a public site would be.**
 
-The licence is the binding constraint, not the data. That is the opposite of
-what I expected going in, and it means the gap analysis below is mostly
-academic unless someone obtains written consent.
+| # | feature | verdict |
+|---|---|---|
+| 1 | salary-related | **yes**, 2015+ |
+| 2 | drafting strengths | **yes** — and it needs no contracts data at all |
+| 3 | contract ROI | **reduced** — cost yes, attribution to a signing no |
+| 4 | cap-space analysis | **no** — team totals miss the cap by a median 18% |
+| 5 | contention window | **no** — dead money, void years, guarantee structure all absent |
+| 6 | championship team archetype | **no** — 0–5% coverage in the eras it compares |
+
+The table is richer than expected and covers 2015 onward completely. **The
+licence is the binding constraint, not the data** — which is the opposite of
+what I expected going in, and it means even the two green rows are blocked for
+public display unless someone obtains written consent.
 
 ---
 
@@ -146,6 +185,21 @@ the parts — is what catches it, exactly as it did for NGS.
 nulls. Any numeric use has to cast, and casting without filtering turns
 `"Total"` into a null rather than an error.
 
+### A per-player duplication of both nested columns
+
+Measured 2026-09-21, and it is the trap that caught this survey's own first
+version — see the correction at the top.
+
+| | naive explode | correct | inflation |
+|---|---|---|---|
+| `season_history` rows | 318,666 | 55,853 | **5.71x** |
+| `contract_history` rows | 462,915 | 54,762 | **8.45x** |
+| total `cap_number` incl. `"Total"` | $1,054,673m | $112,992m | **9.33x** |
+
+Rows per player: min 1, **median 2, max 38**. Deduplicating is safe because the
+copies are not different slices of one history — they are the same history
+repeated, verified byte-identical on the busiest player's 38 rows.
+
 ### A silent zero
 
 `year_signed` is **0 on 1,106 rows** rather than null. `year_signed >= 2010`
@@ -153,6 +207,34 @@ drops them silently; a decade grouping files them under 1980. The survey reports
 them as their own bucket for that reason.
 
 ---
+
+### One poison value, found and negligible
+
+`cap_number` carries **2147.483647** — `INT32_MAX` divided by a million — on
+**3 rows, one player** (Sheldon Brown, 2009). Not null, not zero, and it reads
+as a $2.147 billion cap hit. Reported at its true size rather than dressed up:
+three rows of 42,970 is a curiosity, not a finding. It is named because the
+*class* is the dangerous one — a sentinel that survives every null and zero
+check — and because a filter on plausible cap values is one line.
+
+---
+
+## 3a. What DOES reconcile, which matters for the mapping
+
+**Forward cap treatment is complete and internally consistent.** `cap_number`
+equals the sum of its seven components — `base_salary`, `prorated_bonus`,
+`option_bonus`, `roster_bonus`, `workout_bonus`, `per_game_roster_bonus`,
+`other_bonus` — on **100% of 265,915 season rows within $1,000, and 97.9% to
+the dollar**, median absolute difference 1.1e-16.
+
+So the **cap treatment of signing bonuses is present going forward**: the
+annual proration is `prorated_bonus` and it adds up. What is absent is the
+*backward* half — the unamortised remainder at release and the acceleration
+rule — which is dead money, and §4 says why it is not derivable.
+
+Note there is **no `signing_bonus` field**: the per-year proration exists, the
+bonus itself does not, so the amount and its amortisation length have to be
+inferred from a constant proration across years.
 
 ## 4. What it cannot answer
 
@@ -182,28 +264,116 @@ not either.
 
 ### Which of the six features each gap blocks
 
-**I cannot answer this as asked, and will not invent it.** The stats plan is not
-in this repo — `grep` for salary, cap hit, dead money, draft capital across all
-markdown and Python returns nothing, and there is no document naming six
-features. Naming them from inference is exactly the hand-written-claim failure
-one level up.
+The six, as named in the brief. **Two are supportable, one is supportable in a
+reduced form, three are not.**
 
-What I can say, and what the mapping will be once the six are named:
+| # | feature | verdict | what decides it |
+|---|---|---|---|
+| 1 | **salary-related** | **YES**, 2015+ | `value`, `apy`, `guaranteed`, `cap_number`, `cash_paid` all present and reconciling |
+| 2 | **drafting strengths** | **YES**, and it needs no contracts join | `draft_round` / `draft_overall` / `draft_team` are here, and `draft_picks` already carries them |
+| 3 | **contract ROI** | **REDUCED** — cost yes, attribution no | cost per season is exact; **a season cannot be attributed to a contract** |
+| 4 | **cap-space analysis** | **NO** | team totals miss the cap by a median 18%, and the gap *is* dead money |
+| 5 | **contention window** | **NO** | needs forward commitments net of dead money and void years; both absent |
+| 6 | **championship team archetype** | **NO** | needs cap *allocation* by unit across eras; pre-2015 coverage is 0–5% |
 
-| capability | supportable? |
+#### 1. Salary-related — supportable, 2015 onward
+
+Everything a salary view needs is present and checks out: contract `value`,
+`apy`, `guaranteed`, and per-season `cap_number` / `cash_paid` that reconcile to
+their components on 100% of rows within $1,000 (§3a).
+
+The binding constraint is **era, not fields**: 0% of pre-2000 spine players
+join, 5% for 2005–09, 99% from 2015. A salary page is a 2015+ page or it is
+silently empty for the players it cannot cover.
+
+#### 2. Drafting strengths — supportable, and cheapest of the six
+
+`draft_year`, `draft_round`, `draft_overall` and `draft_team` are on every row.
+**This one does not need the contracts table at all** — `draft_picks` already
+carries draft capital, with no licensing question attached (§5). If only one of
+the six is built, this is the one that costs nothing and risks nothing.
+
+What contracts would *add* is the second-contract outcome — did the pick earn an
+extension — and that half inherits the 2015 cliff and the licence.
+
+#### 3. Contract ROI — reduced, and the reason is structural
+
+Cost is exact. **Attribution is not**, and this was not in the original gap
+list because it is not a missing column — it is a missing *key*:
+
+- `season_history` carries `year` and `team` and **no contract identifier**.
+- `contract_history` carries `year_signed` and `yrs` and **no identifier
+  either**.
+
+So a season's cap number cannot be attributed to the contract that produced it,
+except by inferring from year ranges — and that inference breaks exactly where
+ROI is interesting: a player re-signed, extended or traded mid-window has
+overlapping contracts and no way to say which season belongs to which.
+`Renegotiated` appears on 43,867 contract rows, so the ambiguous case is the
+common one.
+
+**What survives:** ROI as *player*-level cost against player-level production —
+"this player cost $X across these seasons and produced Y" — which is a real
+feature. **What does not:** ROI attributed to a *signing decision*, which is
+what the phrase usually means.
+
+#### 4. Cap-space analysis — not supportable, and measured
+
+Summing 2025 `cap_number` by team gives all 32 teams and the totals are wrong:
+
+| | |
 |---|---|
-| Salary / APY / contract value, any era 2015+ | **yes** |
-| Cap hit and cash paid per year, 2015+ | **yes** |
-| Draft capital | **yes**, and it needs no contracts join at all — `draft_picks` already covers it |
-| Cap-space or roster-construction context | **partial** — per-player cap numbers exist, team totals would have to be summed and the "Total" trap makes that a live hazard |
-| Anything dead-money | **no** |
-| Anything about restructure economics, void years, or guarantee structure | **no** |
-| Any of the above before 2015 | **no**, on join coverage alone |
+| actual 2025 cap | **~$279.2m** per team |
+| median team total from this table | **$229.3m** |
+| range | **$157.1m (Jets) to $270.9m (Bears)** |
 
-Give me the six and I will complete this table in one pass; the measurements are
-all here.
+A **median 18% shortfall, varying 40 points across teams.** The missing
+component is exactly what §4 says is absent — dead money, plus practice-squad
+and IR treatment and the top-51 rule. Cap space is a residual, so a feature
+computing it from these totals would report a team's remaining room wrong by an
+amount that is itself the interesting number.
 
----
+This is the sharpest no of the six: the data looks complete — 32 teams, every
+player — and the totals are individually correct. Only the *sum* is wrong, and
+only against a figure this table does not contain.
+
+#### 5. Contention window — not supportable
+
+A contention window is forward commitment: what is owed in each of the next
+three or four years, and how much of it is escapable. That needs three things
+the table does not have.
+
+- **Dead money** — what releasing a player actually costs. Absent, and not
+  derivable: it needs the unamortised proration at release and the guarantee
+  split that decides what accelerates.
+- **Void years** — years that exist only to spread proration. There is no field.
+  They are *sometimes* visible as a year with `base_salary` 0 and
+  `prorated_bonus` > 0, but that shape occurs on only **136 season rows across
+  19 players**, which is far too few to be the real population — so the signal
+  exists and is not reliable enough to build on.
+- **Guarantee structure** — `guarantees` and `guaranteed_salary` are totals. No
+  split of full versus injury versus skill, and no vesting dates, so "how much
+  of year three is already locked" is unanswerable.
+
+#### 6. Championship team archetype — not supportable
+
+This one fails on era before it fails on fields. An archetype claim compares cap
+allocation by unit across champions, which means the 2000s and 1990s — and
+coverage there is **0% to 5%** of spine players. The seasons with the teams
+worth comparing are the seasons the table does not have.
+
+Even restricted to 2015+, it would need allocation by unit net of dead money,
+which is (4) again.
+
+### Two things the mapping needs that are not in this table
+
+Worth stating because they will otherwise be discovered during a build:
+
+- **Position grouping.** `position` here is OTC's vocabulary (`IDL`, `ED`,
+  `RG`), not nflverse's. Any by-unit rollup needs a mapping, and it is not
+  written yet.
+- **Team identity.** `team` is a nickname string — `Bears`, not `CHI` — with 36
+  distinct values including one empty. A team join needs a name map.
 
 ## 5. Licensing — and this is the blocker
 

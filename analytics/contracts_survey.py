@@ -12,7 +12,25 @@ which 404s). 26 columns, two of them nested lists of structs that carry most of
 the value: `season_history` is per-year cap detail and `contract_history` is
 per-contract terms.
 
-TWO TRAPS THIS MEASURES, both already tabled classes:
+THREE TRAPS THIS MEASURES, and the third one caught the first version of this
+very module:
+
+  A PER-PLAYER DUPLICATION OF BOTH NESTED COLUMNS. The table is one row per
+  (player, CONTRACT), and each row carries that player's ENTIRE
+  `season_history` and `contract_history`, byte-identical. A player with 38
+  contract rows carries the same 8-year history 38 times. Exploding from the
+  flat frame therefore multiplies every nested figure by that player's own row
+  count - median 2, max 38, 6.19x overall on season rows and 8.45x on contract
+  rows. Combined with the "Total" trap below, a naive explode-and-sum reports
+  $1,054,673m of cap against a true $112,992m: **9.33x**.
+
+  This is worse than the "Total" double in one specific way: the multiplier is
+  PER PLAYER and variable, so no sanity check on magnitude catches it
+  consistently, and a ratio between two figures computed the same wrong way
+  comes out right. `per_player()` is the fix and every nested accessor here
+  goes through it.
+
+TWO FURTHER TRAPS, both already tabled classes:
 
   A SILENT DOUBLE inside a nested column. `season_history` carries a row whose
   `year` is the STRING "Total", and for 98.6% of players it equals the sum of
@@ -39,6 +57,34 @@ TOTAL_ROW = "Total"
 def _pl():
     import polars as pl
     return pl
+
+
+def per_player(df):
+    """One row per player, before touching a nested column.
+
+    THE TABLE IS ONE ROW PER (PLAYER, CONTRACT) AND EACH ROW CARRIES THE
+    PLAYER'S WHOLE NESTED HISTORY. Verified, not assumed: the player with 38
+    rows has 38 byte-identical copies of one 8-year `season_history`. Any
+    explode from the flat frame multiplies by the row count.
+    """
+    return df.unique(subset=["otc_id"], keep="first")
+
+
+def duplication(df):
+    """How much a naive explode would inflate each nested column."""
+    pl = _pl()
+    one = per_player(df)
+    out = {}
+    for col in ("season_history", "contract_history"):
+        naive = df.select(["otc_id", col]).explode(col).height
+        correct = one.select(["otc_id", col]).explode(col).height
+        out[col] = {"naive": naive, "correct": correct,
+                    "inflation": round(naive / max(correct, 1), 2)}
+    counts = df.group_by("otc_id").agg(pl.len())["len"]
+    out["rows_per_player"] = {"min": int(counts.min()),
+                              "median": float(counts.median()),
+                              "max": int(counts.max())}
+    return out
 
 
 def load(path=None):
@@ -78,8 +124,8 @@ def total_row_trap(df):
     the same check the NGS week-0 trap needed.
     """
     pl = _pl()
-    sh = (df.select(["otc_id", "season_history"]).explode("season_history")
-          .unnest("season_history"))
+    sh = (per_player(df).select(["otc_id", "season_history"])
+          .explode("season_history").unnest("season_history"))
     tot = sh.filter(pl.col("year") == TOTAL_ROW)
     real = sh.filter((pl.col("year") != TOTAL_ROW) & pl.col("year").is_not_null())
     t = tot.group_by("otc_id").agg(pl.col("cap_number").sum().alias("t"))
@@ -164,8 +210,8 @@ def gaps(df):
 def restructure_proxy(df):
     """`status` is the only thing resembling a restructure record."""
     pl = _pl()
-    ch = (df.select(["otc_id", "contract_history"]).explode("contract_history")
-          .unnest("contract_history"))
+    ch = (per_player(df).select(["otc_id", "contract_history"])
+          .explode("contract_history").unnest("contract_history"))
     return {r["status"]: r["len"] for r in
             ch.group_by("status").agg(pl.len()).sort("len", descending=True)
             .head(8).to_dicts()}
@@ -180,6 +226,7 @@ def main(argv=None):
     con = paths.connect(read_only=True)
 
     print("SHAPE      ", shape(df))
+    print("DUPLICATION", duplication(df))
     print("DEPTH      ", depth(df))
     print("IDENTITY   ", identity(df))
     print("TOTAL TRAP ", total_row_trap(df))
