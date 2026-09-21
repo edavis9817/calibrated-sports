@@ -220,10 +220,15 @@ not yet measured and the retention arithmetic depends on it.**
   future closing 2027-01-07 ("Nick Rinaldi records the most sacks in the SEC").
   What looks like a prop is team-level: `KXNCAAFTEAMRECYDS` is "Texas: 325+
   receiving yards", `KXNCAAFTEAMTD` is "Utah: 4+ rushing touchdowns".
-- **So CFB is not addressable by this model.** The validated edge is single-game
-  player usage — targets, rush attempts, receptions — and CFB lists none of it.
-  A CFB expansion would be a different model (team totals, spreads, quarters),
-  not this one pointed at a new sport. Do not re-probe for props.
+- **So CFB is not addressable by this model ON KALSHI.** SCOPE CORRECTED 2026-09-21:
+  the sentence used to read "CFB is not addressable by this model", which is a claim
+  about the SPORT that nobody measured. What was measured is Kalshi's catalogue, and
+  what it supports is: the validated edge is single-game player usage - targets, rush
+  attempts, receptions - and KALSHI lists none of it. US sportsbooks DO (26 prop keys,
+  55 of 74 events, P1 2026-09-19), so a books-priced CFB usage model is not refuted by
+  anything in this section. What still refutes it is elsewhere and is not about
+  listings: no appearance signal (`cfb.stats_and_usage_only`), and the model losing to
+  the close in every NFL season (brief 023). Do not re-probe KALSHI for props.
 - The depth that does exist is game-shaped: `KXNCAAFSPREAD` 2,822 markets,
   `KXNCAAFTOTAL` 2,232, `KXNCAAFTEAMTOTAL` 1,582, plus full quarter and
   first-half ladders. 20,801 of 47,553 markets close within 3 days of first
@@ -311,13 +316,23 @@ not yet measured and the retention arithmetic depends on it.**
   with Anderson (SC), Lincoln (MO) with Lincoln (PA), and Miami (FL) with
   Miami (OH). Match on date +/-1 day: a 23:00 ET Saturday kickoff in Hawaii is
   a Sunday in UTC.
-- **VERDICT: NO-GO on college football.** Not because the market is sharp -
-  because there is nothing to point a model at. No single-game player props
-  exist, the derivatives already cohere to within a third of a point (Part 1),
-  and a team-level effort needs a CFB facts layer that does not exist. What
-  would change it: a venue listing college player props at NFL ladder density,
-  or a Starter Pack backfill making a team model cheap to build. Neither is
-  close.
+- **VERDICT: NO-GO ON KALSHI FOR COLLEGE FOOTBALL.** SCOPE CORRECTED 2026-09-21:
+  this read "NO-GO on college football" and was quoted onward as a fact about the
+  sport. The probe measured ONE VENUE over 56 hours. What it establishes: on Kalshi
+  there is nothing to point this model at - no single-game player props exist THERE,
+  the derivatives already cohere to within a third of a point (Part 1), and a
+  team-level effort needs a CFB facts layer that did not then exist. What has since
+  changed, and what has not:
+  - **A venue listing college player props at book density EXISTS** - the condition
+    this bullet named as what "would change it". US sportsbooks list 26 prop keys on
+    55 of 74 events (P1, 2026-09-19). That closes the listing question and opens a
+    pricing one; it does not by itself make a model viable.
+  - **The CFB facts layer now exists** (W07 track C): games, teams, rosters, box,
+    usage, lines, rankings, venues, 2001-2026.
+  - **The binding constraint is no longer listings; it is the APPEARANCE GAP.** No
+    public source records whether a college player dressed, so a prop record cannot
+    yield an honest hit rate at any price. See
+    `docs/C03-cfb-prop-preregistration.md`, which names that gap as the gate.
 - **The exchange's own coherence is exact at the mid.** Moneyline mid sums
   median 1.0000 (n=230); quarter-winner 3-ways median 0.99-1.01. Ask sums are
   1.02 two-way and 1.14-1.17 three-way, and NOT ONE partition of the 300 could
@@ -1478,6 +1493,13 @@ W04/W05 build cycle. They apply without being restated, so proceed on them rathe
 
 ## Evidence
 
+- **A FINDING IS SCOPED TO WHAT WAS MEASURED.** A NO-GO measured on one venue is a fact about
+  THAT VENUE; restating it as a fact about the sport is a generalisation nobody performed - and it
+  is invisible, because the original measurement was correct and stays correct. Worked case: "VERDICT:
+  NO-GO on college football" was measured on Kalshi over 56 hours, held for two weeks as a fact about
+  college football, and was false of the market the whole time - US books list 26 player-prop keys
+  (P1, 2026-09-19). The check is mechanical: name the venue, the season, the window and the model in
+  the sentence itself, so the scope travels with the claim when someone quotes it.
 - **Measure, don't estimate.** Any number asserted in a brief or in chat is unverified until a script
   reproduces it. Sizes, rates, counts, coverage — measure before acting. Briefs have been wrong about
   fee multiples, depth cost, retention windows, coverage limits and table budgets; every one was caught
