@@ -464,10 +464,13 @@ def split_half(df):
             "teams": len(teams)}
 
 
-def bands(df, draws: int = DRAWS, conf: float = 0.95):
+def bands(df, draws: int = DRAWS, conf: float = 0.95,
+          higher_is_better: bool = True):
     """Bands against the LEADER, never against the row above.
 
-    The leader is the highest estimate still unbanded. Every remaining team
+    The leader is the BEST estimate still unbanded - the highest, or the
+    lowest when `higher_is_better` is False (bust: the leader is the team with
+    the fewest busts over the slot, never the most). Every remaining team
     whose CONTRAST with the leader (team minus leader, bootstrapped as ONE
     quantity over shared class blocks) has an interval containing 0 joins the
     leader's band. Repeat on what is left. Alphabetical within a band; bands
@@ -480,7 +483,8 @@ def bands(df, draws: int = DRAWS, conf: float = 0.95):
     left = set(range(len(teams)))
     out = []
     while left:
-        lead = max(left, key=lambda i: means[i])
+        sign = 1.0 if higher_is_better else -1.0
+        lead = max(left, key=lambda i: sign * means[i])
         members = [lead]
         for i in sorted(left - {lead}):
             rng = np.random.default_rng(_seed(teams[lead] + "|" + teams[i]))
@@ -598,8 +602,17 @@ def measure(perms: int = PERMS, draws: int = DRAWS):
         & (pl.col("games") > 0)).height
     res = {"window": [first, last], "pulled": picks["pulled"][0],
            "picks": picks.height, "unmatched_played": unmatched_played,
+           # No gsis_id at all: scored 0 on every outcome, never name-joined.
+           "no_id_picks": picks.filter(pl.col("gsis_id").is_null()).height,
            "bust_rate": float(picks["bust"].mean()),
            "outcomes": {}, "eras": {}, "positions": {}}
+    # The data version of every other feed read: pull dates, as a range where
+    # a feed is one file per season pulled on different days.
+    rdays = sorted(d for s, _p, d in paths.seasonal_files(ROSTER_PATTERN)
+                   if first <= s <= last + HORIZON - 1)
+    res["sources"] = ["draft_picks@%s" % res["pulled"],
+                      "roster_weekly@%s..%s" % (rdays[0], rdays[-1]),
+                      "games@%s" % paths.latest_asset("games.parquet")[1]]
 
     # The seasons the roster horizons cover (2002-2025): complete seasons only.
     winpct = team_win_pct(first, last + HORIZON - 1)
@@ -618,7 +631,7 @@ def measure(perms: int = PERMS, draws: int = DRAWS):
             "teams_excluding_null": sum(t["excludes_null"] for t in ti),
             "expected_by_chance": round(0.05 * len(ti), 1),
             "teams": ti,
-            "bands": bands(f, draws),
+            "bands": bands(f, draws, higher_is_better=name != "bust"),
             # The leader is a SELECTED MAXIMUM of 32 noisy numbers, and each
             # contrast against it is one of 31 unadjusted tests - so bands can
             # split a league the separation test cannot tell from shuffled

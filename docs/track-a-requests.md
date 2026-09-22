@@ -520,3 +520,33 @@ first real run, on `market_trades_fetch`).
 and name `units` as the figure to quote. If the site should never see `rows`, drop it from
 `CoverageCount`. I kept it because a silent resolution of the difference is the thing
 this feed exists to prevent.
+
+---
+
+## F6 — a `predictor` kind: a published number with its scoring record in the same file
+
+From track F, unit f-02, 2026-09-22. **Proposed, not merged. The vendored contract is
+untouched.** Additive only.
+
+- **What.** One kind (`predictor` → `PredictorFile`) and one key pattern,
+  `^predictors/[a-z0-9]+/[a-z0-9_]+\.json$`. There are six `$defs`, none of whose
+  names exist in the contract today. `AnalyticValue` and `Interval` are reused, not
+  redefined. The full text is in `docs/proposals/F08-predictor.defs.json`, and the
+  merge is its `$defs` plus the `x-contract-additions` block.
+- **Why.** Ethan's rule, 2026-09-20: any predictor the site publishes ships with its
+  scoring record visible. `analytics.metric` has no place to put a record, a separation
+  test or bands. Each of those lives once per slice on the envelope, and a withheld slice
+  is present with nulls and a reason rather than absent.
+- **Evidence it fits the real export.** `analytics/predictor_export.py` validates the
+  real `predictors/nfl/drafting.json` (64 values) against the contract plus the proposal,
+  merged in memory. `tests/test_predictor_export.py` shows the merged schema refusing
+  seven broken payloads (see `docs/F08-drafting-export.md`).
+- **The prefix is new and top-level on purpose.** `analytics.export.sync` deletes every
+  key under `analytics/` that its own build did not produce. **Before anything publishes**,
+  `predictors/` needs the same REFRESHED declaration as F4, or a retired predictor can
+  never leave the bucket. Nothing in f-02 writes to `WEB_EXPORT_DIR` or goes near
+  `upload()`.
+- **For track B, once merged.** When `slices[s].bands` is null
+  (`bands_reason: separation_not_rejected`), list values as one unordered, alphabetical
+  set, and do not synthesise a band. Word verdicts from the enums; the file exports no
+  comparative prose.
