@@ -84,9 +84,10 @@ def snap_context(con, gsis, season, week, snaps=None, coverage=None):
                 None if players is None else (gsis in players),
                 None if weeks is None else ((season, week) in weeks),
                 None if weeks is None else weeks.get((season, week)))
+    pj = store.pfr_gsis(con)
     row = con.execute(
         "SELECT s.team, s.offense_snaps, s.defense_snaps, s.data_version "
-        "FROM nfl_snap_counts s JOIN player_xwalk x ON x.pfr_id = s.pfr_player_id "
+        f"FROM nfl_snap_counts s {pj.on()} "
         "WHERE x.gsis_id=? AND s.season=? AND s.week=? "
         "ORDER BY s.data_version DESC LIMIT 1", (gsis, season, week)).fetchone()
     week_version = con.execute(
@@ -95,8 +96,7 @@ def snap_context(con, gsis, season, week, snaps=None, coverage=None):
     if row:
         return (row[0], row[1] or 0, row[2] or 0, row[3]), True, True, week_version
     player_has = con.execute(
-        "SELECT 1 FROM nfl_snap_counts s JOIN player_xwalk x "
-        "ON x.pfr_id = s.pfr_player_id WHERE x.gsis_id=? LIMIT 1",
+        f"SELECT 1 FROM nfl_snap_counts s {pj.on()} WHERE x.gsis_id=? LIMIT 1",
         (gsis,)).fetchone() is not None
     return None, player_has, week_version is not None, week_version
 
@@ -112,7 +112,7 @@ def load_snap_index(con):
     for gsis, season, week, team, off, dfn, dv in con.execute(
             "SELECT x.gsis_id, s.season, s.week, s.team, s.offense_snaps, "
             "s.defense_snaps, s.data_version FROM nfl_snap_counts s "
-            "JOIN player_xwalk x ON x.pfr_id = s.pfr_player_id "
+            f"{store.pfr_gsis(con).on()} "
             "ORDER BY s.data_version"):
         snaps[(gsis, season, week)] = (team, off or 0, dfn or 0, dv)
         players.add(gsis)
