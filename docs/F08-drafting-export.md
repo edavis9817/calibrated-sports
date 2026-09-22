@@ -1,5 +1,14 @@
 # F08 — drafting strengths as a published shape: the write-up of a null on two slices
 
+**Superseded in part by f-07 (2026-09-22):** nothing in the file is withheld any more.
+Sports-Reference's terms were read and permit republishing with credit (see
+`docs/F09-sports-reference-terms.md`). All four slices are published, and each carries a
+computed `reading` and a generated `statement`. w_av reads `separates_confounded`, with
+null bands. The file carries `attribution` and records `values_policy`, Ethan's
+show/hide call, which has no default. The withheld tables below describe the file as f-02
+and f-06 left it.
+
+
 Unit f-02, 2026-09-22. Depends on F07 (`docs/F07-drafting-strengths.md`), which found
 that on roster4 and bust no team separates from shuffled labels (w_av separates and is
 withheld; see below). **So this unit is the write-up of that

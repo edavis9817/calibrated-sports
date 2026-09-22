@@ -749,8 +749,14 @@ def measure(perms: int = PERMS, draws: int = DRAWS):
     # a feed is one file per season pulled on different days.
     rdays = sorted(d for s, _p, d in paths.seasonal_files(ROSTER_PATTERN)
                    if first <= s <= last + HORIZON - 1)
+    # snap_counts is listed because snaps4 publishes from it and it is
+    # PFR-provided: a file crediting Sports-Reference must name every PFR feed
+    # it read (f-07). It was missing from this list before.
+    sdays = sorted(d for s, _p, d in paths.seasonal_files(SNAP_PATTERN)
+                   if SNAP_FIRST <= s <= last + HORIZON - 1)
     res["sources"] = ["draft_picks@%s" % res["pulled"],
                       "roster_weekly@%s..%s" % (rdays[0], rdays[-1]),
+                      "snap_counts@%s..%s" % (sdays[0], sdays[-1]),
                       "games@%s" % paths.latest_asset("games.parquet")[1]]
 
     # The seasons the roster horizons cover (2002-2025): complete seasons only.

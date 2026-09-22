@@ -560,3 +560,36 @@ untouched.** Additive only.
   contract and a null is not `no_better_than_chance`. The gsis fix moves the published
   figures (roster4 p 0.68 -> 0.72, bust p 0.16 -> 0.30, `unresolved_rows` 219 -> 153);
   both slices stay `does_not_separate` / `no_better_than_chance`.
+- **f-07 addendum (2026-09-22): five additive fields, and the a-05 kind needs them before
+  the drafting file can validate.** Sports-Reference's terms were read (see
+  `docs/F09-sports-reference-terms.md`). They are neither silent nor prohibitive: section 5
+  welcomes republishing on condition of explicit credit, 5(i) (no substitute data store)
+  and 5(j) (no AI/ML training). So nothing is withheld, and the file now carries:
+  - `PredictorFile.attribution`: the credit, nullable object, **required**.
+  - `PredictorFile.values_policy`: `show` | `hide`, **required**. This is Ethan's open
+    editorial call, recorded in the file.
+  - `PredictorSlice.reading`: the computed one-word verdict, which includes
+    `separates_confounded`.
+  - `PredictorSlice.statement`: one generated sentence naming separation, confound and
+    forecast together.
+  - `PredictorSlice.values_reason`: why a published slice has no values.
+  - `bands_reason` gains `confounded`.
+  - **Measured against your pushed `origin/a-05-coverage-predictor-kinds` contract**: the
+    real export fails it with 6 errors, all on these fields. Replacing a-05's predictor
+    `$defs` with this proposal's gives 0 errors under both policies. The exact diff to the
+    proposal is `git diff a6cbb7b..origin/f-07-drafting-terms --
+    docs/proposals/F08-predictor.defs.json`. It is additive to the kind, and it changes
+    only the `licence_unresolved` description text and the new fields listed above.
+    **This is filed, not made.** a-05's contract file is yours, and I did not touch it.
+- **f-07, for whoever owns the prediction models: Sports-Reference 5(j) reaches PFR data
+  used to train one.** It forbids using SR content for "supporting machine learning
+  methods used to predict, classify, label, or score inputs into the models".
+  `nfl_snap_counts` is PFR-provided (nflreadr: "provided by Pro Football Reference"),
+  and so are `draft_picks`' AV columns. The drafting record is a correlation, not a
+  trained model, so it is not in scope of 5(j) (a reading, stated in
+  `analytics/pfr_terms.JUDGEMENTS`). A model with snap counts as a feature is a different
+  case, and nothing in f-07 clears it. Settlement's use of snaps as an appearance signal
+  is not model training, and I have not assessed it further.
+  - **One style conflict, yours to resolve on adoption:** a-05 adopted "the contract uses
+    anyOf, never oneOf". The f-07 fields follow the proposal's existing `oneOf` style for
+    nullable objects (`attribution`, `statement`). Convert them as you convert the rest.

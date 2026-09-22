@@ -856,3 +856,19 @@ If you want an ordering claim between two specific subjects, ask and track F
 will bootstrap the contrast as one quantity over shared blocks. It is **not**
 the difference of two published intervals; brief 018 set that rule for the
 selection gap and it holds here.
+
+## f-07 — the drafting predictor, once a-05 carries the f-07 fields (2026-09-22)
+
+- **Render `attribution.statement` wherever any slice in `attribution.applies_to` is
+  shown.** Sports-Reference's terms make explicit credit the condition of republishing,
+  and every drafting slice rests on PFR's draft table (not only w_av and snaps4).
+- **Lead each slice with `reading` and render `statement` verbatim or not at all.** Do not
+  compose a slice caption from `separation.verdict` alone. `w_av` separates
+  (`separation.verdict: separates`), but its `reading` is `separates_confounded`, and its
+  sentence carries the win-share confound and the missing forecast together. A page that
+  shows "separates" without them publishes the one claim the file exists to prevent.
+- **`values_reason` non-null means the slice's values are deliberately absent**
+  (`values_policy: hide`, Ethan's call). Say so from the enum. It is not an empty state
+  and not a failure.
+- `bands_reason: confounded`: no ordering of any kind. List the values alphabetically,
+  as for `separation_not_rejected`.

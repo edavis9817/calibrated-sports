@@ -203,6 +203,15 @@ it is computed on, never to the predictor.
 
 ## Licensing — the brief's "no licensing question" is not established
 
+**Superseded by f-07 (2026-09-22): the terms have now been read. See
+`docs/F09-sports-reference-terms.md`.** They are neither silent nor a prohibition.
+Section 5 *welcomes* republishing data "whether for commercial or non-commercial
+purposes", on condition of explicit credit to Sports-Reference, and subject to 5(i)
+(no substitute data store) and 5(j) (no AI/ML training). The drafting file meets all
+three, and snaps4 and w_av are now published. **One correction to the paragraph below:**
+roster4 and bust are not free of the question. Their draft order is PFR's table via
+nflverse, so the credit covers every slice. The original text is kept as it was written.
+
 `draft_picks` is nflverse's copy of Pro-Football-Reference's draft table.
 `w_av`, `dr_av`, `car_av`, `pfr_player_id`, `games` and `seasons_started` are PFR's
 columns, and `snap_counts` is PFR-sourced too. **This is the same shape as F06's OTC
