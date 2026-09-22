@@ -11,7 +11,12 @@ import pytest
 from analytics import contracts_survey as cs
 from analytics import paths
 
-HAS_FILE = paths.latest_asset(cs.ASSET) is not None
+# `latest_asset` RAISES when no mirror exists at all (a clean clone, CI), so a
+# bare call here errored the whole suite at collection rather than skipping.
+try:
+    HAS_FILE = paths.latest_asset(cs.ASSET) is not None
+except FileNotFoundError:
+    HAS_FILE = False
 needs_file = pytest.mark.skipif(
     not HAS_FILE, reason="historical_contracts.parquet is not in the archive")
 
