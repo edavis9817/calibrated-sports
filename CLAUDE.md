@@ -2042,3 +2042,40 @@ corroboration and are not; the only thing that makes either one evidence is meas
 
   Either export the figures as fields and let the site word them, or generate the string from the
   figures at export time, in code that can produce the other answer.
+
+## Relay
+
+Your brief is `C:\Users\Ethan Davis\code\_relay\tasks\<track>.md` — read it before
+starting a unit. Track letters: a = calibrated-sports, b = calibratedsports-web,
+c = cs-cfb, f = cs-analytics.
+
+Before writing your report, move the existing one out of the way:
+
+    mv _relay/reports/<track>.md _relay/archive/reports/<track>-$(date +%Y%m%d-%H%M).md
+
+Then write the new report to `_relay/reports/<track>.md`. **That file is what gets
+read. Terminal output is not.** A finding that exists only in the terminal did not
+happen.
+
+`_relay/LEDGER.md` is the append-only record of decisions taken — read it when a
+question feels already settled, and say so rather than relitigating it. Do not
+edit it; findings go in your report and are recorded from there.
+
+### Work on a named branch off `origin/main`, never on local `main` (a-04, 2026-09-22)
+
+`calibrated-sports`, `cs-cfb` and `cs-analytics` are **three clones of ONE repository**,
+`github.com/edavis9817/calibrated-sports.git` - not three repos. Each track committing to its
+own local `main` produced three divergent mains for one remote, with nothing pushed; a-04
+integrated them. So, in all three clones:
+
+    git fetch origin
+    git checkout -b <unit-id>-<slug> origin/main
+
+- **Every unit starts from that command.** Local `main` stays a clean mirror of `origin/main`
+  and is never committed to; it only ever fast-forwards.
+- **A unit's work reaches `origin/main` by pushing its branch and integrating it**, following
+  the commit sequence under *Repo hygiene* (rebase or merge onto what arrived, re-run the suite
+  on the combined tree, never force).
+- **This rule lives in the committed `CLAUDE.md`, which is one file shared by all three
+  clones.** A clone that has not fetched does not see it yet - which is one more reason to
+  branch off `origin/main` rather than off whatever local `main` happens to hold.
