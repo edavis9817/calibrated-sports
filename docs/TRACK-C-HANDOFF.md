@@ -566,6 +566,23 @@ Held now: 13,175 injury rows (2023-2026), 659 CFB venues (10 domed), 296 weather
   but not reproduced. No shapes proposed.
 - Tests: `tests/test_ingest_feeds.py`, 14, no network.
 
+## 10e. MLB stats (2026-09-22, unit c-03)
+
+Full record: `docs/C04-mlb-stats.md`. Store `<STORAGE_DIR>/mlb.db`, raw `<STORAGE_DIR>/mlb/raw`,
+source Retrosheet only (terms quoted there; MLBAM's Stats API refused on its own notice).
+1999-2025 held (27 seasons, 28 raw files, 263 MB). No 2026 exists upstream until the season ends.
+
+    python -m jobs.ingest_mlb                          # status
+    python -m jobs.ingest_mlb --fetch 2026             # once a year, after the season; then bump
+                                                       #   mlb.sources.LAST_PUBLISHED
+    python -m jobs.ingest_mlb --parse 1999-2025        # replay the archive, 0 requests
+    python -m jobs.ingest_mlb --reconcile 1999-2025    # player lines sum to team lines
+    python -m jobs.export_mlb_web --findings           # M-1..M-7 for track A (local probe only)
+
+Season totals include `playoff` (Game 163 tiebreakers). ER and p_noout are not additive to the team.
+`jobs.export_coverage` now reads `mlb.db`, and classifies c-02's `feeds_preserved_nulls`, which had
+made it refuse on the real stores since c-02.
+
 ## 11. Decisions taken, with the why
 
 **Ethan's decisions (do not re-open):** CFB ships statistics, usage and per-game results — no

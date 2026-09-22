@@ -65,7 +65,10 @@ SPORTS = ("nfl", "cfb", "nba", "mlb", "nhl")
 # The three classes a holding can be. See SportCoverage in the proposal.
 CLASSES = ("stats", "odds", "context")
 
-STORES = ("market_log.db", "cfb.db", "feeds.db")
+# A store not named here is not read at all, so its tables are outside the "every table
+# is classified" guard - that guard walks these files and nothing else. mlb.db was added in
+# the same commit that created it (c-03); a later store must be added the same way.
+STORES = ("market_log.db", "cfb.db", "feeds.db", "mlb.db")
 
 
 def store_path(name):
@@ -90,7 +93,7 @@ def season_of(col):
 # is a book or venue where the table records one per row, else NULL. `prune_key` is the
 # quotes `source` value retention is keyed on, else NULL (nothing else is pruned by age).
 
-CUR = "valid_to_ts IS NULL"      # the current version of a versioned row (cfb.db, feeds.db)
+CUR = "valid_to_ts IS NULL"      # the current version of a versioned row (cfb, feeds, mlb)
 
 
 def _versioned(table, source, units_expr, season="season", span=None, provider=None,
@@ -209,6 +212,28 @@ REGISTRY = [
                         "venue || '|' || market_id", season="event_time", span="kickoff_ts",
                         provider="venue")),
 
+    # ---- MLB facts (mlb.db, c-03). Retrosheet, versioned per row; current rows only,
+    # best-estimate lines only (`stattype = 'value'`).
+    dict(store="mlb.db", table="mlb_games", cls="stats", grain="game", basis="column",
+         sql=_versioned("mlb_games", "'retrosheet'", "game_id")),
+    dict(store="mlb.db", table="mlb_team_games", cls="stats", grain="team-game line",
+         basis="column",
+         sql=_versioned("mlb_team_games", "'retrosheet'", "game_id || '|' || team",
+                        where="stattype = 'value'")),
+    dict(store="mlb.db", table="mlb_batting", cls="stats", grain="player-game batting line",
+         basis="column",
+         sql=_versioned("mlb_batting", "'retrosheet'",
+                        "game_id || '|' || player_id || '|' || team",
+                        where="stattype = 'value'")),
+    dict(store="mlb.db", table="mlb_pitching", cls="stats", grain="player-game pitching line",
+         basis="column",
+         sql=_versioned("mlb_pitching", "'retrosheet'",
+                        "game_id || '|' || player_id || '|' || team",
+                        where="stattype = 'value'")),
+    dict(store="mlb.db", table="mlb_player_teams", cls="stats",
+         grain="player-team-season appearance line", basis="column",
+         sql=_versioned("mlb_player_teams", "'retrosheet'", "player_id || '|' || team")),
+
     # ---- context (feeds.db)
     dict(store="feeds.db", table="injury_reports", cls="context",
          grain="player-week injury report entry", basis="column",
@@ -276,8 +301,16 @@ IGNORED = {
         "feeds_limitations": "prose about the data, not data",
         "feeds_measurements": "derived measurements",
         "feeds_parse_log": "control",
+        "feeds_preserved_nulls": "control: values held through upstream silence (c-02)",
         "feeds_raw_files": "control: raw archive manifest",
         "feeds_runs": "control",
+    },
+    "mlb.db": {
+        "mlb_http_log": "control",
+        "mlb_limitations": "prose about the data, not data",
+        "mlb_measurements": "derived measurements",
+        "mlb_parse_log": "control",
+        "mlb_raw_files": "control: raw archive manifest",
     },
 }
 

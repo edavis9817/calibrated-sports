@@ -32,8 +32,18 @@ def utc(ts):
 
 
 def content_hash(body: bytes, kind: str) -> str:
-    """JSON is hashed canonically so key order cannot invent a version; anything else is
-    hashed as bytes."""
+    """JSON is hashed canonically so key order cannot invent a version; a zip is hashed
+    over its members' names and bytes, so a re-zip that changes only timestamps or
+    compression cannot invent one either; anything else is hashed as bytes."""
+    if kind == "zip":
+        import io
+        import zipfile
+        h = hashlib.sha256()
+        with zipfile.ZipFile(io.BytesIO(body)) as z:
+            for name in sorted(z.namelist()):
+                h.update(name.encode() + b"/")
+                h.update(hashlib.sha256(z.read(name)).digest())
+        return h.hexdigest()
     if kind == "json":
         try:
             return hashlib.sha256(json.dumps(json.loads(body), sort_keys=True,
@@ -43,13 +53,25 @@ def content_hash(body: bytes, kind: str) -> str:
     return hashlib.sha256(body).hexdigest()
 
 
-def archive(conn, feed, scope, url, body: bytes, fetched_ts=None, kind="bytes", suffix=".gz"):
-    """Returns (file_id, outcome). `unchanged_content` keeps the earlier file."""
+# Manifests `archive` may write. The table name is interpolated into SQL, so it is
+# checked against this list rather than trusted.
+MANIFESTS = ("feeds_raw_files", "mlb_raw_files")
+
+
+def archive(conn, feed, scope, url, body: bytes, fetched_ts=None, kind="bytes", suffix=".gz",
+            *, raw_root=None, manifest="feeds_raw_files"):
+    """Returns (file_id, outcome). `unchanged_content` keeps the earlier file.
+
+    `raw_root` and `manifest` let another store (MLB) reuse this rather than copy it;
+    the defaults are the feeds store, unchanged."""
+    if manifest not in MANIFESTS:
+        raise ValueError(f"not a raw manifest: {manifest!r}")
+    raw_root = raw_root or paths.raw_root()
     fetched_ts = fetched_ts or time.time()
     bsha = hashlib.sha256(body).hexdigest()
     csha = content_hash(body, kind)
     newest = conn.execute(
-        "SELECT file_id, content_sha256 FROM feeds_raw_files WHERE feed=? AND scope IS ? "
+        f"SELECT file_id, content_sha256 FROM {manifest} WHERE feed=? AND scope IS ? "
         "ORDER BY fetched_ts DESC LIMIT 1", (feed, scope)).fetchone()
     if newest and newest[1] == csha:
         return newest[0], "unchanged_content"
@@ -59,17 +81,17 @@ def archive(conn, feed, scope, url, body: bytes, fetched_ts=None, kind="bytes", 
     safe = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in str(scope or "all"))
     stem = "/".join([feed, safe, f"{utc(fetched_ts)}-{csha[:12]}"])
     rel, n = stem + suffix, 1
-    while (os.path.exists(os.path.join(paths.raw_root(), *rel.split("/")))
-           or conn.execute("SELECT 1 FROM feeds_raw_files WHERE rel_path=?", (rel,)).fetchone()):
+    while (os.path.exists(os.path.join(raw_root, *rel.split("/")))
+           or conn.execute(f"SELECT 1 FROM {manifest} WHERE rel_path=?", (rel,)).fetchone()):
         n += 1
         rel = f"{stem}-{n}{suffix}"
-    dest = os.path.join(paths.raw_root(), *rel.split("/"))
+    dest = os.path.join(raw_root, *rel.split("/"))
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     with open(dest + ".part", "wb") as f:
         f.write(gzip.compress(body))
     os.replace(dest + ".part", dest)
     cur = conn.execute(
-        "INSERT INTO feeds_raw_files (rel_path, feed, scope, url, bytes, bytes_sha256, "
+        f"INSERT INTO {manifest} (rel_path, feed, scope, url, bytes, bytes_sha256, "
         "content_sha256, fetched_ts) VALUES (?,?,?,?,?,?,?,?)",
         (rel, feed, str(scope) if scope is not None else None, url, len(body), bsha, csha,
          fetched_ts))
@@ -77,10 +99,13 @@ def archive(conn, feed, scope, url, body: bytes, fetched_ts=None, kind="bytes", 
     return cur.lastrowid, "new"
 
 
-def read_archived(conn, file_id) -> bytes:
-    rel = conn.execute("SELECT rel_path FROM feeds_raw_files WHERE file_id=?",
+def read_archived(conn, file_id, *, raw_root=None, manifest="feeds_raw_files") -> bytes:
+    if manifest not in MANIFESTS:
+        raise ValueError(f"not a raw manifest: {manifest!r}")
+    raw_root = raw_root or paths.raw_root()
+    rel = conn.execute(f"SELECT rel_path FROM {manifest} WHERE file_id=?",
                        (file_id,)).fetchone()[0]
-    with gzip.open(os.path.join(paths.raw_root(), *rel.split("/")), "rb") as f:
+    with gzip.open(os.path.join(raw_root, *rel.split("/")), "rb") as f:
         return f.read()
 
 

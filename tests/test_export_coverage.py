@@ -62,6 +62,15 @@ DDL = {
                               f"kickoff_ts REAL, {V}",
         "news_items": f"sport TEXT, feed TEXT, guid TEXT, published_ts REAL, {V}",
     },
+    "mlb.db": {
+        "mlb_games": f"sport TEXT, game_id TEXT, season INT, {V}",
+        "mlb_team_games": f"sport TEXT, game_id TEXT, team TEXT, stattype TEXT, season INT, {V}",
+        "mlb_batting": f"sport TEXT, game_id TEXT, player_id TEXT, team TEXT, stattype TEXT, "
+                       f"season INT, {V}",
+        "mlb_pitching": f"sport TEXT, game_id TEXT, player_id TEXT, team TEXT, stattype TEXT, "
+                        f"season INT, {V}",
+        "mlb_player_teams": f"sport TEXT, player_id TEXT, team TEXT, season INT, {V}",
+    },
 }
 
 SEP_2026 = 1789000000.0     # 2026-09-10
@@ -122,6 +131,20 @@ def test_a_null_can_become_a_value_from_the_same_pipeline(stores):
     assert got["stats"]["seasons"] == [2026]
     assert got["stats"]["sources"][0]["units"] == 1
     assert got["odds"] is None and got["context"] is None
+
+
+def test_mlb_is_read_from_its_own_store(stores):
+    """c-03: mlb.db is in STORES, so an MLB batting line makes MLB stats non-null - and a
+    closed version and a non-`value` line are not counted as units."""
+    assert sport(run(), "mlb")["stats"] is None
+    for pid, st, vt in (("ohtas001", "value", None), ("ohtas001", "value", SEP_2026),
+                        ("jansd001", "upper", None)):
+        put(stores, "mlb.db", "mlb_batting", sport="mlb", game_id="LAN202509200",
+            player_id=pid, team="LAN", stattype=st, season=2025, valid_from_ts=JAN_2026,
+            valid_to_ts=vt)
+    got = sport(run(), "mlb")["stats"]
+    assert got["seasons"] == [2025]
+    assert [(s["units"], s["rows"]) for s in got["sources"]] == [(1, 1)]
 
 
 def test_units_count_distinct_facts_not_versions(stores):
