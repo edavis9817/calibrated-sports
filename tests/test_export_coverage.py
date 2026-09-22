@@ -335,3 +335,128 @@ def test_season_rule():
     con = sqlite3.connect(":memory:")
     for ts, want in ((JAN_2026, 2025), (SEP_2026, 2026), (1772409600.0, 2026)):  # 2026-03-02
         assert con.execute(f"SELECT {X.season_of('?')}".replace("?", str(ts))).fetchone()[0] == want
+
+
+# ---- sport status: held is a decision, not_attempted is the absence of one (c-09)
+
+import copy                                                                  # noqa: E402
+
+PATCH_PATH = os.path.join(REPO, "docs", "proposals", "coverage-status.patch.json")
+CARRIED = dict(state="carried", since=None, reason=None, revisit=None)
+HELD = dict(state="held", since="2026-09-22", reason="a decision", revisit=None)
+NOT_ATTEMPTED = dict(state="not_attempted", since=None, reason=None, revisit=None)
+
+
+def _patched_contract():
+    """The contract as it would read once track A applies the coverage kind AND the filed
+    status patch - built from the two files that are filed, so the diff tested is the diff
+    filed. Works whether or not the contract has adopted the kind yet."""
+    c = copy.deepcopy(CONTRACT)
+    if not X.contract_has_kind(c):
+        prop = X.load_proposal()
+        c["$defs"].update(copy.deepcopy(prop["$defs"]))
+        c["x-contract"]["kinds"].update(prop["x-contract-additions"]["kinds"])
+    patch = json.load(open(PATCH_PATH, encoding="utf-8"))
+    sc = c["$defs"]["SportCoverage"]
+    sc["properties"].update(patch["SportCoverage"]["properties"])
+    sc["required"] = sc["required"] + patch["SportCoverage"]["required_append"]
+    assert not set(patch["$defs"]) & set(c["$defs"])
+    c["$defs"].update(patch["$defs"])
+    return c
+
+
+def _status(**over):
+    st = {s: dict(CARRIED) for s in X.SPORTS}
+    st.update(over)
+    return st
+
+
+def test_status_is_not_emitted_while_the_schema_cannot_carry_it(stores):
+    """Every object is closed, so emitting `status` before the contract has it would fail
+    validation. The declarations are still checked on every run."""
+    if X.schema_admits_status():
+        pytest.skip("the schema carries status - see the adoption test below")
+    obj = run()
+    assert all("status" not in s for s in obj["sports"])
+    X.validate(obj)
+    with pytest.raises(X.CoverageError):                     # and it is checked regardless
+        run(status=_status(nba=dict(HELD, reason=None)))
+
+
+def test_patch_file_and_schema_never_both_carry_status():
+    if X.schema_admits_status():
+        assert not os.path.exists(PATCH_PATH), \
+            "adopted: delete docs/proposals/coverage-status.patch.json"
+    else:
+        assert os.path.exists(PATCH_PATH), "status is neither in the schema nor filed"
+
+
+def test_the_declared_status_validates_against_the_patched_schema(stores):
+    obj = run(emit_status=True)
+    assert [s["status"]["state"] for s in obj["sports"]] == \
+        [X.SPORT_STATUS[s]["state"] for s in X.SPORTS]
+    assert X.validate(obj, _patched_contract()) == "coverage.json valid against the contract"
+
+
+@pytest.mark.parametrize("state", X.STATES)
+def test_every_state_is_reachable_and_valid(stores, state):
+    """Falsifiable: the same pipeline can say each of the three things."""
+    st = {"carried": CARRIED, "held": HELD, "not_attempted": NOT_ATTEMPTED}[state]
+    obj = run(status=_status(nba=st), emit_status=True)
+    assert sport(obj, "nba")["status"]["state"] == state
+    X.validate(obj, _patched_contract())
+
+
+@pytest.mark.parametrize("breaks", [
+    lambda s: s.update(state="coming"),                    # the word this unit removes
+    lambda s: s.update(state="held", since=None),          # a decision with no date
+    lambda s: s.update(state="held", reason=None),         # a decision with no reason
+    lambda s: s.update(state="not_attempted", reason="x"), # no decision, but a reason
+    lambda s: s.update(since="22 September"),              # not a date
+    lambda s: s.update(eta="October"),                     # closed: no room for a promise
+])
+def test_the_patched_schema_refuses_a_bad_status(stores, breaks):
+    obj = run(emit_status=True)
+    breaks(sport(obj, "nhl")["status"])
+    with pytest.raises(X.CoverageError):
+        X.validate(obj, _patched_contract())
+
+
+@pytest.mark.parametrize("bad", [
+    lambda s: s.pop("nhl"),                                            # undeclared sport
+    lambda s: s.update(golf=dict(HELD)),                               # not a site sport
+    lambda s: s.update(nba=dict(HELD, since=None)),
+    lambda s: s.update(nba=dict(NOT_ATTEMPTED, since="2026-09-22")),
+    lambda s: s.update(nba=dict(CARRIED, state="coming")),
+    lambda s: s.update(nba={"state": "carried"}),
+])
+def test_the_producer_refuses_a_bad_declaration(stores, bad):
+    st = _status()
+    bad(st)
+    with pytest.raises(X.CoverageError):
+        run(status=st)
+
+
+def test_not_attempted_with_holdings_refuses_and_held_with_holdings_does_not(stores):
+    """The one contradiction the stores can expose. A hold stops work; it deletes nothing."""
+    put(stores, "mlb.db", "mlb_games", sport="mlb", game_id="g", season=2025,
+        valid_from_ts=SEP_2026)
+    with pytest.raises(X.CoverageError, match="not_attempted"):
+        run(status=_status(mlb=NOT_ATTEMPTED))
+    assert sport(run(status=_status(mlb=HELD), emit_status=True), "mlb")["status"]["state"] == "held"
+
+
+def test_the_scope_decision_of_2026_09_22():
+    """_relay/LEDGER.md, 22 September: NFL, CFB and MLB are worked; NBA and NHL are held.
+    Changing this is changing a decision - do it here, deliberately, not in a page."""
+    assert {s: X.SPORT_STATUS[s]["state"] for s in X.SPORTS} == \
+        {"nfl": "carried", "cfb": "carried", "nba": "held", "mlb": "carried", "nhl": "held"}
+    X.check_status(X.SPORT_STATUS, X.SPORTS)
+
+
+def test_status_prose_states_no_figure():
+    """A hand-typed figure in a declaration is the defect b-03 found in 5 of 11 shell
+    counts. The status says what was decided; it quotes no number and no season date."""
+    for st in X.SPORT_STATUS.values():
+        for field in ("reason", "revisit"):
+            assert not re.search(r"\d", st[field] or ""), (field, st[field])
