@@ -1,6 +1,6 @@
-# F07 — drafting strengths: no team separates from shuffled labels
+# F07 — drafting strengths: on roster4 and bust, no team separates from shuffled labels
 
-Unit f-01, 2026-09-22. Reproduce with `python -m analytics.drafting` (from a 3.12
+Unit f-01, 2026-09-22; corrected by f-06 the same day (below). Reproduce with `python -m analytics.drafting` (from a 3.12
 environment; ~17 s). Tests: `tests/test_drafting.py`. **Nothing exported, nothing
 published.** The export shape is f-02.
 
@@ -11,37 +11,78 @@ model; no forecast of any single pick.**
 
 ---
 
+## Correction (f-06, 2026-09-22) — read this before the answer
+
+Track A re-derived this null independently (a-06, `docs/A09-verify-f07.md` on
+`a-06-verify-f01-drafting`) and it **holds** on roster4 and bust: separation and
+walk-forward agree in sign and significance under a different method, and the
+roster4 walk-forward matches at −0.057 against −0.056. Two things did not survive,
+and both are corrected below rather than footnoted:
+
+1. **The first summary said "the as-of walk-forward is null." That was true of
+   roster4 and bust and FALSE of snaps4**, whose interval excludes zero in both
+   methods: +0.139 [+0.016, +0.247] on 4 targets here, +0.155 [+0.011, +0.266] on 6
+   classes in A's. On four to six blocks that is **not readable** — below the
+   five-block floor — which is neither a null nor an edge. The table's own snaps4 cell
+   said "not read"; the sentence above it claimed more than the table did. The same
+   applies to the 2002-2010 era cut, whose walk-forward excludes zero *below* on 3
+   targets. Verdicts are now per outcome and computed (`drafting.forecast_verdict`,
+   printed in a SCOPE block by `python -m analytics.drafting`), and there is no
+   verdict over all outcomes anywhere in the code.
+2. **The id join scored 59 rostered picks as busts, not the 9 the docstring said.**
+   See defect 3. Fixed by recovering `gsis_id` from the roster feed's own draft slot;
+   **the null survives and is stronger on bust** (p 0.16 → 0.30). All figures below
+   are the corrected run.
+
 ## The answer
 
-**On every outcome that measures drafting rather than team quality, the 32 teams
-cannot be told apart from teams given random picks of the same slots, and a team's
-past draft record does not forecast its next class.**
+**Per outcome — there is no single verdict over all four:**
 
-| outcome | classes | picks | separation p | signal share | walk-forward r [95%] | teams excluding a typical team | chance count, measured |
-|---|---|---|---|---|---|---|---|
-| **roster4** (primary) | 2002-2022 | 5,371 | **0.68** | 0.00 | **−0.056 [−0.116, +0.021]**, 15 targets | 1 | 2.3 (p95 5) |
-| **bust** | 2002-2022 | 5,371 | **0.16** | 0.20 | **+0.002 [−0.083, +0.088]**, 15 targets | 2 | 2.6 (p95 5) |
-| **snaps4** | 2013-2022 | 2,558 | **0.14** | 0.22 | +0.139 [+0.016, +0.247], **4 targets: not read** | 4 | 3.1 (p95 6) |
-| **w_av** | 2002-2021 | 5,109 | 0.003 | 0.47 | none possible (not as-of) | 3 | 2.5 (p95 5) |
+- **roster4 and bust** (the two outcomes that measure drafting and can be forecast
+  on enough classes): the 32 teams cannot be told apart from teams given random
+  picks of the same slots, **and** a team's closed draft record does not forecast
+  its next class — `no_better_than_chance`, 15 targets each.
+- **snaps4**: does not separate (p 0.14). Its walk-forward is **not readable**: the
+  interval excludes zero, positive, on 4 targets. This says nothing either way about
+  whether playing-time value over the slot persists by franchise, and it must not be
+  quoted as a null.
+- **w_av**: separates (p 0.003), but it cannot be read as drafting (below), and it
+  has no as-of forecast at all.
+
+| outcome | classes | picks | separation p | signal share | walk-forward r [95%] | forecast verdict | teams excluding a typical team | chance count, measured |
+|---|---|---|---|---|---|---|---|---|
+| **roster4** (primary) | 2002-2022 | 5,371 | **0.72** | 0.00 | **−0.057 [−0.114, +0.016]**, 15 targets | no_better_than_chance | 1 | 2.4 (p95 5) |
+| **bust** | 2002-2022 | 5,371 | **0.30** | 0.11 | **−0.007 [−0.106, +0.083]**, 15 targets | no_better_than_chance | 3 | 2.8 (p95 5) |
+| **snaps4** | 2013-2022 | 2,558 | **0.14** | 0.22 | +0.139 [+0.016, +0.247], **4 targets** | **not_readable** (excludes 0) | 4 | 3.1 (p95 6) |
+| **w_av** | 2002-2021 | 5,109 | 0.003 | 0.47 | none possible (not as-of) | none | 3 | 2.5 (p95 5) |
+
+As first published (before the id fix): roster4 p 0.68, walk-forward −0.056
+[−0.116, +0.021]; bust p 0.16, signal share 0.20, walk-forward +0.002 [−0.083,
++0.088], 2 teams excluding. snaps4 and w_av do not read the gsis join and did not move.
 
 - **Separation p** is the share of 2,000 label permutations (team labels shuffled
   among each class's picks) whose between-team spread is at least the observed
   one. **Signal share** is `1 − E[var_null]/var_obs`: the fraction of the spread
-  you see that is not noise. On roster4 it is zero: the observed spread (SD 0.0205)
-  is *smaller* than the mean shuffled spread (0.0218).
+  you see that is not noise. On roster4 it is zero: the observed spread (SD 0.0199)
+  is *smaller* than the mean shuffled spread (0.0216).
 - **Walk-forward** predicts a team's class-t residual from its record over classes
   ≤ t−4, the classes whose four-year horizon had closed by draft day t. On roster4
-  the point estimate is slightly *negative*, and neither interval excludes zero.
+  and bust neither interval excludes zero, over 15 targets each (roster4's point
+  estimate is slightly *negative*). **snaps4's interval does exclude zero**, on 4
+  targets, below the five-block floor: `not_readable`, not null.
 - **Teams excluding a typical team** is the count whose own 95% class-block
   interval excludes 0, set against the same count **measured under shuffled labels**.
-  On every outcome the observed count is at or below chance.
+  On every outcome the observed count is inside the chance p95. It is below the chance
+  *mean* only on roster4 (1 against 2.4); bust (3 / 2.8), snaps4 (4 / 3.1) and w_av
+  (3 / 2.5) sit above the mean. The first version said "at or below chance" on every
+  outcome, which was already false of snaps4 and w_av against the mean (f-06).
 
 ### The one outcome that separates is the one that cannot tell drafting from winning
 
 Career Approximate Value separates teams clearly (p = 0.003, split-half r = 0.47,
 Spearman-Brown 0.64). It also correlates **r = 0.82 [0.65, 0.91]** with the team's
-regular-season win share, 2002-2025. The three clean outcomes run r = 0.15, 0.26 and
-0.17, and each of those intervals contains zero.
+regular-season win share, 2002-2025. The three clean outcomes run r = 0.18 (roster4),
+0.27 (bust) and 0.17 (snaps4), and each of those intervals contains zero.
 
 That correlation does not say which way the effect runs, which is the problem. AV is
 *allocated* from team points, so a pick on a good team collects more of it for the
@@ -53,17 +94,20 @@ as of the pull date, censored by class age, so no as-of version exists.
 **So the finding is not "draft value is too noisy to measure".** The pick-slot curve
 is strong, and a team that holds the top picks gets far more raw value (the test
 `test_draft_capital_is_not_credited_as_skill` pins this). The finding is
-**narrower: value *over the slot* does not persist by franchise.**
+**narrower: on roster4 and bust, value *over the slot* neither separates franchises
+nor persists by franchise.** On snaps4 persistence is unreadable (4 targets), not
+absent.
 
 ### Era and position
 
-- **Era**, roster4: 2002-2010 p = 0.13; 2011-2022 (rookie wage scale) p = 0.78 with
+- **Era**, roster4: 2002-2010 p = 0.14; 2011-2022 (rookie wage scale) p = 0.79 with
   signal share 0. Neither era separates. Walk-forward within an era has 3 and 6
-  targets. The 3-target one is below the five-block reading floor, and the 6-target
-  one contains zero.
+  targets. The 6-target one contains zero (`no_better_than_chance`). **The 3-target
+  one excludes zero, below**: −0.076 [−0.138, −0.023]. It is under the five-block
+  floor, so it is `not_readable` — the same status as snaps4, in the other direction.
 - **Position**, roster4, with the slot curve refitted within each group: none of nine
-  groups separates (p from 0.12 to 0.92, and **zero survive BH at q = 0.10**). The
-  best groups are DB (p 0.12) and LB (p 0.14). **ST cannot be read at all**: the
+  groups separates (p from 0.10 to 0.91, and **zero survive BH at q = 0.10**). The
+  best groups are DB (p 0.10) and LB (p 0.14). **ST cannot be read at all**: the
   minimum is one pick per team over 21 years, which is why its per-team exclusion
   count (9) is noise. QB (min 5 per team) and TE (min 4) are close to the same
   state. "A team that drafts kickers well and tackles badly" is a comparison this
@@ -92,7 +136,8 @@ per pick, and 0 is "drafts exactly as the league does with the same picks". Draf
 capital is not credited as skill.
 
 **Survivorship is scored, not dropped.** A pick with no roster week in four years
-scores 0 and counts as a bust. That is 6.5% of picks, 2002-2022.
+scores 0 and counts as a bust. That is 5.4% of picks, 2002-2022 (6.5% before
+the f-06 id fix, which moved 59 rostered picks out of the bust count).
 
 ---
 
@@ -113,12 +158,25 @@ scores 0 and counts as a bust. That is 6.5% of picks, 2002-2022.
    against PFR codes and would have scored 0 own-team weeks for every team whose
    codes differ. A test caught it before any figure used it. `to_franchise` now
    refuses any code it cannot place.
-3. **219 picks carry no `gsis_id`**, and no crosswalk resolves them:
-   `players.parquet` maps none of their PFR ids, and the roster feed's own `pfr_id`
-   is 2-15% populated before 2010. 9 of them played (Jon Stinchcomb, 90 games) and
-   score 0 here. No name join was used to repair this. In total, 33 picks show PFR
-   games but no roster week in their first four seasons: the 9 above plus 24 not
-   individually checked. The likely causes are a debut after year four, or games
+3. **219 picks carry no `gsis_id` in `draft_picks`**, and neither
+   `players.parquet` nor the roster feed's own `pfr_id` (2-15% populated before 2010)
+   resolves them. **CORRECTED (f-06).** This first said "9 of them played ... a
+   misclassification of 9 in 5,371". That counted id-less picks with PFR *games*, but
+   roster4 is roster *presence*: a pick on injured reserve or inactive all season has
+   0 games and is still on a roster. The roster feed carries each player's own draft
+   slot (`entry_year`, `draft_number`, `draft_club`), and that is a key, not a name:
+   `drafting.recover_gsis` matches on the slot and accepts only when the club is the
+   pick's franchise, the folded last name is a word of the PFR name, the slot has one
+   candidate id and the id belongs to no other pick. Measured on the mirror:
+   **67 candidates, 66 accepted, 1 refused** (2007 #159, PHI's C.J. Gaddis, where the
+   feed puts Jared Gaither, a BAL supplemental pick, on the same number), 152 with no
+   candidate. **59 of the 66 had roster weeks in their first four seasons and had
+   been scored as busts**; the 9 with games are among them. Track A's independent
+   recovery found the same 66 (a-06). The null survives: roster4 p 0.68 → 0.72, bust
+   p 0.16 → 0.30, both walk-forwards still cover zero. 153 picks still have no id and
+   score 0; that count is `sample.unresolved_rows` in the export. 24 picks with an id
+   show PFR games but no roster week in four seasons (33 before the fix), not
+   individually checked; the likely causes are a debut after year four, or games
    before a mid-season waiver.
 4. **Practice squad appears in the feed only from 2006**, and the player-season
    population jumps from about 1,950 to about 3,100 in 2016-17. DEV is excluded for
@@ -138,7 +196,8 @@ unadjusted tests, so a band boundary can appear where no separation exists. The
 module marks `bands_readable` only where the separation test rejects. For these
 three outcomes, a band boundary would be exactly the claim this unit refutes.
 **Recommendation for f-02: render bands only where the separation test rejects**;
-otherwise render the single statement that no team separates.
+otherwise render the single statement that no team separates - scoped to the slice
+it is computed on, never to the predictor.
 
 ---
 
@@ -159,7 +218,11 @@ snaps.**
 ## What the real data cannot support
 
 - Any per-team drafting ranking or band on these outcomes.
-- Any claim that a front office "drafts well" *as a skill*: the walk-forward is null.
+- Any claim that a front office "drafts well" *as a skill* on roster4 or bust: their
+  walk-forwards are `no_better_than_chance` on 15 targets each.
+- **Any claim either way about persistence on snaps4**: its walk-forward excludes
+  zero on 4 targets and is `not_readable`. Not "null", not "an edge".
+- Any single sentence about "the walk-forward" that does not name its outcome.
 - Any per-position team comparison, and ST/QB/TE in particular.
 - Any AV-based claim labelled as drafting: AV is confounded with winning at r = 0.82.
 - A snaps-based forecast: 4 walk-forward targets, below the five-block floor.

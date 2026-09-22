@@ -96,6 +96,10 @@ ERA_SPLIT = 2011                # rookie wage scale
 DRAWS = 2000
 PERMS = 2000
 SEED = 20260922
+# Fewer scored blocks than this and an interval is not read, whatever it
+# excludes (the five-block floor, briefs 020 / 022). Four of them excluding
+# zero is a NOT-READABLE result, not a null and not an edge.
+MIN_READABLE = 5
 
 # Relocations. Franchise, not city: a Raiders pick in 2004 and 2024 is one
 # front-office lineage for this question.
@@ -108,7 +112,10 @@ FRANCHISE = {"OAK": "LVR", "RAI": "LVR", "SDG": "LAC", "STL": "LAR",
 GAMES_TEAM = {"GB": "GNB", "KC": "KAN", "NE": "NWE", "NO": "NOR", "SF": "SFO",
               "TB": "TAM", "LV": "LVR", "OAK": "LVR", "LA": "LAR", "STL": "LAR",
               "SL": "LAR", "SD": "LAC", "ARZ": "ARI", "BLT": "BAL", "CLV": "CLE",
-              "HST": "HOU"}
+              "HST": "HOU",
+              # only in roster_weekly's `draft_club`, which spells the club
+              # that made a pick in a fourth way
+              "AZ": "ARI", "PHX": "ARI", "JAC": "JAX"}
 FRANCHISES = ("ARI ATL BAL BUF CAR CHI CIN CLE DAL DEN DET GNB HOU IND JAX KAN "
               "LAC LAR LVR MIA MIN NOR NWE NYG NYJ PHI PIT SEA SFO TAM TEN WAS").split()
 
@@ -210,17 +217,124 @@ def snaps4(picks: pl.DataFrame, snaps: pl.DataFrame) -> pl.DataFrame:
             .drop("_pid"))
 
 
+def load_roster_draft_ids() -> pl.DataFrame:
+    """Every distinct (gsis_id, entry_year, draft_number, draft_club,
+    last_name) the roster feed states, over every roster season in the mirror.
+
+    The roster feed carries each player's own draft slot. That is the one
+    route from a `draft_picks` row with no gsis_id to a roster row which is
+    not a name join: the slot is the key and the name is only a check."""
+    frames = []
+    for _season, path, _day in paths.seasonal_files(ROSTER_PATTERN):
+        frames.append(pl.read_parquet(
+            path, columns=["gsis_id", "entry_year", "draft_number",
+                           "draft_club", "last_name"]).with_columns(
+            pl.col("gsis_id").cast(pl.Utf8),
+            pl.col("entry_year").cast(pl.Int64, strict=False),
+            pl.col("draft_number").cast(pl.Int64, strict=False),
+            pl.col("draft_club").cast(pl.Utf8),
+            pl.col("last_name").cast(pl.Utf8)))
+    if not frames:
+        raise FileNotFoundError("no roster_weekly seasons in the mirror")
+    return (pl.concat(frames)
+            .drop_nulls(["gsis_id", "entry_year", "draft_number"])
+            .unique(["gsis_id", "entry_year", "draft_number", "draft_club",
+                     "last_name"]))
+
+
+def _fold(col: str) -> pl.Expr:
+    """Lowercase letters and single spaces: "LeFors" == "Lefors", "St. Brown"
+    == "st brown". A CHECK on a slot match, never a key."""
+    return (pl.col(col).str.to_lowercase().str.replace_all(r"[^a-z ]", "")
+            .str.replace_all(r"\s+", " ").str.strip_chars())
+
+
+RECOVERY_OUTCOMES = ("recovered", "ambiguous", "club_mismatch",
+                     "name_mismatch", "already_a_pick")
+
+
+def recover_gsis(picks: pl.DataFrame, ids: pl.DataFrame):
+    """Fill a null `gsis_id` from the roster feed's own draft slot.
+
+    A candidate is a roster identity with entry_year == the pick's season and
+    draft_number == the pick's number. It is ACCEPTED only if all four hold:
+      - it is the only candidate id for that slot (else `ambiguous`);
+      - its draft_club is the pick's franchise (else `club_mismatch`) - which
+        is what catches 2007 #159, PHI's C.J. Gaddis, where the roster feed
+        stamps Jared Gaither, a BAL supplemental pick, on the same number;
+      - its last name, folded, is a whole word of the pick's PFR name (else
+        `name_mismatch`) - so "Marquis" / "Marquise" Walker passes on Walker;
+      - the id is not already some other pick's gsis_id (else
+        `already_a_pick`).
+    Returns (picks with `gsis_id` filled and `gsis_source` in {draft_picks,
+    roster_slot, none}, a count per outcome plus `no_gsis` and
+    `no_candidate`). Nothing is inferred from a name alone: a pick with no
+    slot candidate stays null and scores 0.
+    """
+    p = picks.with_row_index("_rid")
+    need = p.filter(pl.col("gsis_id").is_null()).select(
+        "_rid", "season", "pick", "team", "pfr_player_name")
+    used = set(p["gsis_id"].drop_nulls().to_list())
+    cand = (need.join(ids, left_on=["season", "pick"],
+                      right_on=["entry_year", "draft_number"], how="inner")
+            .with_columns(_fold("pfr_player_name").alias("_pn"),
+                          _fold("last_name").alias("_ln")))
+    k = cand.group_by("_rid").agg(pl.col("gsis_id").n_unique().alias("_k"))
+    cand = cand.join(k, on="_rid").with_columns(
+        (to_franchise("draft_club") == to_franchise("team")).fill_null(False)
+        .alias("_club"),
+        ((pl.col("_ln").str.len_chars() > 0)
+         & (pl.lit(" ") + pl.col("_pn") + pl.lit(" ")).str.contains(
+             pl.lit(" ") + pl.col("_ln") + pl.lit(" "), literal=True))
+        .fill_null(False).alias("_name"))
+    verdicts = {}
+    for row in cand.iter_rows(named=True):
+        if row["_k"] > 1:
+            why = "ambiguous"
+        elif not row["_club"]:
+            why = "club_mismatch"
+        elif not row["_name"]:
+            why = "name_mismatch"
+        elif row["gsis_id"] in used:
+            why = "already_a_pick"
+        else:
+            why = "recovered"
+        # One id per slot when k == 1; its rows can differ only in draft_club
+        # or last_name spelling, and any spelling that passes accepts it.
+        if why == "recovered" or row["_rid"] not in verdicts:
+            verdicts[row["_rid"]] = (why, row["gsis_id"])
+    got = {r: g for r, (why, g) in verdicts.items() if why == "recovered"}
+    if len(set(got.values())) != len(got):
+        raise ValueError("recover_gsis: one roster id accepted for two picks")
+    counts = {"no_gsis": need.height,
+              "no_candidate": need.height - len(verdicts)}
+    for why in RECOVERY_OUTCOMES:
+        counts[why] = sum(1 for w, _ in verdicts.values() if w == why)
+    fill = pl.DataFrame({"_rid": list(got), "_rec": list(got.values())},
+                        schema={"_rid": pl.UInt32, "_rec": pl.Utf8})
+    out = (p.join(fill, on="_rid", how="left").with_columns(
+        pl.when(pl.col("gsis_id").is_not_null()).then(pl.lit("draft_picks"))
+        .when(pl.col("_rec").is_not_null()).then(pl.lit("roster_slot"))
+        .otherwise(pl.lit("none")).alias("gsis_source"),
+        pl.coalesce(pl.col("gsis_id").cast(pl.Utf8), pl.col("_rec"))
+        .alias("gsis_id"))
+        .sort("_rid").drop("_rid", "_rec"))
+    return out, counts
+
+
 def roster4(picks: pl.DataFrame, rosters: pl.DataFrame) -> pl.DataFrame:
     """Add `roster_weeks`, `possible_weeks`, `roster4`, `bust`, `own_weeks`.
 
-    Joined on gsis_id, falling back to pfr_id. The fallback is kept and
-    MEASURED TO RESOLVE NOTHING today: 219 picks in 2002-2022 carry no
-    gsis_id, `players.parquet` maps none of their pfr ids to one, and the
-    roster feed's own `pfr_id` is only 2-15% populated before 2010. Nine of
-    the 219 played (Jon Stinchcomb, 90 games) and score 0 here - a known
-    misclassification of 9 in 5,371, never repaired by a name join, and
-    counted in `unmatched_played` on every run alongside the players whose
-    first four seasons genuinely held no roster week.
+    Joined on gsis_id, falling back to pfr_id. Picks that `draft_picks` leaves
+    without a gsis_id go through `recover_gsis` first; `measure` does that.
+    A pick whose key matches no roster row scores 0 - on no roster - which is
+    RIGHT for a pick who never made one and WRONG for one who did under an id
+    this join cannot see. F07 first stated that second population as "9 in
+    5,371", counting only the id-less picks with PFR games > 0. That was the
+    wrong count: roster4 is roster PRESENCE, so a pick who spent a season on
+    injured reserve with 0 games is on a roster too. `recover_gsis` finds a
+    roster identity for 67 of the 219 id-less picks and accepts 66; the rest
+    are counted there, never name-joined.
     """
     check_franchises(rosters, "team")
     check_franchises(picks, "team")
@@ -405,6 +519,25 @@ def separation(df, perms: int = PERMS, seed: int = SEED):
             "teams": len(teams), "classes": len(classes), "picks": df.height}
 
 
+def forecast_verdict(lo, hi, n, min_n=None):
+    """THE ONE RULE for reading a walk-forward interval, per outcome.
+
+    `not_readable` below the block floor, whatever the interval excludes;
+    otherwise `forecasts` / `forecasts_inversely` when it excludes 0 above /
+    below, and `no_better_than_chance` when it covers 0. There is no verdict
+    over several outcomes: a sentence about "the walk-forward" has to name
+    which one, because F07's summary called all of them null while snaps4's
+    interval excluded zero (on 4 targets - unreadable, not null)."""
+    min_n = MIN_READABLE if min_n is None else min_n
+    if n is None or n < min_n or lo is None:
+        return "not_readable"
+    if lo > 0:
+        return "forecasts"
+    if hi < 0:
+        return "forecasts_inversely"
+    return "no_better_than_chance"
+
+
 def walk_forward(df, lag: int = HORIZON, min_prior: int = 3,
                  draws: int = DRAWS, seed: int = SEED):
     """Does a team's CLOSED draft record predict its next class?
@@ -438,7 +571,8 @@ def walk_forward(df, lag: int = HORIZON, min_prior: int = 3,
                      "slope": float(np.polyfit(x, y, 1)[0]),
                      "teams": int(ok.sum()), "prior_classes": len(prior)})
     if not rows:
-        return {"targets": 0, "r": None, "lo": None, "hi": None, "rows": []}
+        return {"targets": 0, "r": None, "lo": None, "hi": None, "rows": [],
+                "readable": False, "verdict": "not_readable"}
     rs = np.array([r["r"] for r in rows])
     rng = np.random.default_rng(seed)
     boot = rs[rng.integers(0, len(rs), size=(draws, len(rs)))].mean(axis=1)
@@ -447,7 +581,10 @@ def walk_forward(df, lag: int = HORIZON, min_prior: int = 3,
     return {"targets": len(rows), "r": est, "lo": float(min(lo, est)),
             "hi": float(max(hi, est)),
             "slope": float(np.mean([r["slope"] for r in rows])),
-            "readable": len(rows) >= 5, "rows": rows}
+            "readable": len(rows) >= MIN_READABLE,
+            "verdict": forecast_verdict(float(min(lo, est)),
+                                        float(max(hi, est)), len(rows)),
+            "rows": rows}
 
 
 def split_half(df):
@@ -592,7 +729,7 @@ def outcome_frames(picks):
 
 
 def measure(perms: int = PERMS, draws: int = DRAWS):
-    picks = load_picks()
+    picks, ids = recover_gsis(load_picks(), load_roster_draft_ids())
     first, last = int(picks["season"].min()), int(picks["season"].max())
     rost = load_rosters(first, last + HORIZON - 1)
     picks = roster4(picks, rost)
@@ -602,7 +739,9 @@ def measure(perms: int = PERMS, draws: int = DRAWS):
         & (pl.col("games") > 0)).height
     res = {"window": [first, last], "pulled": picks["pulled"][0],
            "picks": picks.height, "unmatched_played": unmatched_played,
-           # No gsis_id at all: scored 0 on every outcome, never name-joined.
+           # draft_picks' null gsis_ids and what recover_gsis did with them.
+           # Still null after it: scored 0 on roster4, never name-joined.
+           "id_recovery": ids,
            "no_id_picks": picks.filter(pl.col("gsis_id").is_null()).height,
            "bust_rate": float(picks["bust"].mean()),
            "outcomes": {}, "eras": {}, "positions": {}}
@@ -660,6 +799,26 @@ def measure(perms: int = PERMS, draws: int = DRAWS):
     return res
 
 
+def scope_lines(r):
+    """One line per outcome and era: separation verdict and forecast verdict,
+    both computed. Generated so that a summary cannot state one verdict for
+    several outcomes - which is exactly the sentence F07 got wrong."""
+    out = []
+    rows = [(n, o) for n, o in r["outcomes"].items()]
+    rows += [("roster4 " + k, e) for k, e in r["eras"].items()]
+    for name, o in rows:
+        sep = o["separation"]["p"]
+        wf = o["walk_forward"]
+        if wf.get("r") is None:
+            fc = "no as-of forecast" if "note" in wf else "NOT_READABLE (0 targets)"
+        else:
+            fc = "%s, r %+.3f [%+.3f, %+.3f] on %d targets" % (
+                wf["verdict"].upper(), wf["r"], wf["lo"], wf["hi"], wf["targets"])
+        out.append("%-18s separation %s (p %.3f); walk-forward %s" % (
+            name, "SEPARATES" if sep < 0.05 else "does not separate", sep, fc))
+    return out
+
+
 def _fmt_sep(s):
     return ("between-team SD %.4f  null %.4f (p95 %.4f)  p=%.4f  signal share %.2f"
             % (s["between_sd"], s["null_sd_mean"], s["null_sd_p95"], s["p"],
@@ -679,6 +838,12 @@ def main(argv=None):
           % (*r["window"], r["picks"], r["pulled"]))
     print("        bust rate %.3f; played but unmatched to any roster row: %d"
           % (r["bust_rate"], r["unmatched_played"]))
+    ir = r["id_recovery"]
+    print("        no gsis_id in draft_picks: %d; recovered from the roster feed's"
+          " draft slot: %d; still none: %d (%s)"
+          % (ir["no_gsis"], ir["recovered"], r["no_id_picks"],
+             ", ".join("%s %d" % (k, ir[k]) for k in ("no_candidate",)
+                       + RECOVERY_OUTCOMES[1:])))
     for name, o in r["outcomes"].items():
         print(f"\n{name.upper()}  classes {o['classes'][0]}-{o['classes'][1]}")
         print("  separation   " + _fmt_sep(o["separation"]))
@@ -687,7 +852,9 @@ def main(argv=None):
         wf = o["walk_forward"]
         if "r" in wf and wf["r"] is not None:
             print("  walk-forward r=%.3f [%.3f, %.3f] over %d target classes, slope %.3f"
-                  % (wf["r"], wf["lo"], wf["hi"], wf["targets"], wf["slope"]))
+                  "  -> %s"
+                  % (wf["r"], wf["lo"], wf["hi"], wf["targets"], wf["slope"],
+                     wf["verdict"].upper()))
         else:
             print("  walk-forward " + wf.get("note", "not estimable"))
         ne, ev = o["null_exclusions"], o["environment"]
@@ -709,7 +876,8 @@ def main(argv=None):
     print("\nERA (roster4)")
     for label, e in r["eras"].items():
         wf = e["walk_forward"]
-        wfs = ("r=%.3f [%.3f, %.3f] n=%d" % (wf["r"], wf["lo"], wf["hi"], wf["targets"])
+        wfs = ("r=%.3f [%.3f, %.3f] n=%d -> %s" % (wf["r"], wf["lo"], wf["hi"],
+                                                   wf["targets"], wf["verdict"].upper())
                if wf["r"] is not None else "not estimable")
         print(f"  {label}  " + _fmt_sep(e["separation"]) + "  walk-forward " + wfs)
     print("\nPOSITION (roster4, slot curve fitted within group; BH q=0.10 over groups)")
@@ -717,6 +885,9 @@ def main(argv=None):
         print(f"  {g:3s} " + _fmt_sep(p["separation"])
               + "  excl %2d  min picks/team %d  BH %s"
               % (p["teams_excluding_null"], p["min_team_picks"], p["bh_q10"]))
+    print("\nSCOPE - one verdict per outcome, never one over all of them")
+    for line in scope_lines(r):
+        print("  " + line)
     if a.json:
         with open(a.json, "w", encoding="utf-8") as fh:
             json.dump(r, fh, indent=1)
