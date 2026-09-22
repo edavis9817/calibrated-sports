@@ -1846,6 +1846,13 @@ assertion discriminate (show it returning the *other* answer on the other input)
 - **Never run the full suite against the live store while the logger is running.** Clone HEAD to a
   temp directory, overlay the working-tree changes, and run there — the working tree has `.env` and a
   configured store, and it hides exactly the environment-dependent failures CI exists to catch.
+- **`mode=ro` means "cannot write the database", NOT "touches nothing"** (c-04 found it; a-07
+  measured it, `research/wal_readonly_probe.py`). On a WAL store a `mode=ro` open CREATES `-wal`/`-shm`
+  when absent and leaves them after close (a read-only connection cannot checkpoint), and an open read
+  transaction PINS the WAL so the logger's checkpoint cannot truncate it while you hold it. The main
+  file's bytes do not change and no write can succeed — that part holds. `immutable=1` touches no
+  file but ignores the WAL and reads a stale database. So: keep read-only sessions on the live store
+  short, and never cite the absence of `-wal`/`-shm` as evidence nothing opened it.
 
 ## Reporting
 

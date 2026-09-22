@@ -282,6 +282,20 @@ def code_fingerprint() -> str:
     return h.hexdigest()[:12]
 
 
+def logger_start_detail(fingerprint: str, pid: int) -> str:
+    """The `logger_start` health row's detail: build, pid, and the
+    nflverse_versions writer revision this process LOADED.
+
+    `jobs/migrate_nflverse_versions.py` reads it to refuse while the running
+    logger predates the fixed upsert (unit a-07). A fingerprint cannot answer
+    that - it names the code, not what the code does - and a restart time
+    cannot either, because the tree it restarted from may be on any branch.
+    A logger started before this tag existed writes no `nflv_writer` at all,
+    which the migration reads as "old", the only safe reading.
+    """
+    return f"build {fingerprint} pid {pid} nflv_writer {store.NFLV_WRITER_REV}"
+
+
 def deadman_status(rows, now=None, limit_min=None):
     """Given [(venue, last_ok_ts), ...], is the logger actually capturing?
 
@@ -563,7 +577,7 @@ async def main():
         # been wrong before. It also gives anything checking behaviour a clean
         # anchor: rows older than this watermark belong to the previous build.
         store.record_health("logger_start", True,
-                            f"build {fingerprint} pid {os.getpid()}",
+                            logger_start_detail(fingerprint, os.getpid()),
                             watermark=time.time())
         log(f"logging {[c.name for c in clients]} -> {config.DB_PATH}")
         log(f"disk {free_gb:.1f}GB free (floor {config.DISK_MIN_FREE_GB:g}GB) | "

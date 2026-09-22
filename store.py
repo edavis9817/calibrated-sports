@@ -1206,14 +1206,26 @@ def read_archived(rel_path: str) -> bytes:
 # treats NULLs in a PK as distinct from each other. So
 # ON CONFLICT(dataset, season, data_version) can never fire for those files:
 # every same-day re-pull INSERTed a second row instead of updating the first.
-# Measured 2026-09-22 (unit a-03), read-only against the live store: 140
-# NULL-season rows, 27 (dataset, data_version) keys duplicated, 67 rows whose
-# sha256 names bytes that are no longer on disk (archive_file overwrote the
-# day's file), and 12 rows that rebuild_from_archive duplicated outright.
-# Seasoned rows: 192, zero duplicates. So every read and write below matches
-# with `season IS ?` and acts on the NEWEST row for a key (highest rowid - on
-# all 27 duplicated keys that is the row whose sha matches the disk), never on
-# the primary key. `jobs/migrate_nflverse_versions.py` collapses the history.
+# A SNAPSHOT, stale by construction - the old writer adds duplicates at every
+# same-day all-season pull, so re-count with the migration's dry run rather
+# than quoting these. At rowid <= 332 (unit a-03, 2026-09-22): 140 NULL-season
+# rows, 27 (dataset, data_version) keys duplicated, 71 surplus; 13 of those
+# were written by rebuild_from_archive re-recording a sha already in its group
+# (12 games, 1 players, all 2026-09-09 - a-03 said 12 and missed the players
+# row; unit a-07 settled it: that row's archive file was last written five
+# hours before it, so no pull made it). Seasoned rows: zero duplicates. So
+# every read and write below matches with `season IS ?` and acts on the
+# NEWEST row for a key (highest rowid - on every duplicated key that is the
+# row whose sha matches the disk), never on the primary key.
+# `jobs/migrate_nflverse_versions.py` collapses the history.
+#
+# NFLV_WRITER_REV names this behaviour so the migration can ask whether a
+# given checkout HAS it, by reading this file rather than trusting whoever
+# runs it. 1 (absent) = the ON CONFLICT upsert, which raises on the
+# migration's unique index for a NULL season; 2 = update-newest-else-insert.
+# Bump it only for a change that alters what the index would reject.
+NFLV_WRITER_REV = 2
+
 _NEWEST_VERSION_ROW = ("SELECT rowid FROM nflverse_versions "
                        "WHERE dataset=? AND season IS ? AND data_version=? "
                        "ORDER BY rowid DESC LIMIT 1")

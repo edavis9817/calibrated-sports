@@ -181,6 +181,13 @@ def test_replace_rows_refuses_a_fourth_argument(env):
 
 # --- the migration ------------------------------------------------------------
 
+# A writer check that has already passed. Every apply below names it, so no
+# test reaches the real process/task probe - which on CI (no PowerShell) would
+# refuse, and on the dev box would read this machine's live scheduler.
+def READY(con):
+    return migrate_nflverse_versions.WriterCheck()
+
+
 def _dup_db(path):
     con = sqlite3.connect(path)
     con.execute("""CREATE TABLE nflverse_versions (
@@ -222,7 +229,7 @@ def test_migration_moves_surplus_keeps_newest_and_locks_the_key(tmp_path):
     cols = "dataset, season, data_version, sha256"
     original = sorted(_all(db, f"SELECT {cols} FROM nflverse_versions"), key=repr)
 
-    r = migrate_nflverse_versions.migrate(db, apply=True)
+    r = migrate_nflverse_versions.migrate(db, apply=True, writers=READY)
     assert (r["rows_before"], r["moved"], r["rows_after"]) == (5, 2, 3)
 
     kept = _all(db, f"SELECT {cols} FROM nflverse_versions ORDER BY rowid")
@@ -238,7 +245,7 @@ def test_migration_moves_surplus_keeps_newest_and_locks_the_key(tmp_path):
                                  None, "live", 0.0, 0.0))
     con.close()
 
-    again = migrate_nflverse_versions.migrate(db, apply=True)
+    again = migrate_nflverse_versions.migrate(db, apply=True, writers=READY)
     assert (again["moved"], again["index_present_before"]) == (0, True)
 
 
@@ -246,7 +253,7 @@ def test_the_new_writer_works_on_a_migrated_store(env):
     """After migration the unique index exists; record_version must update,
     never trip it."""
     store.record_version("games", None, "2026-09-09", "a", 1, "p")
-    migrate_nflverse_versions.migrate(config.DB_PATH, apply=True)
+    migrate_nflverse_versions.migrate(config.DB_PATH, apply=True, writers=READY)
     store.record_version("games", None, "2026-09-09", "b", 1, "p")
     store.record_version("games", None, "2026-09-10", "c", 1, "p")
     assert _rows("games", "2026-09-09") == [("b", None)]
@@ -256,3 +263,199 @@ def test_migration_refuses_a_path_that_does_not_exist(tmp_path):
     with pytest.raises(FileNotFoundError):
         migrate_nflverse_versions.migrate(str(tmp_path / "nope.db"), apply=True)
     assert not os.path.exists(tmp_path / "nope.db")
+
+
+# --- the precondition (unit a-07) ---------------------------------------------
+# c-04: once ux_nflv_key exists, the OLD upsert raises on a second same-day
+# NULL-season pull - after archive_file has overwritten the day's file. So
+# --apply must refuse while any writer can still run the old upsert.
+
+M = migrate_nflverse_versions
+
+
+def _checkout(root, rev):
+    """A fake repository checkout whose store.py declares `rev` (None = the
+    pre-a-03 file, which declares nothing)."""
+    (root / "jobs").mkdir(parents=True)
+    (root / "jobs" / "ingest_nflverse.py").write_text("")
+    body = "" if rev is None else f"NFLV_WRITER_REV = {rev}\n"
+    (root / "store.py").write_text("import os\n" + body)
+    (root / ".venv" / "Scripts").mkdir(parents=True)
+    return root
+
+
+def _health_db(path, detail):
+    con = sqlite3.connect(path)
+    con.execute("CREATE TABLE source_health (source TEXT PRIMARY KEY, ok INT, "
+                "detail TEXT, watermark REAL, last_ok_ts REAL, last_fail_ts REAL, "
+                "updated_ts REAL)")
+    if detail is not None:
+        con.execute("INSERT INTO source_health VALUES ('logger_start',1,?,0,0,0,0)",
+                    (detail,))
+    con.commit()
+    return con
+
+
+def _tasks(root):
+    return [
+        {"name": "Logger (logon)", "state": "Ready", "execute": "powershell.exe",
+         "args": f'-NoProfile -File "{os.path.join(root, "start_logger.ps1")}"',
+         "workdir": ""},
+        {"name": "Weekly Refresh", "state": "Ready",
+         "execute": os.path.join(root, ".venv", "Scripts", "python.exe"),
+         "args": "-m jobs.weekly_refresh", "workdir": str(root)},
+        {"name": "Unrelated", "state": "Ready", "execute": "notepad.exe",
+         "args": "", "workdir": ""},
+    ]
+
+
+# The venv launcher (pid 10) spawns the real interpreter (pid 11) with the
+# same command line; logger_start records the real one's pid.
+LOGGER = [{"pid": 10, "ppid": 1, "cmd": '"x\\python.exe" "run_logger.py"'},
+          {"pid": 11, "ppid": 10, "cmd": '"x\\python.exe" "run_logger.py"'}]
+
+
+def _good(tmp_path):
+    root = _checkout(tmp_path / "repo", 2)
+    con = _health_db(tmp_path / "h.db", "build abc pid 11 nflv_writer 2")
+    return root, con
+
+
+def test_writer_check_passes_when_everything_is_on_the_fix(tmp_path):
+    root, con = _good(tmp_path)
+    chk = M.check_writers(con, LOGGER + [{"pid": 50, "ppid": 1, "cmd": "jupyter"}],
+                          _tasks(root))
+    assert chk.clean, chk.statement
+    assert "logger pid 11: loaded rev 2" in chk.statement
+    assert "1 other python process" in chk.statement     # reported, not refused
+
+
+@pytest.mark.parametrize("case, expect", [
+    ("old_checkout", "writer rev 1"),
+    ("untagged_logger", "untagged (pre-a-07)"),
+    ("old_tagged_logger", "loaded writer rev 1"),
+    ("pid_mismatch", "logger_start names pid 99"),
+    ("no_health_row", "no logger_start row"),
+    ("two_loggers", "2 loggers are running"),
+    ("job_running", "a writer job is running now"),
+    ("no_processes", "could not read the process list"),
+    ("no_tasks", "could not read the scheduled tasks"),
+    ("no_writer_tasks", "no scheduled task runs a writer"),
+    ("no_checkout", "cannot find the checkout"),
+])
+def test_writer_check_refuses_each_way_a_writer_can_be_old(tmp_path, case, expect):
+    """Each refusal is reached from the passing baseline by changing ONE thing,
+    so the test above and these together show the check discriminates."""
+    root, con = _good(tmp_path)
+    procs, tasks = list(LOGGER), _tasks(root)
+    if case == "old_checkout":
+        tasks = _tasks(_checkout(tmp_path / "old", None))
+    elif case == "untagged_logger":
+        con = _health_db(tmp_path / "u.db", "build abc pid 11")
+    elif case == "old_tagged_logger":
+        con = _health_db(tmp_path / "o.db", "build abc pid 11 nflv_writer 1")
+    elif case == "pid_mismatch":
+        con = _health_db(tmp_path / "p.db", "build abc pid 99 nflv_writer 2")
+    elif case == "no_health_row":
+        con = _health_db(tmp_path / "n.db", None)
+    elif case == "two_loggers":
+        procs.append({"pid": 20, "ppid": 1, "cmd": "python run_logger.py"})
+    elif case == "job_running":
+        procs.append({"pid": 30, "ppid": 1, "cmd": "python -m jobs.weekly_refresh"})
+    elif case == "no_processes":
+        procs = None
+    elif case == "no_tasks":
+        tasks = None
+    elif case == "no_writer_tasks":
+        tasks = [t for t in tasks if t["name"] == "Unrelated"]
+    elif case == "no_checkout":
+        tasks = [dict(t, workdir="", execute="python.exe",
+                      args=f'-File "{os.path.join(tmp_path, "nowhere", "start_logger.ps1")}"')
+                 for t in tasks[:1]]
+    chk = M.check_writers(con, procs, tasks)
+    assert not chk.clean
+    assert expect in chk.statement, chk.statement
+
+
+def test_no_logger_running_is_not_a_refusal_the_checkout_is(tmp_path):
+    root, con = _good(tmp_path)
+    assert M.check_writers(con, [], _tasks(root)).clean
+    old = _tasks(_checkout(tmp_path / "old", None))
+    assert not M.check_writers(con, [], old).clean
+
+
+def test_writer_check_refuses_truth_testing(tmp_path):
+    root, con = _good(tmp_path)
+    chk = M.check_writers(con, LOGGER, _tasks(root))
+    with pytest.raises(TypeError):
+        bool(chk)
+    with pytest.raises(TypeError):
+        assert chk
+
+
+def test_rev_is_read_from_the_file_and_absence_means_old(tmp_path):
+    assert M.rev_in_checkout(_checkout(tmp_path / "a", 2)) == 2
+    assert M.rev_in_checkout(_checkout(tmp_path / "b", None)) == 1
+    assert M.rev_in_checkout(tmp_path / "empty") is None
+    # This checkout: the real store declares the revision the check requires.
+    assert M.rev_in_checkout(str(REPO)) == store.NFLV_WRITER_REV >= M.REQUIRED_REV
+
+
+def test_checkout_is_found_from_each_task_shape(tmp_path):
+    root = _checkout(tmp_path / "repo", 2)
+    for t in _tasks(root)[:2]:
+        assert M.checkout_of(t) == os.path.normpath(root)
+    assert M.checkout_of(_tasks(root)[2]) is None
+
+
+def test_the_logger_tag_round_trips(tmp_path):
+    import run_logger
+    detail = run_logger.logger_start_detail("abc123", 4242)
+    con = _health_db(tmp_path / "h.db", detail)
+    assert M.logger_start(con) == (4242, store.NFLV_WRITER_REV, detail)
+
+
+def test_apply_refuses_and_writes_nothing_when_writers_are_not_ready(tmp_path):
+    db = str(tmp_path / "m.db")
+    _dup_db(db)
+    before = open(db, "rb").read()
+    bad = M.WriterCheck(problems=["a writer is old"])
+    with pytest.raises(M.WritersNotReady, match="a writer is old"):
+        M.migrate(db, apply=True, writers=lambda con: bad)
+    assert open(db, "rb").read() == before
+
+
+def test_apply_with_no_check_given_probes_and_a_failed_probe_refuses(tmp_path, monkeypatch):
+    """The default is the real probe, and a probe that cannot read the machine
+    must refuse - never read as "nothing is running"."""
+    db = str(tmp_path / "m.db")
+    _dup_db(db)
+    before = open(db, "rb").read()
+    monkeypatch.setattr(M, "probe_system", lambda: (None, None))
+    with pytest.raises(M.WritersNotReady, match="could not read the process list"):
+        M.migrate(db, apply=True)
+    assert open(db, "rb").read() == before
+
+
+def test_the_probe_parses_powershells_flattened_single_item_arrays():
+    class R:
+        returncode = 0
+        stdout = ('{"processes": {"pid": 5, "ppid": 1, "cmd": "run_logger.py"},'
+                  ' "tasks": null}')
+    procs, tasks = M.probe_system(run=lambda *a, **k: R)
+    assert procs == [{"pid": 5, "ppid": 1, "cmd": "run_logger.py"}] and tasks == []
+
+    class Fail:
+        returncode = 1
+        stdout = ""
+    assert M.probe_system(run=lambda *a, **k: Fail) == (None, None)
+
+
+def test_the_dry_run_counts_what_the_runbook_must_not_quote(tmp_path):
+    db = str(tmp_path / "m.db")
+    _dup_db(db)
+    r = M.migrate(db)
+    assert (r["null_season_rows"], r["null_season_keys"], r["null_season_dup_keys"],
+            r["null_season_surplus"], r["seasoned_rows"], r["seasoned_surplus"]) \
+        == (4, 2, 1, 2, 1, 0)
+    assert "writers" not in r            # a dry run given no check probes nothing
