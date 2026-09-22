@@ -110,18 +110,18 @@ def env(tmp_path, monkeypatch):
         ("gsis_id", "display_name", "position", "last_season", "status",
          "ingested_ts"),
         [("00-0035236", "Byron Murphy", "CB", 2026, "ACT", now),
-         ("00-0039309", "Byron Murphy II", "DT", 2026, "ACT", now)], None)
+         ("00-0039309", "Byron Murphy II", "DT", 2026, "ACT", now)])
     store.replace_rows(
         "player_alias", ("alias", "gsis_id", "source", "last_season"),
         [("byron murphy", "00-0035236", "display", 2026),
          ("byron murphy ii", "00-0039309", "display", 2026),
-         ("byron murphy", "00-0039309", "short", 2026)], None)
+         ("byron murphy", "00-0039309", "short", 2026)])
     store.replace_rows(
         "nfl_player_week",
         ("sport", "gsis_id", "season", "week", "season_type", "data_version",
          "team", "source", "ingested_ts"),
         [("nfl", "00-0035236", 2024, 8, "REG", "v1", "MIN", "t", now),
-         ("nfl", "00-0039309", 2024, 8, "REG", "v1", "SEA", "t", now)], None)
+         ("nfl", "00-0039309", 2024, 8, "REG", "v1", "SEA", "t", now)])
     yield tmp_path
 
 

@@ -168,7 +168,7 @@ def build():
     cols = ("venue", "market_id", "period", "outcome_id", "n_quotes", "volume",
             "open_interest", "tw_spread", "min_spread", "bucket", "first_ts",
             "last_ts", "built_ts")
-    store.replace_rows("market_liquidity", cols, out, None)
+    store.replace_rows("market_liquidity", cols, out)
     store.record_health("liquidity_map", True,
                         f"{len(out)} market-weeks classified", watermark=now)
     return {"market_weeks": len(out), "quotes_scanned": len(rows)}

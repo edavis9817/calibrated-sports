@@ -650,7 +650,7 @@ def _write_benchmarks(devig_by_outcome, ts):
         store.replace_rows(
             "outcome_benchmark",
             ("outcome_id", "snapshot_ts", "n_books", "median_devig",
-             "min_devig", "max_devig", "dispersion", "books"), rows, None)
+             "min_devig", "max_devig", "dispersion", "books"), rows)
 
 
 def run_full(seasons=(2023, 2024, 2025), reserve=20000, do_props=True,

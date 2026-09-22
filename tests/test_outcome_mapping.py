@@ -88,15 +88,15 @@ def env(tmp_path, monkeypatch):
         ("sport", "game_id", "data_version", "season", "week", "gameday",
          "home_team", "away_team", "source", "ingested_ts"),
         [("nfl", "2026_01_NE_SEA", "2026-09-09", 2026, 1, "2026-09-09",
-          "SEA", "NE", "test", now)], None)
+          "SEA", "NE", "test", now)])
     store.replace_rows(
         "player_xwalk",
         ("gsis_id", "display_name", "position", "last_season", "status",
          "ingested_ts"),
-        [("00-0038543", "Jaxon Smith-Njigba", "WR", 2026, "ACT", now)], None)
+        [("00-0038543", "Jaxon Smith-Njigba", "WR", 2026, "ACT", now)])
     store.replace_rows(
         "player_alias", ("alias", "gsis_id", "source", "last_season"),
-        [("jaxon smith njigba", "00-0038543", "display", 2026)], None)
+        [("jaxon smith njigba", "00-0038543", "display", 2026)])
     yield tmp_path
 
 

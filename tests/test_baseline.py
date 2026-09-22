@@ -158,14 +158,14 @@ def env(tmp_path, monkeypatch):
         "nfl_games",
         ("sport", "game_id", "data_version", "season", "week", "gameday",
          "home_team", "away_team", "kickoff_ts", "source", "ingested_ts"),
-        games, None)
+        games)
     rows = [("nfl", "00-0000001", 2025, w, "REG", "v1", "Test WR", "WR", "DET",
              float(4 + (w % 3)), "test", now) for w in range(1, 11)]
     store.replace_rows(
         "nfl_player_week",
         ("sport", "gsis_id", "season", "week", "season_type", "data_version",
          "player_name", "position", "team", "receptions", "source",
-         "ingested_ts"), rows, None)
+         "ingested_ts"), rows)
     yield tmp_path
 
 
@@ -247,7 +247,7 @@ def test_pushes_are_dropped_not_scored_as_half(env):
         "outcomes",
         ("outcome_id", "key", "sport", "season", "week", "entity_type",
          "entity_id", "side", "push_possible", "created_ts"),
-        [("abc", "k", "nfl", 2026, 1, "player", "p", "over", 1, now)], None)
+        [("abc", "k", "nfl", 2026, 1, "player", "p", "over", 1, now)])
 
     con = sqlite3.connect(f"file:{config.DB_PATH}?mode=ro", uri=True)
     assert evaluation.scored_rows(con) == []
