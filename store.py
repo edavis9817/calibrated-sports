@@ -1200,38 +1200,85 @@ def read_archived(rel_path: str) -> bytes:
 
 # ---- nflverse version ledger -----------------------------------------------
 
+# `season` is NULL for an all-season file (games, players, ngs_*, teams). That
+# NULL is a sentinel the readers rely on - `season IS ?` means "the one file
+# that covers every season" - but it is ALSO a primary-key column, and SQLite
+# treats NULLs in a PK as distinct from each other. So
+# ON CONFLICT(dataset, season, data_version) can never fire for those files:
+# every same-day re-pull INSERTed a second row instead of updating the first.
+# A SNAPSHOT, stale by construction - the old writer adds duplicates at every
+# same-day all-season pull, so re-count with the migration's dry run rather
+# than quoting these. At rowid <= 332 (unit a-03, 2026-09-22): 140 NULL-season
+# rows, 27 (dataset, data_version) keys duplicated, 71 surplus; 13 of those
+# were written by rebuild_from_archive re-recording a sha already in its group
+# (12 games, 1 players, all 2026-09-09 - a-03 said 12 and missed the players
+# row; unit a-07 settled it: that row's archive file was last written five
+# hours before it, so no pull made it). Seasoned rows: zero duplicates. So
+# every read and write below matches with `season IS ?` and acts on the
+# NEWEST row for a key (highest rowid - on every duplicated key that is the
+# row whose sha matches the disk), never on the primary key.
+# `jobs/migrate_nflverse_versions.py` collapses the history.
+#
+# NFLV_WRITER_REV names this behaviour so the migration can ask whether a
+# given checkout HAS it, by reading this file rather than trusting whoever
+# runs it. 1 (absent) = the ON CONFLICT upsert, which raises on the
+# migration's unique index for a NULL season; 2 = update-newest-else-insert.
+# Bump it only for a change that alters what the index would reject.
+NFLV_WRITER_REV = 2
+
+_NEWEST_VERSION_ROW = ("SELECT rowid FROM nflverse_versions "
+                       "WHERE dataset=? AND season IS ? AND data_version=? "
+                       "ORDER BY rowid DESC LIMIT 1")
+
+
 def latest_version(dataset: str, season=None):
-    """The newest pull of this dataset -> (data_version, sha256, rel_path)."""
+    """The newest pull of this dataset -> (data_version, sha256, rel_path).
+
+    `rowid DESC` breaks a same-day tie explicitly. Without it the answer came
+    from the query plan - a reverse scan of the PK index happens to return the
+    highest rowid first - which is correct by accident, not by statement.
+    """
     with db() as c:
         return c.execute(
             "SELECT data_version, sha256, rel_path FROM nflverse_versions "
-            "WHERE dataset=? AND season IS ? ORDER BY data_version DESC LIMIT 1",
+            "WHERE dataset=? AND season IS ? "
+            "ORDER BY data_version DESC, rowid DESC LIMIT 1",
             (dataset, season)).fetchone()
 
 
 def record_version(dataset: str, season, data_version: str, sha256: str,
                    bytes_: int, rel_path: str, rows=None, tier=None):
+    """One row per (dataset, season, data_version): update it, else insert.
+
+    Deliberately NOT `ON CONFLICT(dataset, season, data_version)` - that never
+    fires when `season` is NULL (see the note above `latest_version`). The
+    update touches the same columns the upsert did: sha, bytes, path, rows
+    (never nulled), last_checked_ts. `tier` and `ingested_ts` keep their
+    first-write values.
+    """
     now = time.time()
     with db() as c:
-        c.execute(
-            """INSERT INTO nflverse_versions
-                 (dataset, season, data_version, sha256, bytes, rel_path, rows,
-                  tier, ingested_ts, last_checked_ts)
-               VALUES (?,?,?,?,?,?,?,?,?,?)
-               ON CONFLICT(dataset, season, data_version) DO UPDATE SET
-                 sha256=excluded.sha256, bytes=excluded.bytes,
-                 rel_path=excluded.rel_path,
-                 rows=COALESCE(excluded.rows, nflverse_versions.rows),
-                 last_checked_ts=excluded.last_checked_ts""",
-            (dataset, season, data_version, sha256, bytes_, rel_path, rows,
-             tier, now, now))
+        cur = c.execute(
+            "UPDATE nflverse_versions SET sha256=?, bytes=?, rel_path=?, "
+            "rows=COALESCE(?, rows), last_checked_ts=? "
+            f"WHERE rowid = ({_NEWEST_VERSION_ROW})",
+            (sha256, bytes_, rel_path, rows, now, dataset, season, data_version))
+        if cur.rowcount == 0:
+            c.execute(
+                """INSERT INTO nflverse_versions
+                     (dataset, season, data_version, sha256, bytes, rel_path,
+                      rows, tier, ingested_ts, last_checked_ts)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (dataset, season, data_version, sha256, bytes_, rel_path, rows,
+                 tier, now, now))
 
 
 def touch_version(dataset: str, season, data_version: str):
     """Upstream was checked and had not changed. Record the check, not a copy."""
     with db() as c:
+        # The newest row only: the check matched ITS sha, not a superseded one.
         c.execute("UPDATE nflverse_versions SET last_checked_ts=? "
-                  "WHERE dataset=? AND season IS ? AND data_version=?",
+                  f"WHERE rowid = ({_NEWEST_VERSION_ROW})",
                   (time.time(), dataset, season, data_version))
 
 
@@ -1252,18 +1299,18 @@ def versions(dataset: str = None, season=None):
                          args).fetchall()
 
 
-def replace_rows(table: str, cols, rows, key_cols):
+def replace_rows(table: str, cols, rows):
     """Insert normalized rows, replacing only this (key..., data_version) slice.
 
     Deliberately NOT a blanket delete-and-reload: an older data_version must
     survive untouched, because proving a backtest used only what was known at
     the time is the whole point of versioning these tables.
 
-    `key_cols` IS VESTIGIAL - accepted, never read. The slice that gets
-    replaced is whatever the table's PRIMARY KEY says it is, so the parameter
-    names a behaviour this function does not implement. Left in the signature
-    rather than removed because nine call sites pass it and that churn was not
-    in scope; do not believe it, and do not add a tenth expecting it to work.
+    The slice that gets replaced is whatever the table's PRIMARY KEY says it
+    is. There used to be a fourth parameter, `key_cols`, that named a key and
+    was never read; removed in unit a-03 so that a caller passing one gets a
+    TypeError rather than a behaviour this function does not implement.
+    `tests/test_nflverse_versions.py` asserts every call site by AST.
 
     And note what this does NOT protect: it writes the WHOLE ROW, so a source
     that re-sends a row with a column gone null erases the stored value. For a

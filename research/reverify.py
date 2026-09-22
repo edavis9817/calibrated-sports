@@ -306,7 +306,7 @@ def build_legacy(db_path, seasons):
                     continue
                 table, cols, rows = ingest_nflverse.normalize_weekly_stats(
                     r.content, "legacy")
-                store.replace_rows(table, cols, rows, None)
+                store.replace_rows(table, cols, rows)
                 print(f"  legacy {s}: {len(rows):,} rows from {name}")
     finally:
         config.DB_PATH = old
