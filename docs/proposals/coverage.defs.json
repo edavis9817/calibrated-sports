@@ -1,0 +1,118 @@
+{
+  "$comment": "PROPOSAL, filed by track C (unit c-01) to track A, who owns web/contract/v2/contract.schema.json. NOT PART OF THE CONTRACT. jobs/export_coverage.py validates against the contract's own `coverage` kind once track A adopts it, and against these $defs merged over the contract's until then. On adoption: copy `x-contract-additions` into x-contract and the four $defs into $defs, then delete this file - tests/test_export_coverage.py fails while both carry the kind, so the two cannot drift.",
+
+  "x-contract-additions": {
+    "kinds": {"coverage": "CoverageFile"},
+    "sportless_kinds": ["coverage"],
+    "keys": [{"pattern": "^coverage\\.json$", "kind": "coverage"}]
+  },
+
+  "$defs": {
+    "CoverageFile": {
+      "description": "What this project HOLDS, per sport, read from the stores at `generated_at`. One file for every sport, so a sport's status cannot say one thing on its own coming-soon page and another on the home page. Every count here was read from the table it describes by jobs/export_coverage.py; none is typed. `sports` lists every sport the site declares, in the site's order, INCLUDING sports with nothing: a sport with nothing carries null holdings, never zero-with-a-plan, and `stores` is what makes that null a measured absence rather than an unsearched one.",
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "coverage"},
+        "sport": {"type": "null"},
+        "sports": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/SportCoverage"}
+        },
+        "stores": {
+          "description": "Every store that was read. A null holding is a claim about exactly these stores and no others.",
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/CoverageStore"}
+        }
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "sports", "stores"],
+      "additionalProperties": false
+    },
+
+    "SportCoverage": {
+      "description": "One sport. Three holdings, each null when the stores hold nothing of that class for this sport. `stats` is facts about play (box scores, usage, schedules, rosters); `odds` is prices (book lines, exchange quotes, closes); `context` is everything else held as a fact about a game or player (injury reports, venues, weather, headlines). null is the ONLY way to say 'none' - a holding cannot be present and empty.",
+      "type": "object",
+      "properties": {
+        "sport": {"type": "string"},
+        "stats": {"anyOf": [{"$ref": "#/$defs/CoverageHolding"}, {"type": "null"}]},
+        "odds": {"anyOf": [{"$ref": "#/$defs/CoverageHolding"}, {"type": "null"}]},
+        "context": {"anyOf": [{"$ref": "#/$defs/CoverageHolding"}, {"type": "null"}]}
+      },
+      "required": ["sport", "stats", "odds", "context"],
+      "additionalProperties": false
+    },
+
+    "CoverageHolding": {
+      "description": "A class of data held for one sport. `seasons` is the union of its sources' seasons, listed rather than given as a range, because a gap is part of the claim: a range 2003-2026 would silently cover a season nobody holds.",
+      "type": "object",
+      "properties": {
+        "seasons": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "integer"},
+          "uniqueItems": true
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/CoverageCount"}
+        }
+      },
+      "required": ["seasons", "sources"],
+      "additionalProperties": false
+    },
+
+    "CoverageCount": {
+      "description": "One table's contribution, read at `counted_at`. `units` is DISTINCT things at `grain` - games, player-games, quotes - and is the number to quote; `rows` is physical rows and exceeds it where a table keeps several versions of one fact (nflverse data_version, or a superseded CFB row), so quoting rows would overstate coverage. Both are at least 1: a table that holds nothing for this sport is omitted, not published as 0.",
+      "type": "object",
+      "properties": {
+        "store": {"type": "string"},
+        "table": {"type": "string"},
+        "source": {"description": "Where the data came from, as the producer labels it: the upstream feed, or the venue and capture path.", "type": "string"},
+        "grain": {"description": "What one unit IS - the depth of this holding.", "type": "string"},
+        "units": {"type": "integer", "minimum": 1},
+        "rows": {"type": "integer", "minimum": 1},
+        "providers": {"description": "Distinct books or venues inside this source, where the table records one per row; null where it does not.", "type": ["integer", "null"], "minimum": 1},
+        "seasons": {"type": "array", "minItems": 1, "items": {"type": "integer"}, "uniqueItems": true},
+        "season_basis": {
+          "description": "`column`: the table's own season field. `event_time`: derived from the event timestamp (a football season is the calendar year for March onward, else the year before), for tables that carry no season. Stated because the second is an inference and a reader should know which they are looking at.",
+          "enum": ["column", "event_time"]
+        },
+        "span": {
+          "description": "First and last EVENT time the table covers (a quote's capture time, a game's kickoff), where it has one.",
+          "anyOf": [
+            {"type": "object",
+             "properties": {"first": {"$ref": "#/$defs/Timestamp"}, "last": {"$ref": "#/$defs/Timestamp"}},
+             "required": ["first", "last"], "additionalProperties": false},
+            {"type": "null"}
+          ]
+        },
+        "ingested_through": {"description": "The latest INGESTION time in the table, where it records one - as of when this holding was last written, which is not when its events happened.", "anyOf": [{"$ref": "#/$defs/Timestamp"}, {"type": "null"}]},
+        "retention": {
+          "description": "`kept`: nothing deletes these rows by age. `rolling`: a retention policy deletes them by age, so `units` is a window, not a history. Read from the producer's configured prune sources.",
+          "enum": ["kept", "rolling"]
+        },
+        "counted_at": {"$ref": "#/$defs/Timestamp"}
+      },
+      "required": ["store", "table", "source", "grain", "units", "rows", "providers", "seasons", "season_basis", "span", "ingested_through", "retention", "counted_at"],
+      "additionalProperties": false
+    },
+
+    "CoverageStore": {
+      "description": "A store that was read, with every sport value found in it. `tables` counts the store's tables and `classified` those the producer knows how to read or has excluded with a reason; the producer refuses unless they are equal, so a table added later cannot sit outside the count unnoticed.",
+      "type": "object",
+      "properties": {
+        "store": {"type": "string"},
+        "read_at": {"$ref": "#/$defs/Timestamp"},
+        "tables": {"type": "integer", "minimum": 0},
+        "classified": {"type": "integer", "minimum": 0},
+        "sports_seen": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      },
+      "required": ["store", "read_at", "tables", "classified", "sports_seen"],
+      "additionalProperties": false
+    }
+  }
+}

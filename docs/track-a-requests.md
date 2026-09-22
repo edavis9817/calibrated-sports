@@ -475,3 +475,48 @@ AIRPORT, tens of kilometres from the stadium - and using it would be a proxy sta
 for the thing. CFB has real venue coordinates, which is why weather exists for CFB and
 not for the NFL. Recorded as `feeds.weather_needs_venue_coordinates`; a sourced NFL
 coordinate feed is a decision for Ethan, not something to approximate.
+
+## A-C7. A new kind, `coverage`: what we hold, per sport, read from the stores
+
+**Status:** filed 2026-09-22 by track C (relay unit c-01). **A request for a contract
+change - the proposed `$defs` are written out in full in
+`docs/proposals/coverage.defs.json`.** The contract was not edited. Built, tested, run
+against the real stores, and **not published**. `jobs/export_coverage.py` validates
+against the proposal merged over the contract's `$defs` until you adopt it, and against
+the contract afterwards.
+
+**Why a kind and not page copy.** The site carries five sports at different depths (NFL,
+CFB, NBA, MLB, NHL - `calibratedsports-web/config/sports/index.ts`; the brief said four).
+Coming-soon pages and real pages must read one file, so `/nhl` and the home page cannot
+disagree about hockey.
+
+**The shape, in one paragraph.** `coverage.json`, sportless, top-level prefix (no builder
+owns it; a new prefix per the one-builder-one-prefix rule). `sports[]` is every sport the
+site declares, in its order, each with `stats`, `odds` and `context`, each **null or a
+holding** - never an empty holding, never a zero. A holding lists its `seasons` (a list,
+not a range, so a gap stays visible) and one `CoverageCount` per source table: `units`
+(distinct things at `grain`, the figure to quote) beside `rows` (physical rows),
+`providers`, `seasons`, `season_basis` (`column` or `event_time`), event `span`,
+`ingested_through`, `retention` (`kept`/`rolling`) and `counted_at`. `stores[]` names
+every store read and every sport value found in it, which is what makes a null a measured
+absence.
+
+**What to apply, on adoption:**
+1. `x-contract.kinds` += `"coverage": "CoverageFile"`; `sportless_kinds` += `"coverage"`;
+   `keys` += `{"pattern": "^coverage\.json$", "kind": "coverage"}`.
+2. `$defs` += `CoverageFile`, `SportCoverage`, `CoverageHolding`, `CoverageCount`,
+   `CoverageStore`, copied verbatim. They reference only `#/$defs/Timestamp`.
+3. Delete `docs/proposals/coverage.defs.json` in the same commit.
+   `tests/test_export_coverage.py::test_proposal_and_contract_never_both_carry_the_kind`
+   fails while both carry the kind.
+
+**Three things the schema cannot say and the producer checks instead:** a holding's
+`seasons` is the union of its sources'; `units <= rows`; every table in every store is
+either counted or excluded with a reason (the run refuses otherwise, and did so on its
+first real run, on `market_trades_fetch`).
+
+**One decision for you, not for me:** `units` vs `rows`. nflverse tables keep a row per
+`data_version`. `nfl_games` read 11,084 rows for 7,548 games on 2026-09-22. I publish both
+and name `units` as the figure to quote. If the site should never see `rows`, drop it from
+`CoverageCount`. I kept it because a silent resolution of the difference is the thing
+this feed exists to prevent.
