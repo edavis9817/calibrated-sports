@@ -1,0 +1,65 @@
+stadium_id,nflverse_name,wikidata_qid,roof_type,roof_source
+ATL00,Georgia Dome,Q1058931,fixed,nflverse_history
+ATL97,Mercedes-Benz Stadium,Q7007552,retractable,nflverse_history
+BAL00,M&T Bank Stadium,Q1141336,open_air,nflverse_history
+BOS00,Gillette Stadium,Q373355,open_air,nflverse_history
+BUF00,New Era Field,Q1475645,open_air,nflverse_history
+BUF00,Highmark Stadium,Q16251517,open_air,hand
+CAR00,Bank of America Stadium,Q806673,open_air,nflverse_history
+CHI98,Soldier Field,Q1132413,open_air,nflverse_history
+CIN00,Paul Brown Stadium,Q1632294,open_air,nflverse_history
+CIN00,Paycor Stadium,Q1632294,open_air,nflverse_history
+CLE00,FirstEnergy Stadium,Q1100756,open_air,nflverse_history
+CLE00,Huntington Bank Field,Q1100756,open_air,nflverse_history
+DAL00,AT&T Stadium,Q838284,retractable,nflverse_history
+DEN00,Sports Authority Field at Mile High,Q1046135,open_air,nflverse_history
+DEN00,Empower Field at Mile High,Q1046135,open_air,nflverse_history
+DET00,Ford Field,Q1142586,fixed,nflverse_history
+FRA00,Deutsche Bank Park,Q157273,retractable,hand
+GER00,Allianz Arena,Q127429,open_air,nflverse_history
+GNB00,Lambeau Field,Q860790,open_air,nflverse_history
+HOU00,NRG Stadium,Q1058864,retractable,nflverse_history
+HOU00,Reliant Stadium,Q1058864,retractable,nflverse_history
+IND00,Lucas Oil Stadium,Q867160,retractable,nflverse_history
+JAX00,EverBank Field,Q635117,open_air,nflverse_history
+JAX00,TIAA Bank Stadium,Q635117,open_air,nflverse_history
+JAX00,EverBank Stadium,Q635117,open_air,nflverse_history
+JAX00,Tottenham Hotspur Stadium,Q55074091,open_air,hand
+KAN00,Arrowhead Stadium,Q544553,open_air,nflverse_history
+KAN00,GEHA Field at Arrowhead Stadium,Q544553,open_air,nflverse_history
+LAX01,SoFi Stadium,Q19520501,fixed,nflverse_history
+LAX97,StubHub Center,Q200684,open_air,nflverse_history
+LAX99,Los Angeles Memorial Coliseum,Q849784,open_air,nflverse_history
+LON00,Wembley Stadium,Q128468,open_air,nflverse_history
+LON01,Twickenham Stadium,Q209725,open_air,nflverse_history
+LON02,Tottenham Stadium,Q55074091,open_air,nflverse_history
+LON02,Tottenham Hotspur Stadium,Q55074091,open_air,nflverse_history
+MAD01,Bernabeu,Q164027,retractable,hand
+MEL00,Melbourne Cricket Ground,Q330136,open_air,hand
+MEX00,Azteca Stadium,Q320454,open_air,nflverse_history
+MEX00,Estadio Banorte,Q320454,open_air,nflverse_history
+MIA00,Hard Rock Stadium,Q864339,open_air,nflverse_history
+MIN01,U.S. Bank Stadium,Q7929512,fixed,nflverse_history
+MUN01,FC Bayern Munich Stadium,Q127429,open_air,hand
+NAS00,Nissan Stadium,Q1142992,open_air,nflverse_history
+NOR00,Mercedes-Benz Superdome,Q756452,fixed,nflverse_history
+NOR00,Caesars Superdome,Q756452,fixed,nflverse_history
+NYC01,MetLife Stadium,Q10862290,open_air,nflverse_history
+OAK00,Oakland-Alameda County Coliseum,Q1147732,open_air,nflverse_history
+OAK00,Ring Central Coliseum,Q1147732,open_air,nflverse_history
+PAR00,Stade de France,Q13205,open_air,hand
+PHI00,Lincoln Financial Field,Q1052370,open_air,nflverse_history
+PHO00,University of Phoenix Stadium,Q756433,retractable,nflverse_history
+PHO00,State Farm Stadium,Q756433,retractable,nflverse_history
+PIT00,Heinz Field,Q1067148,open_air,nflverse_history
+PIT00,Acrisure Stadium,Q1067148,open_air,nflverse_history
+RIO00,Maracana Stadium,Q155174,open_air,hand
+SAO00,Arena Corinthians,Q1362236,open_air,nflverse_history
+SDG00,Qualcomm Stadium,Q956072,open_air,nflverse_history
+SEA00,CenturyLink Field,Q612736,open_air,nflverse_history
+SEA00,Lumen Field,Q612736,open_air,nflverse_history
+SFO01,Levi's Stadium,Q7419343,open_air,nflverse_history
+TAM00,Raymond James Stadium,Q1141343,open_air,nflverse_history
+VEG00,Allegiant Stadium,Q27768421,fixed,nflverse_history
+WAS00,FedExField,Q583085,open_air,nflverse_history
+WAS00,Northwest Stadium,Q583085,open_air,nflverse_history

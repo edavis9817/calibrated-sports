@@ -93,14 +93,35 @@ def at_hour(payload, index, hour_ts):
         "wind_gusts_mph": v("wind_gusts_10m"),
         "cloud_cover_pct": v("cloud_cover"),
         "provider_elevation_m": block.get("elevation"),
+        # The grid cell the provider answered from, as it reports it - not the point asked.
+        "provider_latitude": block.get("latitude"),
+        "provider_longitude": block.get("longitude"),
     }
 
 
-def row(sport, game_id, kind, venue, kickoff_ts, measured):
-    """Schema order for `weather_at_kickoff`."""
+def grid_offset_km(lat, lon, measured):
+    """Distance from the point asked for to the grid cell that answered, or None if the
+    provider did not say which cell."""
+    plat, plon = measured.get("provider_latitude"), measured.get("provider_longitude")
+    if plat is None or plon is None:
+        return None
+    from feeds.nfl_venues import haversine_km
+    return round(haversine_km(lat, lon, plat, plon), 3)
+
+
+def row(sport, game_id, kind, venue, kickoff_ts, measured, *, fetched_ts=None,
+        coord_source=None, coord_ref=None, coord_offset_km=None, roof_type=None,
+        game_roof=None, playing_conditions=None):
+    """Schema order for `weather_at_kickoff`. `fetched_ts` is kept on forecast rows only:
+    it is what makes a forecast's horizon answerable, and an archive row has none."""
     return (sport, str(game_id), "open-meteo", kind, venue["venue_id"],
             venue["latitude"], venue["longitude"], kickoff_ts,
             measured["observed_hour_ts"], measured["temperature_f"],
             measured["relative_humidity_pct"], measured["precipitation_in"],
             measured["wind_speed_mph"], measured["wind_gusts_mph"],
-            measured["cloud_cover_pct"], measured["provider_elevation_m"])
+            measured["cloud_cover_pct"], measured["provider_elevation_m"],
+            measured.get("provider_latitude"), measured.get("provider_longitude"),
+            grid_offset_km(venue["latitude"], venue["longitude"], measured),
+            coord_source, coord_ref, coord_offset_km,
+            fetched_ts if kind == "forecast" else None,
+            roof_type, game_roof, playing_conditions)

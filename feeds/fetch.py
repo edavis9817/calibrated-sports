@@ -19,7 +19,9 @@ import httpx
 
 from feeds import paths
 
-USER_AGENT = "calibrated-sports-feeds (contact: github.com/edavis9817/calibrated-sports)"
+# name/version (URL): the form Wikimedia's robot policy requires. The earlier
+# "calibrated-sports-feeds (contact: ...)" drew a 403 from query.wikidata.org (f-05).
+USER_AGENT = "calibrated-sports-feeds/1.0 (https://github.com/edavis9817/calibrated-sports)"
 GAP_S = 0.5
 
 
@@ -136,6 +138,25 @@ class Client:
                   "ok" if r.status_code == 200 else f"http_{r.status_code}")
         if r.status_code in (403, 429):
             raise FetchError(f"{feed}: {r.status_code} - stopping rather than retrying")
+        if r.status_code != 200:
+            raise FetchError(f"{feed}: {r.status_code} from {url}")
+        return r.content
+
+    def post(self, feed, url, data):
+        """A form POST, same pacing, logging and refusal as `get`. Overpass takes its
+        query this way; nothing here posts anything but a read query."""
+        wait = GAP_S - (time.time() - self._last)
+        if wait > 0:
+            time.sleep(wait)
+        try:
+            r = self.http.post(url, data=data)
+        except httpx.HTTPError as e:
+            self._log(feed, url, None, None, f"error: {type(e).__name__}")
+            raise FetchError(f"{feed}: {type(e).__name__}") from None
+        finally:
+            self._last = time.time()
+        self._log(feed, url, r.status_code, len(r.content),
+                  "ok" if r.status_code == 200 else f"http_{r.status_code}")
         if r.status_code != 200:
             raise FetchError(f"{feed}: {r.status_code} from {url}")
         return r.content
