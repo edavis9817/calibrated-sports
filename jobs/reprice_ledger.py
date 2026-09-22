@@ -123,7 +123,7 @@ def run(stake=100):
     cols = ("ticket_id", "stake", "depth_ts", "touch_price", "exec_price",
             "fillable", "model_prob", "edge_before", "edge_after", "fee_before",
             "fee_after", "bucket", "repriced_ts")
-    n = store.replace_rows("ledger_reprice", cols, out, None)
+    n = store.replace_rows("ledger_reprice", cols, out)
     store.record_health("reprice_ledger", True,
                         f"{n} tickets repriced at stake {stake}, "
                         f"{missing} with no depth snapshot", watermark=now)

@@ -213,7 +213,7 @@ def run_once(kickoffs=None):
         krows, kraw = snapshot_kalshi(client, con, allow, ts, kickoffs)
         prows, praw = snapshot_polymarket(client, con, allow, ts, kickoffs)
     con.close()
-    n = store.replace_rows("market_depth", COLS, krows + prows, None)
+    n = store.replace_rows("market_depth", COLS, krows + prows)
     stats = {"kalshi_rows": len(krows), "poly_rows": len(prows),
              "raw_books_kept": kraw + praw, "allowlist": len(allow),
              "tiered": bool(config.DEPTH_TIER_ENABLED and kickoffs),

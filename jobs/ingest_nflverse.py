@@ -29,6 +29,7 @@ with the handful of real corrections buried among 364 duplicates each.
 so the fetch is always a whole season; there is no way to ask for less.
 """
 import argparse
+import hashlib
 import io
 import time
 from datetime import datetime, timezone
@@ -236,13 +237,6 @@ NORMALIZERS = {
     "teams": normalize_teams,
 }
 
-KEY_COLS = {
-    "nfl_player_week": ("gsis_id", "season", "week", "season_type", "data_version"),
-    "nfl_games": ("game_id", "data_version"),
-    "nfl_snap_counts": ("pfr_player_id", "game_id", "data_version"),
-    "nfl_teams": ("team_abbr", "data_version"),
-}
-
 
 def _f(v):
     try:
@@ -309,7 +303,7 @@ def ingest_one(ds: nflverse.Dataset, season=None, week=None, version=None,
             kwargs["seasons"] = seasons if seasons else ([season] if season else None)
         table, cols, rows = fn(data, version, **kwargs)
         rows_written = (len(rows) if table is None
-                        else store.replace_rows(table, cols, rows, KEY_COLS[table]))
+                        else store.replace_rows(table, cols, rows))
         res["rows"] = rows_written
 
     store.record_version(ds.name, season, version, digest, len(data), rel,
@@ -382,9 +376,18 @@ def rebuild_from_archive(datasets=None, seasons=None) -> dict:
     under the data_version it was originally pulled as, so no new version is
     manufactured for what is only a parser change.
     """
-    stats = {"rebuilt": 0, "rows": 0, "missing": 0, "skipped": 0}
+    stats = {"rebuilt": 0, "rows": 0, "missing": 0, "skipped": 0,
+             "duplicate": 0}
     rows = store.versions()
+    # The ledger can hold several rows for one all-season (NULL-season) key -
+    # see store.latest_version. There is ONE file on disk per key, so re-derive
+    # it once; re-recording each duplicate used to insert yet another row.
+    seen = set()
     for ds_name, season, version, _sha, _bytes, _rows, _tier, _i, _c in rows:
+        if (ds_name, season, version) in seen:
+            stats["duplicate"] += 1
+            continue
+        seen.add((ds_name, season, version))
         if ds_name not in NORMALIZERS:
             stats["skipped"] += 1
             continue
@@ -406,8 +409,12 @@ def rebuild_from_archive(datasets=None, seasons=None) -> dict:
             kwargs["seasons"] = [season] if season else None
         table, cols, out = fn(data, version, **kwargs)
         n = (len(out) if table is None
-             else store.replace_rows(table, cols, out, KEY_COLS[table]))
-        store.record_version(ds_name, season, version, _sha, _bytes, rel,
+             else store.replace_rows(table, cols, out))
+        # Record the hash of the bytes just normalized, not the ledger's: on a
+        # duplicated key the row read first may name a same-day pull whose
+        # file was since overwritten.
+        store.record_version(ds_name, season, version,
+                             hashlib.sha256(data).hexdigest(), len(data), rel,
                              rows=n, tier=ds.tier)
         stats["rebuilt"] += 1
         stats["rows"] += n

@@ -129,10 +129,10 @@ def test_replace_rows_WOULD_have_nulled_it(db):
     """
     xw = ("gsis_id", "display_name", "pfr_id", "espn_id", "pff_id")
     store.replace_rows("player_xwalk", xw,
-                       [("00-A", "Wide One", "WideWi00", "1234", "9001")], None)
+                       [("00-A", "Wide One", "WideWi00", "1234", "9001")])
     assert row()[:3] == ("WideWi00", "1234", "9001")
     store.replace_rows("player_xwalk", xw,
-                       [("00-A", "Wide One", None, None, None)], None)
+                       [("00-A", "Wide One", None, None, None)])
     assert row()[:3] == (None, None, None), (
         "if this passes, INSERT OR REPLACE no longer nulls and the fix is untested")
 

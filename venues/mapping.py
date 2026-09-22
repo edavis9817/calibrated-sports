@@ -184,7 +184,7 @@ def build_crosswalk(data: bytes, version: str = None):
     # deletion decision that belongs in its own unit.
     store.replace_rows("player_alias",
                        ("alias", "gsis_id", "source", "last_season"),
-                       aliases, None)
+                       aliases)
     return len(rows), len(aliases)
 
 
