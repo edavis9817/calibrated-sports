@@ -11,11 +11,26 @@ why it was chosen as the second sport. Every place the contract resists is a fin
 about the CONTRACT, filed to track A in `docs/track-a-requests.md`, never worked around
 here. `--findings` prints them with the measurement behind each.
 
-NOT PUBLISHED, DELIBERATELY. `jobs/export_web.upload()` deletes by absence
-(`set(state) - set(local)`) and `weekly_refresh` runs `--upload-only` on a schedule, so
-any run that did not also build CFB would delete these keys from R2 - the same hazard
-track F filed as F3. This job has no upload path at all: it writes to a directory you
-name and stops.
+THE PUBLISHING PATH (c-05), and why it is safe now when it was not before. The old
+hazard was `upload()` deleting by absence (`set(state) - set(local)`): any NFL-only run
+would have deleted every CFB key from R2 (track F's F3). That rule is gone - `upload()`
+deletes only under prefixes the producing run DECLARES - so CFB follows the second
+producer's pattern track F established for `analytics/`, rather than growing an uploader
+of its own:
+
+    --dest own   (default) writes to <STORAGE_DIR>/cfb/web_export. STAGING. Nothing
+                 reads it, no uploader walks it, no sentinel is printed.
+    --dest web   writes `cfb/` into WEB_EXPORT_DIR and prints `REFRESHED cfb/`.
+                 THIS IS THE PUBLISH DECISION, not a staging step: the scheduled
+                 `weekly_refresh` uploads every key in that tree whose bytes differ
+                 from its upload record, so a CFB tree written there reaches R2 on
+                 the next Tue/Wed/Thu 09:00 run whether or not anyone runs the upload.
+
+This job still has no network path. There is one uploader (`jobs.export_web`), one
+upload record and one bucket; this module owns exactly `cfb/`, fills all of it, and says
+so with a `sync_keys` call over that one prefix. `sports.json` is NOT written here: track
+A's export writes it on every manifest run, and two builders of one key ping-pong it on
+every upload. The sports list naming cfb is track A's to emit.
 
 REUSE, NOT A SECOND EXPORTER. `jobs.export_web` owns the contract machinery -
 `validate_contract`, `assert_stats_defined`, `write_if_changed`, `envelope`, `slugify`.
@@ -23,8 +38,7 @@ This module supplies CFB data and nothing else. A second validator would be a se
 source of truth about the contract, which is the duplication this project keeps paying
 for. Nothing in `jobs/export_web.py` is edited.
 
-WHAT IS EXPORTED, and the coverage is stated rather than implied:
-  sports.json               nfl + cfb
+WHAT IS EXPORTED, and the coverage is stated rather than implied - every key under `cfb/`:
   cfb/manifest.json         seasons, stat definitions, teams, colours, counts
   cfb/teams/<slug>.json     138 FBS teams: schedule, per-season splits, current roster
   cfb/players/index.json    EMPTY, on purpose - see finding C-4. The contract's player
@@ -42,8 +56,9 @@ from collections import defaultdict
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from cfb import paths, sources                                        # noqa: E402
-from jobs.export_web import (assert_stats_defined, envelope, iso,      # noqa: E402
-                             slugify, validate_contract, write_if_changed)
+from jobs.export_web import (REFRESHED_SENTINEL, assert_stats_defined,  # noqa: E402
+                             envelope, iso, require_setting, slugify, sync_keys,
+                             validate_contract, write_if_changed)
 
 SPORT = "cfb"
 SPORT_NAME = "College Football"
@@ -121,17 +136,30 @@ def colors(con, season=CURRENT_SEASON):
     """Every team in the season's reference feed, not only the exported ones.
 
     Keyed on ABBREVIATION because the contract says so - and see finding C-2: CFB
-    abbreviations collide across divisions, so this drops rows the sport holds."""
+    abbreviations collide across divisions, so this drops rows the sport holds.
+
+    THE EXPORTED TIER WINS A COLLISION, EXPLICITLY. This used to `ORDER BY
+    classification` and rely on 'fbs' sorting first - but SQLite sorts NULL before every
+    string, and 'Faulkner Eagles' (classification NULL) shares `FAU` with Florida
+    Atlantic, so the FBS team's chip was published in another school's colour (measured
+    c-05, 2026: 1 of 138). And an exported team with no colour of its own claims its
+    abbreviation anyway and emits none: a colliding school's colour standing in for a
+    missing one is the same wrong chip by a different route."""
     out, seen, dropped = {}, {}, []
-    for abbr, name, color, alt in con.execute(
-            "SELECT abbreviation, display_name, color, alternate_color FROM cfb_teams "
-            "WHERE season=? AND valid_to_ts IS NULL AND abbreviation IS NOT NULL AND "
-            "color IS NOT NULL ORDER BY classification, display_name", (season,)):
+    for abbr, name, color, alt, tier in con.execute(
+            "SELECT abbreviation, display_name, color, alternate_color, classification "
+            "FROM cfb_teams WHERE season=? AND valid_to_ts IS NULL AND abbreviation IS NOT "
+            "NULL ORDER BY classification IS NOT ?, classification, display_name",
+            (season, CLASSIFICATION)):
+        if color is None and tier != CLASSIFICATION:
+            continue                  # as before: an uncoloured non-exported row claims nothing
         if abbr in seen:
-            dropped.append((abbr, name, seen[abbr]))
+            if color is not None:
+                dropped.append((abbr, name, seen[abbr]))
             continue
         seen[abbr] = name
-        out[abbr] = {"primary": "#" + color, "secondary": "#" + alt if alt else None}
+        if color is not None:
+            out[abbr] = {"primary": "#" + color, "secondary": "#" + alt if alt else None}
     return out, dropped
 
 
@@ -380,39 +408,45 @@ def build(con, generated_at=None):
         "unresolved_ids": [],
     }
 
-    files["sports.json"] = {
-        "schema_version": envelope("sports", generated_at, None)["schema_version"],
-        "generated_at": generated_at, "kind": "sports", "sport": None,
-        "sports": [
-            {"sport": "nfl", "name": "NFL", "manifest": "nfl/manifest.json"},
-            {"sport": SPORT, "name": SPORT_NAME, "manifest": f"{SPORT}/manifest.json"},
-        ],
-    }
     return files, {"dropped_colors": dropped_colors, "blank_opponent_abbrs": blank_abbrs,
                    "stale": stale}
 
 
+OWNED_PREFIX = f"{SPORT}/"
+
+
 def export(out_dir, dry_run=False, verbose=True):
+    """Build, validate and write the CFB tree into `out_dir`. -> (files, notes).
+
+    The write goes through `sync_keys` over `cfb/` and nothing else: this builder owns
+    that prefix and fills all of it, so a team that leaves FBS is deleted from the tree
+    rather than left behind as a page for a team the manifest no longer lists. The
+    prefix is a literal at the call site so `tests/test_prefix_ownership.owned_prefixes`
+    can read it."""
     con = ro()
-    files, notes = build(con)
-    validate_contract(files)                       # the one choke point, track A's
+    try:
+        files, notes = build(con)
+    finally:
+        con.close()
+    stray = sorted(k for k in files if not k.startswith(OWNED_PREFIX))
+    if stray:
+        # A key outside the owned prefix would be written by sync_keys and never cleaned
+        # up by it - and if it is another producer's key, it is two builders on one key.
+        raise ValueError(f"the CFB export built keys outside {OWNED_PREFIX}: {stray}")
     assert_stats_defined(files, files[f"{SPORT}/manifest.json"]["stat_definitions"])
-    written = 0
-    for key, obj in sorted(files.items()):
-        path = os.path.join(out_dir, *key.split("/"))
-        written += write_if_changed(path, obj, dry_run)
+    written, deleted = sync_keys(out_dir, files, [f"{SPORT}/"], dry_run)   # validates
+    notes = {**notes, "written": written, "deleted": deleted}
     if verbose:
-        print(f"  files {len(files)}  written {written}  "
+        m = files[f"{SPORT}/manifest.json"]
+        print(f"  files {len(files)}  written {written}  deleted {deleted}  "
               f"{'(dry run, nothing on disk)' if dry_run else out_dir}")
-        print(f"  teams {len(files[f'{SPORT}/manifest.json']['teams'])}  "
-              f"seasons {len(files[f'{SPORT}/manifest.json']['seasons'])}  "
-              f"colours {len(files[f'{SPORT}/manifest.json']['team_colors'])}  "
+        print(f"  teams {len(m['teams'])}  seasons {len(m['seasons'])}  "
+              f"colours {len(m['team_colors'])}  "
               f"colour rows dropped to an abbreviation collision "
               f"{len(notes['dropped_colors'])}")
         print(f"  opponents with no abbreviation anywhere in the feeds: "
               f"{len(notes['blank_opponent_abbrs'])}  (emitted as \"\", never invented)")
         print(f"  current.stale {notes['stale']}")
-    con.close()
     return files, notes
 
 
@@ -476,16 +510,31 @@ NON-FINDINGS, recorded so they are not re-opened:
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--out", default=paths.root("web_export"),
-                    help="directory to write into (default <STORAGE_DIR>/cfb/web_export)")
+    ap.add_argument("--dest", choices=("own", "web"), default="own",
+                    help="own: stage to <STORAGE_DIR>/cfb/web_export (default, reaches "
+                         "nothing). web: write cfb/ into WEB_EXPORT_DIR - the PUBLISH "
+                         "decision, because the scheduled uploader sends that whole tree")
+    ap.add_argument("--out", default=None,
+                    help="with --dest own only: stage somewhere else")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--findings", action="store_true")
     a = ap.parse_args(argv)
     if a.findings:
         print(FINDINGS)
         return 0
-    print(f"CFB export (local only, never published):")
-    export(a.out, dry_run=a.dry_run)
+    if a.dest == "web":
+        if a.out:
+            ap.error("--out is for staging; --dest web writes to WEB_EXPORT_DIR")
+        out = require_setting("WEB_EXPORT_DIR")
+    else:
+        out = a.out or paths.root("web_export")
+    print(f"CFB export -> {'WEB_EXPORT_DIR (publishing tree)' if a.dest == 'web' else 'staging'}")
+    export(out, dry_run=a.dry_run)
+    if a.dest == "web" and not a.dry_run:
+        # THE DECLARATION, gated on the write exactly as track F gates theirs: a staging
+        # run or a dry run rebuilt nothing in the publishing tree and authorises nothing.
+        # Last line, so a caller in the same job can hand it to the uploader.
+        print(REFRESHED_SENTINEL + " " + OWNED_PREFIX)
     return 0
 
 

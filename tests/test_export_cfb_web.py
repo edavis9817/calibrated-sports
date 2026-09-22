@@ -74,7 +74,9 @@ def test_the_export_validates_against_the_real_contract(store):
     files, _notes = X.build(store)
     X.validate_contract(files)              # raises on any violation
     X.assert_stats_defined(files, files["cfb/manifest.json"]["stat_definitions"])
-    assert set(files) >= {"sports.json", "cfb/manifest.json", "cfb/players/index.json",
+    # EXACTLY the cfb/ tree. `sports.json` is track A's key (c-05): two builders of one
+    # key ping-pong it on every upload.
+    assert set(files) == {"cfb/manifest.json", "cfb/players/index.json",
                           "cfb/teams/alpha-state-aces.json", "cfb/teams/beta-tech-bears.json"}
 
 
@@ -141,6 +143,27 @@ def test_a_colliding_abbreviation_drops_a_colour_row_and_says_so(store):
     assert [d[0] for d in notes["dropped_colors"]] == ["AAA"]
 
 
+def test_a_NULL_classification_collider_cannot_take_an_exported_teams_colour(store):
+    """c-05, measured on the real store: 'Faulkner Eagles' has classification NULL and
+    shares `FAU` with Florida Atlantic. `ORDER BY classification` sorts NULL FIRST, so the
+    FBS chip went out in Faulkner's black. The exported tier must win explicitly."""
+    _insert(store, "cfb_teams", season=SEASON, team_id=5, abbreviation="BBB",
+            display_name="Beta Bible (no tier)", slug="beta-bible", classification=None,
+            conference_name=None, color="000000", alternate_color=None)
+    store.commit()
+    files, notes = X.build(store)
+    colours = files["cfb/manifest.json"]["team_colors"]
+    assert colours["BBB"]["primary"] == "#1a5632"          # Beta Tech's own, not #000000
+    assert ("BBB", "Beta Bible (no tier)", "Beta Tech Bears") in notes["dropped_colors"]
+
+
+def test_an_exported_team_with_no_colour_gets_no_chip_not_a_neighbours(store):
+    store.execute("UPDATE cfb_teams SET color=NULL WHERE team_id=1")     # Alpha State, AAA
+    store.commit()
+    files, _ = X.build(store)
+    assert "AAA" not in files["cfb/manifest.json"]["team_colors"]     # not the D-II red
+
+
 def test_roster_games_count_stat_rows_and_snap_share_is_null(store):
     """No CFB source records whether a player dressed: `games` is a LOWER BOUND, and the
     contract's non-nullable integer cannot say that (finding C-3)."""
@@ -184,10 +207,13 @@ def test_stale_is_computed_from_the_schedule_not_asserted(store):
     assert cur["stale"] is True and "week 1" in cur["stale_reason"]
 
 
-def test_the_export_has_no_publish_path_at_all(store):
-    """upload() deletes by absence and weekly_refresh runs --upload-only on a schedule,
-    so a CFB key published now would be deleted by the next NFL-only run (track F's F3).
-    This job must not be able to publish even by accident."""
+def test_the_export_has_no_NETWORK_path_at_all(store):
+    """Revised in c-05. This used to forbid `sync_keys` as well, because `upload()` then
+    deleted by absence and a CFB key published once would be deleted by the next NFL-only
+    run (track F's F3). Deletion is now scoped to DECLARED prefixes - driven below in
+    `test_F3_is_closed_*` rather than assumed - so the CFB tree reaches R2 the way track F's
+    does: written into WEB_EXPORT_DIR, uploaded by the ONE uploader. What must still never
+    exist here is a second uploader: no S3 client, no put, no delete, no call to upload()."""
     import ast
     tree = ast.parse(open(X.__file__, encoding="utf-8").read())
     # CODE, not text: the first version of this test read the source as a string and
@@ -199,10 +225,186 @@ def test_the_export_has_no_publish_path_at_all(store):
         elif isinstance(node, ast.ImportFrom) and node.module:
             imported.add(node.module.split(".")[0])
             imported.update(a.name for a in node.names)
-    assert not imported & {"boto3", "botocore", "r2", "store"}, sorted(imported)
+    assert not imported & {"boto3", "botocore", "r2", "store", "upload", "r2_client",
+                           "httpx", "requests"}, sorted(imported)
     called = {n.func.attr if isinstance(n.func, ast.Attribute) else getattr(n.func, "id", "")
               for n in ast.walk(tree) if isinstance(n, ast.Call)}
-    assert not called & {"upload", "put_object", "upload_file", "sync_keys"}, sorted(called)
+    assert not called & {"upload", "put_object", "upload_file", "delete_object",
+                         "r2_client"}, sorted(called)
+    assert "sync_keys" in called         # the one write path, and it is local
+
+
+# ------------------------------------------------------------ c-05: prefix ownership
+
+def _ownership():
+    from tests import test_prefix_ownership as P
+    cfb, cfb_dynamic = P.owned_prefixes(X.__file__, ns={"SPORT": X.SPORT})
+    nfl, nfl_dynamic = P.owned_prefixes()
+    return P, cfb, cfb_dynamic, nfl, nfl_dynamic
+
+
+def test_the_cfb_export_owns_exactly_cfb_and_the_scan_found_it():
+    """Exit 0 is not a result: the AST walk must find the call and resolve it."""
+    _P, cfb, dynamic, _nfl, _ = _ownership()
+    assert cfb == ["cfb/"] and dynamic == 0, (cfb, dynamic)
+
+
+def test_no_owned_prefix_reaches_another_producers_keys():
+    """Mutual containment, both directions, against track A's prefixes and track F's.
+    `sync_keys` deletes what it owns and did not build, so a CFB prefix inside `nfl/` or
+    containing `analytics/` would delete another track's files on an ordinary run."""
+    P, cfb, _, nfl, nfl_dynamic = _ownership()
+    assert nfl_dynamic == 0 and len(nfl) >= 3, nfl
+    bad = []
+    for theirs in nfl + [P.FOREIGN, "sports.json"]:
+        bad += P.containment_violations(cfb, foreign=theirs)
+    for ours in cfb:
+        bad += P.containment_violations(nfl, foreign=ours)
+    assert not bad, bad
+    # and it discriminates: the same check fires on prefixes that WOULD collide
+    assert P.containment_violations([""], foreign="nfl/teams/")
+    assert P.containment_violations(["cfb/"], foreign="cfb/teams/")
+
+
+def test_staging_deletes_a_stale_cfb_key_and_touches_nothing_outside(store, tmp_path):
+    """The owned prefix is filled completely, so a team file the build no longer makes is
+    removed - and a key another producer wrote into the same tree is left alone."""
+    out = tmp_path / "tree"
+    for key in ("cfb/teams/left-fbs.json", "nfl/teams/kc.json", "analytics/cfb/x.json",
+                "sports.json"):
+        p = out.joinpath(*key.split("/"))
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("{}", encoding="utf-8")
+    _files, notes = X.export(str(out), verbose=False)
+    assert notes["deleted"] == 1
+    assert not (out / "cfb" / "teams" / "left-fbs.json").exists()
+    for key in ("nfl/teams/kc.json", "analytics/cfb/x.json", "sports.json"):
+        assert out.joinpath(*key.split("/")).read_text(encoding="utf-8") == "{}", key
+
+
+def test_a_key_outside_cfb_refuses_before_anything_is_written(store, tmp_path, monkeypatch):
+    real = X.build
+
+    def leaky(con, generated_at=None):
+        files, notes = real(con, generated_at)
+        files["sports.json"] = {"kind": "sports"}
+        return files, notes
+    monkeypatch.setattr(X, "build", leaky)
+    with pytest.raises(ValueError, match="outside cfb/"):
+        X.export(str(tmp_path / "tree"), verbose=False)
+    assert not (tmp_path / "tree").exists()
+
+
+def test_the_sentinel_is_printed_only_by_a_write_into_the_publishing_tree(
+        store, tmp_path, monkeypatch, capsys):
+    """A staging run, a dry run and a publishing dry run authorise nothing; only a real
+    write into WEB_EXPORT_DIR declares `cfb/`. Read back with the uploader's own
+    `parse_refreshed`, so producer and consumer are checked against each other."""
+    from jobs.export_web import parse_refreshed
+    web = tmp_path / "web"
+    monkeypatch.setattr(config, "WEB_EXPORT_DIR", str(web), raising=False)
+    for argv, expect in ((["--out", str(tmp_path / "stage")], None),
+                         (["--dry-run"], None),
+                         (["--dest", "web", "--dry-run"], None),
+                         (["--dest", "web"], ["cfb/"])):
+        assert X.main(argv) == 0
+        assert parse_refreshed(capsys.readouterr().out) == expect, argv
+    assert (tmp_path / "stage" / "cfb" / "manifest.json").exists()
+    assert (web / "cfb" / "manifest.json").exists()
+    assert not (web / "sports.json").exists()
+
+
+def test_publishing_needs_WEB_EXPORT_DIR_and_never_guesses_it(store, monkeypatch):
+    from jobs.export_web import ConfigError
+    monkeypatch.setattr(config, "WEB_EXPORT_DIR", None, raising=False)
+    with pytest.raises(ConfigError):
+        X.main(["--dest", "web"])
+
+
+class _FakeR2:
+    def __init__(self):
+        self.put, self.deleted = [], []
+
+    def put_object(self, Bucket=None, Key=None, Body=None, **kw):
+        self.put.append(Key)
+
+    def delete_object(self, Bucket=None, Key=None):
+        self.deleted.append(Key)
+
+    def get_object(self, Bucket=None, Key=None):
+        raise RuntimeError("no remote state")
+
+    def list_objects_v2(self, **kw):
+        return {"Contents": []}
+
+
+@pytest.fixture
+def published(store, tmp_path, monkeypatch):
+    """A WEB_EXPORT_DIR after a CFB publish: the CFB tree plus one NFL key, and an upload
+    record that has seen every one of them."""
+    from jobs import export_web
+    web = tmp_path / "web"
+    files, _ = X.export(str(web), verbose=False)
+    nfl = web / "nfl" / "teams" / "kc.json"
+    nfl.parent.mkdir(parents=True)
+    nfl.write_text("{}", encoding="utf-8")
+    state = {k: "old" for k in list(files) + ["nfl/teams/kc.json"]}
+    (web / export_web.STATE_FILE).write_text(json.dumps(state), encoding="utf-8")
+    monkeypatch.setattr(export_web.config, "WEB_R2_ACCESS_KEY_ID", "x")
+    monkeypatch.setattr(export_web.config, "WEB_R2_SECRET_ACCESS_KEY", "y")
+    monkeypatch.setattr(export_web.config, "WEB_R2_BUCKET", "bucket")
+    return web, files
+
+
+def _upload(web, refreshed):
+    from jobs import export_web
+    client = _FakeR2()
+    res = export_web.upload(dest=str(web), client=client, refreshed=refreshed,
+                            log=lambda *a, **k: None)
+    return res, client
+
+
+NFL_DECLARATION = ["nfl/market/", "nfl/players/", "nfl/teams/", "research/", "analytics/"]
+
+
+def test_F3_is_closed_an_nfl_run_cannot_delete_a_published_cfb_key(published):
+    """THE HAZARD THAT KEPT THIS EXPORT UNPUBLISHED, driven rather than argued. The CFB
+    tree vanishes from the local export (a rebuilt directory, a new machine) and the
+    ordinary NFL refresh uploads with its own declaration: every CFB key is WITHHELD, none
+    deleted, and `withheld_prefixes` names `cfb/`, so the absence is visible."""
+    import shutil
+    web, files = published
+    shutil.rmtree(web / "cfb")
+    res, client = _upload(web, NFL_DECLARATION)
+    assert client.deleted == []
+    assert res["removed_withheld"] == len(files)
+    assert res["withheld_prefixes"] == ["cfb/"]
+
+
+def test_an_undeclared_run_deletes_nothing_and_says_so_differently(published):
+    """None (nobody said) and [] (said: I own nothing) both withhold, and are reported
+    apart - `declared_prefixes` is the field that tells them apart."""
+    import shutil
+    web, files = published
+    shutil.rmtree(web / "cfb")
+    for refreshed in (None, []):
+        res, client = _upload(web, refreshed)
+        assert client.deleted == [] and res["removed_withheld"] == len(files)
+        assert res["declared_prefixes"] == refreshed
+
+
+def test_a_cfb_declaration_deletes_only_cfb_and_uploads_the_tree(published):
+    """The other answer on the other input: with `cfb/` declared, a team file that left
+    the tree IS removed from R2 - and the NFL key beside it is not."""
+    web, files = published
+    gone = "cfb/teams/beta-tech-bears.json"
+    os.remove(web.joinpath(*gone.split("/")))
+    res, client = _upload(web, ["cfb/"])
+    assert client.deleted == [gone]
+    assert res["removed_withheld"] == 0
+    assert set(client.put) >= set(files) - {gone}
+    state = json.loads((web / ".upload_state.json").read_text(encoding="utf-8"))
+    assert gone not in state
 
 
 def test_writing_twice_changes_nothing(store, tmp_path):

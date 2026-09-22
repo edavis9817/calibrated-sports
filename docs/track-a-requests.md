@@ -550,3 +550,39 @@ untouched.** Additive only.
   (`bands_reason: separation_not_rejected`), list values as one unordered, alphabetical
   set, and do not synthesise a band. Word verdicts from the enums; the file exports no
   comparative prose.
+
+---
+
+## A-C8. The CFB publishing path: three asks from c-05, none blocking the staged tree
+
+From track C, unit c-05, 2026-09-22. **Nothing published.** The CFB tree is staged at
+`<STORAGE_DIR>/cfb/web_export` (140 keys, all under `cfb/`); `WEB_EXPORT_DIR` holds no
+`cfb/` key and the upload record names none (both checked).
+
+- **The path follows F4, not a second uploader.** `python -m jobs.export_cfb_web --dest web`
+  writes `cfb/` into `WEB_EXPORT_DIR` through one `sync_keys(dest, files, [f"{SPORT}/"])`
+  call and prints `REFRESHED cfb/`; `jobs.export_web --upload-only --refreshed "..."` does
+  the rest. F3 is closed for CFB and **driven, not argued**: with the CFB tree gone locally,
+  an upload under track A's declaration withholds all 140 CFB keys and deletes none
+  (`tests/test_export_cfb_web.py::test_F3_is_closed_*`). `test_prefix_ownership.owned_prefixes`
+  reads the CFB call site and finds exactly `["cfb/"]`, which contains and is contained by
+  none of your prefixes or `analytics/`.
+- **Ask 1 — `sports.json` is yours, and should list cfb once CFB is published.** The CFB
+  export used to write its own `sports.json` (nfl + cfb). c-05 removed it: `export_web`
+  rewrites that key on every manifest run, so two builders would ping-pong it on every
+  upload. The site does not read `sports.json` today (`lib/keys.ts` defines it; no route
+  calls it), so nothing breaks while it names nfl only.
+- **Ask 2 — `TeamSeasonSummary.markets` is a required integer, and CFB cannot state it.**
+  The store supports `games`/`cleared`/`missed`/`tied`/`points_*` for all 138 teams, but
+  `markets: 0` renders as "No ladder" beside every school, while the 56-hour Kalshi probe
+  logged 2,822 `KXNCAAFSPREAD` and 2,232 `KXNCAAFTOTAL` markets (CLAUDE.md, not re-measured
+  in c-05) - a claim the page's own reader can disprove. So `teams[].season` stays `null` for all 138 and the teams board keeps the
+  record and points em dashes. Making `markets` nullable (null = "this sport publishes no
+  market files") would fill them.
+- **Ask 3 — `TeamEntry.conference` is one string; the source holds three.** `cfb_teams`
+  carries `conference_id`, `conference_name` ("Mid-American Conference") and
+  `conference_short_name` ("MAC"). The export publishes the name. Track B's config
+  declares eleven short-ish names that match `conference_name` for 1 of 11 and
+  `conference_short_name` for 9 of 11 ("Conference USA" vs `CUSA`, "Independents" vs
+  `FBS Indep.`), so anything keyed on names across the two repos will drift. Not a
+  blocker: the teams board groups by the manifest's own strings.
