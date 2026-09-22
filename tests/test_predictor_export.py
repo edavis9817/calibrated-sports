@@ -123,6 +123,29 @@ def test_record_verdict_takes_every_value(lo, hi, n, want):
     assert px.record_verdict(lo, hi, n) == want
 
 
+def test_the_export_and_the_measurement_read_an_interval_by_one_rule():
+    for args in [(0.01, 0.2, 15), (-0.2, -0.01, 15), (-0.1, 0.1, 15),
+                 (0.016, 0.247, 4), (-0.1, 0.1, 4)]:
+        assert px.record_verdict(*args) == drafting.forecast_verdict(*args)
+
+
+def test_snaps4_published_would_say_not_readable_not_null(monkeypatch):
+    """f-06: snaps4 is withheld on its licence, and the file says so. The
+    day that clears, what the file must say about its record is
+    `not_readable` - its interval EXCLUDES zero on 4 targets - and never
+    `no_better_than_chance`. Built here from its measured figures."""
+    spec = dict(px.SLICES["snaps4"], withheld=[])
+    monkeypatch.setitem(px.SLICES, "snaps4", spec)
+    wf = {"r": 0.139, "lo": 0.016, "hi": 0.247, "targets": 4, "slope": 0.29}
+    r = result(snaps4=_outcome(p=0.14, classes=(2013, 2022)))
+    r["outcomes"]["snaps4"]["walk_forward"] = wf
+    p = px.validated(px.KEY, px.build(r))
+    s = p["slices"]["snaps4"]
+    assert s["status"] == "published"
+    assert s["record"]["score"]["verdict"] == "not_readable"
+    assert s["record"]["score"]["interval"][0] > 0     # and it excludes zero
+
+
 def test_the_record_is_null_with_a_reason_when_never_scored():
     rec = px._record({"note": "career AV is a snapshot"})
     assert rec == {"score": None, "reason": "not_as_of"}

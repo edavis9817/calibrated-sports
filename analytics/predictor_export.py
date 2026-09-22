@@ -10,9 +10,15 @@ was used to forecast what it could not see is the reason this one is worth
 publishing. So `slices[s].record` sits beside `slices[s]`'s values, and when a
 slice has never been scored the score is NULL WITH A REASON, never absent.
 
-WHAT THE RECORD SAYS, today: on the two published slices a team's closed draft
-record does not forecast its next class, and no team separates from shuffled
-labels (F07). The file is shaped so that the pipeline COULD say otherwise -
+WHAT THE RECORD SAYS, today, PER SLICE - never one verdict over all of them:
+on roster4 and bust a team's closed draft record does not forecast its next
+class (`no_better_than_chance`) and no team separates from shuffled labels.
+That is NOT a statement about the withheld slices. snaps4's walk-forward is
++0.139 [+0.016, +0.247] on 4 targets: it excludes zero and is `not_readable`,
+which is neither a null nor an edge. w_av separates (p 0.003) and has no as-of
+forecast at all. F07's first summary called "the walk-forward" null over every
+outcome; this paragraph exists because that sentence was wrong for snaps4
+(f-06). The file is shaped so that the pipeline COULD say otherwise -
 every verdict below is computed from the figures and each enum value is
 reachable (tests drive each one) - but on this data it does not. This unit is
 therefore the write-up of a null, not a metric dressed up to look publishable.
@@ -156,14 +162,13 @@ def separation_verdict(p, alpha=ALPHA):
     return "separates" if p < alpha else "does_not_separate"
 
 
-def record_verdict(lo, hi, n, min_n=MIN_READABLE):
-    if n < min_n:
-        return "not_readable"
-    if lo > 0:
-        return "forecasts"
-    if hi < 0:
-        return "forecasts_inversely"
-    return "no_better_than_chance"
+def record_verdict(lo, hi, n, min_n=None):
+    """`drafting.forecast_verdict`, the one rule: a verdict is per slice, and
+    an interval on fewer than `min_n` targets is `not_readable` whatever it
+    excludes - snaps4's +0.139 [+0.016, +0.247] on 4 targets is that, not a
+    null and not an edge."""
+    return drafting.forecast_verdict(
+        lo, hi, n, MIN_READABLE if min_n is None else min_n)
 
 
 def bands_block(bands, p, direction, means, alpha=ALPHA):

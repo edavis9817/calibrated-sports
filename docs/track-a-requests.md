@@ -550,3 +550,13 @@ untouched.** Additive only.
   (`bands_reason: separation_not_rejected`), list values as one unordered, alphabetical
   set, and do not synthesise a band. Word verdicts from the enums; the file exports no
   comparative prose.
+- **f-06 addendum (2026-09-22): no schema change, one rule for track B.** The a-06
+  verification found F07's summary called "the walk-forward" null over every outcome,
+  false of snaps4 (+0.139 [+0.016, +0.247], 4 targets: `not_readable`). The schema was
+  not the cause - `PredictorRecord.score.verdict` already has `not_readable` - so f-06
+  changes nothing in the kind. What it asks of a page: **a sentence computed over the
+  PUBLISHED slices names them** ("on roster weeks and busts, ..."), and never reads as
+  a statement about the predictor, because a withheld slice's `record` is null by the
+  contract and a null is not `no_better_than_chance`. The gsis fix moves the published
+  figures (roster4 p 0.68 -> 0.72, bust p 0.16 -> 0.30, `unresolved_rows` 219 -> 153);
+  both slices stay `does_not_separate` / `no_better_than_chance`.

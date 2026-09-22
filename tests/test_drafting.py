@@ -147,6 +147,100 @@ def test_walk_forward_cannot_see_the_classes_whose_horizon_is_open():
         assert row["prior_classes"] == row["target"] - 2000 - 4 + 1
 
 
+@pytest.mark.parametrize("lo,hi,n,want", [
+    (0.01, 0.2, 15, "forecasts"),
+    (-0.2, -0.01, 15, "forecasts_inversely"),
+    (-0.1, 0.1, 15, "no_better_than_chance"),
+    # snaps4, f-06: excludes zero, on 4 targets. Not a null and not an edge.
+    (0.016, 0.247, 4, "not_readable"),
+    # roster4 2002-2010: excludes zero BELOW, on 3 targets. Same answer.
+    (-0.138, -0.023, 3, "not_readable"),
+    (None, None, 0, "not_readable"),
+])
+def test_forecast_verdict_takes_every_value_and_the_floor_beats_the_interval(
+        lo, hi, n, want):
+    assert dr.forecast_verdict(lo, hi, n) == want
+
+
+def test_walk_forward_carries_its_verdict():
+    wf = dr.walk_forward(dr.residualize(synth(classes=16, effect=0.5), "y"),
+                         lag=4, draws=500)
+    assert wf["verdict"] == "forecasts"
+    few = dr.walk_forward(dr.residualize(synth(classes=9, effect=0.5), "y"),
+                          lag=4, draws=500)
+    assert few["targets"] < dr.MIN_READABLE and few["verdict"] == "not_readable"
+
+
+def test_the_scope_block_states_one_verdict_per_outcome():
+    """F07's summary said "the walk-forward is null" over every outcome and
+    was wrong for one. The printed scope is one line per outcome, so there is
+    no line that could say it."""
+    wf = {"r": 0.139, "lo": 0.016, "hi": 0.247, "targets": 4,
+          "verdict": "not_readable"}
+    null = {"r": -0.05, "lo": -0.1, "hi": 0.02, "targets": 15,
+            "verdict": "no_better_than_chance"}
+    r = {"outcomes": {"roster4": {"separation": {"p": 0.7}, "walk_forward": null},
+                      "snaps4": {"separation": {"p": 0.14}, "walk_forward": wf},
+                      "w_av": {"separation": {"p": 0.003},
+                               "walk_forward": {"note": "snapshot"}}},
+         "eras": {}}
+    lines = dr.scope_lines(r)
+    assert len(lines) == 3
+    assert "NO_BETTER_THAN_CHANCE" in lines[0]
+    assert "NOT_READABLE" in lines[1] and "+0.016" in lines[1]
+    assert "SEPARATES" in lines[2] and "no as-of forecast" in lines[2]
+
+
+# ---------------------------------------------------------------------------
+# a null gsis_id is recovered from the roster feed's own draft slot
+# ---------------------------------------------------------------------------
+
+def _id_picks():
+    return pl.DataFrame({
+        "season": [2005] * 6,
+        "pick": [10, 11, 12, 13, 14, 15],
+        "team": ["NWE", "PHI", "NWE", "NWE", "NWE", "JAX"],
+        "pfr_player_name": ["Jon Stinchcomb", "C.J. Gaddis", "Al Johnson",
+                            "Twin Pick", "Taken Already", "Stefan Lefors"],
+        "gsis_id": [None, None, None, None, None, "G9"],
+    })
+
+
+def _ids():
+    rows = [
+        ("G1", 2005, 10, "NE", "Stinchcomb"),   # recovered
+        ("G2", 2005, 11, "BLT", "Gaither"),     # another club's pick on the number
+        ("G3", 2005, 12, "NE", "Smith"),        # the slot matches, the name does not
+        ("G4", 2005, 13, "NE", "Pick"),         # two ids on one slot
+        ("G5", 2005, 13, "NE", "Pick"),
+        ("G9", 2005, 14, "NE", "Already"),      # already some pick's gsis_id
+    ]
+    return pl.DataFrame(rows, schema=["gsis_id", "entry_year", "draft_number",
+                                      "draft_club", "last_name"], orient="row")
+
+
+def test_recover_gsis_accepts_a_slot_match_only_when_club_and_name_agree():
+    out, c = dr.recover_gsis(_id_picks(), _ids())
+    assert out.height == 6                                      # nobody dropped
+    assert out["gsis_id"].to_list() == ["G1", None, None, None, None, "G9"]
+    assert out["gsis_source"].to_list() == ["roster_slot", "none", "none",
+                                            "none", "none", "draft_picks"]
+    assert c == {"no_gsis": 5, "no_candidate": 0, "recovered": 1,
+                 "ambiguous": 1, "club_mismatch": 1, "name_mismatch": 1,
+                 "already_a_pick": 1}
+
+
+def test_recover_gsis_folds_case_and_punctuation_in_the_name_check():
+    picks = pl.DataFrame({"season": [2005], "pick": [121], "team": ["CAR"],
+                          "pfr_player_name": ["Stefan Lefors"], "gsis_id": [None]},
+                         schema_overrides={"gsis_id": pl.Utf8})
+    ids = pl.DataFrame([("G7", 2005, 121, "CAR", "LeFors")],
+                       schema=["gsis_id", "entry_year", "draft_number",
+                               "draft_club", "last_name"], orient="row")
+    out, c = dr.recover_gsis(picks, ids)
+    assert out["gsis_id"].to_list() == ["G7"] and c["recovered"] == 1
+
+
 # ---------------------------------------------------------------------------
 # survivorship: picks that never play are scored, never dropped
 # ---------------------------------------------------------------------------
@@ -258,3 +352,28 @@ def test_picks_without_any_resolvable_id_are_counted():
     played = no_gsis.filter(pl.col("games").is_not_null() & (pl.col("games") > 0))
     assert no_gsis.height == 219
     assert played.height == 9
+
+
+@needs_mirror
+def test_the_roster_slot_recovers_the_rostered_picks_f07_scored_as_busts():
+    """F07's docstring called the id-less misclassification "9 in 5,371" -
+    the id-less picks with PFR games. roster4 is PRESENCE, so a pick on
+    injured reserve with 0 games is on a roster too: the recovery finds 66
+    identities, and 59 of them had roster weeks F07 scored as 0 (f-06; A's
+    independent count, a-06, was 66 recovered). If upstream fills draft_picks'
+    gsis_ids these counts fall and this test should be re-measured, not
+    loosened."""
+    p0 = dr.load_picks()
+    p, c = dr.recover_gsis(p0, dr.load_roster_draft_ids())
+    assert c == {"no_gsis": 219, "no_candidate": 152, "recovered": 66,
+                 "ambiguous": 0, "club_mismatch": 1, "name_mismatch": 0,
+                 "already_a_pick": 0}
+    # 2007 #159: PHI's C.J. Gaddis. The roster feed puts Jared Gaither, a BAL
+    # supplemental pick, on the same number; the club check refuses him.
+    g = p.filter((pl.col("season") == 2007) & (pl.col("pick") == 159))
+    assert g["gsis_source"].to_list() == ["none"]
+    assert p["gsis_id"].drop_nulls().n_unique() == p["gsis_id"].drop_nulls().len()
+    rec = dr.roster4(p, dr.load_rosters(2002, 2025)).filter(
+        pl.col("gsis_source") == "roster_slot")
+    assert rec.height == 66
+    assert rec.filter(pl.col("roster_weeks") > 0).height == 59
