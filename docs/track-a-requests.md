@@ -550,3 +550,61 @@ untouched.** Additive only.
   (`bands_reason: separation_not_rejected`), list values as one unordered, alphabetical
   set, and do not synthesise a band. Word verdicts from the enums; the file exports no
   comparative prose.
+
+---
+
+## A-C11. `coverage`: a `status` per sport, so "held" and "not attempted" stop reading the same
+
+**Status:** filed 2026-09-22 by track C (relay unit c-09). **A request, not an edit** - the
+vendored contract was not touched. Numbered A-C11 because A-C8 (c-05), A-C9 (c-06) and
+A-C10 (c-07) are filed on unmerged track-C branches; **c-05's and c-06's branches were
+never pushed** (verified with `git branch -r --contains`), so only A-C10 is visible to you.
+
+**Why.** Scope decision 2026-09-22: NBA and NHL are HELD - no ingest, survey or spend until
+the owner lifts it. In `coverage.json` both read `stats: null, odds: null, context: null`,
+which is exactly what a sport nobody has reached yet reads. A decision and the absence of
+one are different facts, and the feed is the one place the statement should live, rather
+than in five page templates.
+
+**Relation to A-C9 (c-06, unpushed).** A-C9 asked for a per-CLASS reason beside a null
+holding (`not_built` / `no_permitted_source` / `paid_only`). This is the per-SPORT question
+and it is the one the site's pages need: whether a page may say "coming". The two are
+compatible; if you take only one, take this one - the reason c-06 gave (terms) is not the
+reason the sports are held today (scope), and a hold is what the page must say.
+
+**The diff, exactly.** It is `docs/proposals/coverage-status.patch.json`, which
+`tests/test_export_coverage.py` applies to your schema - so the diff filed and the diff
+tested are one text:
+
+1. `$defs.SportCoverage.properties.status = {"$ref": "#/$defs/SportStatus"}`
+2. `$defs.SportCoverage.required` += `"status"`
+3. `$defs.SportStatus` added verbatim from the patch file: closed object, `state` in
+   `carried | held | not_attempted`, `since` (date or null), `reason`, `revisit` (string or
+   null); `held` requires `since` and `reason`, `not_attempted` forbids them.
+4. Delete `docs/proposals/coverage-status.patch.json` in the same commit.
+   `test_patch_file_and_schema_never_both_carry_status` fails while both exist.
+
+**What happens on the producer side: nothing to edit.** `jobs/export_coverage.py` emits
+`status` only when the schema it validates against has the property
+(`schema_admits_status()`), and checks the declarations on every run regardless.
+
+**Tested against your adoption, not just main.** In a throwaway worktree, c-09's commit
+merged with `a-05-coverage-predictor-kinds` (0364204) and then this patch applied to the
+merged contract: `test_export_coverage.py` 47 passed. **One of YOUR tests needs one forced
+line** - it hand-builds a SportCoverage without `status`:
+
+    tests/test_contract_coverage_predictor.py, test_a_sport_with_nothing_is_null_and_valid_and_empty_is_refused
+    -    o["sports"].append({"sport": "nhl", "stats": None, "odds": None, "context": None})
+    +    o["sports"].append({"sport": "nhl", "stats": None, "odds": None, "context": None,
+    +                        "status": {"state": "held", "since": "2026-09-22",
+    +                                   "reason": "scope", "revisit": None}})
+
+Separately, and not caused by this: merging a-05 into current `origin/main` conflicts in
+`DECISIONS.md` (a-05 predates a-07). Resolve row by row per the append-only-log rule.
+
+**What the schema cannot say and the producer checks instead:** a `not_attempted` sport
+whose holdings are not all null refuses the run (something was attempted); every site
+sport has exactly one status; no status names a sport the site does not declare.
+
+**For track B, once adopted:** a sport whose `status.state` is `held` must not render
+"Coming soon" or "What it will lead with". See track-b-requests, "From track C - c-09".

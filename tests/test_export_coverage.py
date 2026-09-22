@@ -251,7 +251,7 @@ def test_main_writes_only_where_told(stores, tmp_path):
 
 # ---- the schema: a proposal until track A adopts it, and it must discriminate
 
-def _valid_obj():
+def _valid_obj_bare():
     count = {"store": "cfb.db", "table": "cfb_games", "source": "s", "grain": "game",
              "units": 1, "rows": 1, "providers": None, "seasons": [2026],
              "season_basis": "column", "span": None, "ingested_through": None,
@@ -262,6 +262,15 @@ def _valid_obj():
                         "odds": None, "context": None}],
             "stores": [{"store": "cfb.db", "read_at": "2026-09-22T00:00:00Z", "tables": 1,
                         "classified": 1, "sports_seen": ["cfb"]}]}
+
+
+def _valid_obj():
+    """The hand-built object, carrying `status` once the schema requires it (c-09)."""
+    obj = _valid_obj_bare()
+    if X.schema_admits_status():
+        for s in obj["sports"]:
+            s["status"] = dict(X.SPORT_STATUS[s["sport"]])
+    return obj
 
 
 def test_the_schema_accepts_a_real_holding():
@@ -350,7 +359,10 @@ NOT_ATTEMPTED = dict(state="not_attempted", since=None, reason=None, revisit=Non
 def _patched_contract():
     """The contract as it would read once track A applies the coverage kind AND the filed
     status patch - built from the two files that are filed, so the diff tested is the diff
-    filed. Works whether or not the contract has adopted the kind yet."""
+    filed. Works whether or not the contract has adopted the kind yet, and once the patch
+    is applied (and its file deleted) it is simply the contract."""
+    if X.schema_admits_status(CONTRACT):
+        return CONTRACT
     c = copy.deepcopy(CONTRACT)
     if not X.contract_has_kind(c):
         prop = X.load_proposal()
