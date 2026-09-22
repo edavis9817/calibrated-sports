@@ -219,6 +219,143 @@ def test_the_report_answers_as_of_an_instant_not_only_as_of_now(store):
 
 
 # ---------------------------------------------------------------------------
+# preservation: a re-published report that goes SILENT on a field must not unsay it
+# ---------------------------------------------------------------------------
+
+def _republish(store, season, *, with_date_modified, edit):
+    """Archive and apply a re-published file: the first fixture, passed through `edit`."""
+    df = edit(pl.read_parquet(io.BytesIO(injuries_parquet(
+        season, with_date_modified=with_date_modified))))
+    buf = io.BytesIO()
+    df.write_parquet(buf)
+    file_id, _ = fetch.archive(store, "injuries", season, "u", buf.getvalue(),
+                               suffix=".parquet.gz")
+    rows, _ = normalize.injuries(buf.getvalue(), season)
+    return J._apply(store, "injuries", season, file_id, rows, "injury_reports", "republish")
+
+
+def _current(store, season):
+    return {r[0]: dict(zip(("status", "practice", "injury", "asof"), r[1:])) for r in store.execute(
+        "SELECT player_id, report_status, practice_status, report_primary_injury, "
+        "upstream_asof_ts FROM injury_reports WHERE season=? AND valid_to_ts IS NULL",
+        (season,))}
+
+
+def _drop_fields(df):
+    """Upstream omits the designation and practice status for player 0, and writes
+    whitespace - a second spelling of nothing that the real 2023/24 files use - for
+    player 1's practice status."""
+    p0 = pl.col("gsis_id") == "00-0000"
+    return df.with_columns(
+        pl.when(p0).then(None).otherwise(pl.col("report_status")).alias("report_status"),
+        pl.when(p0).then(None).otherwise(pl.col("practice_status")).alias("practice_status"),
+        pl.when(~p0).then(pl.lit("\n    ")).otherwise(pl.col("practice_status"))
+        .alias("practice_status_ws"),
+    ).with_columns(
+        pl.when(~p0).then(pl.col("practice_status_ws")).otherwise(pl.col("practice_status"))
+        .alias("practice_status")).drop("practice_status_ws")
+
+
+def test_a_field_upstream_drops_is_held_not_unsaid(store):
+    """The brief's case, constructed: the stored value must survive upstream dropping it.
+    A surviving value on its own proves nothing - so the same drop is shown to erase
+    the value when preservation is off (the next test), on the same fixture."""
+    J.run_injuries(store, [2025], client=FakeHTTP().client(store), verbose=False)
+    assert _current(store, 2025)["00-0000"]["status"] == "Questionable"
+
+    ins, closed, same = _republish(store, 2025, with_date_modified=False, edit=_drop_fields)
+
+    now = _current(store, 2025)
+    assert now["00-0000"]["status"] == "Questionable"
+    assert now["00-0000"]["practice"] == "Limited Participation in Practice"
+    assert now["00-0001"]["practice"] == "Limited Participation in Practice"
+    # silence is not a new fact, so it opens no new version at all
+    assert (ins, closed, same) == (0, 0, 2)
+    logged = store.execute(
+        "SELECT row_key, column_name, held_value, outcome FROM feeds_preserved_nulls "
+        "ORDER BY row_key, column_name").fetchall()
+    assert [(json.loads(k)[5], c, o) for k, c, _h, o in logged] == [
+        ("00-0000", "practice_status", "kept"), ("00-0000", "report_status", "kept"),
+        ("00-0001", "practice_status", "kept")]
+    detail = store.execute("SELECT detail FROM feeds_parse_log WHERE rel_path='republish'"
+                           ).fetchone()[0]
+    assert "report_status:kept" in detail
+
+
+def test_without_preservation_the_same_drop_erases_the_value(store):
+    """Discrimination: the defect the preservation exists for, reproduced on the same
+    input through the same `versioning.apply` with `preserve` empty."""
+    J.run_injuries(store, [2025], client=FakeHTTP().client(store), verbose=False)
+    df = _drop_fields(pl.read_parquet(io.BytesIO(injuries_parquet(2025, with_date_modified=False))))
+    buf = io.BytesIO()
+    df.write_parquet(buf)
+    rows, _ = normalize.injuries(buf.getvalue(), 2025)
+    store.execute("BEGIN")
+    from cfb import versioning
+    versioning.apply(store, "injuries", 2025, 99, time.time(), "injury_reports", rows,
+                     schema_mod=schema)
+    store.commit()
+    assert _current(store, 2025)["00-0000"]["status"] is None
+
+
+def test_a_restatement_still_wins_and_only_the_silent_field_is_held(store):
+    J.run_injuries(store, [2025], client=FakeHTTP().client(store), verbose=False)
+    p0 = pl.col("gsis_id") == "00-0000"
+    ins, closed, _ = _republish(store, 2025, with_date_modified=False, edit=lambda df: df.with_columns(
+        pl.when(p0).then(pl.lit("Out")).otherwise(pl.col("report_status")).alias("report_status"),
+        pl.when(p0).then(None).otherwise(pl.col("practice_status")).alias("practice_status")))
+    now = _current(store, 2025)["00-0000"]
+    assert now["status"] == "Out"                                  # restatement wins
+    assert now["practice"] == "Limited Participation in Practice"  # silence does not
+    assert (ins, closed) == (1, 1)
+
+
+def test_the_upstream_date_is_carried_only_while_the_row_it_dates_is_unchanged(store):
+    """2025 removed `date_modified`. If 2024 is re-published in the 2025 layout, the
+    capture time must survive - but only on rows whose content it actually dated."""
+    J.run_injuries(store, [2024], client=FakeHTTP().client(store), verbose=False)
+    dated = datetime(2024, 9, 6, 19, 5, tzinfo=timezone.utc).timestamp()
+    assert {v["asof"] for v in _current(store, 2024).values()} == {dated}
+
+    p0 = pl.col("gsis_id") == "00-0000"
+    _republish(store, 2024, with_date_modified=False, edit=lambda df: df.with_columns(
+        pl.when(p0).then(pl.lit("Out")).otherwise(pl.col("report_status")).alias("report_status")))
+    now = _current(store, 2024)
+    assert now["00-0001"]["asof"] == dated          # unchanged row: its date is kept
+    assert now["00-0000"]["status"] == "Out"
+    assert now["00-0000"]["asof"] is None           # restated row: the old date is NOT its date
+    outcomes = dict(store.execute(
+        "SELECT json_extract(row_key, '$[5]'), outcome FROM feeds_preserved_nulls "
+        "WHERE column_name='upstream_asof_ts'").fetchall())
+    assert outcomes == {"00-0000": "not_carried_row_restated", "00-0001": "kept"}
+
+
+def test_every_injury_column_is_classified_for_preservation():
+    """A column added later must be DECIDED - held through silence, dated, or a key -
+    rather than defaulting to being unsayable by an omission."""
+    cols = set(schema.columns("injury_reports"))
+    classified = (set(schema.keys("injury_reports")) | set(schema.PRESERVE["injury_reports"])
+                  | set(schema.DATED_BY["injury_reports"]))
+    assert cols == classified
+
+
+def test_a_key_cannot_be_preserved(store):
+    from cfb import versioning
+    with pytest.raises(ValueError, match="key"):
+        versioning.apply(store, "injuries", 2025, 1, time.time(), "injury_reports", [],
+                         schema_mod=schema, preserve=("player_id",))
+
+
+def test_the_as_of_report_carries_each_rows_date(store):
+    J.run_injuries(store, [2024, 2025], client=FakeHTTP().client(store), verbose=False)
+    old = J.injury_report_as_of(store, 2024, 1, time.time())
+    new = J.injury_report_as_of(store, 2025, 1, time.time())
+    assert old and new
+    assert all(r[5] == datetime(2024, 9, 6, 19, 5, tzinfo=timezone.utc).timestamp() for r in old)
+    assert all(r[5] is None and r[6] is not None for r in new)
+
+
+# ---------------------------------------------------------------------------
 # venues and weather
 # ---------------------------------------------------------------------------
 

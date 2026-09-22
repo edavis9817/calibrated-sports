@@ -75,6 +75,21 @@ TABLES = {
 NEWS_FORBIDDEN = ("description", "summary", "content", "body", "text", "excerpt",
                   "content_encoded", "abstract")
 
+# Columns that SILENCE may not unsay (`cfb.versioning.apply(preserve=...)`): every
+# descriptive injury column. Upstream is a weekly, re-published file, and the 09-19
+# players release showed a re-publish can omit a field it carried the week before.
+# `upstream_asof_ts` is not here but in DATED_BY: it dates the other columns, so it is
+# carried forward only while they are unchanged.
+PRESERVE = {
+    "injury_reports": ("player_name", "position", "report_primary_injury",
+                       "report_secondary_injury", "report_status",
+                       "practice_primary_injury", "practice_secondary_injury",
+                       "practice_status", "game_type"),
+}
+DATED_BY = {
+    "injury_reports": ("upstream_asof_ts",),
+}
+
 CONTROL_DDL = """
 CREATE TABLE IF NOT EXISTS feeds_raw_files (
     file_id        INTEGER PRIMARY KEY,
@@ -109,6 +124,23 @@ CREATE TABLE IF NOT EXISTS feeds_parse_log (
     dropped   TEXT,
     status    TEXT NOT NULL,
     detail    TEXT
+);
+
+-- Every time upstream went SILENT on a value we hold, and what was done about it.
+-- `kept`: the held value was carried into the current version. `not_carried_row_restated`:
+-- a capture time was NOT carried, because the row it dated had changed. A withdrawn
+-- designation and an omitted one look identical in the file, so this is the record that
+-- lets a reader tell the store's answer from upstream's.
+CREATE TABLE IF NOT EXISTS feeds_preserved_nulls (
+    ts          REAL NOT NULL,
+    feed        TEXT NOT NULL,
+    src_season  INTEGER,
+    src_file_id INTEGER NOT NULL,
+    table_name  TEXT NOT NULL,
+    row_key     TEXT NOT NULL,
+    column_name TEXT NOT NULL,
+    held_value  TEXT,
+    outcome     TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS feeds_measurements (

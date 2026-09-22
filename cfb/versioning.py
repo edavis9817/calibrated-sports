@@ -63,11 +63,34 @@ def latest_version(conn, table, dataset, season, part=None):
     return max(x for x in (r, c, 0.0) if x is not None)
 
 
+def silent(v) -> bool:
+    """NULL, or a string with nothing in it. Upstream has written both for "no value"
+    (nflverse injuries carry 69 practice_status cells that are only whitespace), and
+    a preservation rule that tested `is None` alone would let the second one through."""
+    return v is None or (isinstance(v, str) and not v.strip())
+
+
 def apply(conn, dataset, season, file_id, version_ts, table, rows, label=None, part=None,
-          schema_mod=None):
+          schema_mod=None, *, preserve=(), dated_by=(), preserved=None):
     """Diff `rows` against the current rows for (dataset, season) and write the
     difference as of `version_ts`. Idempotent: applying the same file twice
     changes nothing. Returns (inserted, closed, unchanged).
+
+    PRESERVE. A column in `preserve` that arrives SILENT (see `silent`) while the
+    current version holds a value keeps the held value - the versioned form of
+    `store.upsert_preserving`'s `COALESCE(excluded.c, table.c)`. A changed value is
+    a restatement and wins; silence is not a restatement. Without this, a release
+    that omits a field opens a new version with the field null and the CURRENT row
+    set - what "now" reads - has unsaid it, although the history still holds it.
+
+    DATED_BY. A column that DATES the rest of the row (an upstream capture time) is
+    carried forward only when every other column matches the held version after
+    preservation. Carried across a restatement it would stamp the new content with
+    the old content's date, which is a wrong as-of and worse than none.
+
+    Every substitution, and every date that was NOT carried, is appended to
+    `preserved` as (key, column, held_value, outcome), so silence stays visible.
+    Default behaviour, with neither argument, is unchanged.
 
     Runs inside the caller's transaction; the caller commits.
     """
@@ -83,18 +106,51 @@ def apply(conn, dataset, season, file_id, version_ts, table, rows, label=None, p
     key = schema.keys(table)
     kidx = [cols.index(k) for k in key]
 
+    preserve, dated_by = tuple(preserve), tuple(dated_by)
+    unknown = [c for c in preserve + dated_by if c not in cols]
+    if unknown:
+        raise ValueError(f"{table}: not columns: {unknown}")
+    if set(preserve + dated_by) & set(key):
+        raise ValueError(f"{table}: a key column cannot be preserved")
+    pidx = [cols.index(c) for c in preserve]
+    didx = [cols.index(c) for c in dated_by]
+    rest = [i for i in range(len(cols)) if i not in didx]
+    held_vals = {}
+
     current = {}
+    extra = f", {', '.join(cols)}" if (pidx or didx) else ""
     for rowid, *vals in conn.execute(
-            f"SELECT rowid, {', '.join(key)}, row_sha FROM {table} "
+            f"SELECT rowid, {', '.join(key)}, row_sha{extra} FROM {table} "
             f"WHERE {SCOPE} AND valid_to_ts IS NULL",
             (dataset, season, part)):
-        current[tuple(vals[:-1])] = (rowid, vals[-1])
+        k = tuple(vals[:len(key)])
+        current[k] = (rowid, vals[len(key)])
+        if extra:
+            held_vals[k] = vals[len(key) + 1:]
 
     to_insert, seen, unchanged = [], set(), 0
     to_close = []
     for r in rows:
         k = tuple(r[i] for i in kidx)
         seen.add(k)
+        hv = held_vals.get(k)
+        if hv is not None:
+            r = list(r)
+            for i in pidx:
+                if silent(r[i]) and not silent(hv[i]):
+                    r[i] = hv[i]
+                    if preserved is not None:
+                        preserved.append((k, cols[i], hv[i], "kept"))
+            for i in didx:
+                if silent(r[i]) and not silent(hv[i]):
+                    if all(r[j] == hv[j] for j in rest):
+                        r[i] = hv[i]
+                        outcome = "kept"
+                    else:
+                        outcome = "not_carried_row_restated"
+                    if preserved is not None:
+                        preserved.append((k, cols[i], hv[i], outcome))
+            r = tuple(r)
         sha = row_sha(r)
         held = current.get(k)
         if held and held[1] == sha:

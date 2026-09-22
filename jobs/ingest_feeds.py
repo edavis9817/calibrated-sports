@@ -38,13 +38,18 @@ from feeds import fetch, normalize, openmeteo, paths, rss, schema, sources  # no
 LIMITATIONS = [
     ("feeds.injuries_have_no_capture_time", "structural",
      "The official injury report carries no timestamp of its own",
-     "nflverse's injuries file has 16 columns and none is a capture time: no "
-     "date_modified, no scraped_at. The report itself is published Wednesday to Friday "
-     "and amended, and the file is rewritten in place.",
+     "nflverse's injuries file carries `date_modified` for 2009-2024 and REMOVED it "
+     "from 2025: the 2025 and 2026 files have no capture time. On 2023 and 2024 it sits "
+     "a median 47h before the team's kickoff with 75-80% of rows on a Friday ET, so "
+     "where it exists it dates the final report. The report is published Wednesday to "
+     "Friday and amended, the file is rewritten in place, and it holds ONE "
+     "practice_status per player-week, not the Wednesday/Thursday/Friday sequence.",
      "The store versions every row by INGESTION time, so 'what was known at T' is a "
-     "query and not a guess. A consumer must read it as of an instant; the current row "
-     "set is 'what is known now', which is a different claim. If nflverse ever adds a "
-     "capture column the parser REFUSES the file rather than keep guessing."),
+     "query and not a guess. From 2025 that stamp is the only date a row has, and it "
+     "dates a report only if the capture ran BEFORE kickoff; a backfilled season is "
+     "dated after its own games. A value upstream goes silent on is held rather than "
+     "unsaid, and every case is logged in feeds_preserved_nulls. If nflverse ever adds "
+     "a capture column the parser REFUSES the file rather than keep guessing."),
     ("feeds.weather_is_hourly_not_at_kickoff", "precision",
      "Weather is the provider's hourly value at the kickoff HOUR",
      "Open-Meteo publishes hourly series. A kickoff at 13:07 is described by the 13:00 "
@@ -100,12 +105,27 @@ def _apply(con, feed, season, file_id, rows, table, label, dropped=None, part=No
     `season` is the integer scope (a season) and `part` the string one (a weather date
     and endpoint); a feed with neither passes both None and is scoped by its own name."""
     ts = time.time()
+    preserved = []
     con.execute("BEGIN")
     ins, closed, same = versioning.apply(con, feed, season, file_id, ts, table, rows,
-                                         label=label, part=part, schema_mod=schema)
+                                         label=label, part=part, schema_mod=schema,
+                                         preserve=schema.PRESERVE.get(table, ()),
+                                         dated_by=schema.DATED_BY.get(table, ()),
+                                         preserved=preserved)
+    con.executemany(
+        "INSERT INTO feeds_preserved_nulls VALUES (?,?,?,?,?,?,?,?,?)",
+        [(ts, feed, season, file_id, table, json.dumps(list(k), default=str), col,
+          None if held is None else str(held), outcome)
+         for k, col, held, outcome in preserved])
+    detail = None
+    if preserved:
+        counts = {}
+        for _k, col, _h, outcome in preserved:
+            counts[f"{col}:{outcome}"] = counts.get(f"{col}:{outcome}", 0) + 1
+        detail = "silent upstream: " + json.dumps(counts, sort_keys=True)
     con.execute("INSERT INTO feeds_parse_log VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (ts, label, feed, len(rows), ins, closed, same,
-                 json.dumps(dropped or {}), "ok", None))
+                 json.dumps(dropped or {}), "ok", detail))
     con.commit()
     return ins, closed, same
 
@@ -128,17 +148,29 @@ def run_injuries(con, seasons, client=None, verbose=True):
         ins, closed, same = _apply(con, rel.feed, season, file_id, rows,
                                    rel.table, f"injuries {season}", dropped)
         measure(con, "injuries.rows", season, len(rows), json.dumps(dropped) or None)
-        out[season] = f"{outcome} +{ins} -{closed} ={same}"
+        kept = con.execute(
+            "SELECT COUNT(*) FROM feeds_preserved_nulls WHERE feed=? AND src_file_id=? "
+            "AND outcome='kept'", (rel.feed, file_id)).fetchone()[0]
+        out[season] = f"{outcome} +{ins} -{closed} ={same}" + (
+            f"  held-through-silence {kept}" if kept else "")
         if verbose:
             print(f"  injuries {season}: {len(rows):,} rows  {out[season]}")
     return out
 
 
 def injury_report_as_of(con, season, week, as_of_ts, season_type="REG"):
-    """The report as the site would have had it at `as_of_ts` - the point of all this."""
+    """The report as the site would have had it at `as_of_ts` - the point of all this.
+
+    Each row carries its DATE, because a designation without one is not usable:
+    `upstream_asof_ts` where nflverse published it (2009-2024; on 2023 and 2024 a median
+    47h before that team's kickoff, 75-80% of rows on a Friday ET - the final report),
+    and `valid_from_ts`, when THIS store first held this version - the only date there
+    is from 2025. The second bounds when it was known, not when it was filed, and for a
+    season backfilled after the fact it is later than the game."""
     where, params = versioning.as_of_clause(as_of_ts)
     return con.execute(
-        f"SELECT team, player_name, position, report_status, practice_status "
+        f"SELECT team, player_name, position, report_status, practice_status, "
+        f"upstream_asof_ts, valid_from_ts "
         f"FROM injury_reports WHERE sport='nfl' AND season=? AND week=? AND season_type=? "
         f"AND {where} ORDER BY team, player_name", (season, week, season_type, *params)
     ).fetchall()
@@ -331,6 +363,10 @@ def parse_seasons(spec):
     return sorted(out)
 
 
+def _utc(ts):
+    return datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%d %H:%MZ")
+
+
 def _iso(s):
     return datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
 
@@ -364,8 +400,11 @@ def main(argv=None):
                 when = datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%d %H:%MZ")
                 print(f"injury report {season} week {week}, as the store had it at {when}: "
                       f"{len(rows)} rows")
-                for team, name, pos, rep, prac in rows[:40]:
-                    print(f"  {team:4} {name:26} {pos or '':4} {rep or '-':12} {prac or '-'}")
+                for team, name, pos, rep, prac, up_ts, from_ts in rows[:40]:
+                    dated = (f"filed {_utc(up_ts)}" if up_ts is not None
+                             else f"held since {_utc(from_ts)}")
+                    print(f"  {team:4} {name:26} {pos or '':4} {rep or '-':12} "
+                          f"{(prac or '-').strip():36} {dated}")
                 return 0
             if a.injuries:
                 run_injuries(con, parse_seasons(a.injuries))
