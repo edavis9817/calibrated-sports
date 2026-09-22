@@ -380,3 +380,237 @@ def test_the_probe_export_validates_against_the_contract():
     man = files["mlb/manifest.json"]
     assert man["period_type"] == "date" and man["current"]["stale"] is True
     assert not any(k.startswith("mlb/market") for k in files)
+
+
+# ---------------------------------------------------------------------------
+# c-07: Retrosheet's statement travels with the export, and the publish tree refuses
+# ---------------------------------------------------------------------------
+
+def _store_with_one_game(mutate=None):
+    con = J.connect()
+    _fetch(con, bundle(mutate=mutate))
+    con.close()
+
+
+def test_the_export_writes_the_statement_verbatim_beside_the_tree(tmp_path):
+    from jobs import export_mlb_web as E
+    _store_with_one_game()
+    out = tmp_path / "probe"
+    E.export(str(out), [SEASON], verbose=False)
+    body = (out / "mlb" / "NOTICE.txt").read_text(encoding="utf-8")
+    assert body.startswith(sources.ATTRIBUTION)
+    # and a re-run with nothing changed does not rewrite it
+    assert E.write_notice(str(out)) is False
+
+
+def test_the_publish_tree_is_refused_while_the_manifest_cannot_carry_the_statement(
+        tmp_path, monkeypatch):
+    from jobs import export_mlb_web as E
+    _store_with_one_game()
+    web = tmp_path / "web"
+    monkeypatch.setattr(config, "WEB_EXPORT_DIR", str(web))
+    assert not E.contract_admits_attribution()          # today's contract: no field (A-C10)
+    for dest in (web, web / "nested"):
+        with pytest.raises(E.AttributionNotCarried, match="WEB_EXPORT_DIR"):
+            E.export(str(dest), [SEASON], verbose=False)
+    assert not web.exists(), "a refused export must write nothing, NOTICE included"
+    # the same export to a SIBLING whose name merely starts with the publish tree's is
+    # allowed - so the refusal above is about the destination, not a broken export, and
+    # the prefix test is by path component, not by string
+    E.export(str(tmp_path / "web-probe"), [SEASON], verbose=False)
+    assert (tmp_path / "web-probe" / "mlb" / "manifest.json").exists()
+
+
+def test_once_the_contract_has_the_field_the_manifest_carries_it_and_the_gate_opens(
+        tmp_path, monkeypatch):
+    import copy
+    from jobs import export_mlb_web as E
+    _store_with_one_game()
+    assert "attribution" not in E.build(E.ro(), [SEASON])["mlb/manifest.json"]
+    contract = copy.deepcopy(E.CONTRACT)
+    contract["$defs"]["SportManifest"]["properties"]["attribution"] = {"type": "object"}
+    monkeypatch.setattr(E, "CONTRACT", contract)
+    man = E.build(E.ro(), [SEASON])["mlb/manifest.json"]
+    assert man["attribution"] == sources.attribution_block()
+    assert man["attribution"]["statement"] == sources.ATTRIBUTION
+    monkeypatch.setattr(config, "WEB_EXPORT_DIR", str(tmp_path / "web"))
+    assert E.check_destination(str(tmp_path / "web"), man) == str(tmp_path / "web")
+    with pytest.raises(E.AttributionNotCarried, match="verbatim"):
+        E.check_destination(str(tmp_path / "web"),
+                            {"attribution": {"statement": "Data: Retrosheet."}})
+
+
+def test_the_limitation_row_describes_the_state_it_is_in():
+    """c-03's row claimed 'Any export of MLB data carries the statement' - false of its own
+    export (0 of 4,757 files, f-03). The row is now pinned to the contract's real state:
+    when the field lands, THIS FAILS until the row is rewritten to say what is then true."""
+    from jobs import export_mlb_web as E
+    consequence = {lid: c for lid, _sev, _t, _s, c in J.LIMITATIONS}["mlb.attribution_required"]
+    assert "Any export of MLB data carries the statement" not in consequence
+    assert E.contract_admits_attribution() is False, (
+        "the contract now has SportManifest.attribution - rewrite the "
+        "mlb.attribution_required consequence in jobs/ingest_mlb.py to say what is true "
+        "now, then update this test")
+    assert consequence.startswith("NOT YET MET")
+    assert "NOTICE.txt" in consequence and "WEB_EXPORT_DIR" in consequence
+
+
+# ---------------------------------------------------------------------------
+# c-07: one aggregation rule, not two
+# ---------------------------------------------------------------------------
+
+def _aggregates_in(source, names=None):
+    """Every SQL SUM string and every builtin `sum(` call in the source (or in the named
+    functions of it), by AST. Docstrings are skipped: one that NAMES the old rule is not
+    code, and a text grep cannot tell the two apart."""
+    import ast
+    tree = ast.parse(source)
+    roots = [tree] if names is None else [
+        n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name in names]
+    if names is not None:
+        assert {r.name for r in roots} == set(names), "a named function is missing"
+    docs = {id(n.body[0].value) for n in ast.walk(tree)
+            if isinstance(n, (ast.FunctionDef, ast.Module)) and n.body
+            and isinstance(n.body[0], ast.Expr) and isinstance(n.body[0].value, ast.Constant)}
+    # attribute every hit to its enclosing TOP-LEVEL function (None at module level)
+    owner = {}
+    for top in tree.body:
+        for n in ast.walk(top):
+            owner[id(n)] = top.name if isinstance(top, ast.FunctionDef) else None
+    hits = []
+    for root in roots:
+        for n in ast.walk(root):
+            if isinstance(n, ast.Constant) and isinstance(n.value, str) \
+                    and id(n) not in docs and "SUM(" in n.value.upper():
+                hits.append(("sql", owner.get(id(n))))
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "sum":
+                hits.append(("sum", owner.get(id(n))))
+    return sorted(hits, key=str)
+
+
+def test_the_aggregation_rule_exists_once():
+    """f-03: the rule lived in SQL (season_totals) AND in Python (the export). They agreed
+    on 90,116 cells and nothing kept them agreeing. Both now fold through mlb.totals."""
+    import inspect
+    from jobs import export_mlb_web as E
+    assert _aggregates_in(inspect.getsource(J), {"season_totals", "team_records"}) == []
+    # The export: NO SQL aggregate anywhere, and builtin sum() only where it is not a
+    # published stat total. Exact, so a new sum() anywhere in the module fails:
+    #   build   x2  the P/B position classifier - g_p against g appearances, NULL read as
+    #               0 on purpose, because a majority vote needs a number (finding M-4)
+    #   measure x2  counting period-index collisions (finding M-1)
+    assert _aggregates_in(inspect.getsource(E)) == \
+        [("sum", "build")] * 2 + [("sum", "measure")] * 2
+    # the checker can fail: both shapes it looks for are caught when planted
+    planted = ('def season_totals(con):\n'
+               '    """SUM( in a docstring is prose."""\n'
+               '    return con.execute("SELECT SUM(b_h) FROM mlb_batting")\n'
+               'def team_records(rows):\n'
+               '    return sum(r["win"] for r in rows)\n')
+    assert len(_aggregates_in(planted, {"season_totals", "team_records"})) == 2
+
+
+def test_the_store_and_the_export_agree_on_every_cell_including_an_unknown_one():
+    """The two consumers of the rule on one fixture with a blank cell: every total the
+    export publishes equals the store's reader, and the unknown game makes BOTH null."""
+    from jobs import export_mlb_web as E
+
+    def blank(m):
+        m["batting"][2]["b_h"] = ""          # swit001's VIS line
+    _store_with_one_game(blank)
+    files = E.build(E.ro(), [SEASON])
+    ro = J.connect_ro()
+    compared = 0
+    for kind, cols in (("batting", schema.BAT_STATS),
+                       ("pitching", schema.PIT_STATS + schema.PIT_FLAGS)):
+        for row in J.season_totals(ro, SEASON, kind):
+            summary = files[f"mlb/players/{row['player_id']}/summary.json"]
+            reg = [t for t in summary["season_totals"] if t["season_type"] == "regular"][0]
+            for c in cols:
+                assert reg["stats"][c] == row[c], (row["player_id"], c)
+                assert summary["career"]["stats"][c] == row[c], (row["player_id"], c)
+                compared += 1
+    assert compared == 3 * len(schema.BAT_STATS) + 2 * len(schema.PIT_STATS + schema.PIT_FLAGS)
+    sw = files["mlb/players/swit001/summary.json"]["season_totals"][0]
+    assert sw["stats"]["b_h"] is None and sw["stats"]["b_pa"] == 3
+
+
+def test_a_null_is_contagious_in_the_fold():
+    from mlb import totals
+    assert totals.total([1, 2, 3]) == 6
+    assert totals.total([1, None, 3]) is None
+    assert totals.total([None, 1]) is None
+    assert totals.fold_into({"a": 1}, {"a": None, "b": 2}) == {"a": None, "b": 2}
+    assert totals.season_type("playoff") == "regular"
+    assert totals.season_type("worldseries") == "worldseries"
+
+
+# ---------------------------------------------------------------------------
+# c-07: a read does not open the store for writing
+# ---------------------------------------------------------------------------
+
+def _snapshot(db):
+    import hashlib
+    import sqlite3
+    con = sqlite3.connect(db)
+    con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    con.close()
+    with open(db, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def test_status_totals_and_audit_leave_the_store_byte_identical(capsys, monkeypatch):
+    _store_with_one_game()
+    db = paths.db_path()
+    before = _snapshot(db)
+    real_connect = J.connect
+
+    def no_write_connection(*a, **k):
+        raise AssertionError("a read path opened the store through connect()")
+    monkeypatch.setattr(J, "connect", no_write_connection)
+    assert J.main([]) == 0
+    assert J.main(["--totals", str(SEASON), "--player", "homa001"]) == 0
+    assert J.main(["--audit"]) == 0
+    assert "homa001" in capsys.readouterr().out
+    assert _snapshot(db) == before
+    # the snapshot can see a write: one real write through the write path moves it
+    con = real_connect()
+    J.measure(con, "probe.write", "x", 1)
+    con.close()
+    assert _snapshot(db) != before
+
+
+def test_the_read_connection_refuses_to_write():
+    import sqlite3
+    _store_with_one_game()
+    ro = J.connect_ro()
+    assert ro.execute("SELECT COUNT(*) FROM mlb_batting").fetchone()[0] == 4
+    with pytest.raises(sqlite3.OperationalError):
+        ro.execute("UPDATE mlb_limitations SET recorded_ts = 0")
+
+
+def test_a_read_of_a_store_that_does_not_exist_refuses_and_creates_nothing(capsys):
+    import os
+    db = paths.db_path()
+    assert not os.path.exists(db)
+    assert J.main([]) == 1
+    assert J.main(["--totals", str(SEASON)]) == 1
+    assert "REFUSING" in capsys.readouterr().out
+    assert not os.path.exists(db)
+
+
+def test_a_limitation_is_re_recorded_only_when_its_text_changes(monkeypatch):
+    con = J.connect()
+    first = dict(con.execute("SELECT id, recorded_ts FROM mlb_limitations"))
+    con.close()
+    con = J.connect()
+    assert dict(con.execute("SELECT id, recorded_ts FROM mlb_limitations")) == first
+    con.close()
+    changed = [(lid, sev, t, s, c + " (restated)") if lid == "mlb.no_current_season"
+               else (lid, sev, t, s, c) for lid, sev, t, s, c in J.LIMITATIONS]
+    monkeypatch.setattr(J, "LIMITATIONS", changed)
+    con = J.connect()
+    after = dict(con.execute("SELECT id, recorded_ts FROM mlb_limitations"))
+    assert after["mlb.no_current_season"] > first["mlb.no_current_season"]
+    assert {k: v for k, v in after.items() if k != "mlb.no_current_season"} == \
+        {k: v for k, v in first.items() if k != "mlb.no_current_season"}

@@ -134,3 +134,31 @@ patterns resolve. `result` T and `tied` hold MLB's 7 regular-season ties (1999-2
   yearly `--fetch <season>`, and `mlb.sources.LAST_PUBLISHED` moves only after that fetch succeeds.
 - **Nothing is published.** There is no upload path, and the probe writes only to a directory you
   name.
+
+## 6. c-07 corrections (2026-09-22), after f-03's verification
+
+- **The attribution was in no product artefact, and the limitation row said it was.** f-03 counted
+  Retrosheet's statement in 0 of 4,757 exported files. Where it stands now:
+  - The export writes `mlb/NOTICE.txt`, verbatim. That is 1 file in a 4,758-file tree, and **still
+    0 of the 4,757 JSON files**, because the contract has no field for the statement (A-C10, filed
+    to track A with the exact diff).
+  - The export refuses to write into `WEB_EXPORT_DIR` until the manifest carries the statement.
+  - `mlb.attribution_required` now says the condition is **not yet met** and that no MLB data may
+    be published. A test pins the row to the contract's real state, so it fails when the field
+    lands.
+  - The site half (name Retrosheet, not `statsapi`; render the statement) is filed to track B.
+- **One aggregation rule.** The rule is: NULL is contagious, and a tiebreaker counts as regular
+  season. It now lives only in `mlb/totals.py`. `season_totals` and `team_records` select lines in
+  SQL and fold them in Python, and the export folds through the same functions. On the real store,
+  `research/c07_totals_equivalence.py` compared the new code against c-03's SQL, kept verbatim as
+  an oracle:
+  - 1,282,132 season-total cells over 27 seasons: 0 differ.
+  - 810 team-seasons: 0 differ.
+  - 100,484 export cells for 2024-2025: 0 differ. That is f-03's 90,116 plus the 6 pitching credit
+    flags.
+  - **No cell in 1999-2025 is NULL.** So on real data the null branch of the rule has never fired;
+    it is exercised by fixtures only.
+- **Reads are read-only.** Status, `--totals` and `--audit` open `mlb.db` with `mode=ro` plus
+  `query_only`, and refuse a missing store rather than create one. Run against the real store,
+  they left `mlb.db` byte-identical and every `recorded_ts` unchanged. A limitation's
+  `recorded_ts` now moves only when its text changes.

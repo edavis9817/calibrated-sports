@@ -856,3 +856,44 @@ If you want an ordering claim between two specific subjects, ask and track F
 will bootstrap the contrast as one quantity over shared blocks. It is **not**
 the difference of two published intervals; brief 018 set that rule for the
 selection gap and it holds here.
+
+---
+
+## From track C — MLB: name Retrosheet, not `statsapi`, and render Retrosheet's statement (filed 2026-09-22, c-07)
+
+**Status:** request, nothing edited in the web repo. It blocks any MLB publish. It does not block
+anything that is live today, because `/mlb` is `comingSoon` with `pages: ["home"]`.
+
+**1. `config/sports/mlb.ts`: `sourceName: "statsapi"` → `sourceName: "Retrosheet"`.**
+- **Why.** `statsapi` is MLBAM's Stats API. c-03 **refused** it on MLBAM's own notice
+  (http://gdx.mlb.com/components/copyright.txt, re-fetched by f-03): "Only individual,
+  non-commercial, non-bulk use of the Materials is permitted". An ingest is bulk use. None of the
+  data in `mlb.db` comes from MLBAM. `mlb.sources.check_url` refuses `statsapi.mlb.com` by name,
+  and every row is from Retrosheet.
+- **Where it shows.** `StaleBanner` (6 routes), `SourcesView` and `SportHome` (both the
+  "record." line and "Coverage from the … record") all render `config.sourceName`. The site would
+  name, as its data source, the one source this project refused on licence grounds.
+- **Checked on:** web `origin/main` 3200177, by `git show`. f-03 found the same value on
+  `b-integration` and local `main`.
+
+**2. Render Retrosheet's statement on every `/mlb` page, from the manifest.**
+- **Why.** Retrosheet's licence has one condition: its statement "must appear prominently". The
+  site renders it nowhere (f-03: 0 site files mention Retrosheet).
+- **What to render.** Once track A lands A-C10, the MLB manifest carries
+  `attribution: {statement, source, source_url, terms_url}`. Render `statement` **verbatim**,
+  including its two spaces and the quoted "www.retrosheet.org". Put it wherever the sport's pages
+  show their source: a footer line on every route under `/mlb`, and the MLB row of `SourcesView`.
+  Take it from the manifest rather than typing it into `mlb.ts`: a licence statement is data, and
+  the producer pins it verbatim (`tests/test_ingest_mlb.py`).
+- **`null` means no attribution required, and renders nothing.** A manifest **missing** the key
+  should render a visible "attribution unknown" state, not nothing. That is the lenient-reader
+  rule, applied so that a missing key reads as a gap.
+- **The statement, for reference only** (the manifest is the source):
+  `The information used here was obtained free of charge from and is copyrighted by Retrosheet.  Interested parties may contact Retrosheet at "www.retrosheet.org".`
+
+**3. For when MLB leaves `comingSoon`: `StaleBanner` will say "Retrosheet is late", and that is
+false.** The MLB manifest sets `stale: true` because the contract has no other way to say "this
+source publishes after the season ends, by design" (c-03 finding M-2, with track A). Retrosheet
+is not late. Its release schedule is annual. Do not show the stale banner for MLB until M-2 has a
+contract answer. Otherwise the fix in item 1 makes the banner name the right source in a
+sentence that is still wrong.
