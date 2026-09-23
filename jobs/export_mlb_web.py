@@ -13,6 +13,17 @@ sport ships from real MLB rows, and run them through `jobs.export_web.validate_c
 - track A's single choke point, not a second validator. Where the contract resists, that
 is a finding filed to track A, never a local workaround.
 
+RETROSHEET'S STATEMENT GOES WITH THE DATA (c-07). The licence's one condition is that
+`mlb.sources.ATTRIBUTION` "must appear prominently". f-03 found it in 0 of 4,757 exported
+files. Today, with a contract that has no field for it (A-C10, filed to track A):
+  * every export writes `mlb/NOTICE.txt` - the statement verbatim, beside the JSON - so a
+    copy of the tree carries it. The uploader walks `.json` only, so this is NOT what a
+    site reader would see, and it is not claimed to be;
+  * the moment the contract's SportManifest declares `attribution`, the manifest carries
+    `sources.attribution_block()` - detected from the contract document, not a flag;
+  * until then the export REFUSES to write into WEB_EXPORT_DIR, the tree the uploader
+    publishes from. A probe directory elsewhere is still allowed: it publishes nothing.
+
 NOT A SLUG REGISTRY WRITE. Slugs are URLs, and `web/slugs/{sport}.json` is append-only
 and committed. Minting MLB entries there would publish URLs for pages nobody has built,
 so this probe computes slugs in memory and discards them.
@@ -26,10 +37,11 @@ from datetime import date
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from jobs.export_web import (assert_stats_defined, envelope, iso,      # noqa: E402
-                             slugify, validate_contract, write_if_changed)
-from jobs.ingest_mlb import REGULAR_SEASON                            # noqa: E402
-from mlb import paths, schema                                          # noqa: E402
+import config                                                          # noqa: E402
+from jobs.export_web import (CONTRACT, assert_stats_defined, envelope,  # noqa: E402
+                             iso, slugify, validate_contract, write_if_changed)
+from mlb import paths, schema, sources, totals                         # noqa: E402
+from mlb.totals import REGULAR_SEASON                                  # noqa: E402
 
 SPORT = "mlb"
 SPORT_NAME = "MLB"
@@ -76,6 +88,59 @@ PIT = schema.PIT_STATS + schema.PIT_FLAGS
 
 def ro():
     return sqlite3.connect(f"file:{paths.db_path()}?mode=ro", uri=True)
+
+
+NOTICE_KEY = f"{SPORT}/NOTICE.txt"
+
+
+class AttributionNotCarried(Exception):
+    pass
+
+
+def contract_admits_attribution() -> bool:
+    """Does the contract's sport manifest have somewhere to put the statement? Read from
+    the contract document itself, so this turns true in the commit that adds the field."""
+    return "attribution" in CONTRACT["$defs"]["SportManifest"].get("properties", {})
+
+
+def _under(path, root):
+    if not root:
+        return False
+    path, root = os.path.normcase(os.path.abspath(path)), os.path.normcase(os.path.abspath(root))
+    return path == root or path.startswith(root.rstrip(os.sep) + os.sep)
+
+
+def check_destination(out_dir, manifest):
+    """Returns the destination it approved, or raises. The publish tree
+    (`config.WEB_EXPORT_DIR`) is refused unless the manifest carries Retrosheet's
+    statement verbatim - an MLB file there would be one upload from a licence breach."""
+    carried = (manifest.get("attribution") or {}).get("statement")
+    if carried is not None and carried != sources.ATTRIBUTION:
+        raise AttributionNotCarried("the manifest's attribution is not Retrosheet's "
+                                    "statement verbatim")
+    if _under(out_dir, config.WEB_EXPORT_DIR) and carried is None:
+        raise AttributionNotCarried(
+            f"refusing to write MLB into WEB_EXPORT_DIR ({config.WEB_EXPORT_DIR}): the "
+            f"manifest cannot carry Retrosheet's statement until the contract has a field "
+            f"for it (A-C10). Export to a probe directory instead.")
+    return out_dir
+
+
+def write_notice(out_dir, dry_run=False):
+    """`mlb/NOTICE.txt`: the statement verbatim, where anyone copying the tree gets it.
+    True when written; unchanged content is left alone."""
+    path = os.path.join(out_dir, *NOTICE_KEY.split("/"))
+    body = sources.notice_text()
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            if f.read() == body:
+                return False
+    if dry_run:
+        return True
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(body)
+    return True
 
 
 def stat_definitions():
@@ -156,8 +221,8 @@ def build(con, seasons):
             continue
         slug, name = slugs[pid], names.get(pid)
         last = max(prow, key=lambda r: (r["season"], r["last_g"] or ""))
-        season_list, totals = [], []
-        career = defaultdict(lambda: 0)
+        season_list, season_totals = [], []
+        career = {}
         career_games = 0
         for s in seasons_held:
             periods = sorted(lines[(pid, s)].values(), key=lambda r: (r["index"], r["game_id"]))
@@ -172,27 +237,23 @@ def build(con, seasons):
                                 "key": f"{SPORT}/players/{pid}/{s}.json"})
             by_type = defaultdict(list)
             for r in periods:
-                # a tiebreaker counts toward the regular season (ingest_mlb.REGULAR_SEASON)
-                by_type["regular" if r["season_type"] in REGULAR_SEASON
-                        else r["season_type"]].append(r)
+                by_type[totals.season_type(r["season_type"])].append(r)
             for st, rs in sorted(by_type.items()):
                 agg = {}
                 for r in rs:
-                    for k, v in r["stats"].items():
-                        agg[k] = None if (v is None or agg.get(k, 0) is None) else agg.get(k, 0) + v
-                totals.append({"season": s, "season_type": st,
-                               "games": len({r["game_id"] for r in rs}), "stats": agg})
+                    totals.fold_into(agg, r["stats"])
+                season_totals.append({"season": s, "season_type": st,
+                                      "games": len({r["game_id"] for r in rs}), "stats": agg})
                 if st == "regular":
                     career_games += len({r["game_id"] for r in rs})
-                    for k, v in agg.items():
-                        career[k] = None if (v is None or career[k] is None) else career[k] + v
+                    totals.fold_into(career, agg)
         files[f"{SPORT}/players/{pid}/summary.json"] = {
             **envelope("player_summary", generated_at, SPORT),
             "identity": {"id": pid, "slug": slug, "name": name, "position": pos.get(pid),
                          "team": last["team"].lower(),
                          "ids": {"retrosheet": pid, "mlbam": None, "bbref": None},
                          "aliases": [], "headshot_url": None},
-            "seasons": season_list, "season_totals": totals,
+            "seasons": season_list, "season_totals": season_totals,
             "career": {"season_type": "regular", "games": career_games, "stats": dict(career)},
             "market": None, "prop_history": None}
         index.append({"id": pid, "slug": slug, "name": name, "position": pos.get(pid),
@@ -226,8 +287,7 @@ def build(con, seasons):
                 "opponent_coach": opp_line["mgr"] if opp_line else None})
         splits = []
         def split_key(r):
-            return (r["season"],
-                    "regular" if r["gametype"] in REGULAR_SEASON else r["gametype"])
+            return (r["season"], totals.season_type(r["gametype"]))
         for (s, st), rs in sorted(_group(rows, split_key).items()):
             splits.append({"season": s, "season_type": st, "games": len(rs),
                            "offense": {c: _sum(rs, c) for c in BAT},
@@ -279,6 +339,8 @@ def build(con, seasons):
                    "games": len({t["game_id"] for t in tgames}), "rungs": 0},
         "unresolved_ids": [],
     }
+    if contract_admits_attribution():
+        files[f"{SPORT}/manifest.json"]["attribution"] = sources.attribution_block()
     return files
 
 
@@ -290,8 +352,7 @@ def _group(rows, key):
 
 
 def _sum(rows, c):
-    vals = [r[c] for r in rows]
-    return None if any(v is None for v in vals) else sum(vals)
+    return totals.total(r[c] for r in rows)
 
 
 def _mode(xs):
@@ -338,7 +399,8 @@ def export(out_dir, seasons, dry_run=False, verbose=True):
     files = build(con, seasons)
     validate_contract(files)
     assert_stats_defined(files, files[f"{SPORT}/manifest.json"]["stat_definitions"])
-    written = 0
+    check_destination(out_dir, files[f"{SPORT}/manifest.json"])
+    written = write_notice(out_dir, dry_run)
     for key, obj in sorted(files.items()):
         written += write_if_changed(os.path.join(out_dir, *key.split("/")), obj, dry_run)
     if verbose:
@@ -348,6 +410,9 @@ def export(out_dir, seasons, dry_run=False, verbose=True):
         print(f"  files {len(files)} validated against the contract, written {written}  "
               f"{'(dry run)' if dry_run else out_dir}")
         print(f"  by prefix {dict(kinds)}")
+        carried = "manifest.attribution AND " if contract_admits_attribution() else ""
+        print(f"  Retrosheet's statement: {carried}{NOTICE_KEY} (the contract has "
+              f"{'a' if carried else 'NO'} field for it)")
     con.close()
     return files
 
@@ -376,7 +441,8 @@ M-2  A SPORT WITH NO CURRENT SEASON HAS NO HONEST `current`. `current.season` an
 M-3  NO ATTRIBUTION FIELD. Retrosheet's licence permits any use on ONE condition: its
      statement "must appear prominently". No kind carries a per-sport credit, and every
      object is closed, so the export cannot add one. Using `scoring_note` would be a
-     field lying about what it holds.
+     field lying about what it holds. FILED AS A-C10 (c-07) with the exact diff; until it
+     lands the export writes mlb/NOTICE.txt and refuses WEB_EXPORT_DIR.
 
 M-4  `position` IS ONE STRING AND MLB HAS TWO-WAY PLAYERS. Ohtani 2025: 158 regular-season
      games with a batting line, 14 pitching, 18 games (postseason included) carrying both. The probe emits P or B by majority - a lossy choice the contract forced.

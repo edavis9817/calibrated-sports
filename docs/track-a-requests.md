@@ -686,3 +686,56 @@ to the producer. They are not in `nfl_player_week`, but they are in the raw week
 (`yardline_100`). The published `air_yards.*` metrics are career-pooled distributions, not
 per-period volume, so they do not serve this. **Closes:** two of the four tabs the shell
 draws on Analytics.
+## A-C10. `SportManifest.attribution`: the one licence condition Retrosheet sets has nowhere to go (BLOCKS any MLB publish)
+
+From track C, unit c-07, 2026-09-22. **Not edited into the contract.** The contract is yours, and
+this is the exact diff rather than a description of one.
+
+- **Why.** Retrosheet's notice (re-fetched by f-03) permits any use, commercial included, on one
+  condition: the statement in `mlb.sources.ATTRIBUTION` "must appear prominently". c-03 filed this
+  as finding M-3 in `--findings` and `docs/C04-mlb-stats.md`, and **never in this file**, so you
+  have not been asked until now. f-03 counted the statement in **0 of 4,757** exported probe files.
+  Every object is closed, so no producer can add it, and `scoring_note` would be a field lying
+  about what it holds.
+- **What c-07 did in the meantime, so you know what is waiting on you.** `jobs.export_mlb_web`
+  now writes `mlb/NOTICE.txt` beside the tree. That is the only file that carries the statement
+  today, and `local_keys()` walks `.json` only, so the uploader would never send it. The export
+  **refuses to write into `WEB_EXPORT_DIR`** until the manifest carries the statement. The
+  producer side is already written: `export_mlb_web.contract_admits_attribution()` reads
+  `$defs.SportManifest.properties` from the contract document, and the MLB manifest carries
+  `mlb.sources.attribution_block()` in the same commit that adds the field. You do not need to
+  edit any track C file.
+- **The diff**, in `$defs.SportManifest.properties`:
+
+```json
+"attribution": {
+  "description": "A statement a source's licence requires to appear with its data, verbatim. Null means this sport's sources require none. The site renders `statement` on every page of the sport.",
+  "type": ["object", "null"],
+  "additionalProperties": false,
+  "properties": {
+    "statement":  {"type": "string", "minLength": 1},
+    "source":     {"type": "string", "minLength": 1},
+    "source_url": {"type": "string"},
+    "terms_url":  {"type": "string"}
+  },
+  "required": ["statement", "source", "source_url", "terms_url"]
+}
+```
+
+  and `"attribution"` added to `SportManifest.required`.
+- **Required and nullable, not optional. This is my recommendation, and it is your call.** Leaving
+  the key out would mean "nobody said". `null` means "no attribution required". For a licence
+  condition those are different claims, and only the second one should reach a page. The cost is
+  that the NFL export, and CFB's once c-05 lands, must write `"attribution": null` (or a real value)
+  in the same commit. Under the closed-contract rule that edit is yours to make in their files.
+  **I have not read nflverse's or CFB's sources' terms for an attribution requirement.** Several
+  nflverse datasets carry their own licences. So `null` for NFL is a claim you would be making,
+  not one I checked.
+- **Why the manifest and not every file.** Every sport route on the site already loads the
+  manifest. `StaleBanner` takes it on the sport home, players, player, team, teams and fantasy
+  pages (web `origin/main` 3200177, read, not run), so one field reaches every page. A per-file
+  field (envelope-level) is the stricter reading of "travels with the file": a single
+  `players/<id>/2025.json` lifted out alone would carry the statement. It is 4,757 copies of one
+  sentence and a change to every kind. **I recommend the manifest.** Take the envelope instead if
+  Ethan reads the terms as per-file.
+- **Also for B, and filed there:** render it, and stop naming MLBAM's `statsapi` as the source.

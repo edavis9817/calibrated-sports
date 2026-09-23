@@ -31,6 +31,24 @@ ATTRIBUTION = ("The information used here was obtained free of charge from and i
                "copyrighted by Retrosheet.  Interested parties may contact Retrosheet at "
                "\"www.retrosheet.org\".")
 
+SOURCE_NAME = "Retrosheet"
+SOURCE_URL = "https://www.retrosheet.org"
+
+
+def attribution_block() -> dict:
+    """The shape filed to track A as A-C10 for `SportManifest.attribution`. The statement
+    is `ATTRIBUTION` verbatim; the rest says whose it is and where the terms live."""
+    return {"statement": ATTRIBUTION, "source": SOURCE_NAME, "source_url": SOURCE_URL,
+            "terms_url": NOTICE_URL}
+
+
+def notice_text() -> str:
+    """`mlb/NOTICE.txt` in an export tree: the statement first, verbatim, then its origin."""
+    return (f"{ATTRIBUTION}\n\n"
+            f"MLB statistics in this tree are derived from {SOURCE_NAME} data "
+            f"({SOURCE_URL}). Terms: {NOTICE_URL}\n")
+
+
 # The per-season bundle: allplayers, gameinfo, teamstats, batting, pitching, fielding,
 # plays. Measured 2026-09-22: 2024 and 2025 exist (~9.9 MB each); 2026 returns 404 -
 # Retrosheet publishes a season after it ends, so there is NO current-season MLB data.
