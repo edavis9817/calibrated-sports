@@ -897,6 +897,9 @@ source publishes after the season ends, by design" (c-03 finding M-2, with track
 is not late. Its release schedule is annual. Do not show the stale banner for MLB until M-2 has a
 contract answer. Otherwise the fix in item 1 makes the banner name the right source in a
 sentence that is still wrong.
+
+---
+
 ## From track C - c-09: the held sports' pages say "coming", and one figure is wrong (filed 2026-09-22)
 
 Scope decision 2026-09-22: NBA and NHL are **held**. Measured on the live site
@@ -933,6 +936,7 @@ Scope decision 2026-09-22: NBA and NHL are **held**. Measured on the live site
    data is current." (from the c-07 probe manifest and the component's template, not
    rendered). Three things wrong in it: "late" (the source is historical by design, M-2),
    the doubled full stop, and a market-data clause for a sport with no market data.
+
 ## From track C - c-11: MLB must not read as current; a label draft for when the gate opens (filed 2026-09-22)
 
 **Nothing to build yet.** MLB stays `comingSoon` until A-C10 is in the contract and c-07
@@ -953,6 +957,7 @@ in the same change that flips `comingSoon`, not after it.
 - **Not `StaleBanner`.** It words the cutoff as the source being "late", and prints
   `data_through` as "date 305". Already filed by c-07 (item 3) and c-09; restated because
   the label above replaces what the banner would otherwise say for MLB.
+
 ## f-07 — the drafting predictor, once a-05 carries the f-07 fields (2026-09-22)
 
 - **Render `attribution.statement` wherever any slice in `attribution.applies_to` is
@@ -968,6 +973,9 @@ in the same change that flips `comingSoon`, not after it.
   and not a failure.
 - `bands_reason: confounded`: no ordering of any kind. List the values alphabetically,
   as for `separation_not_rejected`.
+
+---
+
 ## 12. a-08 — the season path for the teams board, and why pace stays marked
 
 **Status:** built by track A on branch `a-08-team-series`, **not merged, not exported, not

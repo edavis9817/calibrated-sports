@@ -705,6 +705,9 @@ to the producer. They are not in `nfl_player_week`, but they are in the raw week
 (`yardline_100`). The published `air_yards.*` metrics are career-pooled distributions, not
 per-period volume, so they do not serve this. **Closes:** two of the four tabs the shell
 draws on Analytics.
+
+---
+
 ## A-C10. `SportManifest.attribution`: the one licence condition Retrosheet sets has nowhere to go (BLOCKS any MLB publish)
 
 From track C, unit c-07, 2026-09-22. **Not edited into the contract.** The contract is yours, and
@@ -758,6 +761,9 @@ this is the exact diff rather than a description of one.
   sentence and a change to every kind. **I recommend the manifest.** Take the envelope instead if
   Ethan reads the terms as per-file.
 - **Also for B, and filed there:** render it, and stop naming MLBAM's `statsapi` as the source.
+
+---
+
 ## A-C11. `coverage`: a `status` per sport, so "held" and "not attempted" stop reading the same
 
 **Status:** filed 2026-09-22 by track C (relay unit c-09). **A request, not an edit** - the
@@ -813,6 +819,7 @@ sport has exactly one status; no status names a sport the site does not declare.
 
 **For track B, once adopted:** a sport whose `status.state` is `held` must not render
 "Coming soon" or "What it will lead with". See track-b-requests, "From track C - c-09".
+
 ## A-C12. `coverage`: a date-grained cutoff, `CoverageCount.event_dates`, so MLB can say where it stops
 
 **Status: ADOPTED by track A, unit a-12, 2026-09-23**, with A-C7, verbatim.
