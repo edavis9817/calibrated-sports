@@ -117,7 +117,7 @@
         },
         "markets": {"type": "integer"},
         "cumulative": {
-          "description": "The season PATH the teams board draws: one entry per regular-season week of the league's schedule (index 1..N, N = 18 for the NFL's 2026 schedule), in order. A played week carries the running total THROUGH that week; every other state carries null in every value - never zero, never the previous week carried forward, never a projection. The last played entry equals this summary's own totals; the producer refuses to export otherwise. The chart's axis ceiling is the highest value any team's path reaches, which the reader takes from these arrays rather than from a separately published figure that could disagree with them.",
+          "description": "The season PATH the teams board draws: one entry per regular-season week of the league's schedule (index 1..N, N taken from the schedule), in order. A played week carries the running total THROUGH that week; every other state carries null in every value - never zero, never the previous week carried forward, never a projection. The last played entry equals this summary's own totals; the producer refuses to export otherwise. The chart's axis ceiling is the highest value any team's path reaches, which the reader takes from these arrays rather than from a separately published figure that could disagree with them.",
           "type": "array",
           "items": {"anyOf": [{"$ref": "#/$defs/TeamWeekPlayed"}, {"$ref": "#/$defs/TeamWeekEmpty"}]}
         }
