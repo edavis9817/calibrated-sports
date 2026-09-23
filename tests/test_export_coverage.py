@@ -63,12 +63,13 @@ DDL = {
         "news_items": f"sport TEXT, feed TEXT, guid TEXT, published_ts REAL, {V}",
     },
     "mlb.db": {
-        "mlb_games": f"sport TEXT, game_id TEXT, season INT, {V}",
-        "mlb_team_games": f"sport TEXT, game_id TEXT, team TEXT, stattype TEXT, season INT, {V}",
+        "mlb_games": f"sport TEXT, game_id TEXT, season INT, date TEXT, {V}",
+        "mlb_team_games": f"sport TEXT, game_id TEXT, team TEXT, stattype TEXT, season INT, "
+                          f"date TEXT, {V}",
         "mlb_batting": f"sport TEXT, game_id TEXT, player_id TEXT, team TEXT, stattype TEXT, "
-                       f"season INT, {V}",
+                       f"season INT, date TEXT, {V}",
         "mlb_pitching": f"sport TEXT, game_id TEXT, player_id TEXT, team TEXT, stattype TEXT, "
-                        f"season INT, {V}",
+                        f"season INT, date TEXT, {V}",
         "mlb_player_teams": f"sport TEXT, player_id TEXT, team TEXT, season INT, {V}",
     },
 }
@@ -145,6 +146,68 @@ def test_mlb_is_read_from_its_own_store(stores):
     got = sport(run(), "mlb")["stats"]
     assert got["seasons"] == [2025]
     assert [(s["units"], s["rows"]) for s in got["sources"]] == [(1, 1)]
+
+
+def _mlb_game(stores, gid, date, season, vt=None, table="mlb_games", **extra):
+    put(stores, "mlb.db", table, sport="mlb", game_id=gid, season=season, date=date,
+        valid_from_ts=JAN_2026, valid_to_ts=vt, **extra)
+
+
+def test_the_mlb_cutoff_is_read_from_the_store_and_moves_with_it(stores):
+    """c-11: the date a page states as 'through' is the store's newest current game, as a
+    calendar date. It is not typed anywhere, so it cannot drift: add a later game and it
+    moves; close that game's version and it moves back."""
+    _mlb_game(stores, "LAN202503180", "20250318", 2025)
+    _mlb_game(stores, "LAN202511010", "20251101", 2025)
+    games = sport(run(), "mlb")["stats"]["sources"][0]
+    assert games["table"] == "mlb_games"
+    assert games["event_dates"] == {"first": "2025-03-18", "last": "2025-11-01"}
+    assert games["span"] is None               # never an invented time of day
+    assert X.validate(run())
+    _mlb_game(stores, "NYA202604010", "20260401", 2026)
+    assert sport(run(), "mlb")["stats"]["sources"][0]["event_dates"]["last"] == "2026-04-01"
+    stores["mlb.db"].execute("UPDATE mlb_games SET valid_to_ts = ? WHERE game_id = ?",
+                             (SEP_2026, "NYA202604010"))
+    stores["mlb.db"].commit()
+    got = sport(run(), "mlb")["stats"]
+    assert got["sources"][0]["event_dates"]["last"] == "2025-11-01"
+    assert got["seasons"] == [2025]
+    assert any("events through 2025-11-01" in ln for ln in X.summary_lines(run()))
+
+
+def test_every_dated_mlb_table_carries_its_dates_and_the_undated_one_does_not(stores):
+    _mlb_game(stores, "LAN202511010", "20251101", 2025)
+    _mlb_game(stores, "LAN202511010", "20251101", 2025, table="mlb_team_games",
+              team="LAN", stattype="value")
+    for t in ("mlb_batting", "mlb_pitching"):
+        _mlb_game(stores, "LAN202511010", "20251101", 2025, table=t, team="LAN",
+                  player_id="ohtas001", stattype="value")
+    put(stores, "mlb.db", "mlb_player_teams", sport="mlb", player_id="ohtas001", team="LAN",
+        season=2025, valid_from_ts=JAN_2026)
+    srcs = {s["table"]: s for s in sport(run(), "mlb")["stats"]["sources"]}
+    assert set(srcs) == {e["table"] for e in X.REGISTRY if e["store"] == "mlb.db"}
+    for t, s in srcs.items():
+        want = None if t == "mlb_player_teams" else {"first": "2025-11-01", "last": "2025-11-01"}
+        assert (t, s["event_dates"], s["span"]) == (t, want, None)
+    # and a table with an instant keeps its span and carries no dates
+    put(stores, "cfb.db", "cfb_games", sport="cfb", game_id=1, season=2026, start_ts=SEP_2026,
+        valid_from_ts=SEP_2026)
+    cfb = sport(run(), "cfb")["stats"]["sources"][0]
+    assert cfb["span"] is not None and cfb["event_dates"] is None
+
+
+@pytest.mark.parametrize("bad", ["2025-11-01", "20251301", "2025110", None])
+def test_a_malformed_date_refuses_rather_than_becoming_the_cutoff(stores, bad):
+    """Dates are compared as text, so a malformed value can win the MIN or the MAX and be
+    published as a span end - '20251301' outranks every real 2025 date. Refuse. (None: a NULL date with a dated sibling - MIN/MAX
+    skip it, so it is not the cutoff and is not refused; asserted separately.)"""
+    _mlb_game(stores, "LAN202503180", "20250318", 2025)
+    _mlb_game(stores, "LAN202511010", bad, 2025)
+    if bad is None:
+        assert sport(run(), "mlb")["stats"]["sources"][0]["event_dates"]["last"] == "2025-03-18"
+        return
+    with pytest.raises(X.CoverageError, match="not YYYYMMDD"):
+        run()
 
 
 def test_units_count_distinct_facts_not_versions(stores):
@@ -254,7 +317,8 @@ def test_main_writes_only_where_told(stores, tmp_path):
 def _valid_obj():
     count = {"store": "cfb.db", "table": "cfb_games", "source": "s", "grain": "game",
              "units": 1, "rows": 1, "providers": None, "seasons": [2026],
-             "season_basis": "column", "span": None, "ingested_through": None,
+             "season_basis": "column", "span": None, "event_dates": None,
+             "ingested_through": None,
              "retention": "kept", "counted_at": "2026-09-22T00:00:00Z"}
     return {"schema_version": 2, "generated_at": "2026-09-22T00:00:00Z", "kind": "coverage",
             "sport": None,
@@ -276,6 +340,15 @@ def test_the_schema_accepts_a_real_holding():
     lambda o: o["sports"][0].pop("odds"),                                     # absent != null
     lambda o: o["sports"][0]["stats"]["sources"][0].update(extra=1),          # closed object
     lambda o: o.update(stores=[]),                                            # nothing searched
+    # c-11: a date is a date - not an instant, not both, not backwards
+    lambda o: o["sports"][0]["stats"]["sources"][0].update(
+        event_dates={"first": "2025-03-18T00:00:00Z", "last": "2025-11-01T00:00:00Z"}),
+    lambda o: o["sports"][0]["stats"]["sources"][0].update(
+        event_dates={"first": "2025-03-18", "last": "2025-11-01"},
+        span={"first": "2025-03-18T00:00:00Z", "last": "2025-11-01T00:00:00Z"}),
+    lambda o: o["sports"][0]["stats"]["sources"][0].update(
+        event_dates={"first": "2025-11-01", "last": "2025-03-18"}),
+    lambda o: o["sports"][0]["stats"]["sources"][0].pop("event_dates"),
 ])
 def test_the_schema_refuses_what_it_exists_to_refuse(breaks):
     obj = _valid_obj()

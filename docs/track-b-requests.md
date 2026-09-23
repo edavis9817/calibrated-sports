@@ -856,3 +856,24 @@ If you want an ordering claim between two specific subjects, ask and track F
 will bootstrap the contrast as one quantity over shared blocks. It is **not**
 the difference of two published intervals; brief 018 set that rule for the
 selection gap and it holds here.
+
+## From track C - c-11: MLB must not read as current; a label draft for when the gate opens (filed 2026-09-22)
+
+**Nothing to build yet.** MLB stays `comingSoon` until A-C10 is in the contract and c-07
+is merged (see `docs/C11-mlb-cutoff.md`, "The gate"). This is filed now so the label lands
+in the same change that flips `comingSoon`, not after it.
+
+- **The store stops at 2025-11-01** (measured c-11, `mlb.db` `mode=ro`) and holds no 2026
+  game. A page that says "MLB" beside a live postseason reads as current.
+- **Draft label, awaiting Ethan's approval:** "MLB · 1999–2025 · historical", and beneath
+  it "Box scores from Retrosheet, 1999 through 1 November 2025. The 2026 season is not
+  here: Retrosheet publishes a season after it ends."
+- **Every figure is read**: the range from `seasons`, the date from the maximum
+  `event_dates.last` over coverage's MLB stats sources (A-C12, a `YYYY-MM-DD` calendar
+  date - format it as a date, never through `new Date()` into local time, which puts it
+  on 31 October in any US zone), the season from `manifest.current.season`.
+- **"historical" is a verdict**: `current.season > max(seasons)`. It belongs in
+  `lib/claims` with a `tests/falsifiable.test.ts` entry that drives it both ways.
+- **Not `StaleBanner`.** It words the cutoff as the source being "late", and prints
+  `data_through` as "date 305". Already filed by c-07 (item 3) and c-09; restated because
+  the label above replaces what the banner would otherwise say for MLB.

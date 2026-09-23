@@ -586,3 +586,55 @@ From track C, unit c-05, 2026-09-22. **Nothing published.** The CFB tree is stag
   `conference_short_name` for 9 of 11 ("Conference USA" vs `CUSA`, "Independents" vs
   `FBS Indep.`), so anything keyed on names across the two repos will drift. Not a
   blocker: the teams board groups by the manifest's own strings.
+
+## A-C12. `coverage`: a date-grained cutoff, `CoverageCount.event_dates`, so MLB can say where it stops
+
+**Status:** filed 2026-09-22 by track C (relay unit c-11). **A request against the
+PROPOSED `coverage` kind (A-C7), not against anything already in the contract.** On
+`origin/main` the contract does not carry `coverage`, so the proposal
+(`docs/proposals/coverage.defs.json`) is what the producer validates against, and that
+file is edited in the same commit as the producer. If you adopt `coverage` (your
+`a-05-coverage-predictor-kinds` branch copies the proposal as it stood at c-01), this
+field has to come with it, or the producer's output fails your closed `CoverageCount`.
+
+**Numbering.** A-C10 (c-07, `SportManifest.attribution`) and A-C11 (c-09, coverage
+`status`) are on the unmerged branches `c-07-mlb-attribution` and `c-09-held-sports`;
+neither is on `origin/main`. All three append to the tail of this file, so a merge will
+conflict here - resolve row by row, each request wins in its own row.
+
+**Why.** MLB is in season and we hold Retrosheet 1999-2025. The newest current row in
+`mlb.db` is 2025-11-01 (measured c-11, `mode=ro`). The coverage feed already said
+`seasons: [1999..2025]` but carried `span: null` for every MLB table - the registry never
+gave them one - so the one fact a page needs to say "through 1 November 2025" was not in
+the feed. Retrosheet records a game's local DATE (`YYYYMMDD`) and no instant, so the
+existing `span` (a pair of `Timestamp`s) cannot carry it without inventing a time of day;
+a midnight-UTC instant renders as 31 October in any US time zone.
+
+**The diff** - add one property to `CoverageCount` and one entry to its `required`:
+
+```json
+"event_dates": {
+  "description": "First and last EVENT DATE the table covers, for a table that records a calendar date and no instant (Retrosheet: the game's local date, no time of day). The cutoff a page states - 'box scores through 1 November 2025' - is `last`, read from the store at `counted_at`. A calendar date, not a timestamp: converting it to an instant would invent a time of day, and rendered in a US time zone a midnight-UTC instant falls on the previous day. null where the table records an instant (see `span`) or neither; `span` and `event_dates` are never both non-null.",
+  "anyOf": [
+    {"type": "object",
+     "properties": {"first": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+                    "last": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"}},
+     "required": ["first", "last"], "additionalProperties": false},
+    {"type": "null"}
+  ]
+}
+```
+
+```
+- "required": [..., "season_basis", "span", "ingested_through", "retention", "counted_at"]
++ "required": [..., "season_basis", "span", "event_dates", "ingested_through", "retention", "counted_at"]
+```
+
+**Required and nullable, not optional**, for the same reason as `span`: an absent key and
+"this table has no date" must not read the same. The producer checks the two cross-field
+rules the schema cannot (never both set; `first <= last`) in `export_coverage.validate`.
+
+**What it does not do.** It does not say "historical". That is a comparison between the
+newest season held and the season in progress, and the season in progress is a calendar
+fact per sport, not a store fact. The wording is Ethan's to approve and track B's to
+render; the draft and the rule are in `docs/C11-mlb-cutoff.md`.
