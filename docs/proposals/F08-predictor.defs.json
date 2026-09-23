@@ -51,9 +51,29 @@
         "values": {
           "description": "Per-subject figures, PUBLISHED SLICES ONLY. `n` is draft classes (the blocks), `rows` is picks. Order carries no claim.",
           "type": "array", "items": {"$ref": "#/$defs/AnalyticValue"}
+        },
+        "attribution": {
+          "description": "ADDED f-07. The credit a source's terms make a condition of republishing. Sports-Reference's Terms of Use section 5 welcomes publishing its data 'but ... should explicitly credit SRL as the source of the data to the maximum extent possible'; every drafting slice rests on PFR's draft table, so the file carries it and a page must render `statement` wherever any slice in `applies_to` is shown. Null only for a predictor with no source that asks for credit.",
+          "oneOf": [{"type": "null"}, {
+            "type": "object",
+            "properties": {
+              "statement": {"type": "string", "minLength": 1},
+              "source": {"type": "string", "minLength": 1},
+              "url": {"type": "string", "pattern": "^https://"},
+              "terms_url": {"type": "string", "pattern": "^https://"},
+              "terms_read": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+              "applies_to": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9_]+$"}, "uniqueItems": true}
+            },
+            "required": ["statement", "source", "url", "terms_url", "terms_read", "applies_to"],
+            "additionalProperties": false
+          }]
+        },
+        "values_policy": {
+          "description": "ADDED f-07. Whether per-subject values are published for a slice that does not separate on what it names. An EDITORIAL choice, recorded so a page can say which one it is reading: `show` publishes every published slice's values; `hide` publishes values only where `reading` is `separates`, and every other published slice keeps its slice-level figures with `values_reason` set.",
+          "type": "string", "enum": ["show", "hide"]
         }
       },
-      "required": ["schema_version", "generated_at", "kind", "sport", "predictor", "label", "subject_type", "block", "null_definition", "alpha", "season_from", "season_to", "range_note", "availability", "sources", "slices", "values"],
+      "required": ["schema_version", "generated_at", "kind", "sport", "predictor", "label", "subject_type", "block", "null_definition", "alpha", "season_from", "season_to", "range_note", "availability", "sources", "attribution", "values_policy", "slices", "values"],
       "additionalProperties": false
     },
 
@@ -63,7 +83,7 @@
       "properties": {
         "status": {"type": "string", "enum": ["published", "withheld"]},
         "withheld_reasons": {
-          "description": "`licence_unresolved`: a source's redistribution terms have not been read. `confounded`: the slice separates subjects on something other than what the predictor names. Empty when published.",
+          "description": "`licence_unresolved`: a source's redistribution terms have not been read (none today: f-07 read Sports-Reference's). `confounded`: the slice separates subjects on something other than what the predictor names. Empty when published.",
           "type": "array",
           "items": {"type": "string", "enum": ["licence_unresolved", "confounded"]},
           "uniqueItems": true
@@ -117,10 +137,24 @@
         "bands_reason": {
           "description": "Why `bands` is null; null when bands are present.",
           "type": ["string", "null"],
-          "enum": ["separation_not_rejected", "withheld", null]
+          "enum": ["separation_not_rejected", "confounded", "withheld", null]
+        },
+        "reading": {
+          "description": "ADDED f-07. The slice's one-word verdict, computed from `separation`, `record` and `confound`, and what a page leads with. `separates`: subjects separate and no named confound explains it. `separates_confounded`: they separate, but the measure is confounded BY CONSTRUCTION (named in the producer) and the measured confound excludes zero - it is NOT a finding about the predictor's subject. `does_not_separate`: they do not, and the record says nothing more. `forecasts` / `forecasts_inversely` / `not_readable`: they do not separate and the record's verdict is this. Null only when withheld.",
+          "type": ["string", "null"],
+          "enum": ["separates", "separates_confounded", "does_not_separate", "forecasts", "forecasts_inversely", "not_readable", null]
+        },
+        "statement": {
+          "description": "ADDED f-07. One sentence GENERATED from this slice's figures at export time, naming its separation, its confound and its forecast together, so none of the three can be quoted without the others. Render verbatim or not at all. Null only when withheld.",
+          "oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}]
+        },
+        "values_reason": {
+          "description": "ADDED f-07. Why this slice has no rows in `values`; null when it has them. `separation_not_rejected` / `confounded`: published slice, values held back under `values_policy` = `hide`. `withheld`: the slice itself is withheld.",
+          "type": ["string", "null"],
+          "enum": ["separation_not_rejected", "confounded", "withheld", null]
         }
       },
-      "required": ["status", "withheld_reasons", "label", "unit", "cannot_see", "direction", "null_value", "season_from", "season_to", "sample", "separation", "chance", "record", "confound", "bands", "bands_reason"],
+      "required": ["status", "withheld_reasons", "label", "unit", "cannot_see", "direction", "null_value", "season_from", "season_to", "sample", "separation", "chance", "record", "confound", "bands", "bands_reason", "reading", "statement", "values_reason"],
       "additionalProperties": false
     },
 

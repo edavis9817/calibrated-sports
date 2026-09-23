@@ -953,3 +953,18 @@ in the same change that flips `comingSoon`, not after it.
 - **Not `StaleBanner`.** It words the cutoff as the source being "late", and prints
   `data_through` as "date 305". Already filed by c-07 (item 3) and c-09; restated because
   the label above replaces what the banner would otherwise say for MLB.
+## f-07 — the drafting predictor, once a-05 carries the f-07 fields (2026-09-22)
+
+- **Render `attribution.statement` wherever any slice in `attribution.applies_to` is
+  shown.** Sports-Reference's terms make explicit credit the condition of republishing,
+  and every drafting slice rests on PFR's draft table (not only w_av and snaps4).
+- **Lead each slice with `reading` and render `statement` verbatim or not at all.** Do not
+  compose a slice caption from `separation.verdict` alone. `w_av` separates
+  (`separation.verdict: separates`), but its `reading` is `separates_confounded`, and its
+  sentence carries the win-share confound and the missing forecast together. A page that
+  shows "separates" without them publishes the one claim the file exists to prevent.
+- **`values_reason` non-null means the slice's values are deliberately absent**
+  (`values_policy: hide`, Ethan's call). Say so from the enum. It is not an empty state
+  and not a failure.
+- `bands_reason: confounded`: no ordering of any kind. List the values alphabetically,
+  as for `separation_not_rejected`.

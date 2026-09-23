@@ -1,10 +1,28 @@
-# F08 — drafting strengths as a published shape: the write-up of a null
+# F08 — drafting strengths as a published shape: the write-up of a null on two slices
+
+**Superseded in part by f-07 (2026-09-22):** nothing in the file is withheld any more.
+Sports-Reference's terms were read and permit republishing with credit (see
+`docs/F09-sports-reference-terms.md`). All four slices are published, and each carries a
+computed `reading` and a generated `statement`. w_av reads `separates_confounded`, with
+null bands. The file carries `attribution` and records `values_policy`, Ethan's
+show/hide call, which has no default. The withheld tables below describe the file as f-02
+and f-06 left it.
+
 
 Unit f-02, 2026-09-22. Depends on F07 (`docs/F07-drafting-strengths.md`), which found
-that no team separates from shuffled labels. **So this unit is the write-up of that
+that on roster4 and bust no team separates from shuffled labels (w_av separates and is
+withheld; see below). **So this unit is the write-up of that
 null, not a metric made to look publishable.** The file's shape could say otherwise.
 Every verdict in it is computed, and each enum value is reachable; the tests drive
-each one. On this data, though, it says nothing separates.
+each one. On this data, though, it says that on the two PUBLISHED slices (roster4,
+bust) nothing separates and nothing forecasts.
+
+**Corrected by f-06.** This paragraph first ended "it says nothing separates", which
+was a claim over all four slices the file defines and false of one: w_av separates
+(p 0.003; withheld as confounded). And F07's "the walk-forward is null" was false of
+snaps4, whose interval excludes zero on 4 targets. Neither withheld slice's figures
+are in the file, so the file never stated either sentence - the prose did. The
+verdicts below are per slice; see *Per-slice verdicts, including the withheld ones*.
 
 Reproduce: `python -m analytics.predictor_export --write --out <dir>` from a 3.12
 venv (~20 s; it re-measures from the mirror). Tests: `tests/test_predictor_export.py`.
@@ -22,12 +40,51 @@ One key, `predictors/nfl/drafting.json`: 20 KB, 64 values, 4 slices.
 
 | slice | status | separation | scoring record (walk-forward r) | bands | teams excluding a typical team / measured chance |
 |---|---|---|---|---|---|
-| roster4 | published | does_not_separate, p 0.68 | no_better_than_chance, −0.056 [−0.116, +0.021], 15 targets | null: separation_not_rejected | 1 / 2.3 |
-| bust | published | does_not_separate, p 0.16 | no_better_than_chance, +0.002 [−0.083, +0.088], 15 targets | null: separation_not_rejected | 2 / 2.6 |
+| roster4 | published | does_not_separate, p 0.72 | no_better_than_chance, −0.057 [−0.114, +0.016], 15 targets | null: separation_not_rejected | 1 / 2.4 |
+| bust | published | does_not_separate, p 0.30 | no_better_than_chance, −0.007 [−0.106, +0.083], 15 targets | null: separation_not_rejected | 3 / 2.8 |
 | snaps4 | withheld | null | null | null: withheld | null |
 | w_av | withheld | null | null | null: withheld | null |
 
-The figures are identical to F07's. The measurement is the same code at the same seed.
+The figures are identical to F07's corrected run (f-06: the gsis recovery; before it,
+roster4 p 0.68 / −0.056 and bust p 0.16 / +0.002, 2 of 32 excluding).
+`sample.unresolved_rows` is now **153**, was 219. The measurement is the same code
+at the same seed.
+
+## Per-slice verdicts, including the withheld ones (f-06)
+
+A withheld slice is `null` in the file, and a null is not a verdict. So what the file
+does **not** say about the withheld slices is stated here, per slice:
+
+| slice | separation | forecast (walk-forward) | what a page may say |
+|---|---|---|---|
+| roster4 | does_not_separate, p 0.72 | **no_better_than_chance**, 15 targets | no team separates; the record does not forecast the next class |
+| bust | does_not_separate, p 0.30 | **no_better_than_chance**, 15 targets | same |
+| snaps4 | does_not_separate, p 0.14 | **not_readable**: +0.139 [+0.016, +0.247], excludes 0 on **4** targets | nothing - withheld |
+| w_av | **separates**, p 0.003 (confounded with winning, r 0.82) | none: not as-of | nothing - withheld |
+
+**Decision taken (f-06, reversible): snaps4 stays withheld** - "not at all" rather
+than "honestly". Two reasons, the first sufficient alone. (1) Its licence question is
+open with Ethan (Sports-Reference terms unread; `NEEDS-ETHAN.md`, f-01/f-02), and a
+record computed from PFR snap counts is PFR-derived like the values. (2) Published, it
+would add one `not_readable` record and 32 per-team values beside two
+`does_not_separate` slices - a page with more numbers and no more information.
+
+**The schema already carries all three verdicts** the brief names:
+`no_better_than_chance` and `not_readable` in `PredictorRecord.score.verdict` (plus
+`forecasts` / `forecasts_inversely`), and `separates` in
+`PredictorSeparation.verdict`. `not_readable` is the brief's "unreadable". The export
+was never the failure: `record_verdict(0.02, 0.25, 4)` was pinned to `not_readable` in
+f-02's tests with the comment "snaps4's shape". What failed was prose. So f-06 changes
+no schema, and a new test builds snaps4 **as if published**, from its measured
+figures, and asserts it validates with `not_readable` and an interval above zero - so
+the day the licence clears the file cannot say "null" about it.
+
+**What cannot ride along in the file, and why.** Track A's adopted contract (a-05,
+unmerged at the time of writing) requires every measured field of a withheld slice,
+`record` included, to be null. So the file cannot carry snaps4's `not_readable`
+without publishing its figures, and "no interval, no verdict" says it should not try.
+A page that writes a sentence over the published slices must scope it to them; it may
+not generalise to "the drafting predictor".
 
 ## The shape, and why each part is there
 
@@ -87,7 +144,9 @@ The figures are identical to F07's. The measurement is the same code at the same
 ## What the data cannot support (unchanged from F07, restated for the page)
 
 - Any per-team drafting ranking or band on roster4 or bust.
-- "Team X drafts well" as a persistent skill: the scoring record shows no forecast skill on either.
+- "Team X drafts well" as a persistent skill: the scoring record shows no forecast
+  skill on roster4 or bust. That is a statement about those two slices only; snaps4's
+  record is not_readable, and w_av has none.
 - Anything from snaps4 or w_av until their licensing is read, and never w_av labelled
   as drafting.
 - A roster4 value is employment. It cannot see quality or health.
