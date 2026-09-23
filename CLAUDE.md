@@ -1892,6 +1892,16 @@ the agent — stated as options with a recommendation, not as a question without
 - **CFBD lines carry no timestamps** - `spread` is the provider's last value, not a
   kickoff close; opening values absent on 79% of rows, moneylines on 80%; retail
   books only from 2018; provider names pass through ('DraftKings' and 'Draft Kings').
+- **The published CFB spread is NOT a close, and its book changes silently** (c-15,
+  `research/cfb_line_provenance.py`, `docs/C15-cfb-line-provenance.md`). The export keeps
+  `consensus`, else the ALPHABETICALLY FIRST provider - and CFBD stops sending consensus
+  in 2023, so 2023-2026 publish Bovada / ESPN Bet / DraftKings game by game, unlabelled.
+  Every CFB line in the store was read AFTER its game (weekly job reads the last week
+  whose final game kicked >= 12h ago; 0 of 38,729 rows fetched pre-kickoff). On 2026 wk3
+  CFBD's per-book value matched that book's LAST PRE-KICKOFF Odds API quote on 84 of 92
+  moved lines and an in-game line on 0 - near-close evidence for one week, not a licence
+  to say "close". The timestamped near-close is `--odds-forward`, already running.
+  `total` rides the same row, so 2,907 games publish a null total another provider has.
 - **Provider names are canonical in `cfb_game_lines.provider`** (map in
   `cfb.cfbd_normalize.PROVIDER_CANONICAL`); the CFBD string is `provider_raw`.
   DraftKings arrives as two feeds; the fuller one wins per game. A new book spelled

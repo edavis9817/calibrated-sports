@@ -533,3 +533,47 @@ def test_over_the_whole_store_the_published_favourite_wins_most_games():
     corr = cov / (sum((x - mx) ** 2 for x in xs) * sum((y - my) ** 2 for y in ys)) ** 0.5
     assert corr > 0.5, corr
     assert fav_won / fav > 0.7, (fav_won, fav)
+
+
+# --- c-15: WHICH provider the published line is. Pinned as it IS, not as it should be,
+# so a change to the rule is a deliberate diff to this test rather than a silent move in
+# every published number. research/cfb_line_provenance.py measures what it does to the
+# real store: `consensus` 2013-2022, then - because CFBD stops sending consensus - the
+# alphabetically first book (Bovada / ESPN Bet / DraftKings), per game, unlabelled.
+
+def _prov(con, game_id, provider, spread, total):
+    g = con.execute("SELECT season, week, home_id, away_id FROM cfb_games WHERE game_id=?",
+                    (game_id,)).fetchone()
+    _insert(con, "cfb_game_lines", game_id=game_id, season=g[0], week=g[1], home_id=g[2],
+            away_id=g[3], provider=provider, provider_raw=provider, spread=spread, total=total)
+    con.commit()
+
+
+def test_c15_consensus_wins_wherever_it_exists(store):
+    _prov(store, 100, "DraftKings", -3.5, 51.5)
+    _prov(store, 100, "consensus", -4.0, 50.5)
+    _prov(store, 100, "Bovada", -3.0, 52.0)
+    assert X.game_lines(store)[100] == (-4.0, 50.5)
+
+
+def test_c15_without_consensus_the_alphabetically_first_book_is_published(store):
+    """Not the first to arrive, not a named book, not an average: name order. On the real
+    store this silently switches the published book mid-season from game to game."""
+    _prov(store, 100, "ESPN Bet", -3.5, 51.5)
+    _prov(store, 100, "DraftKings", -4.5, 50.5)
+    _prov(store, 100, "Bovada", -3.0, 52.0)
+    assert X.game_lines(store)[100] == (-3.0, 52.0)
+    _prov(store, 101, "ESPN Bet", 7.0, 44.0)
+    _prov(store, 101, "DraftKings", 6.5, 44.5)
+    assert X.game_lines(store)[101] == (6.5, 44.5)          # a different book, same rule
+
+
+def test_c15_the_total_comes_from_the_chosen_row_even_when_that_row_has_none(store):
+    """KNOWN DEFECT, measured by c-15: 2,907 exported games publish total=null although
+    another provider in the store carries one (2,901 of them a consensus row with no
+    overUnder, 2013-2016). Fixing it changes published totals, so it waits until c-14's
+    republish is out (one export publishes everything that changed). When it is fixed,
+    this assertion is the one that must flip."""
+    _prov(store, 100, "consensus", -4.0, None)
+    _prov(store, 100, "Bovada", -3.0, 52.0)
+    assert X.game_lines(store)[100] == (-4.0, None)
