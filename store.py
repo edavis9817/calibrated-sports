@@ -360,6 +360,28 @@ CREATE TABLE IF NOT EXISTS player_alias (
 );
 CREATE INDEX IF NOT EXISTS ix_alias ON player_alias(alias);
 
+-- PFR id -> gsis_id for snap-count ids that NO player_xwalk row carries (unit
+-- f-04). Derived from the raw archive by jobs/build_pfr_alias.py, never typed.
+-- One row per (pfr_id, METHOD): a pairing from an archived release and one
+-- from a participation match are different evidence and must not share a row.
+-- `method = 'unresolved'` rows carry gsis_id NULL and say what was tried - the
+-- table records what it could NOT resolve as well as what it could. Coverage
+-- is the seasons the pairing is ASSERTED for; a snap row outside it does not
+-- join. Written through upsert_preserving: a later build that loses the
+-- evidence (a release that drops a column) cannot null a held pairing.
+CREATE TABLE IF NOT EXISTS pfr_alias (
+    sport        TEXT NOT NULL DEFAULT 'nfl',
+    pfr_id       TEXT NOT NULL,
+    method       TEXT NOT NULL,      -- archive_release | draft_slot | participation | unresolved
+    gsis_id      TEXT,               -- NULL only when method = 'unresolved'
+    season_from  INTEGER,
+    season_to    INTEGER,
+    coverage     TEXT,               -- human-readable, e.g. "2019-2020, 14 of 14 games"
+    evidence     TEXT NOT NULL,
+    built_ts     REAL NOT NULL,
+    PRIMARY KEY (pfr_id, method)
+);
+
 -- A player's headshot URL per roster week, from nflverse roster_weekly. A FACT
 -- about where the source hosts the image - the image itself is never stored
 -- anywhere (the site hotlinks it). Re-derived from the raw archive by
@@ -1375,6 +1397,69 @@ def upsert_preserving(table: str, cols, rows, conflict, preserve):
             f"ON CONFLICT({','.join(conflict)}) DO UPDATE SET "
             + ", ".join(updates), rows)
     return len(rows)
+
+
+# Every snap consumer reaches a gsis_id through this, not through player_xwalk
+# directly. player_xwalk wins for any pfr id it carries; pfr_alias fills only
+# ids it does not, and only inside the asserted seasons. A pfr id whose alias
+# rows name two different gsis ids joins NOTHING - a disagreement between
+# methods is not resolved by picking one. An alias whose gsis_id already holds
+# a different pfr_id in player_xwalk is also refused: the same player under two
+# pfr ids would count one game twice.
+_PFR_GSIS_XWALK = ("SELECT pfr_id, gsis_id, 0 AS season_from, 9999 AS season_to, "
+                   "'player_xwalk' AS via FROM player_xwalk WHERE pfr_id IS NOT NULL")
+_PFR_GSIS_ALIAS = """
+SELECT pfr_id, gsis_id, season_from, season_to, 'pfr_alias:' || method AS via FROM (
+  SELECT a.*, ROW_NUMBER() OVER (
+           PARTITION BY a.pfr_id
+           ORDER BY CASE a.method WHEN 'archive_release' THEN 0
+                                     WHEN 'draft_slot' THEN 1 ELSE 2 END, a.method) AS rn
+    FROM pfr_alias a
+   WHERE a.method <> 'unresolved' AND a.gsis_id IS NOT NULL
+     AND a.season_from IS NOT NULL AND a.season_to IS NOT NULL
+     AND a.pfr_id NOT IN (SELECT pfr_id FROM player_xwalk WHERE pfr_id IS NOT NULL)
+     AND a.gsis_id NOT IN (SELECT gsis_id FROM player_xwalk WHERE pfr_id IS NOT NULL)
+     AND a.pfr_id IN (SELECT pfr_id FROM pfr_alias
+                       WHERE method <> 'unresolved' AND gsis_id IS NOT NULL
+                       GROUP BY pfr_id HAVING MIN(gsis_id) = MAX(gsis_id))
+) WHERE rn = 1"""
+
+
+class PfrJoin:
+    """The pfr -> gsis relation a snap consumer joins through, and what it is.
+
+    `sql` is a subquery with columns (pfr_id, gsis_id, season_from, season_to,
+    via); join it as
+
+        JOIN (<sql>) x ON x.pfr_id = s.pfr_player_id
+                      AND s.season BETWEEN x.season_from AND x.season_to
+
+    `statement` says which relation was used. A store that predates pfr_alias
+    (consumers open the store mode=ro and cannot create it) joins through
+    player_xwalk alone - exactly the behaviour before the table existed - and
+    says so rather than raising or pretending the aliases were read.
+    """
+
+    def __init__(self, sql, statement, aliases):
+        self.sql, self.statement, self.aliases = sql, statement, aliases
+
+    def on(self, snap="s", alias="x"):
+        return (f"JOIN ({self.sql}) {alias} ON {alias}.pfr_id = {snap}.pfr_player_id "
+                f"AND {snap}.season BETWEEN {alias}.season_from AND {alias}.season_to")
+
+    def __bool__(self):
+        raise TypeError("PfrJoin is not a check; read .sql or .statement")
+
+
+def pfr_gsis(con) -> PfrJoin:
+    has = con.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                      "AND name='pfr_alias'").fetchone() is not None
+    if not has:
+        return PfrJoin(_PFR_GSIS_XWALK, "pfr->gsis via player_xwalk only "
+                       "(no pfr_alias table in this store)", 0)
+    n = con.execute(f"SELECT COUNT(*) FROM ({_PFR_GSIS_ALIAS})").fetchone()[0]
+    return PfrJoin(f"{_PFR_GSIS_XWALK} UNION ALL {_PFR_GSIS_ALIAS}",
+                   f"pfr->gsis via player_xwalk + {n} pfr_alias pairing(s)", n)
 
 
 # (venue, market_id) -> (best_bid, best_ask, mid, ts_of_last_written_row).

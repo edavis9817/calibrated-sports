@@ -958,15 +958,21 @@ def load_prop_history(con, scope):
 
 
 def load_snaps(con, xwalk):
-    pfr_to_gsis = {r["pfr_id"]: g for g, r in xwalk.items() if r.get("pfr_id")}
+    """(gsis, game_id) -> (offense_snaps, offense_pct), and the pfr ids that joined nothing.
+
+    pfr -> gsis goes through `store.pfr_gsis`: player_xwalk, plus the
+    archive-derived pfr_alias inside its asserted seasons (unit f-04). `xwalk`
+    is kept in the signature for the callers; the join no longer reads it.
+    """
+    pj = store.pfr_gsis(con)
     snaps, unresolved = {}, {}
-    for pfr, gid, off, pct, name in con.execute(
-            "SELECT s.pfr_player_id, s.game_id, s.offense_snaps, s.offense_pct, s.player "
+    for pfr, gid, off, pct, name, g in con.execute(
+            "SELECT s.pfr_player_id, s.game_id, s.offense_snaps, s.offense_pct, s.player, x.gsis_id "
             "FROM nfl_snap_counts s JOIN (SELECT pfr_player_id, game_id, MAX(data_version) dv "
             "FROM nfl_snap_counts GROUP BY pfr_player_id, game_id) v "
             "ON v.pfr_player_id = s.pfr_player_id AND v.game_id = s.game_id "
-            "AND v.dv = s.data_version"):
-        g = pfr_to_gsis.get(pfr)
+            "AND v.dv = s.data_version "
+            f"LEFT {pj.on()}"):
         if g is None:
             unresolved[pfr] = name
             continue
@@ -988,16 +994,15 @@ def snap_weeks(con, xwalk):
                       Dropping it is exactly what made walkforward's copy of
                       the settlement rule impossible to fix in one line.
     """
-    pfr_to_gsis = {r["pfr_id"]: g for g, r in xwalk.items() if r.get("pfr_id")}
+    pj = store.pfr_gsis(con)
     out = {}
-    for pfr, gid, season, week, team, off, dfn, pct in con.execute(
+    for pfr, gid, season, week, team, off, dfn, pct, g in con.execute(
             "SELECT s.pfr_player_id, s.game_id, s.season, s.week, s.team, "
-            "s.offense_snaps, s.defense_snaps, s.offense_pct "
+            "s.offense_snaps, s.defense_snaps, s.offense_pct, x.gsis_id "
             "FROM nfl_snap_counts s JOIN (SELECT pfr_player_id, game_id, MAX(data_version) dv "
             "FROM nfl_snap_counts GROUP BY pfr_player_id, game_id) v "
             "ON v.pfr_player_id = s.pfr_player_id AND v.game_id = s.game_id "
-            "AND v.dv = s.data_version WHERE s.week IS NOT NULL"):
-        g = pfr_to_gsis.get(pfr)
+            f"AND v.dv = s.data_version {pj.on()} WHERE s.week IS NOT NULL"):
         if g is not None:
             out[(g, season, week)] = (team, off or 0, dfn or 0, pct, gid)
     return out
