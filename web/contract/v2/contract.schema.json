@@ -21,9 +21,11 @@
       "analytics.index": "AnalyticsIndexFile",
       "analytics.metric": "AnalyticMetricFile",
       "live.prices": "LivePricesFile",
-      "components": "ComponentsFile"
+      "components": "ComponentsFile",
+      "coverage": "CoverageFile",
+      "predictor": "PredictorFile"
     },
-    "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.execution"],
+    "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.execution", "coverage"],
     "keys": [
       {"pattern": "^sports\\.json$", "kind": "sports"},
       {"pattern": "^[a-z0-9]+/manifest\\.json$", "kind": "sport_manifest"},
@@ -38,7 +40,9 @@
       {"pattern": "^analytics/[a-z0-9]+/index\\.json$", "kind": "analytics.index"},
       {"pattern": "^analytics/[a-z0-9]+/[a-z0-9_]+(\\.[a-z0-9_]+)+\\.json$", "kind": "analytics.metric"},
       {"pattern": "^live/[a-z0-9]+/prices\\.json$", "kind": "live.prices"},
-      {"pattern": "^[a-z0-9]+/components/\\d{4}\\.json$", "kind": "components"}
+      {"pattern": "^[a-z0-9]+/components/\\d{4}\\.json$", "kind": "components"},
+      {"pattern": "^coverage\\.json$", "kind": "coverage"},
+      {"pattern": "^predictors/[a-z0-9]+/[a-z0-9_]+\\.json$", "kind": "predictor"}
     ]
   },
 
@@ -1309,6 +1313,383 @@
         "rows": {"type": "array", "items": {"$ref": "#/$defs/ComponentsRow"}}
       },
       "required": ["schema_version", "generated_at", "kind", "sport", "season", "columns", "players", "rows"],
+      "additionalProperties": false
+    },
+
+    "CoverageFile": {
+      "description": "What this project HOLDS, per sport, read from the stores at `generated_at`. One file for every sport, so a sport's status cannot say one thing on its own coming-soon page and another on the home page. Every count here was read from the table it describes by jobs/export_coverage.py; none is typed. `sports` lists every sport the site declares, in the site's order, INCLUDING sports with nothing: a sport with nothing carries null holdings, never zero-with-a-plan, and `stores` is what makes that null a measured absence rather than an unsearched one.",
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "coverage"},
+        "sport": {"type": "null"},
+        "sports": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/SportCoverage"}
+        },
+        "stores": {
+          "description": "Every store that was read. A null holding is a claim about exactly these stores and no others.",
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/CoverageStore"}
+        }
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "sports", "stores"],
+      "additionalProperties": false
+    },
+
+    "SportCoverage": {
+      "description": "One sport. Three holdings, each null when the stores hold nothing of that class for this sport. `stats` is facts about play (box scores, usage, schedules, rosters); `odds` is prices (book lines, exchange quotes, closes); `context` is everything else held as a fact about a game or player (injury reports, venues, weather, headlines). null is the ONLY way to say 'none' - a holding cannot be present and empty.",
+      "type": "object",
+      "properties": {
+        "sport": {"type": "string"},
+        "stats": {"anyOf": [{"$ref": "#/$defs/CoverageHolding"}, {"type": "null"}]},
+        "odds": {"anyOf": [{"$ref": "#/$defs/CoverageHolding"}, {"type": "null"}]},
+        "context": {"anyOf": [{"$ref": "#/$defs/CoverageHolding"}, {"type": "null"}]}
+      },
+      "required": ["sport", "stats", "odds", "context"],
+      "additionalProperties": false
+    },
+
+    "CoverageHolding": {
+      "description": "A class of data held for one sport. `seasons` is the union of its sources' seasons, listed rather than given as a range, because a gap is part of the claim: a range 2003-2026 would silently cover a season nobody holds.",
+      "type": "object",
+      "properties": {
+        "seasons": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "integer"},
+          "uniqueItems": true
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/CoverageCount"}
+        }
+      },
+      "required": ["seasons", "sources"],
+      "additionalProperties": false
+    },
+
+    "CoverageCount": {
+      "description": "One table's contribution, read at `counted_at`. `units` is DISTINCT things at `grain` - games, player-games, quotes - and is the number to quote; `rows` is physical rows and exceeds it where a table keeps several versions of one fact (an upstream feed's data_version, or a superseded versioned row), so quoting rows would overstate coverage. Both are at least 1: a table that holds nothing for this sport is omitted, not published as 0.",
+      "type": "object",
+      "properties": {
+        "store": {"type": "string"},
+        "table": {"type": "string"},
+        "source": {"description": "Where the data came from, as the producer labels it: the upstream feed, or the venue and capture path.", "type": "string"},
+        "grain": {"description": "What one unit IS - the depth of this holding.", "type": "string"},
+        "units": {"type": "integer", "minimum": 1},
+        "rows": {"type": "integer", "minimum": 1},
+        "providers": {"description": "Distinct books or venues inside this source, where the table records one per row; null where it does not.", "type": ["integer", "null"], "minimum": 1},
+        "seasons": {"type": "array", "minItems": 1, "items": {"type": "integer"}, "uniqueItems": true},
+        "season_basis": {
+          "description": "`column`: the table's own season field. `event_time`: derived from the event timestamp by the producer's season rule, for tables that carry no season. Stated because the second is an inference and a reader should know which they are looking at.",
+          "enum": ["column", "event_time"]
+        },
+        "span": {
+          "description": "First and last EVENT time the table covers (a quote's capture time, a game's kickoff), where it has one.",
+          "anyOf": [
+            {"type": "object",
+             "properties": {"first": {"$ref": "#/$defs/Timestamp"}, "last": {"$ref": "#/$defs/Timestamp"}},
+             "required": ["first", "last"], "additionalProperties": false},
+            {"type": "null"}
+          ]
+        },
+        "event_dates": {
+          "description": "First and last EVENT DATE the table covers, for a table that records a calendar date and no instant (Retrosheet: the game's local date, no time of day). The cutoff a page states - 'box scores through 1 November 2025' - is `last`, read from the store at `counted_at`. A calendar date, not a timestamp: converting it to an instant would invent a time of day, and rendered in a US time zone a midnight-UTC instant falls on the previous day. null where the table records an instant (see `span`) or neither; `span` and `event_dates` are never both non-null.",
+          "anyOf": [
+            {"type": "object",
+             "properties": {"first": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+                            "last": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"}},
+             "required": ["first", "last"], "additionalProperties": false},
+            {"type": "null"}
+          ]
+        },
+        "ingested_through": {"description": "The latest INGESTION time in the table, where it records one - as of when this holding was last written, which is not when its events happened.", "anyOf": [{"$ref": "#/$defs/Timestamp"}, {"type": "null"}]},
+        "retention": {
+          "description": "`kept`: nothing deletes these rows by age. `rolling`: a retention policy deletes them by age, so `units` is a window, not a history. Read from the producer's configured prune sources.",
+          "enum": ["kept", "rolling"]
+        },
+        "counted_at": {"$ref": "#/$defs/Timestamp"}
+      },
+      "required": ["store", "table", "source", "grain", "units", "rows", "providers", "seasons", "season_basis", "span", "event_dates", "ingested_through", "retention", "counted_at"],
+      "additionalProperties": false
+    },
+
+    "CoverageStore": {
+      "description": "A store that was read, with every sport value found in it. `tables` counts the store's tables and `classified` those the producer knows how to read or has excluded with a reason; the producer refuses unless they are equal, so a table added later cannot sit outside the count unnoticed.",
+      "type": "object",
+      "properties": {
+        "store": {"type": "string"},
+        "read_at": {"$ref": "#/$defs/Timestamp"},
+        "tables": {"type": "integer", "minimum": 0},
+        "classified": {"type": "integer", "minimum": 0},
+        "sports_seen": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      },
+      "required": ["store", "read_at", "tables", "classified", "sports_seen"],
+      "additionalProperties": false
+    },
+
+    "PredictorFile": {
+      "description": "A predictor published WITH ITS SCORING RECORD, in the same file and keyed to the same slice as the values it scores. Every slice the predictor defines appears in `slices` whether or not it is published - a withheld slice is present with null figures and a reason, never absent, so a page can say why a number is missing rather than failing to notice it is. Per-subject figures are in `values` (the contract's AnalyticValue, so interval and n are mandatory); everything about a slice as a whole - its null, its separation test, its chance baseline, its scoring record, its bands - lives ONCE on the envelope under `slices[slice]` and is never repeated per row.",
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "predictor"},
+        "sport": {"type": "string"},
+        "predictor": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+        "label": {"type": "string"},
+        "subject_type": {"type": "string", "enum": ["player", "team"]},
+        "block": {
+          "description": "What every interval in this file resamples - the unit of independence. For drafting it is the draft class: a class shares a front office, a board and a year.",
+          "type": "string"
+        },
+        "null_definition": {
+          "description": "What the null IS, in words. For a share-shaped question the null is a typical subject, not zero; the per-slice numeric value is `slices[s].null_value`.",
+          "type": "string"
+        },
+        "alpha": {
+          "description": "The level every verdict in this file was computed at.",
+          "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1
+        },
+        "season_from": {"type": "integer"},
+        "season_to": {"type": "integer"},
+        "range_note": {"type": "string", "minLength": 1},
+        "availability": {"$ref": "#/$defs/Availability"},
+        "sources": {
+          "description": "Each dataset read, as `dataset@pull-date`. The pull date is the data version.",
+          "type": "array", "items": {"type": "string"}, "minItems": 1
+        },
+        "slices": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^[a-z0-9_]+$"},
+          "additionalProperties": {"$ref": "#/$defs/PredictorSlice"}
+        },
+        "values": {
+          "description": "Per-subject figures, PUBLISHED SLICES ONLY. `n` is draft classes (the blocks), `rows` is picks. Order carries no claim.",
+          "type": "array", "items": {"$ref": "#/$defs/AnalyticValue"}
+        },
+        "attribution": {
+          "description": "ADDED f-07. The credit a source's terms make a condition of republishing. Sports-Reference's Terms of Use section 5 welcomes publishing its data 'but ... should explicitly credit SRL as the source of the data to the maximum extent possible'; every drafting slice rests on PFR's draft table, so the file carries it and a page must render `statement` wherever any slice in `applies_to` is shown. Null only for a predictor with no source that asks for credit.",
+          "anyOf": [{"type": "null"}, {
+            "type": "object",
+            "properties": {
+              "statement": {"type": "string", "minLength": 1},
+              "source": {"type": "string", "minLength": 1},
+              "url": {"type": "string", "pattern": "^https://"},
+              "terms_url": {"type": "string", "pattern": "^https://"},
+              "terms_read": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+              "applies_to": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9_]+$"}, "uniqueItems": true}
+            },
+            "required": ["statement", "source", "url", "terms_url", "terms_read", "applies_to"],
+            "additionalProperties": false
+          }]
+        },
+        "values_policy": {
+          "description": "ADDED f-07. Whether per-subject values are published for a slice that does not separate on what it names. An EDITORIAL choice, recorded so a page can say which one it is reading: `show` publishes every published slice's values; `hide` publishes values only where `reading` is `separates`, and every other published slice keeps its slice-level figures with `values_reason` set.",
+          "type": "string", "enum": ["show", "hide"]
+        }
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "predictor", "label", "subject_type", "block", "null_definition", "alpha", "season_from", "season_to", "range_note", "availability", "sources", "attribution", "values_policy", "slices", "values"],
+      "additionalProperties": false
+    },
+
+    "PredictorSlice": {
+      "description": "One slice of a predictor. Definitional fields (label, unit, direction, null_value, window) are always present. Every MEASURED field is null when `status` is `withheld`, and `withheld_reasons` then says why; when `published`, `withheld_reasons` is empty and the measured fields are present (though `record.score` and `bands` may still be null, each with its own reason).",
+      "type": "object",
+      "properties": {
+        "status": {"type": "string", "enum": ["published", "withheld"]},
+        "withheld_reasons": {
+          "description": "`licence_unresolved`: a source's redistribution terms have not been read (none today: f-07 read Sports-Reference's). `confounded`: the slice separates subjects on something other than what the predictor names. Empty when published.",
+          "type": "array",
+          "items": {"type": "string", "enum": ["licence_unresolved", "confounded"]},
+          "uniqueItems": true
+        },
+        "label": {"type": "string"},
+        "unit": {"description": "What one value IS, in words.", "type": "string"},
+        "cannot_see": {"description": "What this measure is blind to, in words.", "type": "string"},
+        "direction": {"type": "string", "enum": ["higher_is_better", "lower_is_better"]},
+        "null_value": {"description": "The numeric null a value is read against. A typical subject, not zero, unless the two coincide by construction (they do for drafting: residuals are centred within each class).", "type": "number"},
+        "season_from": {"type": "integer"},
+        "season_to": {"type": "integer"},
+        "sample": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/PredictorSample"}]},
+        "separation": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/PredictorSeparation"}]},
+        "chance": {
+          "description": "How many subjects' intervals exclude the null, against how many do so under shuffled labels - MEASURED, because a percentile block bootstrap over 10-21 blocks runs narrow and the nominal alpha x subjects understates chance.",
+          "anyOf": [{"type": "null"}, {
+            "type": "object",
+            "properties": {
+              "excluding_null": {"type": "integer", "minimum": 0},
+              "subjects": {"type": "integer", "minimum": 1},
+              "nominal": {"type": "number"},
+              "null_mean": {"type": "number"},
+              "null_p95": {"type": "number"},
+              "permutations": {"type": "integer", "minimum": 1}
+            },
+            "required": ["excluding_null", "subjects", "nominal", "null_mean", "null_p95", "permutations"],
+            "additionalProperties": false
+          }]
+        },
+        "record": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/PredictorRecord"}]},
+        "confound": {
+          "description": "Correlation of the subject's value with an outcome it must NOT be measuring (for drafting: team regular-season win share). A large one means the slice cannot separate the predictor from the confound.",
+          "anyOf": [{"type": "null"}, {
+            "type": "object",
+            "properties": {
+              "against": {"type": "string"},
+              "statistic": {"const": "pearson_r"},
+              "estimate": {"type": "number"},
+              "interval": {"$ref": "#/$defs/Interval"},
+              "n": {"type": "integer", "minimum": 1},
+              "method": {"type": "string"}
+            },
+            "required": ["against", "statistic", "estimate", "interval", "n", "method"],
+            "additionalProperties": false
+          }]
+        },
+        "bands": {
+          "description": "Bands against each band's LEADER, never against the row above: the best remaining subject leads, every subject whose contrast with it (bootstrapped as one quantity over shared blocks) covers zero joins it, repeat. Array order runs best band first and is the only order; there is NO band number and NO rank within a band. `members` is alphabetical and includes the leader. NULL whenever the separation test does not reject - the leader is a selected maximum and its contrasts are unadjusted, so bands can split a population that cannot be told from shuffled labels. When null, a page lists the values as one unordered, alphabetical set.",
+          "anyOf": [{"type": "null"}, {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/PredictorBand"}}]
+        },
+        "bands_reason": {
+          "description": "Why `bands` is null; null when bands are present.",
+          "type": ["string", "null"],
+          "enum": ["separation_not_rejected", "confounded", "withheld", null]
+        },
+        "reading": {
+          "description": "ADDED f-07. The slice's one-word verdict, computed from `separation`, `record` and `confound`, and what a page leads with. `separates`: subjects separate and no named confound explains it. `separates_confounded`: they separate, but the measure is confounded BY CONSTRUCTION (named in the producer) and the measured confound excludes zero - it is NOT a finding about the predictor's subject. `does_not_separate`: they do not, and the record says nothing more. `forecasts` / `forecasts_inversely` / `not_readable`: they do not separate and the record's verdict is this. Null only when withheld.",
+          "type": ["string", "null"],
+          "enum": ["separates", "separates_confounded", "does_not_separate", "forecasts", "forecasts_inversely", "not_readable", null]
+        },
+        "statement": {
+          "description": "ADDED f-07. One sentence GENERATED from this slice's figures at export time, naming its separation, its confound and its forecast together, so none of the three can be quoted without the others. Render verbatim or not at all. Null only when withheld.",
+          "anyOf": [{"type": "null"}, {"type": "string", "minLength": 1}]
+        },
+        "values_reason": {
+          "description": "ADDED f-07. Why this slice has no rows in `values`; null when it has them. `separation_not_rejected` / `confounded`: published slice, values held back under `values_policy` = `hide`. `withheld`: the slice itself is withheld.",
+          "type": ["string", "null"],
+          "enum": ["separation_not_rejected", "confounded", "withheld", null]
+        }
+      },
+      "required": ["status", "withheld_reasons", "label", "unit", "cannot_see", "direction", "null_value", "season_from", "season_to", "sample", "separation", "chance", "record", "confound", "bands", "bands_reason", "reading", "statement", "values_reason"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "description": "A PUBLISHED slice carries its scoring record - never null, never absent - and its measurement, its `reading` and its `statement`, and names no withheld reason; its `values_reason` is never `withheld`. This is what makes 'every predictor ships with its record visible' a property of the file rather than a promise: a published slice with `record: null` does not validate. The record may still say it was never scored (`score` null), but then it must say why.",
+          "if": {"properties": {"status": {"const": "published"}}, "required": ["status"]},
+          "then": {"properties": {
+            "withheld_reasons": {"maxItems": 0},
+            "record": {"$ref": "#/$defs/PredictorRecord"},
+            "sample": {"$ref": "#/$defs/PredictorSample"},
+            "separation": {"$ref": "#/$defs/PredictorSeparation"},
+            "chance": {"type": "object"},
+            "reading": {"type": "string"},
+            "statement": {"type": "string"},
+            "values_reason": {"not": {"const": "withheld"}}
+          }}
+        },
+        {
+          "description": "A WITHHELD slice names at least one reason and carries no measured field - no `reading` or `statement` either, since both are computed from the measurement - and its `values_reason` is `withheld`, so a withheld number cannot leak through a slice marked withheld.",
+          "if": {"properties": {"status": {"const": "withheld"}}, "required": ["status"]},
+          "then": {"properties": {
+            "withheld_reasons": {"minItems": 1},
+            "sample": {"type": "null"}, "separation": {"type": "null"},
+            "chance": {"type": "null"}, "record": {"type": "null"},
+            "confound": {"type": "null"}, "bands": {"type": "null"},
+            "bands_reason": {"const": "withheld"},
+            "reading": {"type": "null"}, "statement": {"type": "null"},
+            "values_reason": {"const": "withheld"}
+          }}
+        },
+        {
+          "description": "`bands_reason` is present exactly when `bands` is null.",
+          "if": {"properties": {"bands": {"type": "null"}}, "required": ["bands"]},
+          "then": {"properties": {"bands_reason": {"type": "string"}}},
+          "else": {"properties": {"bands_reason": {"type": "null"}}}
+        }
+      ]
+    },
+
+    "PredictorSample": {
+      "type": "object",
+      "properties": {
+        "subjects": {"type": "integer", "minimum": 1},
+        "blocks": {"description": "Independent units: draft classes.", "type": "integer", "minimum": 1},
+        "rows": {"description": "Picks. Not the sample; published beside it.", "type": "integer", "minimum": 1},
+        "unresolved_rows": {"description": "Rows that could not be joined to an outcome and are scored as zero rather than dropped.", "type": "integer", "minimum": 0}
+      },
+      "required": ["subjects", "blocks", "rows", "unresolved_rows"],
+      "additionalProperties": false
+    },
+
+    "PredictorSeparation": {
+      "description": "Do subjects differ by more than shuffled labels would? Between-subject SD of values against a permutation null that shuffles subject labels within each block. `verdict` is computed from `p` against the file's `alpha` and can take either value.",
+      "type": "object",
+      "properties": {
+        "between_sd": {"type": "number", "minimum": 0},
+        "null_sd_mean": {"type": "number", "minimum": 0},
+        "null_sd_p95": {"type": "number", "minimum": 0},
+        "p": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "permutations": {"type": "integer", "minimum": 1},
+        "verdict": {"type": "string", "enum": ["separates", "does_not_separate"]}
+      },
+      "required": ["between_sd", "null_sd_mean", "null_sd_p95", "p", "permutations", "verdict"],
+      "additionalProperties": false
+    },
+
+    "PredictorRecord": {
+      "description": "THE SCORING RECORD. `score` is how the predictor did when it was used to forecast outcomes it could not see; it is NULL when the slice has never been scored, and `reason` says why - it is never simply absent. For drafting the score is a walk-forward Pearson r: a subject's record over blocks whose horizon had closed predicts its next block, averaged over targets, interval by bootstrapping targets.",
+      "type": "object",
+      "properties": {
+        "score": {"anyOf": [{"type": "null"}, {
+          "type": "object",
+          "properties": {
+            "statistic": {"type": "string"},
+            "estimate": {"type": "number"},
+            "interval": {"$ref": "#/$defs/Interval"},
+            "n": {"description": "Scored targets (blocks), not rows.", "type": "integer", "minimum": 1},
+            "method": {"type": "string"},
+            "lag_blocks": {"description": "How many blocks back the forecast had to stop to see no open horizon.", "type": "integer", "minimum": 0},
+            "min_readable_n": {"type": "integer", "minimum": 1},
+            "verdict": {
+              "description": "Computed from the interval against 0 and `n` against `min_readable_n`. `forecasts`: excludes 0 above. `forecasts_inversely`: excludes 0 below. `no_better_than_chance`: covers 0. `not_readable`: too few targets for the interval to be read at all, whatever it excludes.",
+              "type": "string",
+              "enum": ["forecasts", "forecasts_inversely", "no_better_than_chance", "not_readable"]
+            }
+          },
+          "required": ["statistic", "estimate", "interval", "n", "method", "lag_blocks", "min_readable_n", "verdict"],
+          "additionalProperties": false
+        }]},
+        "reason": {
+          "description": "Why `score` is null. `not_as_of`: the outcome is a snapshot total with no version knowable at forecast time, so no forecast can be scored against it. Null when a score is present.",
+          "type": ["string", "null"],
+          "enum": ["not_as_of", "too_few_targets", null]
+        }
+      },
+      "required": ["score", "reason"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "description": "A null `score` must carry a `reason`; a present `score` must not. Unscored is allowed and must be stated, never implied by absence.",
+          "if": {"properties": {"score": {"type": "null"}}, "required": ["score"]},
+          "then": {"properties": {"reason": {"type": "string"}}},
+          "else": {"properties": {"reason": {"type": "null"}}}
+        }
+      ]
+    },
+
+    "PredictorBand": {
+      "type": "object",
+      "properties": {
+        "leader": {"type": "string"},
+        "members": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true}
+      },
+      "required": ["leader", "members"],
       "additionalProperties": false
     }
   }

@@ -270,20 +270,26 @@ def test_the_key_must_imply_the_kind():
 # ---------------------------------------------------------------------------
 
 def test_the_proposal_collides_with_nothing_in_the_contract():
-    c, prop = analytics_export.contract(), px.proposal()
-    assert not set(prop["$defs"]) & set(c["$defs"])
-    assert not set(prop["x-contract-additions"]["kinds"]) & set(c["x-contract"]["kinds"])
+    # Adopted by track A (a-05, redone as a-12): the contract carries the kind
+    # and the proposal file is gone, so there is one definition of the shape
+    # and not two.
+    c = analytics_export.contract()
+    assert c["x-contract"]["kinds"]["predictor"] == "PredictorFile"
+    assert not os.path.exists(os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(px.__file__))),
+        "docs", "proposals", "F08-predictor.defs.json"))
 
 
 def test_no_existing_key_pattern_claims_the_predictor_key():
-    for entry in analytics_export.contract()["x-contract"]["keys"]:
-        assert not re.match(entry["pattern"], px.KEY), entry
+    claims = [e["kind"] for e in analytics_export.contract()["x-contract"]["keys"]
+              if re.match(e["pattern"], px.KEY)]
+    assert claims == ["predictor"], claims
 
 
 def test_the_vendored_contract_is_not_edited():
     c = analytics_export.contract()
-    assert "predictor" not in c["x-contract"]["kinds"]
-    assert "PredictorFile" not in c["$defs"]
+    assert "predictor" in c["x-contract"]["kinds"]
+    assert "PredictorFile" in c["$defs"]
 
 
 def test_the_prefix_is_top_level_and_outside_every_other_builder():

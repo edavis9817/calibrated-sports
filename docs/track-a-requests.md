@@ -478,7 +478,14 @@ coordinate feed is a decision for Ethan, not something to approximate.
 
 ## A-C7. A new kind, `coverage`: what we hold, per sport, read from the stores
 
-**Status:** filed 2026-09-22 by track C (relay unit c-01). **A request for a contract
+**Status: ADOPTED by track A, unit a-12, 2026-09-23** (a-05's adoption, redone against the
+proposal as it stood on main - so it carries A-C12's `event_dates`). Kind, sportless kind,
+key pattern and five `$defs` as filed; proposal deleted. Two descriptions reworded because
+they named a sport (`nflverse data_version`, the football season rule) and
+`test_the_contract_names_no_sport` refuses that. `units` vs `rows`: both kept, as filed.
+Not published.
+
+**Original status:** filed 2026-09-22 by track C (relay unit c-01). **A request for a contract
 change - the proposed `$defs` are written out in full in
 `docs/proposals/coverage.defs.json`.** The contract was not edited. Built, tested, run
 against the real stores, and **not published**. `jobs/export_coverage.py` validates
@@ -524,6 +531,18 @@ this feed exists to prevent.
 ---
 
 ## F6 — a `predictor` kind: a published number with its scoring record in the same file
+
+**Status: ADOPTED by track A, unit a-12, 2026-09-23, carrying the f-07 addendum, with three
+changes.** (1) Every `oneOf` became `anyOf`, including f-07's `attribution` and `statement` -
+each was a disjoint null-or-object, so the accepted documents are identical, and the site's
+type generator throws on `oneOf`. (2) `PredictorSlice` gained an `allOf`: a `published` slice
+must carry `record` as an object plus `reading` and `statement`, and a `withheld` slice must
+name a reason, carry no measured field, and have `reading`/`statement` null and
+`values_reason: withheld`. (3) `PredictorRecord` gained an `allOf`: `score: null` requires a
+`reason`, a score forbids one. The proposal is deleted; `analytics/predictor_export.py`
+validates against the contract (forced edit: `PROPOSAL_PATH`/`proposal()` removed,
+`validator()` and `kind_of()` read the contract, f-07's values-policy loop untouched). Still
+not published: `predictors/` has no REFRESHED declaration reaching the uploader.
 
 From track F, unit f-02, 2026-09-22. **Proposed, not merged. The vendored contract is
 untouched.** Additive only.
@@ -795,6 +814,8 @@ sport has exactly one status; no status names a sport the site does not declare.
 **For track B, once adopted:** a sport whose `status.state` is `held` must not render
 "Coming soon" or "What it will lead with". See track-b-requests, "From track C - c-09".
 ## A-C12. `coverage`: a date-grained cutoff, `CoverageCount.event_dates`, so MLB can say where it stops
+
+**Status: ADOPTED by track A, unit a-12, 2026-09-23**, with A-C7, verbatim.
 
 **Status:** filed 2026-09-22 by track C (relay unit c-11). **A request against the
 PROPOSED `coverage` kind (A-C7), not against anything already in the contract.** On

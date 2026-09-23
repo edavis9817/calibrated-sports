@@ -80,7 +80,6 @@ import time
 from analytics import drafting, gate, pfr_terms
 from analytics import export as analytics_export
 
-PROPOSAL_PATH = os.path.join("docs", "proposals", "F08-predictor.defs.json")
 OWNED_PREFIX = "predictors/"
 SPORT = "nfl"
 PREDICTOR = "drafting"
@@ -148,28 +147,15 @@ def _root():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def proposal():
-    with open(os.path.join(_root(), PROPOSAL_PATH), encoding="utf-8") as f:
-        return json.load(f)
-
-
 def validator():
-    """The vendored contract's $defs plus the proposal's, merged in memory.
-
-    A name collision REFUSES rather than letting one silently win: the proposal
-    is meant to merge additively, and a collision means it cannot.
-    """
+    """The contract's own `predictor` kind (adopted by track A, units a-05/a-12)."""
     global _VALIDATOR
     if _VALIDATOR is None:
         from jsonschema import Draft202012Validator
-        defs = dict(analytics_export.contract()["$defs"])
-        prop = proposal()["$defs"]
-        clash = sorted(set(defs) & set(prop))
-        if clash:
-            raise ContractError("proposal redefines contract $defs %s" % clash)
-        defs.update(prop)
+        c = analytics_export.contract()
         _VALIDATOR = Draft202012Validator(
-            {"$ref": "#/$defs/PredictorFile", "$defs": defs})
+            {"$ref": "#/$defs/%s" % c["x-contract"]["kinds"]["predictor"],
+             "$defs": c["$defs"]})
     return _VALIDATOR
 
 
@@ -178,7 +164,7 @@ class ContractError(AssertionError):
 
 
 def kind_of(key):
-    for entry in proposal()["x-contract-additions"]["keys"]:
+    for entry in analytics_export.contract()["x-contract"]["keys"]:
         if re.match(entry["pattern"], key):
             return entry["kind"]
     return None
@@ -550,8 +536,8 @@ def main(argv=None):
         # under `show` it is an export that wrote nothing.
         if n == 0 and policy == "show":
             raise SystemExit("no values - an export that writes nothing is not an export")
-        print("%s: %d values over %d slices, validated against the contract + %s"
-              % (KEY, n, len(payload["slices"]), PROPOSAL_PATH))
+        print("%s: %d values over %d slices, validated against the contract"
+              % (KEY, n, len(payload["slices"])))
         for line in summary(payload):
             print(line)
     if a.write:
