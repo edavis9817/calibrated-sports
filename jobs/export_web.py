@@ -2,6 +2,7 @@
 
     python -m jobs.export_web                   # export everything to WEB_EXPORT_DIR
     python -m jobs.export_web --only players    # players | teams | market | research | manifest
+    python -m jobs.export_web --only components --dest D:/staging   # league table, staged
     python -m jobs.export_web --dry-run         # build and count, write nothing
     python -m jobs.export_web --upload          # export, then upload changed keys to R2
     python -m jobs.export_web --upload-only     # upload the existing local export
@@ -60,6 +61,12 @@ SPORT = "nfl"
 SPORT_NAME = "NFL"
 PERIOD_TYPE = "week"
 PARTS = ("players", "teams", "market", "research", "manifest")
+# Built only when named with --only. NOT in PARTS, so a default export - which is
+# what weekly_refresh runs, from whatever branch this clone has checked out -
+# cannot produce these keys and the uploader cannot ship them. Staged, not
+# published (a-11): moving a part into PARTS is the publish decision, and it is
+# Ethan's, taken after the site has a reader for it.
+OPTIONAL_PARTS = ("components",)
 STATE_FILE = ".upload_state.json"
 
 # The one line an export prints so a caller in the SAME JOB can learn which
@@ -289,6 +296,13 @@ STAT_DEFINITIONS = {
     "def_ff": _d("FF", "int", "team_defense"),
     "def_td": _d("Def TD", "int", "team_defense"),
     "def_safeties": _d("Safeties", "int", "team_defense"),
+    # The DENOMINATORS of the two usage shares, published so a page can compute
+    # a share over any span as sum(part) / sum(whole). Averaging the per-game
+    # shares instead weights a 20-snap game the same as a 70-snap one, which is
+    # a different number and the wrong one. Carried only on the components
+    # table; see build_components.
+    "team_targets": _d("Team Tgt", "int", "usage"),
+    "team_snaps": _d("Team Snaps", "int", "usage"),
 }
 
 
@@ -680,6 +694,8 @@ def stat_keys_used(obj):
             keys |= set(s.get("offense", {})) | set(s.get("defense", {}))
     elif kind == "market":
         keys |= {c["stat"] for c in obj.get("components", [])}
+    elif kind == "components":
+        keys |= set(obj.get("columns", []))
     elif kind == "sport_manifest":
         for p in obj.get("scoring_presets", {}).values():
             keys |= set(p.get("weights", {}))
@@ -1434,6 +1450,137 @@ def build_teams(games, weeks, snaps, scope, xwalk, slugs, generated_at):
     return files
 
 
+# =============================================================================
+# THE COMPONENTS TABLE (site-architecture §3; a-11)
+# =============================================================================
+#
+# One league-wide table per season: every in-scope player's per-game stat
+# components, in one file, so a page can sort the whole league on one key and
+# score it under the reader's own weights. The per-player files cannot do that -
+# a leaderboard over them is one fetch per player, ~700-800 a season.
+#
+# THE GRAIN IS PLAYER-GAME, NOT PLAYER-SEASON. Scoring presets carry per-GAME
+# threshold bonuses (the contract's ScoringPreset.bonuses), and a bonus cannot
+# be applied to a season sum: 100 yards in each of two games and 200 in one game
+# sum to the same total and score differently. The period leaderboard needs the
+# week anyway. A season total is one sum away in the browser, and storing it
+# would be a derived total beside its parts.
+#
+# ONE FILE PER SEASON. Measured 2026-09-22: a modern season is ~1.1 MB raw and
+# ~135 KB gzipped; all 28 in one file would be 27.1 MB raw, 2.9 MB gzipped, for a
+# page that reads one season at a time.
+#
+# IT IS A PROJECTION OF THE PLAYER SEASON FILES, not a second derivation. It is
+# built from the period rows build_players emitted, so the two cannot disagree
+# about a player's week: same scope, same played-zero rows, same silent-zero
+# nulls. The one thing added is the two share denominators.
+#
+# COLUMNS ARE FIXED, SO AN ABSENT KEY IS WRITTEN AS 0 - and that is exact, not a
+# default. build_players drops a stat key from a player's season only when it is
+# ZERO IN EVERY PERIOD of that season (emitted_keys); a null keeps its key. So
+# the only thing absence can mean is zero. Usage keys are never dropped, and an
+# absent usage key raises rather than being filled.
+COMPONENT_COLUMNS = PERIOD_KEYS + ("team_targets", "team_snaps")
+
+
+def load_team_snaps(con):
+    """(game_id, snap-table team) -> the team's offensive snaps in that game.
+
+    MAX over the players, because someone - the quarterback, the line - is on
+    the field for every snap. Measured 2026-09-22 against the value implied by
+    offense_snaps / offense_pct: the max equals the median implied total in
+    7,165 of 7,188 team-games (the pct is published to 2dp, so the implied
+    figure is itself noisy by a few snaps). Over ALL snap rows, not only the
+    crosswalked ones: a lineman with no crosswalk row still played the snaps.
+    """
+    out = {}
+    for gid, team, off in con.execute(
+            "SELECT s.game_id, s.team, MAX(s.offense_snaps) FROM nfl_snap_counts s "
+            "JOIN (SELECT pfr_player_id, game_id, MAX(data_version) dv FROM nfl_snap_counts "
+            "GROUP BY pfr_player_id, game_id) v ON v.pfr_player_id = s.pfr_player_id "
+            "AND v.game_id = s.game_id AND v.dv = s.data_version GROUP BY s.game_id, s.team"):
+        if off:
+            out[(gid, team)] = intish(off)
+    return out
+
+
+def team_targets_by_game(weeks):
+    """(season, week, team) -> targets thrown by that team, over EVERY stat row.
+
+    Every row, not the export's scope: the denominator of a share is the team's
+    whole passing game. Reproduces nflverse's own target_share on 375,672 of
+    375,711 rows (measured 2026-09-22), so it is the same denominator the
+    per-game share already uses. Null where the source did not collect targets.
+    """
+    out = defaultdict(int)
+    for r in weeks:
+        out[(r["season"], r["week"], r["team"])] += num(r.get("targets"))
+    return {k: (intish(v) if collected("targets", k[0]) else None) for k, v in out.items()}
+
+
+def build_components(player_files, weeks, snap_index, team_snaps, generated_at):
+    """-> ({key: components file per season}, census).
+
+    `snap_index` resolves a row's own snap record, whose team code is the snap
+    table's; that is the code `team_snaps` is keyed on, so the two never have to
+    agree with nflverse's weekly-stats team codes.
+    """
+    team_tgts = team_targets_by_game(weeks)
+    census = Counter()
+    seasons = defaultdict(lambda: {"players": [], "rows": []})
+    identity = {}
+    for key, obj in player_files.items():
+        if obj.get("kind") == "player_summary":
+            i = obj["identity"]
+            identity[i["id"]] = {"id": i["id"], "slug": i["slug"], "name": i["name"],
+                                 "position": i["position"]}
+    for key in sorted(k for k, o in player_files.items() if o.get("kind") == "player_season"):
+        obj = player_files[key]
+        gsis, season = obj["identity"]["id"], obj["season"]
+        s = seasons[season]
+        pi = len(s["players"])
+        s["players"].append(identity[gsis])
+        for p in obj["periods"]:
+            stats = p["stats"]
+            values = []
+            for col in PERIOD_KEYS:
+                if col in stats:
+                    values.append(stats[col])
+                elif col in USAGE_KEYS:
+                    raise AssertionError(f"{key} week {p['index']}: usage key {col!r} absent - "
+                                         f"build_players never drops one, so this is a new shape")
+                else:
+                    values.append(0)
+            # Off the FILLED value, not `stats`: a quarterback with no target all
+            # season has no `targets` key, and his row still needs the team's
+            # denominator - his zero is a share of something.
+            tt = None
+            if values[PERIOD_KEYS.index("targets")] is not None:
+                tt = team_tgts.get((season, p["index"], p["team"]))
+                census["team_targets_unmatched" if tt is None else "team_targets"] += 1
+            ts = None
+            if stats.get("snaps") is not None:
+                own = snap_index.get((gsis, season, p["index"]))
+                ts = None if own is None else team_snaps.get((own[4], own[0]))
+                census["team_snaps_unmatched" if ts is None else "team_snaps"] += 1
+                if ts is not None and stats["snaps"] > ts:
+                    raise AssertionError(f"{key} week {p['index']}: {stats['snaps']} snaps "
+                                         f"against a team total of {ts}")
+            values += [tt, ts]
+            s["rows"].append({"player": pi, "index": p["index"],
+                              "season_type": p["season_type"], "team": p["team"],
+                              "values": values})
+            census["rows"] += 1
+    files = {}
+    for season, s in sorted(seasons.items()):
+        s["rows"].sort(key=lambda r: (r["index"], r["season_type"] != "REG", r["player"]))
+        files[f"{SPORT}/components/{season}.json"] = {
+            **envelope("components", generated_at), "season": season,
+            "columns": list(COMPONENT_COLUMNS), "players": s["players"], "rows": s["rows"]}
+    census["seasons"] = len(files)
+    return files, dict(census)
+
+
 def build_market(con, games, weeks, xwalk, slugs, current, now_ts, generated_at, n_sims=N_SIMS):
     """Current-period market-implied fantasy distributions (research/implied.py arm A).
     -> ({key: obj}, {gsis: key}, census, {(venue, market_id)} published).
@@ -2085,6 +2232,13 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
         summary["players"] = sync_keys(dest, {**player_files, f"{SPORT}/players/index.json": index_obj},
                                        [f"{SPORT}/players/"], dry_run)
         refreshed.append(f"{SPORT}/players/")
+    if "components" in parts:
+        components, census = build_components(player_files, weeks, snap_index,
+                                              load_team_snaps(con), generated_at)
+        assert_stats_defined(components, STAT_DEFINITIONS)
+        summary["components_census"] = census
+        summary["components"] = sync_keys(dest, components, [f"{SPORT}/components/"], dry_run)
+        refreshed.append(f"{SPORT}/components/")
     if "teams" in parts:
         teams = build_teams(games, weeks, snaps, scope, xwalk, slugs, generated_at)
         assert_stats_defined(teams, STAT_DEFINITIONS)
@@ -2352,7 +2506,11 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--only", action="append", choices=PARTS)
+    ap.add_argument("--only", action="append", choices=PARTS + OPTIONAL_PARTS)
+    ap.add_argument("--dest", default=None,
+                    help="export into this directory instead of WEB_EXPORT_DIR - a staging tree. "
+                         "Refused with --upload/--upload-only, which read WEB_EXPORT_DIR and would "
+                         "ship a tree other than the one just built.")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--upload", action="store_true", help="export, then upload changed keys to R2")
     ap.add_argument("--upload-only", action="store_true",
@@ -2363,9 +2521,11 @@ def main(argv=None):
                          "absence is not information. Never read from a file - pass it from the "
                          "export run that produced the tree, in the same job.")
     a = ap.parse_args(argv)
+    if a.dest and (a.upload or a.upload_only):
+        ap.error("--dest stages a tree; the uploader reads WEB_EXPORT_DIR. Refusing to pair them.")
     refreshed = None
     if not a.upload_only:
-        s = export(only=a.only, dry_run=a.dry_run)
+        s = export(only=a.only, dry_run=a.dry_run, dest=a.dest)
         refreshed = s.get("refreshed")
         printable = {k: v for k, v in s.items()
                      if k not in ("unresolved", "market_players", "slug_collisions")}

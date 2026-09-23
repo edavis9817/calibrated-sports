@@ -19,7 +19,8 @@
       "research.calibration": "CalibrationResearchFile",
       "research.execution": "ExecutionFile",
       "analytics.index": "AnalyticsIndexFile",
-      "analytics.metric": "AnalyticMetricFile"
+      "analytics.metric": "AnalyticMetricFile",
+      "components": "ComponentsFile"
     },
     "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.execution"],
     "keys": [
@@ -34,7 +35,8 @@
       {"pattern": "^research/calibration\\.json$", "kind": "research.calibration"},
       {"pattern": "^research/execution\\.json$", "kind": "research.execution"},
       {"pattern": "^analytics/[a-z0-9]+/index\\.json$", "kind": "analytics.index"},
-      {"pattern": "^analytics/[a-z0-9]+/[a-z0-9_]+(\\.[a-z0-9_]+)+\\.json$", "kind": "analytics.metric"}
+      {"pattern": "^analytics/[a-z0-9]+/[a-z0-9_]+(\\.[a-z0-9_]+)+\\.json$", "kind": "analytics.metric"},
+      {"pattern": "^[a-z0-9]+/components/\\d{4}\\.json$", "kind": "components"}
     ]
   },
 
@@ -1152,6 +1154,47 @@
         "metrics": {"type": "array", "items": {"$ref": "#/$defs/AnalyticsIndexEntry"}}
       },
       "required": ["schema_version", "generated_at", "kind", "sport", "source", "metrics"],
+      "additionalProperties": false
+    },
+    "ComponentsPlayer": {
+      "description": "Enough identity to title and link a row. The full identity is on the player's summary.",
+      "type": "object",
+      "properties": {
+        "id": {"type": "string"},
+        "slug": {"type": "string"},
+        "name": {"type": ["string", "null"]},
+        "position": {"type": ["string", "null"]}
+      },
+      "required": ["id", "slug", "name", "position"],
+      "additionalProperties": false
+    },
+    "ComponentsRow": {
+      "description": "One player in one period. `values` is positional against the file's `columns` and always the same length. Each value means what Stats means: null is unknown or not collected, never zero, and 0 is a recorded zero.",
+      "type": "object",
+      "properties": {
+        "player": {"description": "Index into the file's `players` array.", "type": "integer"},
+        "index": {"description": "The period number within the season, as PeriodRow.index.", "type": "integer"},
+        "season_type": {"type": "string"},
+        "team": {"type": ["string", "null"]},
+        "values": {"type": "array", "items": {"type": ["number", "null"]}}
+      },
+      "required": ["player", "index", "season_type", "team", "values"],
+      "additionalProperties": false
+    },
+    "ComponentsFile": {
+      "description": "THE COMPONENTS TABLE: one season of per-player, per-period stat components for the whole league in one file, so a page can sort every player on one key and score them under any weights. It is a projection of the player season files - the same rows, the same nulls - laid out as columns so it stays small enough to load in a browser. Components only: no total, per-game rate or fantasy score is stored, because each is a sum or ratio the page computes, and scoring bonuses apply per period so a stored season total could not be scored. `columns` are stat keys defined in the sport manifest's stat_definitions. A share over any span is sum(part) / sum(denominator) using the denominator columns published beside it, never a mean of per-period shares.",
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "components"},
+        "sport": {"type": "string"},
+        "season": {"type": "integer"},
+        "columns": {"type": "array", "items": {"type": "string"}},
+        "players": {"type": "array", "items": {"$ref": "#/$defs/ComponentsPlayer"}},
+        "rows": {"type": "array", "items": {"$ref": "#/$defs/ComponentsRow"}}
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "season", "columns", "players", "rows"],
       "additionalProperties": false
     }
   }
