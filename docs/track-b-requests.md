@@ -1080,3 +1080,62 @@ types and 16 kinds, and `PredictorSlice` carries `reading`, `statement` and `val
   must.
 - `tests/test_contract_coverage_predictor.py::FILED_TO_B` is the producer's copy of this list. The
   test fails if the contract starts using a keyword that is on neither list.
+## From track C - c-13: what `/cfb` needs before `awaitingExport` comes off (filed 2026-09-23)
+
+Full evidence: `docs/C13-cfb-gate.md`. Read at your deployed `9884f96`, and rendered there with
+the flag mocked off, against the published CFB manifest (byte-identical to what
+`/data/cfb/manifest.json` serves). **No key a declared CFB page requests is missing.** The gate
+is what the pages say about the keys that exist. Each item carries the test that closes it.
+
+1. **B-C13-1 - `SportHome` links only declared pages.** `components/views/SportHome.tsx`
+   hard-codes seven cards. On `/cfb`, cards 04 (`/cfb/fantasy`) and 06 (`/cfb/news`) link to
+   routes `gatePage` 404s, and the page says "7 pages sit under CFB" when 5 are declared.
+   *Accept:* render `SportHome` with the cfb config and the published manifest. Every href
+   starting `/cfb/` has `gatePage("cfb", page) !== null`, and the stated page count equals the
+   number of cards rendered. The NFL render is unchanged (existing `sportHome.test.ts` green).
+2. **B-C13-2 - `SportHome` copy that the CFB manifest contradicts.** Three things, all rendered:
+   the headline "0 players.", with "The whole record for every player who has taken the field
+   since 2004 - game logs, usage and season totals"; the exchange copy ("A market-implied
+   distribution is published where the exchange lists a ladder... between slates"); and the
+   "Markets priced" and "Ladder rungs" tiles. CFB publishes no players (`counts.players: 0`, the
+   index is empty by design) and no market (`market_definitions: {}`; Kalshi lists no CFB props).
+   Key the player sentences on `counts.players > 0` or `pages.includes("player")`, and the
+   market block on a non-empty `market_definitions`, never on the sport's name.
+   *Accept:* the cfb render contains none of `0 players`, `every player who has taken the field`,
+   `exchange lists a ladder`, `between slates`, `Ladder rungs`. The nfl render still contains
+   each one it contains today.
+3. **B-C13-3 - `/cfb/players` must stay gated when home and teams flip.** Off the gate it renders
+   "0 players in the record", "Every other player in the record has a page", and Offense /
+   Defense / Special teams leader tabs. Recommended: make the gate per page
+   (`awaitingExport: true | readonly PageType[]`, or a separate `awaitingPages`), so `players`
+   keeps its awaiting view while `home` and `teams` read the manifest. Dropping `players` from
+   `pages` is the alternative. It removes a v7 page, so it is Ethan's call rather than yours.
+   *Accept:* with home and teams released, `/cfb/players` renders the awaiting view and makes 0
+   reads, while `/cfb` and `/cfb/teams` each make 1.
+4. **B-C13-4 - the teams board's copy assumes team pages.** The figure note reads "Teams 138 -
+   with a page", and the lede reads "A team's own page carries its schedule..." and "Every
+   franchise". CFB declares no `team` page, so both claims are false there.
+   *Accept:* with `pages` lacking `team`, the rendered board contains neither `with a page` nor
+   `own page`, and its rows have no `href` (they already have none).
+5. **B-C13-5 - when `team` is declared: link an opponent only if it has a page.** `TeamView`
+   `Schedule()` links any opponent with a non-empty `opponent_abbr`. Non-FBS opponents carry an
+   abbreviation and no page. And today `opponent` is a display name (`/cfb/team/East Carolina`):
+   12 of 12 links on Alabama, 0 of which resolve. Track C fixes the slug (P2 in C13). The guard
+   is yours: link only when `opponent` is in `manifest.teams[].slug`.
+   *Accept:* render `TeamView` for every published cfb team file. Every `/cfb/team/` href is a
+   manifest slug. **Do not declare `team` before track C's P1**: every published CFB spread has
+   the wrong sign (corr -0.719 with the team's own margin over 21,374 rows), and the page would
+   render it.
+6. **B-C13-6 - the flip changes a test on purpose.** `tests/routing.test.ts:36` asserts
+   `cfb.awaitingExport === true` and the exact page set. *Accept:* the flip commit edits that
+   assertion to the new gate. It is not deleted.
+7. **B-C13-7 - decide whether the Shell may read an unpublished sport's manifest.**
+   `components/Shell.tsx` fetches `/data/{sport}/manifest.json` on every sport home without
+   checking `awaitingExport`. Since the 09-23 publish that returns 200 for cfb, so `/cfb`
+   should now show `CFB / Week 3` in its strip while the page says "Export not published". This
+   comes from reading the code; the effect is client-side and was not seen in a browser.
+   *Accept:* either the fetch is skipped while awaiting (no request to
+   `/data/cfb/manifest.json` from `/cfb` with the flag on), or the decision to keep it is recorded.
+
+Not needed from you: nothing reads `sports.json` on the site (`sportsKey` has no call site), so
+its missing `cfb` entry does not block the flip.
