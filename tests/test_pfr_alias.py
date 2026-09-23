@@ -107,7 +107,7 @@ def test_store_layer_null_gsis_does_not_unsay_a_held_pairing(env):
 def test_store_layer_plain_replace_would_have_nulled_it(env):
     """Discriminates the test above: the same row through INSERT OR REPLACE loses the id."""
     b.write([row()])
-    store.replace_rows("pfr_alias", b.COLS, [row(g=None, lo=None, hi=None)], ("pfr_id", "method"))
+    store.replace_rows("pfr_alias", b.COLS, [row(g=None, lo=None, hi=None)])
     assert alias_rows()[("OrphAn00", "participation")][0] is None
 
 
