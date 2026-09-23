@@ -398,8 +398,13 @@ def test_manifest_carries_period_type_presets_and_teams(db):
     # precisely so this identity holds on a drawn game.
     season = buf["season"]
     assert set(season) == {"games", "cleared", "missed", "tied",
-                           "points_for", "points_against", "markets"}
+                           "points_for", "points_against", "markets", "cumulative"}
     assert season["cleared"] + season["missed"] + season["tied"] == season["games"]
+    # a-08: the season path. The fixture schedules 2026 weeks 1-2; BUF won week
+    # 1 at HOU 36-31 and week 2 has no score yet - a null, not a projection.
+    assert [(e["index"], e["state"], e["cleared"], e["points_for"], e["points_against"])
+            for e in season["cumulative"]] == [(1, "played", 1, 36, 31),
+                                               (2, "unplayed", None, None, None)]
 
 
 def test_counts_games_played_not_games_scheduled(db):

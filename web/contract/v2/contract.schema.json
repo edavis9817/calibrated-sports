@@ -115,9 +115,46 @@
           "description": "Null, not zero, before a team has played: no games is not the same statement as no points.",
           "type": ["integer", "null"]
         },
-        "markets": {"type": "integer"}
+        "markets": {"type": "integer"},
+        "cumulative": {
+          "description": "The season PATH the teams board draws: one entry per regular-season week of the league's schedule (index 1..N, N = 18 for the NFL's 2026 schedule), in order. A played week carries the running total THROUGH that week; every other state carries null in every value - never zero, never the previous week carried forward, never a projection. The last played entry equals this summary's own totals; the producer refuses to export otherwise. The chart's axis ceiling is the highest value any team's path reaches, which the reader takes from these arrays rather than from a separately published figure that could disagree with them.",
+          "type": "array",
+          "items": {"anyOf": [{"$ref": "#/$defs/TeamWeekPlayed"}, {"$ref": "#/$defs/TeamWeekEmpty"}]}
+        }
       },
-      "required": ["games", "cleared", "missed", "tied", "points_for", "points_against", "markets"],
+      "required": ["games", "cleared", "missed", "tied", "points_for", "points_against", "markets", "cumulative"],
+      "additionalProperties": false
+    },
+
+    "TeamWeekPlayed": {
+      "description": "A week of the season path this team PLAYED: its fixture carries both scores. Every value is cumulative through this week. `cleared` is the chart's wins; `missed` and `tied` travel with it so cleared + missed + tied is the games played to date.",
+      "type": "object",
+      "properties": {
+        "index": {"type": "integer"},
+        "state": {"const": "played"},
+        "cleared": {"type": "integer"},
+        "missed": {"type": "integer"},
+        "tied": {"type": "integer"},
+        "points_for": {"type": "integer"},
+        "points_against": {"type": "integer"}
+      },
+      "required": ["index", "state", "cleared", "missed", "tied", "points_for", "points_against"],
+      "additionalProperties": false
+    },
+
+    "TeamWeekEmpty": {
+      "description": "A week of the season path that carries no value, and WHY - three different facts, none of which is zero. The rule is the team page schedule strip's own, so the chart and the strip cannot disagree: `bye` is the ONE regular-season week up to the team's last scheduled week with no fixture; if there are two or more such weeks the bye is unresolved (a cancelled game looks the same) and each is `gap`, as is any week past the team's last fixture; `unplayed` is a fixture with no result yet, whether or not it has kicked off - that split depends on the reader's clock, and the team file's `kickoff_ts` carries it.",
+      "type": "object",
+      "properties": {
+        "index": {"type": "integer"},
+        "state": {"enum": ["bye", "unplayed", "gap"]},
+        "cleared": {"type": "null"},
+        "missed": {"type": "null"},
+        "tied": {"type": "null"},
+        "points_for": {"type": "null"},
+        "points_against": {"type": "null"}
+      },
+      "required": ["index", "state", "cleared", "missed", "tied", "points_for", "points_against"],
       "additionalProperties": false
     },
 
