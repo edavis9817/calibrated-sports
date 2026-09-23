@@ -586,3 +586,103 @@ From track C, unit c-05, 2026-09-22. **Nothing published.** The CFB tree is stag
   `conference_short_name` for 9 of 11 ("Conference USA" vs `CUSA`, "Independents" vs
   `FBS Indep.`), so anything keyed on names across the two repos will drift. Not a
   blocker: the teams board groups by the manifest's own strings.
+
+---
+
+## A-B1 … A-B8. What the NFL pages are missing that only the producer can supply (track B, b-18)
+
+From track B, unit b-18, 2026-09-22. **Filed, not built.** The survey these come from is
+`calibratedsports-web/docs/design/W12-nfl-stat-inventory.md` (branch `b-18-stat-inventory`): every
+stat `design/shell.html` specifies on an NFL route, against what production renders and what the
+export carries. Stores were read `mode=ro`; nothing was written to any of them. Only items whose
+input the survey could locate are filed. Each names the field, where the input lives, and what it
+closes on the site.
+
+**Two things the survey found already published, which need nothing from you** (for the record,
+since both were raised as gaps before): byes are in `TeamFile.schedule` (your #4 to track B) and
+played-zero rows are in the season files (your #5; 20 found in 16 files sampled). Both are still
+described as missing in the site's copy. That is track B's defect, not yours.
+
+### A-B1. Per-settlement prop rows
+
+**Field:** `prop_history.settlements[]`, one per (game, market, line):
+`{season, index, game_id, stat, line, actual, result}` with `result` in cleared/missed/push.
+**Input held:** `market_log.db:outcome_settlement` (`outcome_id`, `result`, `actual`,
+`settled_ts`). **Closes:** the only marked node on every player page with a settled record (675
+players): the weekly bars of the prop-performance chart. b-15 filed the same need in its report;
+this is the entry for it here.
+
+### A-B2. Player-level defensive stats and non-offensive snaps
+
+**Fields:** the `def_*` keys already defined in `stat_definitions` (currently `team_defense`
+group only), on defenders' `PeriodRow.stats`; `defense_snaps` and `st_snaps` as stat keys; on
+`RosterEntry`, a defensive snap share beside `snap_share`. **Input held:**
+`nfl_player_week` carries 20 `def_*` columns per player; `nfl_snap_counts` carries
+`defense_snaps` and `st_snaps`. **Closes:** the players index's Defense tab (empty today). It
+also stops a false figure: `RosterEntry.snap_share` is offensive snaps only, so every
+linebacker, safety, punter and kicker on a team page prints **0% snap share beside G 2**
+(photographed on `/nfl/team/ari`). This needs the player scope widened too: defenders have no
+page today (your own `prop_history` note counts 681).
+
+### A-B3. Kicking, punting and return stats
+
+**Fields:** `fg_att`, `fg_made` (and by distance band), `pat_att`, `pat_made`,
+`punt_returns`, `punt_return_yards`, `kickoff_returns`, `kickoff_return_yards`. **Input:
+new.** `nfl_player_week` has none of them. The raw nflverse 2026 weekly file does: they are
+listed in `analytics.db:f_pbp_columns`, dataset `weekly_stats`, season 2026. **Closes:** the
+players index's Special teams tab.
+
+### A-B4. Jersey number and birth date
+
+**Fields:** `Identity.jersey_number` (per season: numbers change), `Identity.birth_date`. The
+site computes age at read time; per the site rule it stores the part, not the total. **Input:
+new.** Neither is in `player_xwalk` or `nfl_player_week`. That nflverse's players/rosters
+tables carry both was **not checked in this unit**. **Closes:** the shell's `#17` and `AGE 25`
+in the player band, unmarked absences today.
+
+### A-B5. The current period's fixtures in the manifest
+
+**Field:** `current.fixtures[]`: `{game_id, kickoff_ts, home, away, spread, total}` for the
+period in `current.period`. **Input held:** `nfl_games`, already exported per team as
+`TeamFile.schedule`. **Why the manifest:** the home page's "next kickoff" card and "N games
+this week", and the Live card's three kickoffs, need the league's slate in one read. Today it
+is 32 team files at ~170 KB each.
+
+### A-B6. League-wide split components for ranks
+
+**Fields:** on `teams[].season`, the season sums `pass_att` and `rush_att` (components, not a
+per-game rate). **Input held:** `TeamFile.splits[].offense`. **Closes:** the team page's
+"rank of 32" for attempts per game. Points per game ranks from `points_for` and `games`,
+which you already publish. If A-B7 lands as team-subject metric files, those carry all 32
+teams and rank their own figures, and this item is only needed for attempts.
+
+### A-B7. Team metrics for the current season (for track F's export)
+
+The analytics export is track F's builder, and this file is the producer's. Filed here so it
+has an owner. Route to F.
+
+- **`pace.plays_per_game.by_season` publishes no 2026 slice.** The envelope says
+  `season_to: 2026`, `availability: current`, but the values stop at 2025 (fetched from
+  production tonight). `analytics.db:f_team_game_pace` holds **64** rows for 2026. The cause
+  was not investigated; a sample floor is one guess. The same check was not run on
+  `pace.seconds_per_play.by_season`.
+- **Neutral pass rate** and **EPA per play, offense and defense**, as `analytics.metric` with
+  `subject_type: team`, `slice_kind: season`. The inputs are in `analytics.db`: `pbp.pass_oe`,
+  `pbp.xpass`, `pbp.epa`, and `f_play_usage.is_neutral` / `is_dropback`. Play-by-play runs
+  through 2026 (`f_pbp_files`).
+- **Not requested: pressure rate allowed.** Its only input is `participation.was_pressure`,
+  which ends 2025. For the current season, this is a permanent absence, not a request.
+  Sacks plus QB hits would be a different claim.
+
+**Closes:** the teams index's pace marker, and 3 of the team page's 6 split rows. The
+ranks come with them.
+
+### A-B8. Air yards and red-zone looks per player-period
+
+**Fields:** `air_yards` (receiving) and red-zone targets and carries (`yardline_100 <= 20`) as
+component columns, so the components table can carry them. **Input:** air yards are **new**
+to the producer. They are not in `nfl_player_week`, but they are in the raw weekly file
+(`receiving_air_yards`). Red-zone looks are **held** in `analytics.db` play-by-play
+(`yardline_100`). The published `air_yards.*` metrics are career-pooled distributions, not
+per-period volume, so they do not serve this. **Closes:** two of the four tabs the shell
+draws on Analytics.
