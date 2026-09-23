@@ -383,6 +383,48 @@ validation note remain mandatory.
  "validation": {"status": "...", "source": "..."}}
 ```
 
+## {sport}/components/{season}.json — kind `components` (a-11, STAGED, not published)
+
+The league-wide components table: one season, every in-scope player, one row per
+player per period, in one file. It exists because a sortable leaderboard cannot
+be assembled from per-player files (no route reads more than one summary), and
+it is what the site's Analytics board, the players index's usage columns and
+Fantasy's period leaderboard wait on.
+
+```json
+{"schema_version": 2, "generated_at": "...", "kind": "components", "sport": "nfl",
+ "season": 2025,
+ "columns": ["snaps", "snap_share", "targets", "target_share", "rec", "rec_yds", "rec_td",
+             "rush_att", "rush_yds", "rush_td", "pass_att", "pass_cmp", "pass_yds",
+             "pass_td", "int", "fum_lost", "two_pt", "ret_td", "team_targets", "team_snaps"],
+ "players": [..., {"id": "00-0036223", "slug": "jonathan-taylor", "name": "Jonathan Taylor",
+              "position": "RB"}, ...],
+ "rows": [{"player": 264, "index": 3, "season_type": "REG", "team": "IND",
+           "values": [45, 0.79, 4, 0.16, 3, 16, 0, 17, 102, 3, 0, 0, 0, 0, 0, 0, 0, 0, 25, 57]}]}
+```
+
+(The real 2025 week 3 row from the staged export; `player` 264 is his index in `players`.)
+
+- **Player-period grain, not player-season.** A scoring preset's bonuses apply
+  per period, so a season sum cannot be scored; the page sums rows itself.
+  Nothing derived is stored: no totals, rates or points.
+- **One file per season.** A modern season is ~1.1 MB raw, ~135 KB gzipped
+  (measured 2026-09-22); all 28 seasons in one file would be 27.1 MB raw, 2.9 MB gzipped.
+- **It is a projection of the `player_season` files**: same scope, same rows,
+  same nulls. Verified on the real data at 209,283 rows, 0 differing values.
+- **`values` is positional against `columns`.** An absent key in a season file
+  is written 0, which is exact: the season file drops a key only when it is zero
+  in every period, and a null keeps its key. A null stays null.
+- **`team_targets` and `team_snaps` are the share denominators.** A share over
+  any span is `sum(targets) / sum(team_targets)`, never a mean of per-period
+  shares. `team_targets` is the team's targets over every stat row (reproduces
+  nflverse's `target_share` on 375,672 of 375,711 rows); `team_snaps` is the max
+  offensive snaps of any player in that team-game (equals the total implied by
+  `offense_pct` in 7,165 of 7,188 team-games). Both are null where their part is.
+- **Not in a default export.** `components` is in `OPTIONAL_PARTS`, built only by
+  `--only components`, so `weekly_refresh` cannot publish it. Stage with
+  `--dest`; moving it into `PARTS` is the publish decision.
+
 ## research/*.json
 
 The v1 kinds are unchanged (`research.hypotheses`, `research.calibration`,
