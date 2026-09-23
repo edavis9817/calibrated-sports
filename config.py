@@ -156,6 +156,26 @@ WEB_R2_ACCESS_KEY_ID = os.getenv("WEB_R2_ACCESS_KEY_ID")  # token scoped to WEB_
 WEB_R2_SECRET_ACCESS_KEY = os.getenv("WEB_R2_SECRET_ACCESS_KEY")
 WEB_SITE_URL = os.getenv("WEB_SITE_URL")                  # used only to validate a refresh
 
+# --- Live prices to the site (unit a-09) -------------------------------------
+# The logger publishes the exchange prices the site's live page shows to
+# `live/{sport}/prices.json` in WEB_R2_BUCKET, so the Worker reads R2 instead of
+# calling the exchange from Cloudflare's egress (b-11: 15 of 15 reads 429).
+# OFF BY DEFAULT. Turning on a 15-second writer is Ethan's decision, not a side
+# effect of a restart: see jobs/publish_live_prices.py for the write budget.
+LIVE_PRICES_ENABLED = os.getenv("LIVE_PRICES_ENABLED", "0") == "1"
+LIVE_PRICES_SPORT = os.getenv("LIVE_PRICES_SPORT", "nfl")
+# The series the live page reads - its `gameSeries`. Bounded on purpose: the
+# site shows game winners, not the board.
+LIVE_PRICES_SERIES = tuple(x for x in os.getenv(
+    "LIVE_PRICES_SERIES", "KXNFLGAME").split(",") if x)
+LIVE_PRICES_EVERY = float(os.getenv("LIVE_PRICES_EVERY", 15))       # check cadence, s
+# A write happens when a newer read exists, or at least this often regardless,
+# so an unchanged file still proves the producer is alive.
+LIVE_PRICES_HEARTBEAT = float(os.getenv("LIVE_PRICES_HEARTBEAT", 300))
+LIVE_PRICES_MAX_MARKETS = int(os.getenv("LIVE_PRICES_MAX_MARKETS", 200))
+# A market not read for this long leaves the file rather than sitting in it.
+LIVE_PRICES_KEEP_S = float(os.getenv("LIVE_PRICES_KEEP_S", 6 * 3600))
+
 
 QUOTES_RETENTION_DAYS = float(os.getenv("QUOTES_RETENTION_DAYS", 14))
 # Retention prunes LIVE capture only. Backfilled rows carry the timestamp of
