@@ -350,6 +350,24 @@
       "additionalProperties": false
     },
 
+    "Fixture": {
+      "description": "One game of the league's current period (a-15). Teams are slugs, as ScheduleGame.opponent is.",
+      "type": "object",
+      "properties": {
+        "game_id": {"type": "string"},
+        "kickoff_ts": {"type": ["number", "null"]},
+        "home": {"description": "The home team's slug. For a neutral-site game, the team the source designates home.", "type": "string"},
+        "away": {"description": "The away team's slug.", "type": "string"},
+        "spread": {
+          "description": "The HOME team's expected margin of victory in points, so the sign is from the HOME team's perspective: positive means the home team is favoured, negative means the away team is favoured, 0 is a pick'em. A home side listed at -3.5 by a sportsbook is +3.5 here - this is NOT the sportsbook convention, in which the favourite carries the minus sign. A producer whose source uses the sportsbook convention must negate it. Null when the source has no line. For a game not yet played it is the source's line at export and can still move.",
+          "type": ["number", "null"]
+        },
+        "total": {"description": "The points line on the combined score of both teams. Null when the source has none.", "type": ["number", "null"]}
+      },
+      "required": ["game_id", "kickoff_ts", "home", "away", "spread", "total"],
+      "additionalProperties": false
+    },
+
     "ScheduleGame": {
       "type": "object",
       "properties": {
@@ -637,7 +655,12 @@
               "description": "True when the source is late: data_through lags the last completed period. The site shows a banner rather than silently serving old numbers.",
               "type": "boolean"
             },
-            "stale_reason": {"type": ["string", "null"]}
+            "stale_reason": {"type": ["string", "null"]},
+            "fixtures": {
+              "description": "Every game of `period`, league-wide, in kickoff order (a-15). OPTIONAL: absent means this producer does not publish fixtures, which is a different statement from an empty list - a period with no games.",
+              "type": "array",
+              "items": {"$ref": "#/$defs/Fixture"}
+            }
           },
           "required": ["season", "period", "data_through", "source_version", "stale", "stale_reason"],
           "additionalProperties": false

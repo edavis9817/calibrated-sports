@@ -1180,3 +1180,42 @@ Things to know before rendering:
 - **`players/index.json` grows from 776 KB to 2.14 MB** (staged, uncompressed). The index is a
   client shell that searches every row on every keystroke. Measure it before publish day.
 - Punting is **not** exported: A-B3 named no punting field. Say so if a Special teams design needs it.
+
+---
+
+## 15. a-15 — fixtures (A-B5), air yards and red-zone looks (A-B8): what to strike once published (2026-09-23)
+
+**Nothing is served yet. Do not unmark anything against production.** Both are STAGED:
+`jobs.export_web --stage fixtures --stage air_rz --dest <dir>`, refused without `--dest`. The
+default export is byte-identical to before (23,293 files compared). Every row below moves from
+**A·held / A·new** to **STAGED (a-15)**, and to done only when Ethan adds the stage to
+`DEFAULT_STAGES`. Staged tree: `D:\temp\a15\out_staged` (players, teams, manifest, components;
+built from a scratch store re-derived from the raw archive, not from `market_log.db`; `now` pinned
+to 2026-09-21, so `current.period` is 2026 week 3 with 16 fixtures).
+
+Contract, same commit as the producer: `$defs.Fixture` (new) and `SportManifest.current.fixtures`
+(OPTIONAL array of it). No new keyword. Re-vendor; `contract-in-sync` is red until you do. The
+stat keys need no contract change - `Stats` is an open map and the definitions ship in the
+manifest.
+
+| node, as A-B5/A-B8 name it (route not checked by a-15) | was | after publish | the field |
+|---|---|---|---|
+| home page — "next kickoff" card | A·held (A-B5) | **strike** | `manifest.current.fixtures[]`, min `kickoff_ts` above now. One read, no team files |
+| home page — "N games this week" | A·held (A-B5) | **strike** | `current.fixtures.length` - of `current.period`, which is the first period with an unplayed game |
+| Live card — its three kickoffs | A·held (A-B5) | **strike** | same array, sorted by kickoff already |
+| Analytics — the air-yards tab (per-period volume) | A·new (A-B8) | **strike** | `rec_air_yds` on period rows / totals, and the components column of the same name |
+| Analytics — the red-zone tab | A·new (A-B8) | **strike** | `rz_targets`, `rz_rush_att` - two keys, not one "looks" figure: summing them mixes two denominators |
+
+Before rendering:
+- **`spread` is the HOME team's margin, positive = home favoured** - the contract's own
+  description says so. A card that prints "KC -4" must negate it for the home side. Do not reuse
+  `ScheduleGame.spread`'s reading: that one is from the file's own team's perspective.
+- **`fixtures` absent ≠ `[]`.** Absent: this sport does not publish fixtures (CFB today). `[]`: a
+  period with no games.
+- **null is not 0.** `rec_air_yds` is null 1999-2008, `rz_targets` null 2003-2008, and both
+  red-zone keys are null for a game play-by-play had not reached at export. Render "not recorded".
+- **Label and wording come from `stat_definitions[key].description`**, which says exactly what
+  was counted ("with the ball at or inside the opponent's 20-yard line at the snap").
+- **The components table grows three columns at the END.** Index by name from `columns`, never
+  by position, and every existing column keeps its index.
+- Components size (staged, 28 season files): 28.7 MB uncompressed.

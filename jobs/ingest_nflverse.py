@@ -117,6 +117,7 @@ def normalize_weekly_stats(data: bytes, version: str, week=None):
         _col(df, "special_teams_tds", 0).fill_null(0).alias("return_tds"),
         *[_col(df, c).alias(c) for c in store.DEF_COLS],
         *[_col(df, c).alias(c) for c in store.ST_COLS],
+        *[_col(df, c).alias(c) for c in store.AIR_COLS],
     ]).drop_nulls("gsis_id")
 
     cols = ("sport", "gsis_id", "season", "week", "season_type", "data_version",
@@ -125,7 +126,7 @@ def normalize_weekly_stats(data: bytes, version: str, week=None):
             "carries", "rushing_yards", "rushing_tds", "attempts", "completions",
             "passing_yards", "passing_tds", "interceptions", "fantasy_points_ppr",
             "fumbles_lost", "two_pt_conversions", "return_tds",
-            *store.DEF_COLS, *store.ST_COLS, "source", "ingested_ts")
+            *store.DEF_COLS, *store.ST_COLS, *store.AIR_COLS, "source", "ingested_ts")
     rows = [("nfl", r["gsis_id"], r["season"], r["week"], r["season_type"],
              version, r["player_name"], r["position"], r["team"], r["opponent"],
              _f(r["receptions"]), _f(r["targets"]), _f(r["receiving_yards"]),
@@ -136,6 +137,7 @@ def normalize_weekly_stats(data: bytes, version: str, week=None):
              _f(r["fumbles_lost"]), _f(r["two_pt_conversions"]), _f(r["return_tds"]),
              *[_f(r[c]) for c in store.DEF_COLS],
              *[_f(r[c]) for c in store.ST_COLS],
+             *[_f(r[c]) for c in store.AIR_COLS],
              SOURCE, now)
             for r in out.iter_rows(named=True)]
     return "nfl_player_week", cols, rows
@@ -196,6 +198,72 @@ def normalize_snap_counts(data: bytes, version: str, week=None):
                      _f(r.get("defense_pct")), _f(r.get("st_snaps")),
                      _f(r.get("st_pct")), SOURCE, now))
     return "nfl_snap_counts", cols, rows
+
+
+# The columns normalize_pbp reads. Selected at read so a 28-season rebuild does
+# not load ~370 columns per play to use nine.
+PBP_COLS = ("game_id", "season", "week", "season_type", "play_type", "two_point_attempt",
+            "receiver_player_id", "rusher_player_id", "yardline_100", "posteam")
+RED_ZONE = 20        # yardline_100 <= RED_ZONE: at or inside the opponent's 20
+
+
+def pbp_looks(df):
+    """Play-by-play frame -> one row per (player, season, week, season_type).
+
+    THE DEFINITION IS nflverse's OWN, not a new one. A target is a play with
+    play_type 'pass' (or NULL) naming a receiver; a carry is 'run' or
+    'qb_kneel' (or NULL) naming a rusher; two-point attempts count as neither.
+    That reproduces stats_player_week's `targets` and `carries` per player-week
+    (measured 2026-09-23: exact in 1999, 2010, 2020, 2025, 2026; at most three
+    player-weeks off by one elsewhere), so a red-zone look is a subset of the
+    same looks the page already totals - never a third count that disagrees
+    with both. Kneels ARE carries there, so they are here.
+
+    NULL play_type is load-bearing: 1999-2000 carry 176-206 carries and ~155
+    targets a season on plays nflverse left untyped, and dropping them broke the
+    reconciliation in exactly those seasons.
+    """
+    pl = _pl()
+    base = df.filter(pl.col("two_point_attempt").fill_null(0) != 1)
+    pt = pl.col("play_type")
+    tgt = base.filter((pt.is_null() | (pt == "pass")) & pl.col("receiver_player_id").is_not_null()) \
+        .select(pl.col("receiver_player_id").alias("gsis_id"), "season", "week", "season_type",
+                "posteam", "game_id", "yardline_100", pl.lit(1).alias("is_tgt"),
+                pl.lit(0).alias("is_car"))
+    car = base.filter((pt.is_null() | pt.is_in(["run", "qb_kneel"]))
+                      & pl.col("rusher_player_id").is_not_null()) \
+        .select(pl.col("rusher_player_id").alias("gsis_id"), "season", "week", "season_type",
+                "posteam", "game_id", "yardline_100", pl.lit(0).alias("is_tgt"),
+                pl.lit(1).alias("is_car"))
+    looks = pl.concat([tgt, car])
+    rz = pl.col("yardline_100").is_not_null() & (pl.col("yardline_100") <= RED_ZONE)
+    return (looks.group_by(["gsis_id", "season", "week", "season_type"])
+            .agg(pl.col("posteam").drop_nulls().first().alias("team"),
+                 pl.col("game_id").drop_nulls().first().alias("game_id"),
+                 pl.col("is_tgt").sum().alias("targets"),
+                 pl.col("is_car").sum().alias("carries"),
+                 (pl.col("is_tgt") * rz.cast(pl.Int64)).sum().alias("rz_targets"),
+                 (pl.col("is_car") * rz.cast(pl.Int64)).sum().alias("rz_carries"),
+                 pl.col("yardline_100").is_null().sum().alias("no_yardline"))
+            .sort(["gsis_id", "season", "week", "season_type"]))
+
+
+def normalize_pbp(data: bytes, version: str, week=None):
+    """play_by_play -> nfl_pbp_looks (a-15, A-B8: red-zone looks)."""
+    pl = _pl()
+    df = pl.read_parquet(io.BytesIO(data), columns=list(PBP_COLS))
+    if week is not None:
+        df = df.filter(pl.col("week") == week)
+    now = time.time()
+    out = pbp_looks(df)
+    cols = ("sport", "gsis_id", "season", "week", "season_type", "team", "game_id",
+            "data_version", "targets", "carries", "rz_targets", "rz_carries", "no_yardline", "source",
+            "ingested_ts")
+    rows = [("nfl", r["gsis_id"], r["season"], r["week"], r["season_type"], r["team"] or None,
+             r["game_id"], version, int(r["targets"]), int(r["carries"]), int(r["rz_targets"]),
+             int(r["rz_carries"]), int(r["no_yardline"]), SOURCE, now)
+            for r in out.iter_rows(named=True)]
+    return "nfl_pbp_looks", cols, rows
 
 
 def normalize_weekly_rosters(data: bytes, version: str, week=None):
@@ -272,6 +340,7 @@ NORMALIZERS = {
     "snap_counts": normalize_snap_counts,
     "teams": normalize_teams,
     "weekly_rosters": normalize_weekly_rosters,
+    "pbp": normalize_pbp,
 }
 
 

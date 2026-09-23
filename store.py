@@ -62,6 +62,17 @@ ST_COLS = (
 )
 _ST_DDL = "".join(f"    {c:<28} REAL,\n" for c in ST_COLS)
 
+# Receiving air yards (a-15, track B's A-B8), from stats_player_week. Present
+# and non-null in every season 1999-2026, and NOT collected before 2009:
+# measured 2026-09-23 on the raw archive, the league sums 8-11k in 1999-2002,
+# 0-483 in 2003-2008 and 138-160k from 2009. The same shape as targets - air
+# yards are credited to the RECEIVER, and before 2009 the receiver is named on
+# almost no incompletion (0.2-0.4% in 2006-2008, while play-by-play has
+# air_yards on 99.8% of those passes). Declared in export_web: 2003-2008 in
+# NOT_COLLECTED (zero), 1999-2002 in PARTIAL_COLLECTION (~6%, non-zero).
+AIR_COLS = ("receiving_air_yards",)
+_AIR_DDL = "".join(f"    {c:<28} REAL,\n" for c in AIR_COLS)
+
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS quotes (
     id           INTEGER PRIMARY KEY,
@@ -229,7 +240,7 @@ CREATE TABLE IF NOT EXISTS nfl_player_week (
     passing_tds   REAL,
     interceptions REAL,
     fantasy_points_ppr REAL,
-{_DEF_DDL}{_ST_DDL}    source        TEXT NOT NULL,
+{_DEF_DDL}{_ST_DDL}{_AIR_DDL}    source        TEXT NOT NULL,
     ingested_ts   REAL NOT NULL,
     PRIMARY KEY (gsis_id, season, week, season_type, data_version)
 );
@@ -263,6 +274,44 @@ CREATE TABLE IF NOT EXISTS nfl_roster_week (
     PRIMARY KEY (gsis_id, season, week, team, data_version)
 );
 CREATE INDEX IF NOT EXISTS ix_roster_player ON nfl_roster_week(gsis_id, season);
+
+-- Targets and carries by field position, per player-week, derived from
+-- play_by_play (a-15, track B's A-B8: red-zone looks). A DERIVATION of the
+-- archived pbp file, re-runnable with `ingest_nflverse --from-archive
+-- --dataset pbp`; the plays themselves are not stored.
+--
+-- `targets` and `carries` count the plays nflverse counts in
+-- stats_player_week: a target is play_type 'pass' (or NULL) with a named
+-- receiver, a carry is play_type 'run' / 'qb_kneel' (or NULL) with a named
+-- rusher, two-point attempts excluded from both. They are stored so the
+-- definition stays checkable against stats_player_week
+-- (research/redzone_looks.py); the export publishes only the rz_ pair.
+--
+-- rz_targets / rz_carries are the same plays with yardline_100 <= 20 at the
+-- snap - the ball at or inside the opponent's 20.
+-- `team` is the offense (posteam) and `game_id` the game. The export reads which
+-- GAMES the file covers from game_id, because a game pbp has not reached is
+-- unknown, not zero: every game has named looks, so a covered game always has
+-- rows here.
+CREATE TABLE IF NOT EXISTS nfl_pbp_looks (
+    sport         TEXT NOT NULL DEFAULT 'nfl',
+    gsis_id       TEXT NOT NULL,
+    season        INTEGER NOT NULL,
+    week          INTEGER NOT NULL,
+    season_type   TEXT NOT NULL,
+    team          TEXT,
+    game_id       TEXT,
+    data_version  TEXT NOT NULL,
+    targets       INTEGER NOT NULL,
+    carries       INTEGER NOT NULL,
+    rz_targets    INTEGER NOT NULL,
+    rz_carries    INTEGER NOT NULL,
+    no_yardline   INTEGER NOT NULL,   -- looks with a NULL yardline_100: in neither rz count
+    source        TEXT NOT NULL,
+    ingested_ts   REAL NOT NULL,
+    PRIMARY KEY (gsis_id, season, week, season_type, data_version)
+);
+CREATE INDEX IF NOT EXISTS ix_looks_season ON nfl_pbp_looks(season, week);
 
 -- Schedules AND closing game lines back to 1999 - free backtest data for the
 -- game markets, ingested deliberately rather than as a side effect.
@@ -671,7 +720,8 @@ MIGRATIONS = [
     # date string. The site computes age at read time - the part, not the total.
     ("player_xwalk", "birth_date", "TEXT"),
 ] + [("nfl_player_week", c, "REAL") for c in DEF_COLS] \
-  + [("nfl_player_week", c, "REAL") for c in ST_COLS]
+  + [("nfl_player_week", c, "REAL") for c in ST_COLS] \
+  + [("nfl_player_week", c, "REAL") for c in AIR_COLS]
 
 
 def init_db():

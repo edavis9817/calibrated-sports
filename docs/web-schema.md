@@ -464,6 +464,52 @@ store, 0 differing).
   column). `tackles_assists` stays null: it is a sum of three keys.
 - **Not built with `components`.** Which extended columns the league table carries is undecided.
 
+## Staged features — fixtures, air yards, red-zone looks (a-15, STAGED, not published)
+
+Track B's A-B5 and A-B8. Built only by `python -m jobs.export_web --stage fixtures --stage air_rz
+--dest <staging>`; `--stage` without `--dest` is refused, like `--extended`, and a staged build
+appends slugs only to the copy beside the tree. Publishing a feature is adding its name to
+`DEFAULT_STAGES` in `jobs/export_web.py`. The default export is byte-identical with and without
+a-15 (23,293 files compared on one store, 0 differing). Each stage composes with `--extended`.
+
+**`fixtures` — `current.fixtures[]` on the sport manifest (A-B5).** Every game of
+`current.period`, league-wide, in kickoff order: `{game_id, kickoff_ts, home, away, spread,
+total}` (contract `$defs.Fixture`). `home`/`away` are team slugs. OPTIONAL: an absent key means
+this producer does not publish fixtures; `[]` would mean a period with no games.
+
+- **`spread` is the HOME team's expected margin: positive = home favoured.** Stated in the
+  `$def`'s own description. This is NOT the sportsbook convention (favourite carries the minus).
+- **NFL source convention, measured:** nflverse `spread_line` is already home-positive
+  (2023_01_DET_KC +4.0 with KC -198 at home; Super Bowl LIX, PHI designated home, -1.5 with
+  away KC -120), so NFL passes it through (`fixture_spread`). Across the store the spread and the
+  moneyline name the same favourite in 5,306 games; the 21 that disagree all sit at |spread| = 1.0
+  on near-even prices.
+- **No other sport emits it.** CFBD's line is home-NEGATIVE (c-14), so a CFB emitter must negate
+  and must establish that convention itself; nothing here assumes a second source shares
+  nflverse's.
+- For an unplayed game the line is the source's at export and can still move. It is not a close.
+
+**`air_rz` — three period stat keys (A-B8)**, on player period rows, season totals and career,
+and, with `--only components`, appended as the LAST three `columns` of the components table (no
+existing column moves). Definitions, with the exact wording the page renders, ship in
+`stat_definitions` under this stage only:
+
+| key | label | what was counted | first season | null |
+|---|---|---|---|---|
+| `rec_air_yds` | Air Yds | nflverse `receiving_air_yards`: distance past the line of scrimmage of every pass thrown to him, caught or not. Can be negative | 2009 | 1999-2008 (1999-2002 PARTIAL: ~6% of a season, non-zero; 2003-2008 zero) |
+| `rz_targets` | RZ Tgt | play-by-play targets with `yardline_100 <= 20` at the snap: play_type pass (or untyped) naming him as receiver, two-point attempts excluded | 1999 | 2003-2008 (incompletions name no receiver) |
+| `rz_rush_att` | RZ Car | play-by-play carries with `yardline_100 <= 20`: play_type run / qb_kneel (or untyped) naming him as rusher, two-point attempts excluded | 1999 | none by season |
+
+- **A red-zone look is a subset of a look.** The target and carry definitions reproduce
+  `stats_player_week` per player-week (`research/redzone_looks.py`: at most 3 player-weeks off by
+  one per season on targets and 1 on carries, outside targets 2003-2008). So `rz_targets <=
+  targets` and `rz_rush_att <= rush_att` on every row (0 violations in 209,283 staged rows).
+- **Null, not zero.** A period whose game play-by-play has not reached is null (the live
+  season's pbp can lag its weekly stats), as is a row with no joinable game. A stored NULL
+  `receiving_air_yards` (row not re-derived) is null. A covered game with no look is 0.
+- Store: `nfl_player_week.receiving_air_yards`; `nfl_pbp_looks` (per player-week, derived from
+  the archived pbp file; `ingest_nflverse --from-archive --dataset pbp` rebuilds it).
+
 ## research/*.json
 
 The v1 kinds are unchanged (`research.hypotheses`, `research.calibration`,

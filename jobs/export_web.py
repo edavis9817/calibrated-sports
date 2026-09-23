@@ -175,6 +175,32 @@ EXT_SOURCE_OF = {k: c for k, c in EXT_STAT_MAP}
 
 
 # =============================================================================
+# STAGED FEATURES (a-15): the current period's fixtures, air yards, red zone
+# =============================================================================
+#
+# Track B's A-B5 and A-B8. Same gate as the extended profile, and for the same
+# reason: the weekly refresh runs this exporter from whatever branch the working
+# clone has checked out and uploads what it builds (Task Scheduler, measured
+# 2026-09-23 - still `code\calibrated-sports`, not `code\prod`). So each feature
+# is reachable only with `--stage NAME --dest DIR`, and publishing one is a code
+# change: adding its name to DEFAULT_STAGES. Separate names rather than folding
+# into --extended, because the extended profile is an 11,000-player scope
+# change and these are not; one should not have to wait on the other.
+#
+#   fixtures  current.fixtures[] on the sport manifest (A-B5)
+#   air_rz    rec_air_yds, rz_targets, rz_rush_att on player period rows,
+#             totals and (with --only components) the components table (A-B8)
+STAGES = ("fixtures", "air_rz")
+DEFAULT_STAGES = ()
+
+# published key -> source. rec_air_yds is a stats_player_week column; the two
+# red-zone keys are derived from play-by-play into nfl_pbp_looks.
+AIR_RZ_KEYS = ("rec_air_yds", "rz_targets", "rz_rush_att")
+AIR_RZ_SOURCE_OF = {"rec_air_yds": "receiving_air_yards", "rz_targets": "rz_targets",
+                    "rz_rush_att": "rz_rush_att"}
+
+
+# =============================================================================
 # THE SILENT-ZERO CLASS
 # =============================================================================
 #
@@ -216,6 +242,32 @@ NOT_COLLECTED = {
     # player-weeks in 2002, 0 through nine seasons, 1,843 in 2012.
     "def_tackles_for_loss": ((2003, 2011),),
     "def_qb_hits": ((2003, 2005),),
+    # a-15 (A-B8), staged. Track F's sweep finds exactly this run, 2003-2008.
+    # The 1999-2002 run is declared separately below: it is not zero.
+    "receiving_air_yards": ((2003, 2008),),
+}
+
+# PARTIALLY COLLECTED: present, populated, NON-zero - and still not a record of
+# what happened. A zero sweep cannot see this class by construction, which is
+# why it is a separate table and why track F's anti-drift test compares only
+# NOT_COLLECTED. Measured 2026-09-23 on the raw archive:
+#   receiving_air_yards 1999-2002: league sums 11,104 / 8,197 / 8,370 / 7,889
+#   on 440-506 non-zero player-weeks, against 138-160k on ~4,100 from 2009,
+#   while play-by-play carries air_yards on 0% of those seasons' passes. About
+#   6% of a season, from an unknown source - a receiver with 100 targets would
+#   publish 0 air yards. Null, not a number that looks like a small one.
+PARTIAL_COLLECTION = {
+    "receiving_air_yards": ((1999, 2002),),
+}
+
+# Derived here from play-by-play, not a stats_player_week column, so outside
+# both tables above (and outside track F's weekly_stats sweep). rz_targets is a
+# subset of targets, and targets 2003-2008 cannot be rebuilt: the receiver is
+# named on completions only (0.0-0.4% of incompletions, measured 2026-09-23),
+# so a red-zone target count there would be red-zone RECEPTIONS under another
+# name. rz_rush_att has no hole - carries reconcile in every season.
+DERIVED_NOT_COLLECTED = {
+    "rz_targets": ((2003, 2008),),
 }
 
 # published stat key -> the nfl_player_week column behind it. `_totals` works in
@@ -229,9 +281,10 @@ def collected(col, season):
     False means NOT COLLECTED - a fact about the feed, not about the player.
     Callers must emit null, never 0.
     """
-    for lo, hi in NOT_COLLECTED.get(col, ()):
-        if lo <= season <= hi:
-            return False
+    for table in (NOT_COLLECTED, PARTIAL_COLLECTION, DERIVED_NOT_COLLECTED):
+        for lo, hi in table.get(col, ()):
+            if lo <= season <= hi:
+                return False
     return True
 
 
@@ -380,6 +433,28 @@ EXT_STAT_DEFINITIONS = {
     "punt_ret_yds": _d("PR Yds", "int", "returns"),
     "kick_ret": _d("KR", "int", "returns"),
     "kick_ret_yds": _d("KR Yds", "int", "returns"),
+}
+
+# The page renders `label` and `description`, not this comment - so the
+# definition of a red-zone look lives in the description, word for word what
+# was counted.
+AIR_RZ_STAT_DEFINITIONS = {
+    "rec_air_yds": {**_d("Air Yds", "int", "receiving"),
+                    "description": "Receiving air yards: the distance the ball travelled past the "
+                                   "line of scrimmage on every pass thrown to this player, caught or "
+                                   "not, as nflverse credits it (receiving_air_yards). Negative on a "
+                                   "pass caught behind the line. Not recorded before 2009."},
+    "rz_targets": {**_d("RZ Tgt", "int", "receiving"),
+                   "description": "Red-zone targets: passes thrown to this player with the ball at "
+                                  "or inside the opponent's 20-yard line at the snap. Counted from "
+                                  "play-by-play on the same plays as Tgt, so it is never larger; "
+                                  "two-point attempts excluded. Not recorded 2003-2008, when "
+                                  "incomplete passes name no receiver."},
+    "rz_rush_att": {**_d("RZ Car", "int", "rushing"),
+                    "description": "Red-zone carries: rushing attempts by this player with the ball "
+                                   "at or inside the opponent's 20-yard line at the snap. Counted "
+                                   "from play-by-play on the same plays as Car, kneel-downs "
+                                   "included; two-point attempts excluded."},
 }
 
 
@@ -1178,7 +1253,58 @@ class ExtendedInputs:
         self.jerseys = jerseys
 
 
-def played_zero_periods(gsis, rows, snap_index, gidx, ext=None, own=None):
+def load_looks(con):
+    """-> ({(gsis, season, week, season_type): (rz_targets, rz_carries)},
+           {game_id covered by play-by-play}) - staged `air_rz` only (A-B8).
+
+    Latest data_version per player-week, like every other nflverse table here.
+    THE COVERED SET IS WHAT MAKES A ZERO A ZERO. A player-week with no looks row
+    is 0 only if play-by-play reached that game; the live season's pbp can lag
+    its weekly stats, and a game it has not reached is unknown - null - not a
+    player who had no red-zone looks. Every game has named looks, so a covered
+    game always leaves rows here.
+    """
+    looks, covered = {}, set()
+    for g, season, week, stype, gid, rzt, rzc in con.execute(
+            "SELECT l.gsis_id, l.season, l.week, l.season_type, l.game_id, l.rz_targets, "
+            "l.rz_carries FROM nfl_pbp_looks l JOIN (SELECT gsis_id, season, week, season_type, "
+            "MAX(data_version) dv FROM nfl_pbp_looks GROUP BY gsis_id, season, week, season_type) v "
+            "ON v.gsis_id = l.gsis_id AND v.season = l.season AND v.week = l.week "
+            "AND v.season_type = l.season_type AND v.dv = l.data_version"):
+        looks[(g, season, week, stype)] = (rzt, rzc)
+        if gid:
+            covered.add(gid)
+    return looks, covered
+
+
+class AirRzInputs:
+    """What the staged `air_rz` feature reads. Like ExtendedInputs, its
+    presence IS the switch; the default path passes None."""
+
+    def __init__(self, looks, covered):
+        self.looks = looks
+        self.covered = covered
+
+    def values(self, r, gsis, game_id, stype):
+        """{rec_air_yds, rz_targets, rz_rush_att} for one stat row.
+
+        rec_air_yds goes through _ext_count: a stored NULL (a row written
+        before the column was ingested) stays null rather than printing 0.
+        """
+        season = r["season"]
+        out = {"rec_air_yds": _ext_count(r, "receiving_air_yards")}
+        out.update(self.red_zone(gsis, season, r["week"], stype, game_id))
+        return out
+
+    def red_zone(self, gsis, season, week, stype, game_id):
+        if game_id is None or game_id not in self.covered:
+            return {"rz_targets": None, "rz_rush_att": None}
+        rzt, rzc = self.looks.get((gsis, season, week, stype), (0, 0))
+        return {"rz_targets": intish(rzt) if collected("rz_targets", season) else None,
+                "rz_rush_att": intish(rzc)}
+
+
+def played_zero_periods(gsis, rows, snap_index, gidx, ext=None, own=None, airz=None):
     """Periods for weeks this player PLAYED and recorded no stat row.
 
     nflverse writes no row for a player who played and recorded nothing, so the
@@ -1241,6 +1367,12 @@ def played_zero_periods(gsis, rows, snap_index, gidx, ext=None, own=None):
             stats.update({k: 0 for k in EXT_COUNT_KEYS})
             stats["defense_snaps"] = intish(dfn or 0)
             stats["st_snaps"] = intish(st or 0)
+        if airz is not None:
+            # No stat row: no pass was thrown to him, so air yards are a
+            # recorded 0 (every played-zero season is >= 2013, collected). The
+            # red-zone pair still asks play-by-play whether it reached the game.
+            stats["rec_air_yds"] = 0
+            stats.update(airz.red_zone(gsis, season, week, stype, game["game_id"]))
         out.append({
             "season": season, "index": week,
             "label": period_label(gtype, week, stype),
@@ -1282,6 +1414,33 @@ def current_period(games, weeks, now_ts=None):
                        "key": period_key(season, index)},
             "data_through": {"season": through[0], "index": through[1]},
             "stale": stale, "stale_reason": reason, "last_completed": last_completed}
+
+
+def fixture_spread(spread_line):
+    """The contract's `Fixture.spread`: the HOME team's expected margin, positive
+    when the HOME team is favoured.
+
+    nflverse's `spread_line` is already that - measured, not assumed: on
+    2023_01_DET_KC it is +4.0 with the home side at -198 on the moneyline, and on
+    Super Bowl LIX (2024_22_KC_PHI, PHI the designated home side) it is -1.5
+    with the AWAY side at -120. A pass-through for THIS source only. CFBD's
+    line is home-NEGATIVE (c-14: 21,378 CFB rows shipped inverted by assuming
+    otherwise), so a CFB emitter must negate, and must say so in its own code.
+    """
+    return None if spread_line is None else float(spread_line)
+
+
+def current_fixtures(games, current):
+    """current.fixtures[] (A-B5, staged): every game of `current.period`, in
+    kickoff order. Teams are slugs, as ScheduleGame.opponent is."""
+    season, index = current["season"], current["period"]["index"]
+    gs = [g for g in games.values() if g["season"] == season and g["week"] == index]
+    gs.sort(key=lambda g: (g["kickoff_ts"] is None, g["kickoff_ts"] or 0, g["game_id"]))
+    return [{"game_id": g["game_id"], "kickoff_ts": g["kickoff_ts"],
+             "home": team_slug(g["home_team"]), "away": team_slug(g["away_team"]),
+             "spread": fixture_spread(g.get("spread_line")),
+             "total": None if g.get("total_line") is None else float(g["total_line"])}
+            for g in gs]
 
 
 def player_scope(weeks, extended=False):
@@ -1381,7 +1540,7 @@ def _ext_count(r, col):
     return None if v is None else intish(v)
 
 
-def _totals(periods, ext=False):
+def _totals(periods, ext=False, airz=False):
     """Totals over `periods`, which may be ONE SEASON or a WHOLE CAREER.
 
     THE CAREER CALL IS WHY THE RULE IS "ANY", NOT "ALL". This is called twice:
@@ -1425,22 +1584,37 @@ def _totals(periods, ext=False):
                 stats[k] = None
                 continue
             stats[k] = intish(sum(num(p["stats"].get(k)) for p in periods))
+    if airz:
+        # The extended rule, for the same reason: a NULL period - not collected,
+        # not yet re-derived, or a game play-by-play has not reached - makes the
+        # total unknown rather than the sum of the half that exists.
+        for k in AIR_RZ_KEYS:
+            if not any(k in p["stats"] for p in periods):
+                continue
+            if any(k in p["stats"] and p["stats"][k] is None for p in periods) or any(
+                    not collected(AIR_RZ_SOURCE_OF[k], p["season"]) for p in periods):
+                stats[k] = None
+                continue
+            stats[k] = intish(sum(num(p["stats"].get(k)) for p in periods))
     stats["snap_share_mean"] = rnd(statistics.fmean(shares)) if shares else None
     return stats
 
 
 def build_players(games, by_player, snaps, xwalk, aliases, slugs, market_keys, generated_at,
-                  headshots=None, snap_index=None, prop_history=None, ext=None):
+                  headshots=None, snap_index=None, prop_history=None, ext=None, airz=None):
     """-> ({key: obj} for summaries and season files, [index entries], unresolved).
 
     `ext` (an ExtendedInputs) switches on the a-14 profile; None is the default
-    export, byte-for-byte what it was.
+    export, byte-for-byte what it was. `airz` (an AirRzInputs) likewise
+    switches on the staged a-15 air-yards and red-zone keys.
     """
     headshots = headshots or {}
     gidx = game_index(games)
     files, index, unresolved = {}, [], []
-    period_keys = PERIOD_KEYS + (EXT_PERIOD_KEYS if ext is not None else ())
-    candidates = STAT_CANDIDATES + (EXT_PERIOD_KEYS if ext is not None else ())
+    period_keys = (PERIOD_KEYS + (EXT_PERIOD_KEYS if ext is not None else ())
+                   + (AIR_RZ_KEYS if airz is not None else ()))
+    candidates = (STAT_CANDIDATES + (EXT_PERIOD_KEYS if ext is not None else ())
+                  + (AIR_RZ_KEYS if airz is not None else ()))
     own_snaps = defaultdict(list)
     for item in (snap_index or {}).items():
         own_snaps[item[0][0]].append(item)
@@ -1478,6 +1652,9 @@ def build_players(games, by_player, snaps, xwalk, aliases, slugs, market_keys, g
                       if g is not None and r["season"] >= SNAP_FIRST_SEASON else None)
                 raw["defense_snaps"] = None if ph is None else intish(ph[0] or 0)
                 raw["st_snaps"] = None if ph is None else intish(ph[2] or 0)
+            if airz is not None:
+                raw.update(airz.values(r, gsis, None if g is None else g["game_id"],
+                                       r["season_type"]))
             periods.append({
                 "season": r["season"], "index": r["week"],
                 "label": period_label(None if g is None else g.get("game_type"), r["week"],
@@ -1493,7 +1670,7 @@ def build_players(games, by_player, snaps, xwalk, aliases, slugs, market_keys, g
         # the source of each row.
         if snap_index:
             periods.extend(played_zero_periods(gsis, rows, snap_index, gidx, ext=ext,
-                                               own=own_snaps.get(gsis, [])))
+                                               own=own_snaps.get(gsis, []), airz=airz))
             periods.sort(key=lambda p: (p["season"], p["index"] or 0))
 
         if ext is not None:
@@ -1568,7 +1745,7 @@ def build_players(games, by_player, snaps, xwalk, aliases, slugs, market_keys, g
         for (season, stype) in sorted(grouped, key=lambda k: (k[0], k[1] != "REG")):
             ps = grouped[(season, stype)]
             totals.append({"season": season, "season_type": stype, "games": len(ps),
-                           "stats": _totals(ps, ext=ext is not None)})
+                           "stats": _totals(ps, ext=ext is not None, airz=airz is not None)})
         reg = [p for p in periods if p["season_type"] == "REG"]
 
         files[f"{SPORT}/players/{gsis}/summary.json"] = {
@@ -1590,7 +1767,7 @@ def build_players(games, by_player, snaps, xwalk, aliases, slugs, market_keys, g
             "seasons": season_entries,
             "season_totals": totals,
             "career": {"season_type": "REG", "games": len(reg),
-                       "stats": _totals(reg, ext=ext is not None)},
+                       "stats": _totals(reg, ext=ext is not None, airz=airz is not None)},
             "market": {"key": market_keys[gsis]} if gsis in market_keys else None,
             # null, never an empty record: a player with no settled props has no
             # history, which is a different statement from a history of nothing.
@@ -1798,7 +1975,7 @@ def team_targets_by_game(weeks):
     return {k: (intish(v) if collected("targets", k[0]) else None) for k, v in out.items()}
 
 
-def build_components(player_files, weeks, snap_index, team_snaps, generated_at):
+def build_components(player_files, weeks, snap_index, team_snaps, generated_at, airz=False):
     """-> ({key: components file per season}, census).
 
     `snap_index` resolves a row's own snap record, whose team code is the snap
@@ -1847,6 +2024,11 @@ def build_components(player_files, weeks, snap_index, team_snaps, generated_at):
                     raise AssertionError(f"{key} week {p['index']}: {stats['snaps']} snaps "
                                          f"against a team total of {ts}")
             values += [tt, ts]
+            if airz:
+                # APPENDED after the denominators, so every existing column keeps
+                # its position. Absent means zero all season (emitted_keys drops
+                # only an all-zero key); a null stays null.
+                values += [stats.get(col, 0) for col in AIR_RZ_KEYS]
             s["rows"].append({"player": pi, "index": p["index"],
                               "season_type": p["season_type"], "team": p["team"],
                               "values": values})
@@ -1856,7 +2038,8 @@ def build_components(player_files, weeks, snap_index, team_snaps, generated_at):
         s["rows"].sort(key=lambda r: (r["index"], r["season_type"] != "REG", r["player"]))
         files[f"{SPORT}/components/{season}.json"] = {
             **envelope("components", generated_at), "season": season,
-            "columns": list(COMPONENT_COLUMNS), "players": s["players"], "rows": s["rows"]}
+            "columns": list(COMPONENT_COLUMNS) + (list(AIR_RZ_KEYS) if airz else []),
+            "players": s["players"], "rows": s["rows"]}
     census["seasons"] = len(files)
     return files, dict(census)
 
@@ -2344,7 +2527,9 @@ def reconcile_path(abbr, summary):
 
 def build_manifest(games, current, index, market_keys, unresolved, source_version, scoring_note,
                    generated_at, rungs, team_colors, team_groupings, team_seasons,
-                   stat_definitions=None, market_definitions=None):
+                   stat_definitions=None, market_definitions=None, fixtures=None):
+    # `fixtures` is None unless the staged feature built it, and then the key is
+    # ABSENT - not an empty list, which would read as a week with no games.
     return {
         **envelope("sport_manifest", generated_at),
         "name": SPORT_NAME,
@@ -2352,7 +2537,8 @@ def build_manifest(games, current, index, market_keys, unresolved, source_versio
         "current": {"season": current["season"], "period": current["period"],
                     "data_through": current["data_through"],
                     "source_version": source_version,
-                    "stale": current["stale"], "stale_reason": current["stale_reason"]},
+                    "stale": current["stale"], "stale_reason": current["stale_reason"],
+                    **({"fixtures": fixtures} if fixtures is not None else {})},
         "seasons": sorted({g["season"] for g in games.values()}),
         "stat_definitions": STAT_DEFINITIONS if stat_definitions is None else stat_definitions,
         "market_definitions": (MARKET_DEFINITIONS if market_definitions is None
@@ -2375,6 +2561,31 @@ def build_manifest(games, current, index, market_keys, unresolved, source_versio
                    "games": played(games), "rungs": rungs},
         "unresolved_ids": unresolved,
     }
+
+
+def air_rz_census(player_files, airz, log=print):
+    """What the staged air_rz keys published, printed on every run - null and
+    zero counted apart, because "not recorded" and "none" are different claims
+    and a total that folds them together hides which one moved."""
+    out = {"games_covered": len(airz.covered)}
+    for k in AIR_RZ_KEYS:
+        c = Counter()
+        for obj in player_files.values():
+            if obj.get("kind") != "player_season":
+                continue
+            for p in obj["periods"]:
+                if k not in p["stats"]:
+                    c["absent"] += 1
+                elif p["stats"][k] is None:
+                    c["null"] += 1
+                elif p["stats"][k] == 0:
+                    c["zero"] += 1
+                else:
+                    c["nonzero"] += 1
+        out[k] = dict(c)
+        log(f"air_rz {k}: {c['nonzero']} non-zero, {c['zero']} zero, {c['null']} null, "
+            f"{c['absent']} absent (all-zero season) period rows")
+    return out
 
 
 def extended_census(weeks, by_player, xwalk, ext, log=print):
@@ -2598,7 +2809,7 @@ def assert_numeric_stack(executable=None, timeout=60):
 
 
 def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry_path=None,
-           extended=False):
+           extended=False, stages=None):
     # BEFORE `dest` is resolved and long before anything is written.
     assert_numeric_stack()
     dest = dest or require_setting("WEB_EXPORT_DIR")
@@ -2610,7 +2821,13 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
         # a-14 - so the two are not combined by accident.
         raise ConfigError("--extended does not build `components`; the columns for the "
                           "extended keys are undecided")
+    stages = frozenset(DEFAULT_STAGES if stages is None else stages)
+    unknown = stages - set(STAGES)
+    if unknown:
+        raise ConfigError(f"unknown stage(s) {sorted(unknown)}; known: {', '.join(STAGES)}")
     defs = {**STAT_DEFINITIONS, **EXT_STAT_DEFINITIONS} if extended else STAT_DEFINITIONS
+    if "air_rz" in stages:
+        defs = {**defs, **AIR_RZ_STAT_DEFINITIONS}
     mdefs = EXT_MARKET_DEFINITIONS if extended else MARKET_DEFINITIONS
     # THE DECLARATION: the prefixes this run actually rebuilt, accumulated beside
     # the sync_keys calls that own them and returned to the caller. `upload()`
@@ -2647,6 +2864,7 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
     ext = None
     if extended:
         ext = ExtendedInputs(load_phase_snaps(con), load_jerseys(con))
+    airz = AirRzInputs(*load_looks(con)) if "air_rz" in stages else None
     by_player = players_by_id(weeks, scope)
     # Before slugs: an excluded player must not append to the slug registry,
     # which is permanent.
@@ -2680,7 +2898,8 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
     player_files, index, unresolved = build_players(games, by_player, snaps, xwalk, aliases, slugs,
                                                     market_keys, generated_at, headshots,
                                                     snap_index=snap_index,
-                                                    prop_history=prop_history, ext=ext)
+                                                    prop_history=prop_history, ext=ext,
+                                                    airz=airz)
     summary["prop_history"] = {"players": len(prop_history),
                                "records": sum(len(v["records"]) for v in prop_history.values())}
     summary["headshots"] = {"with_url": sum(1 for g in by_player if g in headshots),
@@ -2713,8 +2932,9 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
         refreshed.append(f"{SPORT}/players/")
     if "components" in parts:
         components, census = build_components(player_files, weeks, snap_index,
-                                              load_team_snaps(con), generated_at)
-        assert_stats_defined(components, STAT_DEFINITIONS)
+                                              load_team_snaps(con), generated_at,
+                                              airz=airz is not None)
+        assert_stats_defined(components, defs)
         summary["components_census"] = census
         summary["components"] = sync_keys(dest, components, [f"{SPORT}/components/"], dry_run)
         refreshed.append(f"{SPORT}/components/")
@@ -2756,7 +2976,9 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
                                   load_team_groupings(con),
                                   team_season_summaries(games, current["season"],
                                                         count_markets_by_team(market_files)),
-                                  stat_definitions=defs, market_definitions=mdefs)
+                                  stat_definitions=defs, market_definitions=mdefs,
+                                  fixtures=(current_fixtures(games, current)
+                                            if "fixtures" in stages else None))
         assert_stats_defined({f"{SPORT}/manifest.json": manifest}, defs)
         summary["manifest"] = sync_keys(dest, {f"{SPORT}/manifest.json": manifest,
                                                "sports.json": build_sports(generated_at)},
@@ -2771,6 +2993,9 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
     # different fact from `None`, which means nobody said - see `upload()`.
     if ext is not None:
         summary["extended"] = extended_census(weeks, by_player, xwalk, ext, log)
+    summary["stages"] = sorted(stages)
+    if airz is not None:
+        summary["air_rz"] = air_rz_census(player_files, airz, log)
     summary["refreshed"] = refreshed
     summary["runtime_s"] = round(time.time() - t0, 1)
     if current["stale"]:
@@ -3053,7 +3278,15 @@ def main(argv=None):
                          "player scope to defenders and specialists. STAGED ONLY - requires --dest, "
                          "and uses a staged copy of the slug registry so the committed one is never "
                          "appended to.")
+    ap.add_argument("--stage", action="append", choices=STAGES, default=[],
+                    help="a-15: build a staged feature - `fixtures` (current.fixtures on the "
+                         "manifest) or `air_rz` (air yards and red-zone looks). Requires --dest; "
+                         "publishing one is adding it to DEFAULT_STAGES, a code change.")
     a = ap.parse_args(argv)
+    if a.stage and not a.dest:
+        # The same gate as --extended, for the same reason: this job runs from
+        # the working clone's checked-out branch and uploads what it builds.
+        ap.error("--stage is staged: pass --dest. Publishing it is a decision, not a flag.")
     if a.dest and (a.upload or a.upload_only):
         ap.error("--dest stages a tree; the uploader reads WEB_EXPORT_DIR. Refusing to pair them.")
     if a.extended and not a.dest:
@@ -3064,12 +3297,15 @@ def main(argv=None):
         # on purpose.
         ap.error("--extended is staged: pass --dest. Publishing it is a decision, not a flag.")
     registry_path = None
-    if a.extended:
+    if a.extended or a.stage:
+        # A staged build never appends to the committed registry, whatever it
+        # stages: web/slugs is public URLs and only a real refresh may grow it.
         registry_path = staged_registry(a.dest)
     refreshed = None
     if not a.upload_only:
         s = export(only=a.only, dry_run=a.dry_run, dest=a.dest, extended=a.extended,
-                   registry_path=registry_path)
+                   registry_path=registry_path,
+                   stages=(DEFAULT_STAGES + tuple(a.stage)) if a.stage else None)
         refreshed = s.get("refreshed")
         printable = {k: v for k, v in s.items()
                      if k not in ("unresolved", "market_players", "slug_collisions")}

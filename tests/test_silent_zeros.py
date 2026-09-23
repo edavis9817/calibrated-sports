@@ -28,8 +28,10 @@ from jobs import export_web as E
 def test_every_declared_column_is_actually_published():
     """A coverage entry for a column no page carries is dead weight that will
     outlive whoever can explain it. Every key must be a real source column
-    behind STAT_MAP, DEF_COLUMNS, or the derived target_share."""
-    published = {c for c, _k in E.STAT_MAP} | {c for _k, c in E.DEF_COLUMNS} | {"target_share"}
+    behind STAT_MAP, DEF_COLUMNS, the derived target_share, or a staged
+    feature's source column (a-15: receiving_air_yards, behind `air_rz`)."""
+    published = ({c for c, _k in E.STAT_MAP} | {c for _k, c in E.DEF_COLUMNS} | {"target_share"}
+                 | set(E.AIR_RZ_SOURCE_OF.values()))
     for col in E.NOT_COLLECTED:
         assert col in published, f"{col} is declared uncollected but is never published"
 

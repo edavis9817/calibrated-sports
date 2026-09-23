@@ -68,7 +68,9 @@ DATASETS = {
         "games", "schedules", "games.parquet", LIVE, normalize=True,
         fields=("spread_line", "total_line", "home_moneyline", "away_moneyline"),
         note="schedules AND closing lines back to 1999"),
-    "pbp": Dataset("pbp", "pbp", "play_by_play_{season}.parquet", LIVE),
+    "pbp": Dataset("pbp", "pbp", "play_by_play_{season}.parquet", LIVE, normalize=True,
+                   note="normalized since a-15 into nfl_pbp_looks (targets and carries by "
+                        "field position, per player-week); the plays are archived, not stored"),
     "snap_counts": Dataset(
         "snap_counts", "snap_counts", "snap_counts_{season}.parquet", LIVE,
         normalize=True, first_season=2013,
