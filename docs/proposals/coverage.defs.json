@@ -90,6 +90,16 @@
             {"type": "null"}
           ]
         },
+        "event_dates": {
+          "description": "First and last EVENT DATE the table covers, for a table that records a calendar date and no instant (Retrosheet: the game's local date, no time of day). The cutoff a page states - 'box scores through 1 November 2025' - is `last`, read from the store at `counted_at`. A calendar date, not a timestamp: converting it to an instant would invent a time of day, and rendered in a US time zone a midnight-UTC instant falls on the previous day. null where the table records an instant (see `span`) or neither; `span` and `event_dates` are never both non-null.",
+          "anyOf": [
+            {"type": "object",
+             "properties": {"first": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+                            "last": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"}},
+             "required": ["first", "last"], "additionalProperties": false},
+            {"type": "null"}
+          ]
+        },
         "ingested_through": {"description": "The latest INGESTION time in the table, where it records one - as of when this holding was last written, which is not when its events happened.", "anyOf": [{"$ref": "#/$defs/Timestamp"}, {"type": "null"}]},
         "retention": {
           "description": "`kept`: nothing deletes these rows by age. `rolling`: a retention policy deletes them by age, so `units` is a window, not a history. Read from the producer's configured prune sources.",
@@ -97,7 +107,7 @@
         },
         "counted_at": {"$ref": "#/$defs/Timestamp"}
       },
-      "required": ["store", "table", "source", "grain", "units", "rows", "providers", "seasons", "season_basis", "span", "ingested_through", "retention", "counted_at"],
+      "required": ["store", "table", "source", "grain", "units", "rows", "providers", "seasons", "season_basis", "span", "event_dates", "ingested_through", "retention", "counted_at"],
       "additionalProperties": false
     },
 

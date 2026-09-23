@@ -240,22 +240,28 @@ REGISTRY = [
 
     # ---- MLB facts (mlb.db, c-03). Retrosheet, versioned per row; current rows only,
     # best-estimate lines only (`stattype = 'value'`).
+    # `span_kind="date"`: Retrosheet records a game's local DATE (YYYYMMDD) and no instant,
+    # so the span is published as `event_dates`, never as an invented time of day (c-11).
     dict(store="mlb.db", table="mlb_games", cls="stats", grain="game", basis="column",
-         sql=_versioned("mlb_games", "'retrosheet'", "game_id")),
+         span_kind="date",
+         sql=_versioned("mlb_games", "'retrosheet'", "game_id", span="date")),
     dict(store="mlb.db", table="mlb_team_games", cls="stats", grain="team-game line",
          basis="column",
+         span_kind="date",
          sql=_versioned("mlb_team_games", "'retrosheet'", "game_id || '|' || team",
-                        where="stattype = 'value'")),
+                        span="date", where="stattype = 'value'")),
     dict(store="mlb.db", table="mlb_batting", cls="stats", grain="player-game batting line",
          basis="column",
+         span_kind="date",
          sql=_versioned("mlb_batting", "'retrosheet'",
                         "game_id || '|' || player_id || '|' || team",
-                        where="stattype = 'value'")),
+                        span="date", where="stattype = 'value'")),
     dict(store="mlb.db", table="mlb_pitching", cls="stats", grain="player-game pitching line",
          basis="column",
+         span_kind="date",
          sql=_versioned("mlb_pitching", "'retrosheet'",
                         "game_id || '|' || player_id || '|' || team",
-                        where="stattype = 'value'")),
+                        span="date", where="stattype = 'value'")),
     dict(store="mlb.db", table="mlb_player_teams", cls="stats",
          grain="player-team-season appearance line", basis="column",
          sql=_versioned("mlb_player_teams", "'retrosheet'", "player_id || '|' || team")),
@@ -423,6 +429,21 @@ def read_stores(log=print):
 # building
 # ---------------------------------------------------------------------------
 
+def event_date(value, where):
+    """A Retrosheet YYYYMMDD date as YYYY-MM-DD, refusing anything else. The span of a
+    date-grained table is compared as text, so a malformed value would silently win a
+    MIN or a MAX - refuse it rather than publish it as the cutoff."""
+    from datetime import date
+    s = str(value)
+    try:
+        if len(s) != 8 or not s.isdigit():
+            raise ValueError(s)
+        return date(int(s[:4]), int(s[4:6]), int(s[6:])).isoformat()
+    except ValueError:
+        raise CoverageError(f"{where}: event date {value!r} is not YYYYMMDD; the feed will "
+                            f"not publish it as a cutoff") from None
+
+
 def _aggregate(groups, prune_sources):
     """Fold query groups into CoverageCount dicts keyed by (sport, class)."""
     acc = {}
@@ -453,13 +474,20 @@ def _aggregate(groups, prune_sources):
     out = defaultdict(list)
     for (sport, cls, store, table, source), a in sorted(acc.items(), key=lambda kv: kv[0]):
         e = a["entry"]
+        dated = e.get("span_kind", "instant") == "date"
+        if dated and a["first"] is not None:
+            where = f"{store}:{table}"
+            dates = {"first": event_date(a["first"], where), "last": event_date(a["last"], where)}
+        else:
+            dates = None
         out[(sport, cls)].append({
             "store": store, "table": table, "source": source, "grain": e["grain"],
             "units": a["units"], "rows": a["rows"],
             "providers": len(a["providers"]) or None,
             "seasons": sorted(a["seasons"]), "season_basis": e["basis"],
             "span": ({"first": iso(a["first"]), "last": iso(a["last"])}
-                     if a["first"] is not None else None),
+                     if a["first"] is not None and not dated else None),
+            "event_dates": dates,
             "ingested_through": iso(a["ingested"]) if a["ingested"] is not None else None,
             "retention": "rolling" if a["rolling"] else "kept",
             "counted_at": iso(a["counted"]),
@@ -577,6 +605,12 @@ def validate(obj, contract=CONTRACT):
             for x in (h or {}).get("sources", []):
                 if x["units"] > x["rows"]:
                     errors.append(f"{s['sport']}/{cls}/{x['table']}: units exceed rows")
+                if x.get("span") is not None and x.get("event_dates") is not None:
+                    errors.append(f"{s['sport']}/{cls}/{x['table']}: span and event_dates "
+                                  f"are both set; a table has an instant or a date, not both")
+                d = x.get("event_dates")
+                if d and d["first"] > d["last"]:
+                    errors.append(f"{s['sport']}/{cls}/{x['table']}: event_dates run backwards")
     if errors:
         raise CoverageError(f"{len(errors)} violation(s):\n  " + "\n  ".join(errors[:12]))
     basis = "the contract" if contract_has_kind(contract) else \
@@ -610,8 +644,10 @@ def summary_lines(obj, status=None):
                 parts.append(f"{cls}: none")
             else:
                 se = h["seasons"]
+                dates = [x["event_dates"]["last"] for x in h["sources"] if x.get("event_dates")]
+                through = f", events through {max(dates)}" if dates else ""
                 parts.append(f"{cls}: {len(h['sources'])} source(s), seasons {se[0]}-{se[-1]} "
-                             f"({len(se)} distinct)")
+                             f"({len(se)} distinct){through}")
         lines.append(f"  {s['sport']:4s} " + " | ".join(parts))
     return lines
 
