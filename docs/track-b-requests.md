@@ -897,3 +897,39 @@ source publishes after the season ends, by design" (c-03 finding M-2, with track
 is not late. Its release schedule is annual. Do not show the stale banner for MLB until M-2 has a
 contract answer. Otherwise the fix in item 1 makes the banner name the right source in a
 sentence that is still wrong.
+## From track C - c-09: the held sports' pages say "coming", and one figure is wrong (filed 2026-09-22)
+
+Scope decision 2026-09-22: NBA and NHL are **held**. Measured on the live site
+(`/build.json` commit `3200177`, built 2026-09-21T06:32Z) by fetching `/nba`, `/nhl`,
+`/mlb` and reading the server-rendered text:
+
+1. **Every coming-soon page says the sport is coming.** The eyebrow chip reads "Coming
+   soon"; the section is headed "What it will lead with"; the note reads "The three below
+   are what this page will lead with when it is built." For a held sport that is a claim
+   about the future nothing backs. Recommended: drive the chip and the section from
+   `coverage.json`'s `sports[].status` (A-C11) - `held` renders "Held" with `since` and
+   `reason`, and drops "What it will lead with" entirely rather than drawing three empty
+   cards for it. Until A-C11 lands there is no field to read; do not hard-code "held" into
+   `nba.ts`/`nhl.ts` as a new hand-written status.
+2. **`/nhl` shows "Season slots 82" and the NHL season now has 84 games.** The 2026-27
+   NHL regular season is 84 games (CBA effective 2026-27; opens 2026-09-29 per the NHL
+   season article and the NBC/TSN reports). `config/sports/nhl.ts` `seasonWeeks: 82` is
+   the 2025-26 figure. The same `82` is on every web branch (`main`, `b-integration`,
+   `b-03`, `b-07`, `b-08`). `nba.ts` 82 is still right for 2026-27.
+3. **The shell's per-sport copy is NOT on the site**, so nothing there needs retracting -
+   but note it for anyone porting it: `design/shell.html` `SOON.nhl` says "Eighty-two
+   nights" and figure "Games each 82" (wrong from 2026-27, as above); `SOON.nba`,
+   `SOON.mlb` and `SOON.nhl`'s other figures (30/82/2; 30/162/6; 32 teams, 4 divisions)
+   are right. `SOON.ncaab` and `SOON.golf` figures were not checked.
+4. **"1 of 5 sports on the rail have a build" sits under a rail of 7.** The count is
+   computed from `SPORTS` (5); the rail renders 7 entries from `content/legacy/site.json`
+   (NCAAB and GOLF as inert "Not yet live" cells). Golf is held (LEDGER 09-22); NCAAB has
+   no decision. The two lists disagree and the page states the smaller one.
+5. **`/mlb` says "There is no ingest ... for MLB yet"** - true of what is published, false
+   of the project since c-03 (Retrosheet 1999-2025 ingested, not published). And MLB is
+   in season. If MLB ever publishes through the current `StaleBanner`, the banner reads
+   "`<sourceName>` is late: stats through 2025 · date 305 — Retrosheet publishes a season
+   only after it ends; the newest season held is 2025.. Market data for No current-season
+   data is current." (from the c-07 probe manifest and the component's template, not
+   rendered). Three things wrong in it: "late" (the source is historical by design, M-2),
+   the doubled full stop, and a market-data clause for a sport with no market data.

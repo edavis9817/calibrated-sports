@@ -65,6 +65,32 @@ SPORTS = ("nfl", "cfb", "nba", "mlb", "nhl")
 # The three classes a holding can be. See SportCoverage in the proposal.
 CLASSES = ("stats", "odds", "context")
 
+# WHAT WE HAVE DECIDED about each sport, which the stores cannot say (unit c-09). A null
+# holding reads the same whether we chose not to work a sport or have simply not got to
+# it, and those are different facts: `held` is a decision with a date and a reason,
+# `not_attempted` is the absence of one. Declared, like SPORTS - a decision is not a count,
+# so nothing here is read from a table, and nothing here states a figure.
+#
+#   carried        we work this sport; its holdings say how far that has got
+#   held           decided against for now - `since` and `reason` are required, and
+#                  `revisit` says what would reopen it (never a promise that it will)
+#   not_attempted  no decision either way; nothing has been tried - so it may hold nothing
+#
+# Scope decision 2026-09-22 (_relay/LEDGER.md): the site works on the sports in season.
+STATES = ("carried", "held", "not_attempted")
+HELD_2026_09_22 = dict(
+    state="held", since="2026-09-22",
+    reason="Scope decision: effort goes to the sports in season (NFL, CFB, MLB). No ingest, "
+           "survey or spend for this sport until the hold is lifted.",
+    revisit="A decision by the owner, not a date. Nothing here says when, or whether.")
+SPORT_STATUS = {
+    "nfl": dict(state="carried", since=None, reason=None, revisit=None),
+    "cfb": dict(state="carried", since=None, reason=None, revisit=None),
+    "nba": HELD_2026_09_22,
+    "mlb": dict(state="carried", since=None, reason=None, revisit=None),
+    "nhl": HELD_2026_09_22,
+}
+
 # A store not named here is not read at all, so its tables are outside the "every table
 # is classified" guard - that guard walks these files and nothing else. mlb.db was added in
 # the same commit that created it (c-03); a later store must be added the same way.
@@ -441,9 +467,53 @@ def _aggregate(groups, prune_sources):
     return out
 
 
-def build(groups, stores, generated_at, sports=SPORTS, prune_sources=None):
+def check_status(status, sports):
+    """Refuse a status table that cannot be right, whatever the stores say: every declared
+    sport has exactly one status, a `held` sport names when and why, and a sport nobody has
+    decided about carries no decision's fields."""
+    missing, extra = sorted(set(sports) - set(status)), sorted(set(status) - set(sports))
+    if missing or extra:
+        raise CoverageError(f"sport status: undeclared {missing}, not a site sport {extra}")
+    for s in sports:
+        st = status[s]
+        if set(st) != {"state", "since", "reason", "revisit"} or st["state"] not in STATES:
+            raise CoverageError(f"{s}: status {st!r} is not one of {STATES} with since/reason/revisit")
+        if st["state"] == "held" and not (st["since"] and st["reason"]):
+            raise CoverageError(f"{s}: `held` is a decision - it needs `since` and `reason`")
+        if st["state"] == "not_attempted" and (st["since"] or st["reason"]):
+            raise CoverageError(f"{s}: `not_attempted` means no decision was taken, so it "
+                                f"cannot carry one's date or reason")
+
+
+def check_status_against_holdings(per_sport, status):
+    """The one contradiction the stores CAN expose: a sport declared not attempted that
+    holds data was attempted. `held` may hold data (a hold stops work, it does not delete
+    it), and `carried` may hold nothing yet."""
+    for rec in per_sport:
+        if status[rec["sport"]]["state"] == "not_attempted" and any(rec[c] for c in CLASSES):
+            raise CoverageError(f"{rec['sport']}: declared not_attempted, but the stores hold "
+                                f"{[c for c in CLASSES if rec[c]]} for it. Something was "
+                                f"attempted; declare what was decided.")
+
+
+def schema_admits_status(contract=CONTRACT):
+    """Whether the SportCoverage the output is validated against has a `status` property.
+    Until it does the file cannot carry one (every object is closed); the declarations are
+    still checked on every run, and the diff is filed to track A."""
+    if contract_has_kind(contract):
+        defs = contract["$defs"]
+    else:
+        defs = load_proposal()["$defs"]
+    return "status" in defs["SportCoverage"]["properties"]
+
+
+def build(groups, stores, generated_at, sports=SPORTS, prune_sources=None, status=None,
+          emit_status=None):
     prune_sources = (tuple(config.QUOTES_PRUNE_SOURCES) if prune_sources is None
                      else tuple(prune_sources))
+    status = SPORT_STATUS if status is None else status
+    emit_status = schema_admits_status() if emit_status is None else emit_status
+    check_status(status, sports)
     seen = set().union(*(set(s["sports_seen"]) for s in stores)) if stores else set()
     stray = sorted(seen - set(sports))
     if stray:
@@ -459,7 +529,10 @@ def build(groups, stores, generated_at, sports=SPORTS, prune_sources=None):
             srcs = counts.get((sport, cls), [])
             rec[cls] = ({"seasons": sorted(set().union(*(set(s["seasons"]) for s in srcs))),
                          "sources": srcs} if srcs else None)
+        if emit_status:
+            rec["status"] = dict(status[sport])
         per_sport.append(rec)
+    check_status_against_holdings(per_sport, status)
     return {**envelope(KIND, generated_at, None), "sports": per_sport, "stores": stores}
 
 
@@ -525,10 +598,12 @@ def refuse_published_dir(out):
                                 f"This feed is not published; name another directory.")
 
 
-def summary_lines(obj):
+def summary_lines(obj, status=None):
+    status = SPORT_STATUS if status is None else status
     lines = []
     for s in obj["sports"]:
-        parts = []
+        st = status[s["sport"]]
+        parts = [st["state"] + (f" since {st['since']}" if st["since"] else "")]
         for cls in CLASSES:
             h = s[cls]
             if h is None:
@@ -554,6 +629,9 @@ def main(argv=None):
     groups, stores = read_stores()
     obj = build(groups, stores, iso(time.time()))
     print(validate(obj))
+    if not schema_admits_status():
+        print("  sport status: checked, NOT CARRIED - the schema has no `status` yet "
+              "(docs/proposals/coverage-status.patch.json, filed to track A as A-C11)")
     for line in summary_lines(obj):
         print(line)
     if args.dry_run:

@@ -1,0 +1,31 @@
+{
+  "$comment": "PROPOSAL, filed by track C (unit c-09) to track A as A-C11. NOT PART OF THE CONTRACT. A patch to the `coverage` kind (A-C7; adopted on branch a-05-coverage-predictor-kinds, not yet on main). Apply: add `properties.status` below to $defs.SportCoverage.properties, append \"status\" to $defs.SportCoverage.required, add $defs.SportStatus verbatim, then delete this file in the same commit. tests/test_export_coverage.py applies THIS FILE to whichever schema the producer validates against, so the diff filed and the diff tested are one text; it fails once the schema carries `status` while this file still exists. jobs/export_coverage.py emits `status` only when the schema admits it.",
+
+  "SportCoverage": {
+    "properties": {
+      "status": {"$ref": "#/$defs/SportStatus"}
+    },
+    "required_append": ["status"]
+  },
+
+  "$defs": {
+    "SportStatus": {
+      "description": "What has been DECIDED about this sport, which the holdings cannot say: a null holding reads identically whether the sport was set aside on purpose or never reached. `carried`: worked; its holdings say how far that has got, and may still be null. `held`: decided against for now - `since` and `reason` are required, and `revisit` says what would reopen it without promising that anything will. `not_attempted`: no decision either way; `since` and `reason` are null, and the producer refuses a not_attempted sport whose holdings are not all null. A page for a held sport must not say the sport is coming. Declared by the producer, never read from data, and it carries no figures.",
+      "type": "object",
+      "properties": {
+        "state": {"enum": ["carried", "held", "not_attempted"]},
+        "since": {"type": ["string", "null"], "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+        "reason": {"type": ["string", "null"], "minLength": 1},
+        "revisit": {"type": ["string", "null"], "minLength": 1}
+      },
+      "required": ["state", "since", "reason", "revisit"],
+      "additionalProperties": false,
+      "allOf": [
+        {"if": {"properties": {"state": {"const": "held"}}},
+         "then": {"properties": {"since": {"type": "string"}, "reason": {"type": "string"}}}},
+        {"if": {"properties": {"state": {"const": "not_attempted"}}},
+         "then": {"properties": {"since": {"type": "null"}, "reason": {"type": "null"}}}}
+      ]
+    }
+  }
+}
