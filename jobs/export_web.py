@@ -45,6 +45,7 @@ import config  # noqa: E402
 import store  # noqa: E402
 from core import settlement as ST  # noqa: E402
 from core import stats as core_stats  # noqa: E402
+from jobs.publish_live_prices import LIVE_PREFIX  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # THE contract, and it is executable. This exporter validates everything it
@@ -2282,7 +2283,23 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
     state_path = os.path.join(dest, STATE_FILE)
     state, state_source = load_upload_state(dest, client, bucket, log)
 
+    # `live/` BELONGS TO THE LOGGER (unit a-09), which PUTs it every few seconds
+    # and never records it here. This uploader may not claim it, may not upload
+    # into it and may not delete from it - a declaration reaching it is refused
+    # outright rather than narrowed, because a caller who believes it owns
+    # `live/` has a wrong model that narrowing would hide.
+    foreign = [p for p in (refreshed or [])
+               if p == "" or p.startswith(LIVE_PREFIX) or LIVE_PREFIX.startswith(p)]
+    if foreign:
+        raise ValueError(f"declared prefixes {foreign} reach {LIVE_PREFIX!r}, which the logger "
+                         "publishes and this uploader never owns")
     local = local_keys(dest)
+    # A `live/` file in the export tree is a stale copy by definition - the only
+    # writer of that key is the logger, straight to R2. Uploading it would
+    # overwrite a fresh price with an old one. Skipped, and counted.
+    live_skipped = sorted(k for k in local if k.startswith(LIVE_PREFIX))
+    for k in live_skipped:
+        local.pop(k)
     todo = []
     for key, path in sorted(local.items()):
         with open(path, "rb") as f:
@@ -2296,7 +2313,8 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
     if refreshed is None:
         removed, withheld, declared = [], absent, None
     else:
-        removed = [k for k in absent if any(k.startswith(p) for p in refreshed)]
+        removed = [k for k in absent if any(k.startswith(p) for p in refreshed)
+                   and not k.startswith(LIVE_PREFIX)]
         withheld = [k for k in absent if k not in set(removed)]
         declared = list(refreshed)
     result = {"configured": True, "bucket": bucket, "considered": len(local),
@@ -2308,7 +2326,11 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
               # retired metric that will stay served from R2 forever. The count
               # is the signal; this is its subject.
               "withheld_prefixes": sorted({k.split("/")[0] + "/" for k in withheld}),
-              "declared_prefixes": declared, "state_source": state_source}
+              "declared_prefixes": declared, "state_source": state_source,
+              "live_skipped": len(live_skipped)}
+    if live_skipped:
+        log(f"  WARN {len(live_skipped)} file(s) under {LIVE_PREFIX} in the export tree were NOT "
+            "uploaded: the logger is that prefix's only writer, and a local copy is stale")
     if withheld:
         # Surfaced on every run, because the number only matters when someone
         # sees it. A declaration that silently stops being threaded shows up

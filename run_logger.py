@@ -35,7 +35,7 @@ import config
 import nflverse
 import store
 from core import single_instance
-from jobs import capture_depth, ingest_nflverse, prune_quotes, rotate_raw
+from jobs import capture_depth, ingest_nflverse, prune_quotes, publish_live_prices, rotate_raw
 from venues.base import RateLimiter
 from venues.kalshi import KalshiClient
 from venues.oddsapi import OddsApiClient
@@ -43,6 +43,10 @@ from venues.polymarket import PolymarketClient
 
 DISCOVERY_EVERY = 600
 _stop = asyncio.Event()
+# The prices the site's live page shows, fed from polls this process already
+# makes (unit a-09). Filled whether or not publishing is enabled - it is a dict
+# of a few dozen entries - so turning publishing on needs no other change.
+live_book = publish_live_prices.PriceBook()
 
 
 def log(msg):
@@ -100,13 +104,21 @@ def tier_for(market: dict, kickoffs: dict = None, now: float = None) -> str:
     return "cold"                         # no game ahead within 24h
 
 
-async def poll_venue(client, markets, tier, kickoffs=None):
+async def poll_venue(client, markets, tier, kickoffs=None, every_s=None):
     subset = [m for m in markets if tier_for(m, kickoffs) == tier]
     if not subset:
         return
     t0 = time.time()
     try:
         rows = await client.fetch_quotes(subset)
+        # BEFORE the database write: the book holds what was READ, and a write
+        # that fails must not also take the site's price with it. observe()
+        # never raises; the guard is for a book replaced by something that does.
+        if every_s is not None:
+            try:
+                live_book.observe(rows, every_s, subset)
+            except Exception as e:                # noqa: BLE001
+                log(f"{client.name:11s} live book ERROR {type(e).__name__}: {e}")
         n = store.write_quotes(rows)
         store.log_poll(client.name, f"quotes:{tier}", len(subset), n, True, None,
                        time.time() - t0)
@@ -151,6 +163,8 @@ async def venue_worker(client):
             if found is not None:
                 markets = found
                 last_kickoffs = 0.0        # new markets, remap
+                if client.name == live_book.venue:
+                    live_book.set_catalogue(found)
             discovery = None
 
         # The market -> kickoff join, refreshed on its own timer and in a
@@ -167,7 +181,7 @@ async def venue_worker(client):
 
         for tier, every in cadence.items():
             if now >= next_run[tier]:
-                await poll_venue(client, markets, tier, kickoffs)
+                await poll_venue(client, markets, tier, kickoffs, every)
                 next_run[tier] = now + every
 
         try:
@@ -274,6 +288,7 @@ def code_fingerprint() -> str:
                 "jobs/ingest_nflverse.py", "jobs/map_markets.py",
                 "jobs/predict.py", "jobs/paper_trade.py",
                 "jobs/capture_depth.py", "venues/depth.py",
+                "jobs/publish_live_prices.py",
                 "models/features.py", "models/baseline.py", "evaluation.py"):
         path = os.path.join(here, rel)
         if os.path.exists(path):
@@ -538,6 +553,49 @@ async def depth_worker():
             pass
 
 
+async def live_prices_worker(publisher=None):
+    """Publish the site's live prices to R2 from the book the pollers fill.
+
+    OFF unless LIVE_PRICES_ENABLED=1 - a 15 s writer is a decision, not a side
+    effect of a restart. One PUT in flight at a time, in a thread, with short
+    timeouts: a slow R2 costs a cycle, never the poll loop. A failure is
+    logged and recorded; the file in R2 then simply ages past its own
+    `stale_after`, which is how the Worker learns of it.
+    """
+    if not config.LIVE_PRICES_ENABLED:
+        log("live prices publish OFF (LIVE_PRICES_ENABLED=0)")
+        return
+    if publisher is None and not publish_live_prices.configured():
+        log("live prices publish ENABLED but WEB_R2_* is not configured - not publishing")
+        store.record_health("live_prices", False, "enabled, WEB_R2_* not configured")
+        return
+    pub = publisher or publish_live_prices.Publisher(live_book)
+    log(f"live prices -> {pub.key}: check every {pub.every_s:g}s, heartbeat "
+        f"{pub.heartbeat_s:g}s, series {list(pub.book.series)}")
+    while not _stop.is_set():
+        why = pub.due(time.time())
+        if why:
+            try:
+                r = await asyncio.to_thread(pub.publish)
+                store.record_health("live_prices", True,
+                                    f"{r['markets']} markets, {r['two_sided']} two-sided, "
+                                    f"{r['bytes']} bytes ({why})",
+                                    watermark=pub.last_newest_read or None)
+            except Exception as e:                # noqa: BLE001 - never fatal
+                log(f"live prices ERROR {type(e).__name__}: {e}")
+                try:
+                    store.record_health("live_prices", False, f"{type(e).__name__}: {e}")
+                except Exception:                 # noqa: BLE001
+                    pass
+                # Back off one cycle before trying again, rather than
+                # re-attempting every tick against an R2 that is down.
+                pub.last_write_ts = time.time()
+        try:
+            await asyncio.wait_for(_stop.wait(), timeout=config.LOOP_TICK)
+        except asyncio.TimeoutError:
+            pass
+
+
 async def main():
     # BEFORE init_db and before any archive write. What a duplicate destroys is
     # the shard tree, and one appended record is already the damage - so the
@@ -633,7 +691,7 @@ async def main():
         await asyncio.gather(*(venue_worker(c) for c in polled),
                              *(snapshot_worker(c) for c in snapshot),
                              watchdog(http, names), maintenance(),
-                             depth_worker())
+                             depth_worker(), live_prices_worker())
 
 
 def _handle_signal(*_):

@@ -364,6 +364,37 @@ The v1 kinds are unchanged (`research.hypotheses`, `research.calibration`,
 `research.execution`), with `schema_version: 2` and `sport: null`. Research is
 cross-sport and served at `/research`.
 
+## live/{sport}/prices.json — kind `live.prices` (unit a-09)
+
+Exchange prices for the live page, written by the **logger**, not by the export.
+The Worker reads this from R2 instead of calling the exchange, which refused
+every read from Cloudflare's egress (b-11: HTTP 429, 15 of 15).
+
+- **Written by one process only.** The logger PUTs this one key straight to the
+  site bucket. It never appears in `WEB_EXPORT_DIR` or in the upload record, and
+  `export_web.upload()` refuses any declaration that reaches `live/`, never
+  uploads a local `live/` file, and never deletes under it.
+- **Every price carries `read_at`**, the start of the poll that read it - never
+  later than the truth, and never the publish or upload time. `expected_every_s`
+  is the cadence that market was being polled at, so an age can be judged:
+  ten minutes is normal on the 600 s cold tier and a stall on the 10 s live one.
+- **The file states its own staleness.** `stale_after` = `generated_at` +
+  `heartbeat_s` + `publish_every_s` + 2 s. The producer writes when a newer read
+  exists (at most every `publish_every_s`) and at least every `heartbeat_s`, so a
+  `stale_after` in the past means the producer has stopped - whatever the prices
+  say. What to render then is the Worker's decision.
+- **Bounded.** Only `series` (the live page's `gameSeries`), capped at
+  `LIVE_PRICES_MAX_MARKETS`; anything over the cap is counted in
+  `counts.omitted`. No mid and no de-vig - the site derives the mid.
+- `in_catalogue` is false once the market has left the exchange's open list;
+  the price is then the last one read and will not update. Settled results are
+  NOT in this file.
+- **Not covered:** the featured game's candle path, which the Worker still
+  reads from the exchange.
+- **Off by default** (`LIVE_PRICES_ENABLED=0`). Measured write budget
+  (`python -m research.live_prices_writes`, 09-10 to 09-22): 336-3,488 PUTs a
+  day, mean 1,618, an upper bound; the ceiling is 5,760 a day at 15 s.
+
 ## Refresh
 
 `python -m jobs.weekly_refresh` logs to

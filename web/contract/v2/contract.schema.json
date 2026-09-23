@@ -19,7 +19,8 @@
       "research.calibration": "CalibrationResearchFile",
       "research.execution": "ExecutionFile",
       "analytics.index": "AnalyticsIndexFile",
-      "analytics.metric": "AnalyticMetricFile"
+      "analytics.metric": "AnalyticMetricFile",
+      "live.prices": "LivePricesFile"
     },
     "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.execution"],
     "keys": [
@@ -34,7 +35,8 @@
       {"pattern": "^research/calibration\\.json$", "kind": "research.calibration"},
       {"pattern": "^research/execution\\.json$", "kind": "research.execution"},
       {"pattern": "^analytics/[a-z0-9]+/index\\.json$", "kind": "analytics.index"},
-      {"pattern": "^analytics/[a-z0-9]+/[a-z0-9_]+(\\.[a-z0-9_]+)+\\.json$", "kind": "analytics.metric"}
+      {"pattern": "^analytics/[a-z0-9]+/[a-z0-9_]+(\\.[a-z0-9_]+)+\\.json$", "kind": "analytics.metric"},
+      {"pattern": "^live/[a-z0-9]+/prices\\.json$", "kind": "live.prices"}
     ]
   },
 
@@ -1152,6 +1154,80 @@
         "metrics": {"type": "array", "items": {"$ref": "#/$defs/AnalyticsIndexEntry"}}
       },
       "required": ["schema_version", "generated_at", "kind", "sport", "source", "metrics"],
+      "additionalProperties": false
+    },
+
+    "LivePrice": {
+      "description": "One exchange market as the producer last READ it. Every price carries the moment it was true. Nothing here is derived - no mid, no de-vig - because the consumer already derives the mid only where both sides are quoted, and a second derivation is a second place to disagree.",
+      "type": "object",
+      "properties": {
+        "ticker": {"description": "The venue's market identifier.", "type": "string"},
+        "event": {"description": "The venue's event identifier, which groups the markets of one game.", "type": "string"},
+        "bid": {
+          "description": "Best bid to buy YES, as a probability. Null when nothing is bid. 0 and 1 are never emitted: on an exchange contract they are not quotes.",
+          "type": ["number", "null"], "minimum": 0, "maximum": 1
+        },
+        "ask": {
+          "description": "Best price to buy YES, as a probability - the complement of the best NO bid. Null when nothing is offered.",
+          "type": ["number", "null"], "minimum": 0, "maximum": 1
+        },
+        "read_at": {
+          "description": "When this price was read from the venue: the START of the poll that read it, so never later than the truth. Not the publish time and not the upload time.",
+          "$ref": "#/$defs/Timestamp"
+        },
+        "expected_every_s": {
+          "description": "The cadence this market was being polled at when it was read. Age is judged against THIS: ten minutes is normal on a 600 s cadence and a stall on a 10 s one.",
+          "type": "integer", "minimum": 1
+        },
+        "close_at": {
+          "description": "When the venue closes the market, if known.",
+          "anyOf": [{"$ref": "#/$defs/Timestamp"}, {"type": "null"}]
+        },
+        "in_catalogue": {
+          "description": "True while the venue still lists the market as open; false once it has left the open list, after which this is the LAST price read and it will not update. Null until the producer has seen a catalogue at all.",
+          "type": ["boolean", "null"]
+        }
+      },
+      "required": ["ticker", "event", "bid", "ask", "read_at", "expected_every_s", "close_at", "in_catalogue"],
+      "additionalProperties": false
+    },
+
+    "LivePricesFile": {
+      "description": "Exchange prices published by the capture process on a short cycle, so the site reads storage instead of calling the venue. A FAILURE IS A STALE FILE, so the file states its own age: generated_at is when it was written, stale_after is the deadline for the next write, and each price carries its own read_at. The consumer decides what to render; this shape only makes the age impossible to miss.",
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "live.prices"},
+        "sport": {"type": "string"},
+        "venue": {"type": "string"},
+        "source": {
+          "description": "How the prices were obtained, in words - a live capture, or a staged copy from storage.",
+          "type": "string"
+        },
+        "series": {
+          "description": "The venue series this file covers. Nothing outside them is included.",
+          "type": "array", "items": {"type": "string"}
+        },
+        "publish_every_s": {"description": "How often the producer checks for a newer read to publish.", "type": "integer", "minimum": 1},
+        "heartbeat_s": {"description": "The longest the producer goes without writing, even when no price was re-read.", "type": "integer", "minimum": 1},
+        "stale_after": {
+          "description": "generated_at + heartbeat + one cycle + a small grace. Past this, the producer has stopped writing and every price in the file is unconfirmed, however recent its read_at looks.",
+          "$ref": "#/$defs/Timestamp"
+        },
+        "counts": {
+          "type": "object",
+          "properties": {
+            "markets": {"type": "integer", "minimum": 0},
+            "two_sided": {"description": "Markets with both a bid and an ask.", "type": "integer", "minimum": 0},
+            "omitted": {"description": "Markets held but left out by the size cap, nearest close kept first. Counted so a cap is never a silent filter.", "type": "integer", "minimum": 0}
+          },
+          "required": ["markets", "two_sided", "omitted"],
+          "additionalProperties": false
+        },
+        "markets": {"type": "array", "items": {"$ref": "#/$defs/LivePrice"}}
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "venue", "source", "series", "publish_every_s", "heartbeat_s", "stale_after", "counts", "markets"],
       "additionalProperties": false
     }
   }
