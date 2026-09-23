@@ -24,6 +24,12 @@ a CFB home:** with the flag off, `app/[sport]/page.tsx` renders the NFL `SportHo
 which states "{counts.players} players." (0 for CFB), the Kalshi between-slates copy,
 and links to `/cfb/fantasy` and `/cfb/news`, neither of which is a declared route.
 
+**Checked by rendering, c-13 (2026-09-23): true, and incomplete.** It is the shared `SportHome`,
+whose copy and card list are NFL-shaped, not a separate NFL page. `/cfb/players` is worse than
+`/cfb`. The Shell already reads the manifest on `/cfb` while the flag is on. Every published
+spread has the wrong sign. The checklist that replaces this paragraph is
+`docs/C13-cfb-gate.md`, and the web half is `docs/track-b-requests.md` B-C13-1..7.
+
 ## Preconditions: check them, don't assume them
 
 1. **The checkout contains c-05's exporter.** `python -m jobs.export_cfb_web --help`
