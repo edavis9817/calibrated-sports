@@ -1,7 +1,7 @@
 """f-10: verify the 2026-09-23 integration merge from the BRANCHES, not from the merges.
 
-Fifteen branches were merged into main on 2026-09-23 (the first-parent merges
-between PRE and origin/main; the brief said sixteen). For every one of them this script re-derives what
+Sixteen branches reached main on 2026-09-23: fifteen by first-parent merges
+between PRE and END, and f-06 inside f-07 (INDIRECT). For every one of them this script re-derives what
 the branch contributed - `git diff merge-base..tip` - and then asks whether main
 still carries it. It never reads a merge commit's resolution to decide that.
 
@@ -52,7 +52,12 @@ CONTRACT = "web/contract/v2/contract.schema.json"
 POST_MERGE_FIXES = {
     ("f-04-pfr-alias", "tests/test_pfr_alias.py"): "970a5d6",      # a-03 removed key_cols
     ("f-05-nfl-weather", "tests/test_nfl_weather.py"): "218b45d",  # freeze time.time in one test
+    # f-06 arrived INSIDE f-07 (9577091), and f-07's own a6da078 rewrote its snaps4 prose/test
+    ("f-06-drafting-scope", "analytics/predictor_export.py"): "a6da078",
+    ("f-06-drafting-scope", "tests/test_predictor_export.py"): "a6da078",
 }
+# Branches merged into another branch rather than into main: (branch, the merge that carried it)
+INDIRECT = {"f-06-drafting-scope": "9577091"}
 
 
 def git(*args: str, check: bool = True, input: bytes | None = None) -> str:
@@ -307,8 +312,12 @@ def main() -> int:
     if subprocess.run(["git", "diff", "--cached", "--quiet", MAIN]).returncode != 0:
         raise SystemExit("index is not origin/main - the reverse-apply check would test the wrong tree")
     ms = merges()
-    if len(ms) != EXPECTED_MERGES:
-        print(f"!! expected {EXPECTED_MERGES} merges, found {len(ms)}")
+    for name, via in INDIRECT.items():
+        tip = git("rev-parse", f"{via}^2").strip()
+        ms.append(dict(branch=name, merge=via, tip=tip, base=git("merge-base", tip, PRE).strip(),
+                       tip_is_remote=(git("rev-parse", f"origin/{name}", check=False).strip() == tip)))
+    if len(ms) != EXPECTED_MERGES + len(INDIRECT):
+        print(f"!! expected {EXPECTED_MERGES + len(INDIRECT)} branches, found {len(ms)}")
     bad = 0
     report = dict(merges=[])
     for m in ms:
@@ -367,8 +376,9 @@ def main() -> int:
         bad += 1
     if a.json:
         Path(a.json).write_text(json.dumps(report, indent=1, default=str))
-    print(f"\nmerges {len(ms)} (expected {EXPECTED_MERGES}); problems {bad}")
-    return 1 if bad or len(ms) != EXPECTED_MERGES else 0
+    n_exp = EXPECTED_MERGES + len(INDIRECT)
+    print(f"\nbranches {len(ms)} (expected {n_exp}); problems {bad}")
+    return 1 if bad or len(ms) != n_exp else 0
 
 
 if __name__ == "__main__":
