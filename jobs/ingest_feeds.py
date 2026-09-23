@@ -4,6 +4,8 @@
     python -m jobs.ingest_feeds --injuries 2025      # nflverse official report
     python -m jobs.ingest_feeds --venues 2026        # CFB venue coordinates + dome flag
     python -m jobs.ingest_feeds --weather --days 3   # Open-Meteo at kickoff hour
+    python -m jobs.ingest_feeds --nfl-weather --days 6           # NFL, around now
+    python -m jobs.ingest_feeds --nfl-weather --nfl-season 2025  # NFL, one season
     python -m jobs.ingest_feeds --news               # RSS: headline, source, time, link
     python -m jobs.ingest_feeds --parse              # replay the archive, 0 requests
     python -m jobs.ingest_feeds --audit              # manifest vs disk
@@ -33,7 +35,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from cfb import versioning                                   # noqa: E402
 from core.single_instance import AlreadyRunning, InstanceLock  # noqa: E402
-from feeds import fetch, normalize, openmeteo, paths, rss, schema, sources  # noqa: E402
+from feeds import (fetch, nfl_venues, normalize, openmeteo, paths, rss,  # noqa: E402
+                   schema, sources)
 
 LIMITATIONS = [
     ("feeds.injuries_have_no_capture_time", "structural",
@@ -59,12 +62,33 @@ LIMITATIONS = [
     ("feeds.weather_needs_venue_coordinates", "coverage",
      "Weather exists only where the venue's own coordinates do",
      "CFB venue coordinates come from sportsdataverse `cfb_team_info` (venue_id, "
-     "latitude, longitude, elevation, timezone, dome). NO feed this project trusts "
-     "carries NFL stadium coordinates: nfldata's airports.csv is an AIRPORT, tens of "
-     "kilometres from the stadium, and using it would be a proxy standing in for the "
-     "thing.",
-     "NFL weather is not ingested until a sourced coordinate feed exists. A dome game "
-     "is skipped with a reason rather than given a number that cannot matter."),
+     "latitude, longitude, elevation, timezone, dome); their distance from the venue has "
+     "NEVER been measured, so `coord_offset_km` is NULL on every CFB row. NFL coordinates "
+     "are Wikidata P625 per venue (feeds/nfl_stadiums.csv maps each nflverse stadium id "
+     "AND name to an item), each checked against the OpenStreetMap footprint of the same "
+     "item; a venue with no measured offset is not used. nfldata's airports.csv is an "
+     "AIRPORT, a median 16 km from the stadium, and is never used as a venue.",
+     "Every NFL row carries coord_offset_km (point to venue, 0.0 = inside its footprint) "
+     "and every row grid_offset_km (point to the provider cell that answered). A dome "
+     "game is skipped with a reason rather than given a number that cannot matter."),
+    ("feeds.weather_is_a_model_not_an_observation", "precision",
+     "Neither endpoint is a measurement taken at the stadium",
+     "`archive` is Open-Meteo's reanalysis and `forecast` is a numerical weather model; "
+     "both answer for a GRID CELL, whose centre the response reports and the row stores "
+     "as provider_latitude/longitude. The two endpoints answer from different cells for "
+     "one stadium.",
+     "Say 'modelled weather for the stadium's grid cell', never 'observed at kickoff'. "
+     "A forecast row keeps fetched_ts, so its horizon is kickoff_ts - fetched_ts."),
+    ("feeds.nfl_roof_is_two_facts", "structural",
+     "A roof is the venue's structure AND the game's state, and the feed mislabels both",
+     "nflverse's per-game `roof` labels the 2026 Melbourne, Munich and Paris games 'dome' "
+     "though none has a roof over the pitch - and labelled the same Allianz Arena "
+     "'outdoors' in 2022 and 2024 under a different stadium id. Retractable roofs are '' "
+     "until the game is played.",
+     "playing_conditions is 1 only when the venue's structure and the game's label agree "
+     "the pitch is open, 0 only when both say it is covered, NULL otherwise. A reading "
+     "whose playing_conditions is not 1 is outdoor weather, not the game's conditions, "
+     "and must not be presented as the second."),
     ("feeds.news_is_headline_only", "structural",
      "News is headline, source, timestamp and link - never text",
      "The parser does not read description, summary or content:encoded, and "
@@ -81,6 +105,9 @@ def connect(db_path=None):
     con = sqlite3.connect(db, timeout=30)
     con.execute("PRAGMA journal_mode=WAL")
     con.executescript(schema.ddl())
+    for table, col, typ in schema.added_columns(con):
+        # Additive only: a store created before a column existed gains it as NULL.
+        con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
     bad = schema.news_column_violations()
     if bad:
         raise RuntimeError(f"news_items must not carry article text: {bad}")
@@ -279,6 +306,140 @@ def run_weather(con, cfb_db, days=3, client=None, now=None, verbose=True):
             "no_venue": len(missing)}
 
 
+def nfl_games(con, client):
+    """The nflverse schedule, fetched and archived verbatim, as a polars frame."""
+    import io
+
+    import polars as pl
+    rel = sources.release("nfl_schedule")
+    body = client.release_asset(rel.feed, rel.repo, rel.tag, rel.asset_name(None))
+    if body is None:
+        raise fetch.FetchError("nflverse schedules/games.parquet is not listed")
+    fetch.archive(con, rel.feed, None, rel.tag, body, suffix=".parquet.gz")
+    return pl.read_parquet(io.BytesIO(body))
+
+
+def nfl_games_for_weather(games, *, days=None, season=None, now=None,
+                          crosswalk=None, points=None):
+    """(matched, refused, domed) for the NFL games in scope.
+
+    SCOPE IS WHOLE UTC DATES. A weather version's scope is (feed, "date:kind"), so a
+    window that cut a date in half would close the other half's rows as "no longer
+    carried" on the next run. `days` therefore takes every game on every UTC date the
+    window touches, never a timestamp range.
+
+    matched: [(game_id, kickoff_ts, venue, game_roof, playing_conditions)]
+    refused: [(game_id, reason)] - the (stadium_id, name) pair is not in the crosswalk,
+             the venue has no coordinate or no measured offset, or there is no kickoff
+             time. Never a nearby guess.
+    domed:   [(game_id, venue name)] - a fixed roof both sources say is shut: skipped.
+    """
+    now = time.time() if now is None else now
+    crosswalk = nfl_venues.load_crosswalk() if crosswalk is None else crosswalk
+    points = nfl_venues.load_points() if points is None else points
+    if season is None and days is None:
+        raise ValueError("a season or a window: weather over everything is not a scope")
+    lo_day = openmeteo.day(now - (days or 0) * 86400)
+    hi_day = openmeteo.day(now + (days or 0) * 86400)
+    matched, refused, domed = [], [], []
+    for r in games.iter_rows(named=True):
+        ts = nfl_venues.kickoff_ts(r.get("gameday"), r.get("gametime"))
+        if season is not None:
+            if r["season"] != season:
+                continue
+        elif ts is None or not lo_day <= openmeteo.day(ts) <= hi_day:
+            continue
+        if ts is None:
+            refused.append((r["game_id"], "no_kickoff_time"))
+            continue
+        venue, why = nfl_venues.resolve(r.get("stadium_id"), r.get("stadium"),
+                                        crosswalk, points)
+        if venue is None:
+            refused.append((r["game_id"], why))
+            continue
+        cond = nfl_venues.playing_conditions(venue["roof_type"], r.get("roof"))
+        if venue["roof_type"] == "fixed" and cond == 0:
+            domed.append((r["game_id"], venue["name"]))
+            continue
+        matched.append((r["game_id"], ts, venue, r.get("roof") or None, cond))
+    return matched, refused, domed
+
+
+def run_nfl_weather(con, games, *, days=None, season=None, client=None, now=None,
+                    verbose=True):
+    """Open-Meteo at the kickoff hour for NFL games, at each venue's own sourced point.
+
+    Written under its own feed, `weather_nfl`: the version scope is (feed, part), so
+    sharing CFB's `weather` feed would let an NFL run close every CFB row of that date.
+    """
+    client = client or fetch.Client(con)
+    now = time.time() if now is None else now
+    matched, refused, domed = nfl_games_for_weather(games, days=days, season=season, now=now)
+    reasons = {}
+    for _g, why in refused:
+        reasons[why] = reasons.get(why, 0) + 1
+    unknown = sum(1 for m in matched if m[4] is None)
+    if verbose:
+        print(f"  nfl games in scope: {len(matched) + len(refused) + len(domed)}  "
+              f"fetchable {len(matched)} (playing conditions unknown {unknown})  "
+              f"domed (skipped) {len(domed)}  refused {reasons or 0}")
+    scope = f"season {season}" if season is not None else f"window {days}d"
+    measure(con, "nfl_weather.refused", scope, len(refused), json.dumps(reasons))
+    measure(con, "nfl_weather.domed", scope, len(domed))
+    measure(con, "nfl_weather.conditions_unknown", scope, unknown)
+
+    by_day = {}
+    for item in matched:
+        key = (openmeteo.day(item[1]), openmeteo.endpoint_for(item[1], now)[0])
+        by_day.setdefault(key, []).append(item)
+    written, missing_hour = 0, 0
+    for (date, kind), items in sorted(by_day.items()):
+        url = sources.OPEN_METEO_ARCHIVE if kind == "archive" else sources.OPEN_METEO_FORECAST
+        # One versioned write per (date, kind), never per batch - see run_weather.
+        rows, last_file = [], None
+        for start in range(0, len(items), sources.OPEN_METEO_MAX_COORDS):
+            batch = items[start:start + sources.OPEN_METEO_MAX_COORDS]
+            params = openmeteo.build_params(
+                [(v["latitude"], v["longitude"]) for _g, _t, v, _r, _c in batch], date, kind)
+            fetched = time.time()
+            body = client.get("weather_nfl", url, params)
+            last_file, _o = fetch.archive(con, "weather_nfl", f"{date}:{kind}", url, body,
+                                          fetched_ts=fetched, kind="json")
+            payload = json.loads(body)
+            for i, (gid, ts, v, roof, cond) in enumerate(batch):
+                got = openmeteo.at_hour(payload, i, openmeteo.floor_hour(ts))
+                if got is None:
+                    missing_hour += 1
+                    continue
+                rows.append(openmeteo.row(
+                    "nfl", gid, kind, v, ts, got, fetched_ts=fetched,
+                    coord_source=nfl_venues.COORD_SOURCE, coord_ref=v["qid"],
+                    coord_offset_km=v["offset_km"], roof_type=v["roof_type"],
+                    game_roof=roof, playing_conditions=cond))
+        if rows:
+            ins, closed, same = _apply(con, "weather_nfl", None, last_file, rows,
+                                       "weather_at_kickoff", f"weather_nfl {date} {kind}",
+                                       part=f"{date}:{kind}")
+            written += ins
+            if verbose:
+                print(f"  weather_nfl {date} {kind}: {len(rows)} games  "
+                      f"+{ins} -{closed} ={same}")
+    measure(con, "nfl_weather.hour_not_published", scope, missing_hour)
+    return {"games": len(matched), "rows_written": written, "domed": len(domed),
+            "refused": reasons, "conditions_unknown": unknown,
+            "hour_not_published": missing_hour}
+
+
+def nfl_weather_readout(con):
+    """Current NFL rows with both offsets and the forecast horizon, for a reader."""
+    return con.execute(
+        "SELECT game_id, kind, kickoff_ts, coord_ref, coord_offset_km, grid_offset_km, "
+        "CASE WHEN fetched_ts IS NULL THEN NULL ELSE (kickoff_ts - fetched_ts) / 3600.0 END, "
+        "roof_type, game_roof, playing_conditions, temperature_f, wind_speed_mph "
+        "FROM weather_at_kickoff WHERE sport='nfl' AND valid_to_ts IS NULL "
+        "ORDER BY kickoff_ts").fetchall()
+
+
 # ---------------------------------------------------------------------------
 # news
 # ---------------------------------------------------------------------------
@@ -377,6 +538,9 @@ def main(argv=None):
     ap.add_argument("--venues", metavar="SEASONS")
     ap.add_argument("--weather", action="store_true")
     ap.add_argument("--days", type=int, default=3, help="weather window either side of now")
+    ap.add_argument("--nfl-weather", action="store_true",
+                    help="NFL weather at sourced stadium coordinates (--days or --nfl-season)")
+    ap.add_argument("--nfl-season", type=int, metavar="YEAR")
     ap.add_argument("--news", action="store_true")
     ap.add_argument("--audit", action="store_true")
     ap.add_argument("--injuries-report", metavar="SEASON:WEEK",
@@ -385,7 +549,8 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     paths.ensure_dirs()
-    if not any((a.injuries, a.venues, a.weather, a.news, a.audit, a.injuries_report)):
+    if not any((a.injuries, a.venues, a.weather, a.nfl_weather, a.news, a.audit,
+                a.injuries_report)):
         status(connect())
         return 0
     try:
@@ -417,6 +582,12 @@ def main(argv=None):
                     print(f"weather: {run_weather(con, cfb, a.days)}")
                 finally:
                     cfb.close()
+            if a.nfl_weather:
+                client = fetch.Client(con)
+                out = run_nfl_weather(con, nfl_games(con, client), client=client,
+                                      days=None if a.nfl_season else a.days,
+                                      season=a.nfl_season)
+                print(f"nfl weather: {out}")
             if a.news:
                 run_news(con)
             return 0

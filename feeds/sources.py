@@ -37,7 +37,7 @@ class Release:
     tag: str
     asset: str              # "{season}" substituted for seasonal assets
     first_season: int
-    table: str
+    table: str | None
 
     def asset_name(self, season):
         return self.asset.format(season=season)
@@ -51,6 +51,12 @@ RELEASES = {
     # Venue coordinates, elevation, timezone and a DOME flag, per season, per team.
     # The reason weather is possible at all: no NFL feed we trust carries stadium
     # coordinates (nfldata's airports.csv is an AIRPORT, tens of km from the stadium).
+    # The NFL schedule: one file, 1999 onward, carrying `stadium_id`, `stadium` and the
+    # per-game `roof`. Read for kickoffs and venues; it is NOT written to a table here -
+    # the logger's `nfl_games` is the schedule of record, and a second copy would be a
+    # second answer. `table` is None for that reason.
+    "nfl_schedule": Release("nfl_schedule", NFLVERSE_REPO, "schedules", "games.parquet",
+                            1999, None),
     "cfb_venues": Release("cfb_venues", SDV_REPO, "cfb_team_info",
                           "cfb_team_info_{season}.parquet", 2001, "venues"),
 }

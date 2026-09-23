@@ -61,6 +61,22 @@ TABLES = {
         ("precipitation_in", "REAL"), ("wind_speed_mph", "REAL"),
         ("wind_gusts_mph", "REAL"), ("cloud_cover_pct", "REAL"),
         ("provider_elevation_m", "REAL"),
+        # ADDED f-05, appended so the columns above keep their positions. Every reading
+        # carries how far from the venue it was measured, in two parts:
+        #   coord_offset_km - the coordinate asked for, to the venue itself (0.0 = inside
+        #     its footprint). NULL where it was never measured, which is every CFB row.
+        #   grid_offset_km  - the coordinate asked for, to the grid cell the provider
+        #     answered from (`provider_latitude/longitude`, from the response itself).
+        ("provider_latitude", "REAL"), ("provider_longitude", "REAL"),
+        ("grid_offset_km", "REAL"),
+        ("coord_source", "TEXT"), ("coord_ref", "TEXT"), ("coord_offset_km", "REAL"),
+        # When a FORECAST was taken, so its horizon (kickoff_ts - fetched_ts) is a query.
+        # NULL on archive rows: a reanalysis does not depend on when it was asked for.
+        ("fetched_ts", "REAL"),
+        # The structure (open_air | fixed | retractable), the game's own roof label as
+        # nflverse wrote it, and whether this outdoor reading IS the playing conditions:
+        # 1 yes, 0 no (roof shut), NULL not known. NULL on CFB rows (domes are skipped).
+        ("roof_type", "TEXT"), ("game_roof", "TEXT"), ("playing_conditions", "INTEGER"),
     ]),
     # Headline, source, timestamp, link. Nothing else - see the module docstring.
     "news_items": (("sport", "feed", "guid"), [
@@ -184,6 +200,17 @@ def _fact_ddl(table):
     body = ",\n    ".join([f"{c} {t}" for c, t in cols] + [f"{c} {t}" for c, t in META]
                           + [f"PRIMARY KEY ({', '.join(key)}, valid_from_ts)"])
     return f"CREATE TABLE IF NOT EXISTS {table} (\n    {body}\n);\n"
+
+
+def added_columns(con):
+    """[(table, column, type)] the live table lacks. `CREATE TABLE IF NOT EXISTS` never
+    alters a table that exists, so a column appended here must be ADDED to a store
+    created before it - otherwise every insert names a column the table does not have."""
+    out = []
+    for table, (_key, cols) in TABLES.items():
+        have = {r[1] for r in con.execute(f"PRAGMA table_info({table})")}
+        out += [(table, c, t) for c, t in cols if have and c not in have]
+    return out
 
 
 def ddl() -> str:
