@@ -1748,13 +1748,20 @@ def team_season_summaries(games, season, markets_by_slug):
 
     `points_for` and `points_against` are NULL before a team has played, not 0:
     no games is a different statement from no points.
+
+    `cumulative` is the season PATH the teams board draws (a-08): one entry per
+    regular-season week in the league's frame, see `cumulative_path`. Its last
+    played entry IS this summary's totals - the two are computed from one list
+    of games and the export refuses if they ever disagree.
     """
     out = {}
+    frame_weeks = season_frame(games, season)
     for abbr in TEAM_NAMES:
-        played = [g for g in games.values()
-                  if g["season"] == season and g["game_type"] == "REG"
-                  and abbr in (g["home_team"], g["away_team"])
-                  and g["home_score"] is not None and g["away_score"] is not None]
+        reg = [g for g in games.values()
+               if g["season"] == season and g["game_type"] == "REG"
+               and abbr in (g["home_team"], g["away_team"])]
+        played = [g for g in reg
+                  if g["home_score"] is not None and g["away_score"] is not None]
         tally = Counter()
         pf = pa = 0
         for g in played:
@@ -1764,7 +1771,7 @@ def team_season_summaries(games, season, markets_by_slug):
             pf += for_
             pa += against
             tally[result_of(for_, against)] += 1
-        out[abbr] = {
+        entry = {
             "games": len(played),
             "cleared": tally["W"], "missed": tally["L"], "tied": tally["T"],
             "points_for": intish(pf) if played else None,
@@ -1772,8 +1779,145 @@ def team_season_summaries(games, season, markets_by_slug):
             # DISTINCT PRICED MARKETS, not priced players - and looked up by
             # SLUG, because that is how a market file names its team.
             "markets": markets_by_slug.get(team_slug(abbr), 0),
+            "cumulative": cumulative_path(reg, abbr, frame_weeks),
         }
+        reconcile_path(abbr, entry)
+        out[abbr] = entry
     return out
+
+
+# The four states a week of the season path can be in. Three of them carry no
+# value, and they are three different facts, so none of them is a zero.
+PATH_STATES = ("played", "bye", "unplayed", "gap")
+
+
+def season_frame(games, season):
+    """The regular season's length in weeks: the highest REG week the league
+    scheduled in `season`. 18 for 2026. 0 when nothing is scheduled.
+
+    Taken from the schedule rather than hard-coded, so a season of another
+    length is described as the length it has. The site's strip draws a frame of
+    `config.seasonWeeks`; the two agree while the schedule has 18 weeks, and a
+    test pins that on the real schedule.
+    """
+    wks = [g["week"] for g in games.values()
+           if g["season"] == season and g["game_type"] == "REG" and g["week"] is not None]
+    return max(wks) if wks else 0
+
+
+def path_states(reg, frame_weeks):
+    """{week: state} for one team's regular season - THE STRIP'S RESOLVER, ported.
+
+    The team page's schedule strip (calibratedsports-web
+    `components/views/TeamView.tsx` `slots()` over `lib/slotState.ts`) already
+    decides played / bye / unplayed from the team's own schedule. The board's
+    chart must not decide it a second way, so this is that rule line for line,
+    in the same order:
+
+      played    a REG fixture for that week carrying both scores - the strip's
+                `result != null`, since `result_of` is null unless both are.
+      bye       the ONE regular-season week, up to the team's last scheduled
+                week, that has no fixture. If there are two or more such weeks
+                the bye is UNRESOLVED - a cancelled game never made up looks
+                exactly like a bye - and every one of them is `gap`, as the
+                strip draws them. Guessing which was the bye is worse than one
+                honest absence.
+      gap       no fixture at all for that week, bye unresolved or past the
+                team's last scheduled week. The strip's "no row for this
+                period".
+      unplayed  a fixture with no result yet. The strip splits this into
+                `off` and `live` by comparing kickoff with the reader's clock;
+                that split is a property of WHEN the file is read, not of the
+                data, and neither side of it carries a value, so it is not
+                exported. A reader wanting it has `kickoff_ts` on the team file.
+    """
+    by_week = {}
+    for g in reg:
+        if g["week"] is not None:
+            by_week[g["week"]] = g
+    scheduled = list(by_week)
+    up_to = min(frame_weeks, max(scheduled)) if scheduled else 0
+    gaps = [wk for wk in range(1, up_to + 1) if wk not in by_week]
+    bye = gaps[0] if len(gaps) == 1 else None
+    out = {}
+    for wk in range(1, frame_weeks + 1):
+        g = by_week.get(wk)
+        if g is not None and g["home_score"] is not None and g["away_score"] is not None:
+            out[wk] = "played"
+        elif wk == bye:
+            out[wk] = "bye"
+        elif g is None:
+            out[wk] = "gap"
+        else:
+            out[wk] = "unplayed"
+    return out
+
+
+def cumulative_path(reg, abbr, frame_weeks):
+    """One entry per week 1..frame_weeks: the team's running record and points.
+
+    RETROSPECTIVE ONLY. A played week carries the cumulative total through that
+    week; a bye, an unplayed week and a gap carry NULL in every value - not 0,
+    and not the previous week's total carried forward. No value is ever
+    projected: the shell's forward projection was a hash of the team
+    abbreviation and was ruled out, so the path fills in as the season runs
+    and says nothing about weeks that have not happened.
+
+    A bye's value IS knowable (it is the week before's), and it is still null:
+    it is not an observation, and a reader drawing the line holds the last
+    played value across it by reading `state`. Publishing it would put a figure
+    on a week the team did not play.
+
+    `cleared` is the chart's "Wins" tab; `missed` and `tied` travel with it so
+    the running record sums to the games played, which a reader can check.
+    """
+    states = path_states(reg, frame_weeks)
+    played_by_week = defaultdict(list)
+    for g in reg:
+        if states.get(g["week"]) == "played":
+            played_by_week[g["week"]].append(g)
+    tally, pf, pa = Counter(), 0, 0
+    out = []
+    for wk in range(1, frame_weeks + 1):
+        st = states[wk]
+        if st != "played":
+            out.append({"index": wk, "state": st, "cleared": None, "missed": None,
+                        "tied": None, "points_for": None, "points_against": None})
+            continue
+        for g in played_by_week[wk]:
+            home = g["home_team"] == abbr
+            for_, against = ((g["home_score"], g["away_score"]) if home
+                             else (g["away_score"], g["home_score"]))
+            pf += for_
+            pa += against
+            tally[result_of(for_, against)] += 1
+        out.append({"index": wk, "state": st, "cleared": tally["W"], "missed": tally["L"],
+                    "tied": tally["T"], "points_for": intish(pf), "points_against": intish(pa)})
+    return out
+
+
+def reconcile_path(abbr, summary):
+    """The path's last played entry must BE the season totals beside it.
+
+    Two statements of one figure on one page - the board's record and the end
+    of that team's line - and a chart whose endpoint disagrees with the number
+    printed next to it is the failure the shell's axis-ceiling note exists to
+    prevent. They come from the same games, so a disagreement means a played
+    game fell outside the frame (a REG week beyond `season_frame`, or a null
+    week) - refuse rather than publish either.
+    """
+    played = [e for e in summary["cumulative"] if e["state"] == "played"]
+    if not played:
+        got = {"games": 0, "points_for": None, "points_against": None,
+               "cleared": 0, "missed": 0, "tied": 0}
+    else:
+        last = played[-1]
+        got = {"games": last["cleared"] + last["missed"] + last["tied"],
+               "points_for": last["points_for"], "points_against": last["points_against"],
+               "cleared": last["cleared"], "missed": last["missed"], "tied": last["tied"]}
+    want = {k: summary[k] for k in got}
+    if got != want:
+        raise ValueError(f"{abbr}: season path ends at {got} but the season summary says {want}")
 
 
 def build_manifest(games, current, index, market_keys, unresolved, source_version, scoring_note,

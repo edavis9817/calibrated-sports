@@ -968,3 +968,55 @@ in the same change that flips `comingSoon`, not after it.
   and not a failure.
 - `bands_reason: confounded`: no ordering of any kind. List the values alphabetically,
   as for `separation_not_rejected`.
+## 12. a-08 — the season path for the teams board, and why pace stays marked
+
+**Status:** built by track A on branch `a-08-team-series`, **not merged, not exported, not
+published.** When it merges, `contract-in-sync` goes red until you re-vendor: canonical on
+`origin/main` today is `30df95a81c…` (57,570 bytes) and your vendored copy is byte-identical to it.
+
+### What is added
+
+`TeamSeasonSummary.cumulative`, **required**, on every `manifest.teams[].season`: one entry per
+regular-season week of the league's schedule (18 for 2026), each either
+
+```json
+{"index": 2, "state": "played", "cleared": 2, "missed": 0, "tied": 0, "points_for": 77, "points_against": 62}
+{"index": 5, "state": "bye", "cleared": null, "missed": null, "tied": null, "points_for": null, "points_against": null}
+```
+
+typed `TeamWeekPlayed | TeamWeekEmpty`. `state` is `played`, `bye`, `unplayed` or `gap`. Your
+generator (origin/main 9884f96) emits the union cleanly; checked by running it on this contract.
+
+- **Values are cumulative through the week, and null on every non-played week** - not zero, not
+  carried forward, never projected. At a bye, hold the line flat by reading `state`.
+- **The tabs map to `cleared`, `points_for`, `points_against`.** `missed` and `tied` travel so the
+  running record sums to games played.
+- **The axis ceiling is yours to compute**: the max over the 32 arrays for the selected metric. It
+  is deliberately not published as its own figure, which could disagree with the arrays.
+- **The last played entry equals `season`'s own totals**, and the producer refuses to export
+  otherwise, so the end of a line cannot contradict the record printed beside it.
+
+### The state rule is YOUR strip's, ported - and the two copies are the risk
+
+`state` is decided by `TeamView.tsx` `slots()` over `lib/slotState.ts`, transcribed into
+`jobs/export_web.path_states`. The strip's `off`/`live` split is one exported state, `unplayed`,
+because it depends on the reader's clock. A producer test re-derives your strip's forms from each
+exported team file's `schedule` and requires the manifest to agree; on the real 2026 store it agrees
+32 of 32. **But that test transcribes your code as of 9884f96 - if the strip's rule changes, it
+does not notice.** The cheap closure is on your side: have the strip read `season.cumulative[].state`
+for the current season, or add a site test comparing `slots()` forms against it.
+
+### Pace (and the splits table) is still not exportable
+
+Unchanged from section 11's `plays` answer, re-checked 2026-09-22: the store holds `nfl_games`,
+`nfl_player_week`, `nfl_snap_counts`, `nfl_teams`, `player_xwalk`, `player_alias`,
+`player_headshot`, `nflverse_versions` and no play-by-play or play count. The shell's splits table
+(points/game, plays/game, neutral pass rate, EPA/play off and def, pressure rate allowed, each ranked
+of 32) is on the TEAM page, and five of its six figures need play-by-play. Points/game you already
+have (`points_for / games`), and its rank you compute from the 32 rows.
+
+**Where the play-by-play does exist is track F's store, not track A's.** `analytics.db` carries
+`f_play_usage` (1999-2026, 1,365,453 rows, with `is_neutral` and `is_dropback` per player-role row).
+Inferred, neither built nor measured: that may be enough for plays per game and neutral pass rate; it has no EPA or
+pressure column. The producer does not read another track's store, so pace arrives - if it does -
+as a track F analytic under its own `analytics/{sport}/` prefix, not in this manifest.

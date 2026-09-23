@@ -337,6 +337,31 @@ page — the cost `counts` exists to remove. It now carries `conference`, `divis
   count and no play-by-play table, so it needs exactly the ingest the request itself excluded. A
   permanently-null field would promise a figure that is never coming; approximating it from attempts
   and carries would publish an unsourced number that looks sourced.
+- **`season.cumulative` is the season path the teams board draws (a-08).** One entry per
+  regular-season week of the league's schedule, in order - 18 for 2026, taken from the schedule
+  rather than hard-coded:
+
+  ```json
+  {"index": 2, "state": "played", "cleared": 2, "missed": 0, "tied": 0,
+   "points_for": 77, "points_against": 62}
+  {"index": 7, "state": "bye", "cleared": null, "missed": null, "tied": null,
+   "points_for": null, "points_against": null}
+  ```
+
+  - **A played week carries the running total through that week. Every other state carries null
+    in every value** - not zero, not the last value carried forward, and never a projection. A
+    bye's value is knowable and is still null: it is not an observation, and the chart holds the
+    line flat across it by reading `state`.
+  - **`state` is one of `played`, `bye`, `unplayed`, `gap`, decided by the team page strip's own
+    rule** (`TeamView.tsx` `slots()` over `lib/slotState.ts`), ported: the bye is the single
+    regular-season week up to the team's last fixture with no fixture; two or more such weeks leave
+    it unresolved and all are `gap`, as is any week past the last fixture. The strip's `off`/`live`
+    split is one exported state, `unplayed` - it depends on the reader's clock, not the data.
+  - **The last played entry equals the summary's own totals**, and the export refuses otherwise
+    (`reconcile_path`). The axis ceiling is not published: it is the maximum over these arrays,
+    and a separately published figure could disagree with them.
+  - The contract types it as `TeamWeekPlayed | TeamWeekEmpty`, so a played week with a null or a
+    bye with a zero fails the export.
 
 ## {sport}/market/{id}/{period_key}.json — kind `market`
 

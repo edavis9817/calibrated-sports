@@ -42,9 +42,20 @@ def validator(name):
 
 def summary(**kw):
     base = {"games": 1, "cleared": 1, "missed": 0, "tied": 0,
-            "points_for": 36, "points_against": 31, "markets": 4}
+            "points_for": 36, "points_against": 31, "markets": 4,
+            "cumulative": [played_week(1, 1, 0, 0, 36, 31), empty_week(2, "unplayed")]}
     base.update(kw)
     return base
+
+
+def played_week(index, cleared, missed, tied, pf, pa):
+    return {"index": index, "state": "played", "cleared": cleared, "missed": missed,
+            "tied": tied, "points_for": pf, "points_against": pa}
+
+
+def empty_week(index, state):
+    return {"index": index, "state": state, "cleared": None, "missed": None,
+            "tied": None, "points_for": None, "points_against": None}
 
 
 def entry(**kw):
@@ -253,3 +264,174 @@ def test_the_contract_carries_the_teams_ref_rather_than_an_inline_shape():
     teams = contract["$defs"]["SportManifest"]["properties"]["teams"]
     assert teams["items"] == {"$ref": "#/$defs/TeamEntry"}
     assert "memberships" in contract["$defs"]["TeamFile"]["required"]
+
+
+# ------------------------------------------------ the season path (a-08)
+#
+# The teams board's chart: per team, per week, the running record and points,
+# with played / bye / unplayed / gap as distinct states. The rule deciding the
+# state is the team page schedule strip's (TeamView.tsx `slots()` over
+# lib/slotState.ts), ported - so the tests below pin THAT rule's cases, and one
+# test re-derives the strip's own forms from the TEAM FILE's schedule, which is
+# what the strip actually reads, and requires the manifest to agree.
+
+def test_the_summary_now_REQUIRES_the_path():
+    bad = summary()
+    bad.pop("cumulative")
+    assert list(validator("TeamSeasonSummary").iter_errors(bad))
+
+
+def test_a_played_week_must_carry_values_and_an_empty_week_must_carry_none():
+    v = validator("TeamSeasonSummary")
+    assert not list(v.iter_errors(summary()))
+    # the other answers: a played week with a null, a bye with a zero, a state
+    # the vocabulary does not have, and "played" wearing an empty week's nulls
+    assert list(v.iter_errors(summary(cumulative=[{**played_week(1, 1, 0, 0, 36, 31),
+                                                   "points_for": None}])))
+    assert list(v.iter_errors(summary(cumulative=[{**empty_week(1, "bye"), "cleared": 0}])))
+    assert list(v.iter_errors(summary(cumulative=[empty_week(1, "projected")])))
+    assert list(v.iter_errors(summary(cumulative=[empty_week(1, "played")])))
+
+
+def _sched(abbr, weeks, played=(), season=2026, opp="MIA"):
+    """REG fixtures for `abbr` in `weeks`; those in `played` carry a 24-20 win."""
+    out = {}
+    for wk in weeks:
+        hs, as_ = (24, 20) if wk in played else (None, None)
+        out[f"{season}_{wk}_{abbr}"] = _game(season, wk, abbr, opp, hs, as_)
+    return out
+
+
+def _states(games, abbr, season=2026):
+    return [e["state"] for e in E.team_season_summaries(games, season, {})[abbr]["cumulative"]]
+
+
+def test_one_missing_week_IS_the_bye():
+    games = _sched("BUF", [1, 2, 4, 5], played=[1, 2])
+    assert _states(games, "BUF") == ["played", "played", "bye", "unplayed", "unplayed"]
+
+
+def test_TWO_missing_weeks_leave_the_bye_unresolved_and_both_are_gaps():
+    """A cancelled game never made up looks exactly like a bye. The strip does
+    not guess which of two empty weeks was the bye, so neither does the path."""
+    games = _sched("BUF", [1, 3, 5], played=[1, 3, 5])
+    assert _states(games, "BUF") == ["played", "gap", "played", "gap", "played"]
+
+
+def test_weeks_past_a_teams_last_fixture_are_gaps_and_do_not_count_toward_the_bye():
+    """The strip counts gaps only up to the team's own last scheduled week."""
+    games = {**_sched("BUF", [1, 2, 3, 4, 5]), **_sched("NE", [1, 3], played=[1], opp="NYJ")}
+    # NE: week 2 is the single gap up to its last fixture (3), so it is the bye;
+    # weeks 4 and 5 lie beyond it and are gaps, not a second candidate bye.
+    assert _states(games, "NE") == ["played", "bye", "unplayed", "gap", "gap"]
+
+
+def test_the_frame_is_the_leagues_schedule_length_not_the_teams():
+    games = {**_sched("BUF", range(1, 19)), **_sched("NE", [1], opp="NYJ")}
+    assert E.season_frame(games, 2026) == 18
+    assert len(_states(games, "NE")) == 18
+    assert len(_states(games, "BUF")) == 18
+
+
+def test_a_team_with_no_fixtures_is_all_gaps_not_all_byes():
+    games = _sched("BUF", [1, 2, 3])
+    assert _states(games, "NE") == ["gap", "gap", "gap"]
+
+
+def test_values_are_RUNNING_totals_and_every_non_played_week_is_NULL_not_zero():
+    games = {
+        "a": _game(2026, 1, "BUF", "MIA", 24, 20),   # cleared  24-20
+        "b": _game(2026, 2, "NE", "BUF", 30, 17),    # missed   17-30
+        # week 3: BUF's bye
+        "d": _game(2026, 4, "BUF", "NYJ", 21, 21),   # tied     21-21
+        "e": _game(2026, 5, "BUF", "KC", None, None),
+    }
+    path = E.team_season_summaries(games, 2026, {})["BUF"]["cumulative"]
+    assert [e["index"] for e in path] == [1, 2, 3, 4, 5]
+    assert path[0] == played_week(1, 1, 0, 0, 24, 20)
+    assert path[1] == played_week(2, 1, 1, 0, 41, 50)
+    assert path[2] == empty_week(3, "bye"), "a bye is not carried forward, and is not zero"
+    assert path[3] == played_week(4, 1, 1, 1, 62, 71)
+    assert path[4] == empty_week(5, "unplayed"), "no projection into an unplayed week"
+
+
+def test_the_last_played_week_IS_the_season_summary():
+    games = {
+        "a": _game(2026, 1, "BUF", "MIA", 24, 20),
+        "b": _game(2026, 2, "NE", "BUF", 30, 17),
+        "c": _game(2026, 4, "BUF", "NYJ", 21, 21),
+        "d": _game(2026, 5, "MIA", "NE", 3, 10),
+    }
+    checked = 0
+    for abbr, s in E.team_season_summaries(games, 2026, {}).items():
+        played = [e for e in s["cumulative"] if e["state"] == "played"]
+        if not played:
+            assert s["games"] == 0, abbr
+            continue
+        last = played[-1]
+        assert (last["cleared"], last["missed"], last["tied"]) == (s["cleared"], s["missed"], s["tied"])
+        assert (last["points_for"], last["points_against"]) == (s["points_for"], s["points_against"])
+        checked += 1
+    assert checked == 4, "BUF, NE, MIA, NYJ played; count must not be vacuous"
+
+
+def test_the_export_REFUSES_a_path_that_disagrees_with_its_summary():
+    """A played REG game with no week counts toward the season total and lands
+    on no week of the path. The two would disagree on the page; refuse."""
+    games = {"a": _game(2026, 1, "BUF", "MIA", 24, 20),
+             "b": {**_game(2026, 2, "BUF", "NYJ", 10, 3), "week": None}}
+    with pytest.raises(ValueError, match="BUF: season path ends at"):
+        E.team_season_summaries(games, 2026, {})
+
+
+def test_reconcile_discriminates():
+    s = E.team_season_summaries({"a": _game(2026, 1, "BUF", "MIA", 24, 20)}, 2026, {})["BUF"]
+    E.reconcile_path("BUF", s)                      # agrees: silent
+    with pytest.raises(ValueError):
+        E.reconcile_path("BUF", {**s, "points_for": 25})
+
+
+def _strip_forms(schedule, season, weeks):
+    """The web strip's `slots()` form per REG week, transcribed from
+    TeamView.tsx on calibratedsports-web origin/main (9884f96), reading ONLY
+    what the strip reads: the team file's schedule. `off` and `live` are one
+    exported state (`unplayed`), so both map there."""
+    reg = {g["index"]: g for g in schedule if g["season"] == season and g["game_type"] == "REG"}
+    scheduled = list(reg)
+    up_to = min(weeks, max(scheduled)) if scheduled else 0
+    gaps = [wk for wk in range(1, up_to + 1) if wk not in reg]
+    bye = gaps[0] if len(gaps) == 1 else None
+    out = []
+    for wk in range(1, weeks + 1):
+        g = reg.get(wk)
+        if g is not None and g["result"] is not None:
+            out.append("played")
+        elif bye == wk:
+            out.append("bye")
+        elif g is None:
+            out.append("gap")
+        else:
+            out.append("unplayed")
+    return out
+
+
+def test_the_manifest_path_agrees_with_the_STRIP_read_off_the_team_file(db, monkeypatch):
+    """The chart and the strip must not disagree about which weeks were played.
+    The strip reads `schedule` on the team file; the path is built from the
+    games table. Export both and compare every team, on the real exporter."""
+    dest = str(db / "out")
+    monkeypatch.setattr(config, "WEB_EXPORT_DIR", dest)
+    E.export(only=["teams", "manifest"], now_ts=NOW, dest=dest)
+    files = _walk(dest)
+    manifest = files["nfl/manifest.json"]
+    season = manifest["current"]["season"]
+    compared = 0
+    for t in manifest["teams"]:
+        path = t["season"]["cumulative"]
+        team = files[f"nfl/teams/{t['slug']}.json"]
+        assert [e["state"] for e in path] == _strip_forms(team["schedule"], season, len(path)), t["abbr"]
+        compared += 1
+    assert compared == len(E.TEAM_NAMES)
+    # the fixture must exercise more than one state, or agreement is vacuous
+    states = {e["state"] for t in manifest["teams"] for e in t["season"]["cumulative"]}
+    assert {"played", "unplayed", "gap", "bye"} <= states, states
