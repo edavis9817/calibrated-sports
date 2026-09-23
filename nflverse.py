@@ -104,7 +104,10 @@ DATASETS = {
         note="the gsis_id crosswalk; carries pfr/espn/pff/otc ids and names"),
     "weekly_rosters": Dataset("weekly_rosters", "weekly_rosters",
                               "roster_weekly_{season}.parquet", LIVE,
-                              first_season=2002),
+                              normalize=True, first_season=2002,
+                              fields=("jersey_number",),
+                              note="normalized since a-14 for the per-season jersey "
+                                   "number; 2002 is the release's first season"),
     "depth_charts": Dataset("depth_charts", "depth_charts",
                             "depth_charts_{season}.parquet", LIVE,
                             first_season=2001),

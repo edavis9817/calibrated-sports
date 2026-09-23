@@ -1139,3 +1139,44 @@ is what the pages say about the keys that exist. Each item carries the test that
 
 Not needed from you: nothing reads `sports.json` on the site (`sportsKey` has no call site), so
 its missing `cfb` entry does not block the flip.
+
+---
+
+## 14. a-14 — what b-18's inventory can strike, by page, once the extended profile is published (2026-09-23)
+
+**Nothing is served yet. Do not unmark anything against production.** a-14 built A-B2, A-B3
+and A-B4 as an export profile that is STAGED: `jobs.export_web --extended --dest <dir>`, refused
+without `--dest`. The default export is byte-identical to before (23,293 files compared). So every
+row below changes state from **A·new / A·held** to **STAGED (a-14)**, and to done only when Ethan
+publishes the profile. The staged tree is `D:\temp\a14\out_ext` (players, teams, manifest parts;
+built from a scratch store re-derived from the raw archive, not from `market_log.db`).
+
+Contract, same commit as the producer (`web/contract/v2/contract.schema.json`), all OPTIONAL and
+nullable, so a file without them is still valid and the site's lenient reader needs nothing:
+`Identity.jersey_number` (string, `^[0-9]{1,2}$`), `Identity.birth_date` (string, `YYYY-MM-DD`),
+`PlayerSummary.seasons[].jersey_number`, `RosterEntry.defense_snap_share`. Re-vendor it; the
+`contract-in-sync` job will be red until you do. No new keyword: `pattern` is used 25 times already.
+
+| page / node (b-18 W12 row) | was | after publish | the field |
+|---|---|---|---|
+| `/nfl/player/*` — Jersey number | absent, unmarked, A·new (A-B4) | **strike** | `identity.jersey_number`: a STRING, render `#` + it. null for 922 of 10,996 staged players, all of whom last played before 2002 (the roster release starts in 2002). 10 roster values like `69B` publish null in their season. Per season: `seasons[].jersey_number` |
+| `/nfl/player/*` — Age | absent, unmarked, A·new (A-B4) | **strike** | `identity.birth_date` (10,996 of 10,996 staged). Compute age at read time, from the date the page renders |
+| `/nfl/team/*` — Roster snap share, "0%" for defenders, punters, kickers | photographed false figure | **strike** | `roster[].defense_snap_share` beside `snap_share` (Roquan Smith, BAL: snap_share 0.0, defense_snap_share 1.0). Kickers and punters have neither - special-teams share is not exported, only `st_snaps` per game on their own pages |
+| `/nfl/team/*` — roster rows with no page (`has_page` false) | defenders unlinked | **mostly strike** | defenders and specialists with any non-zero published stat are now in scope. Linemen with snaps and no stat row stay without a page |
+| `/nfl/player/*` for defenders and specialists | no page existed | **new pages** | 7,009 players added (3,987 → 10,996). Game logs carry `def_*`, `defense_snaps`, `st_snaps`, kicking and return keys; group labels from `stat_definitions` (`team_defense`, `kicking`, `returns`, `usage`) |
+| `/nfl/player/*` prop section for the 681 defenders with settled props | no page | **reachable** | `prop_history` already attached per player; `market_definitions.sacks.stat` is now `def_sacks` |
+| `/nfl/players` — Season leaders, **Defense** tab | empty state + false copy (flag 9) | **NOT closed by a-14** | leaders need a league-wide table. Per-player files cannot be ranked without one read per player. The components table (a-11) carries offensive columns only, and a-14 did not extend it. The false COPY (flag 9) is yours either way: the tackles etc. are weekly stats, not participation |
+| `/nfl/players` — Season leaders, **Special teams** tab | empty state | **NOT closed by a-14** | same reason |
+
+Things to know before rendering:
+- **null is not 0 here, and the export is strict about it.** A season with no roster, a season the
+  source did not collect (TFL 2003-11, QB hits 2003-05), and phase snaps before 2013 are all null.
+  Render "not recorded", never 0.
+- **Blocked field goals are not misses.** `fg_att = fg_made + fg_missed + fg_blocked`. The distance
+  bands split made and missed only.
+- **`def_*` keys keep group `team_defense`** because team splits use the same keys. A per-player
+  label ("Defense") is yours to set in `config/sports/nfl.ts`; renaming the group in the manifest
+  would move the team page too.
+- **`players/index.json` grows from 776 KB to 2.14 MB** (staged, uncompressed). The index is a
+  client shell that searches every row on every keystroke. Measure it before publish day.
+- Punting is **not** exported: A-B3 named no punting field. Say so if a Special teams design needs it.

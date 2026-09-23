@@ -38,6 +38,30 @@ DEF_COLS = (
 )
 _DEF_DDL = "".join(f"    {c:<28} REAL,\n" for c in DEF_COLS)
 
+# Kicking and return components from stats_player_week (a-14, track B's A-B3).
+# Measured 2026-09-23 on the raw archive: every one is non-null and populated in
+# all 28 seasons, 1999-2026 - no silent-zero run - so none is declared in
+# export_web.NOT_COLLECTED.
+#
+# fg_missed EXCLUDES blocked kicks: fg_att = fg_made + fg_missed + fg_blocked in
+# every season (1999: 999 = 777 + 197 + 25). The distance bands split made and
+# missed but NOT blocked, so a band's attempts are not recoverable exactly and
+# no band-attempt column is stored as if they were.
+#
+# PUNTING (pt_*) IS NOT HERE, on purpose. The pt_ prefix is the PUNTER's line -
+# pt_return_tds is touchdowns ALLOWED on his punts (330 of 330 non-zero rows
+# 1999-2026 are P or K) - and A-B3 names no punting field.
+ST_COLS = (
+    "fg_att", "fg_made", "fg_missed", "fg_blocked",
+    "fg_made_0_19", "fg_made_20_29", "fg_made_30_39", "fg_made_40_49",
+    "fg_made_50_59", "fg_made_60_",
+    "fg_missed_0_19", "fg_missed_20_29", "fg_missed_30_39", "fg_missed_40_49",
+    "fg_missed_50_59", "fg_missed_60_",
+    "pat_att", "pat_made",
+    "punt_returns", "punt_return_yards", "kickoff_returns", "kickoff_return_yards",
+)
+_ST_DDL = "".join(f"    {c:<28} REAL,\n" for c in ST_COLS)
+
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS quotes (
     id           INTEGER PRIMARY KEY,
@@ -205,13 +229,40 @@ CREATE TABLE IF NOT EXISTS nfl_player_week (
     passing_tds   REAL,
     interceptions REAL,
     fantasy_points_ppr REAL,
-{_DEF_DDL}    source        TEXT NOT NULL,
+{_DEF_DDL}{_ST_DDL}    source        TEXT NOT NULL,
     ingested_ts   REAL NOT NULL,
     PRIMARY KEY (gsis_id, season, week, season_type, data_version)
 );
 CREATE INDEX IF NOT EXISTS ix_pw_season  ON nfl_player_week(season, week);
 CREATE INDEX IF NOT EXISTS ix_pw_player  ON nfl_player_week(gsis_id, season);
 CREATE INDEX IF NOT EXISTS ix_pw_version ON nfl_player_week(data_version);
+
+-- Weekly rosters (a-14, A-B4): the per-season JERSEY NUMBER, which changes
+-- between seasons and so cannot live on player_xwalk. Source grain, one row per
+-- (player, season, week, team) as nflverse publishes it - aggregating to a
+-- season on write would be transforming on write (invariant 2). The roster
+-- release starts in 2002; jersey_number is non-null on >99% of rows in every
+-- season 2002-2026 (measured 2026-09-23 on the raw archive).
+-- jersey_number is TEXT, verbatim: the release types it String for 2002-2015
+-- and Int32 from 2016, and 10 values in 2004-2014 carry a letter ('69B', '71A',
+-- '65D', '67O', ...). The export decides what is a number; the store keeps what
+-- was published.
+CREATE TABLE IF NOT EXISTS nfl_roster_week (
+    sport         TEXT NOT NULL DEFAULT 'nfl',
+    gsis_id       TEXT NOT NULL,
+    season        INTEGER NOT NULL,
+    week          INTEGER NOT NULL,
+    game_type     TEXT,
+    team          TEXT NOT NULL,
+    data_version  TEXT NOT NULL,
+    position      TEXT,
+    jersey_number TEXT,
+    status        TEXT,
+    source        TEXT NOT NULL,
+    ingested_ts   REAL NOT NULL,
+    PRIMARY KEY (gsis_id, season, week, team, data_version)
+);
+CREATE INDEX IF NOT EXISTS ix_roster_player ON nfl_roster_week(gsis_id, season);
 
 -- Schedules AND closing game lines back to 1999 - free backtest data for the
 -- game markets, ingested deliberately rather than as a side effect.
@@ -614,7 +665,13 @@ MIGRATIONS = [
     ("nfl_player_week", "fumbles_lost", "REAL"),
     ("nfl_player_week", "two_pt_conversions", "REAL"),
     ("nfl_player_week", "return_tds", "REAL"),
-] + [("nfl_player_week", c, "REAL") for c in DEF_COLS]
+    # Birth date (a-14, A-B4). A per-PLAYER fact, so it lives on the identity
+    # row, and it is PRESERVED like the external ids (venues.mapping): a release
+    # that omits it must not unsay it. Stored as nflverse publishes it, an ISO
+    # date string. The site computes age at read time - the part, not the total.
+    ("player_xwalk", "birth_date", "TEXT"),
+] + [("nfl_player_week", c, "REAL") for c in DEF_COLS] \
+  + [("nfl_player_week", c, "REAL") for c in ST_COLS]
 
 
 def init_db():

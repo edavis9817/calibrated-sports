@@ -425,6 +425,45 @@ Fantasy's period leaderboard wait on.
   `--only components`, so `weekly_refresh` cannot publish it. Stage with
   `--dest`; moving it into `PARTS` is the publish decision.
 
+## The extended profile — defence, special teams, identity (a-14, STAGED, not published)
+
+Track B's A-B2, A-B3 and A-B4. Built only by `python -m jobs.export_web --extended --dest
+<staging>`; `--extended` without `--dest` is refused, so the weekly refresh cannot produce it.
+It adds no kind and no key pattern: it widens the player scope and adds fields to kinds that
+exist. The default export is byte-identical with and without a-14 (23,293 files compared on one
+store, 0 differing).
+
+- **Scope.** Offensive usage (v1) OR any non-zero published defensive or special-teams stat in a
+  regular-season week. 3,987 → 10,996 players on the staged store. The slugs are appended to a
+  COPY of the registry beside the staging tree (`<dest>-staged-slugs/nfl.json`), never to
+  `web/slugs/`.
+- **Period stats** gain, where the season justifies them (the per-row key-set rule):
+  the eleven `def_*` keys team splits already use; `defense_snaps`, `st_snaps`; `fg_att`,
+  `fg_made`, `fg_missed`, `fg_blocked`, `fg_made_{0_19,20_29,30_39,40_49,50_59,60_plus}`,
+  `fg_missed_{same bands}`, `pat_att`, `pat_made`, `punt_ret`, `punt_ret_yds`, `kick_ret`,
+  `kick_ret_yds`. All defined in the manifest's `stat_definitions` (groups `usage`, `kicking`,
+  `returns`; the `def_*` keys keep `team_defense`). Season totals and career sum them.
+- **Null, not zero.**
+  - Every kicking and return column is populated 1999-2026, the release's own first season.
+  - The `def_*` runs already in `NOT_COLLECTED` apply (TFL 2003-11, QB hits 2003-05).
+  - `defense_snaps` and `st_snaps` are null before 2013, and appear only for a player who
+    played that phase somewhere in his career.
+  - A stored NULL in an extended column publishes null, never 0. nflverse publishes none, so
+    a NULL means the row was not re-derived.
+- **Blocked kicks are not misses.** `fg_att = fg_made + fg_missed + fg_blocked`. The bands split
+  made and missed only, so a band reads made / (made + missed), which is attempts less blocks.
+- **`identity.jersey_number`, `identity.birth_date`, `seasons[].jersey_number`**, all optional
+  and nullable.
+  - The jersey is a one- or two-digit STRING, so `0` and `00` differ. It is the season's last
+    roster week; null before 2002 and for 10 roster values carrying a letter (`69B`).
+  - `birth_date` is ISO, from the players release, preserved like the external ids. Age is
+    computed by the reader.
+- **`RosterEntry.defense_snap_share`**, optional and nullable: the defensive twin of
+  `snap_share`, computed the same way.
+- **`market_definitions.sacks.stat` = `def_sacks`** under this profile (settlement reads that
+  column). `tackles_assists` stays null: it is a sum of three keys.
+- **Not built with `components`.** Which extended columns the league table carries is undecided.
+
 ## research/*.json
 
 The v1 kinds are unchanged (`research.hypotheses`, `research.calibration`,

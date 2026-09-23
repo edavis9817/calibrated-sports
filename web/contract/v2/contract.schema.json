@@ -260,6 +260,16 @@
         "headshot_url": {
           "description": "https URL hotlinked from the sport's image host, never stored in R2. null when unknown.",
           "type": ["string", "null"]
+        },
+        "jersey_number": {
+          "description": "OPTIONAL, NULLABLE. The number worn in the season of the player's latest stat row (numbers change; the per-season value is on seasons[].jersey_number). A STRING of one or two digits, not an integer, so 0 and 00 stay different numbers. null where the source has no roster for that season, names no number, or names one that is not one or two digits. Optional because a producer adds it only once its source is ingested; absent means not produced, null means not known.",
+          "type": ["string", "null"],
+          "pattern": "^[0-9]{1,2}$"
+        },
+        "birth_date": {
+          "description": "OPTIONAL, NULLABLE. ISO date (YYYY-MM-DD). Published as the part, never as an age: the site computes age at read time, so the file does not go stale on a birthday. null when the source does not record it.",
+          "type": ["string", "null"],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
         }
       },
       "required": ["id", "slug", "name", "position", "team", "ids", "aliases", "headshot_url"],
@@ -405,6 +415,10 @@
         "has_page": {
           "description": "True when this player is in scope and has their own page. When true, slug is non-null.",
           "type": "boolean"
+        },
+        "defense_snap_share": {
+          "description": "OPTIONAL, NULLABLE. Mean per-game DEFENSIVE snap share, computed exactly as snap_share is. snap_share is OFFENSIVE snaps only, so a defender or specialist reads 0 there beside the games he played; this is the figure that belongs beside it. null where the sport's snap feed has no row for the player's games.",
+          "type": ["number", "null"]
         }
       },
       "required": ["season", "id", "slug", "name", "position", "games", "snap_share", "target_share", "carry_share", "has_page"],
@@ -723,7 +737,12 @@
               "season": {"type": "integer"},
               "teams": {"type": "array", "items": {"type": "string"}},
               "games": {"type": "integer"},
-              "key": {"type": "string"}
+              "key": {"type": "string"},
+              "jersey_number": {
+                "description": "OPTIONAL, NULLABLE. The number worn that season, as a one- or two-digit string - the season's last roster week that names one, so a player traded mid-season shows the number he finished in. null where no roster names one.",
+                "type": ["string", "null"],
+                "pattern": "^[0-9]{1,2}$"
+              }
             },
             "required": ["season", "teams", "games", "key"],
             "additionalProperties": false

@@ -114,6 +114,19 @@ def team_abbr(name: str):
 
 # --- the crosswalk -----------------------------------------------------------
 
+def iso_date(v):
+    """An ISO date string (YYYY-MM-DD), whatever type the release used.
+
+    nflverse publishes birth_date as a String in players.parquet and as a Date
+    in the roster files; one stored form means the preserve logic compares like
+    with like.
+    """
+    if v is None:
+        return None
+    s = v.isoformat() if hasattr(v, "isoformat") else str(v).strip()
+    return s[:10] or None
+
+
 def build_crosswalk(data: bytes, version: str = None):
     """Normalize the nflverse players release into player_xwalk + player_alias.
 
@@ -131,7 +144,7 @@ def build_crosswalk(data: bytes, version: str = None):
     have = set(df.columns)
     xw_cols = ("gsis_id", "display_name", "first_name", "last_name", "position",
                "last_team", "last_season", "status", "pfr_id", "espn_id",
-               "sleeper_id", "yahoo_id", "pff_id", "ingested_ts")
+               "sleeper_id", "yahoo_id", "pff_id", "birth_date", "ingested_ts")
 
     def sid(v):
         return str(v) if v is not None else None
@@ -146,7 +159,7 @@ def build_crosswalk(data: bytes, version: str = None):
                      r.get("last_name"), r.get("position"), r.get("latest_team"),
                      last_season, r.get("status"), r.get("pfr_id"),
                      sid(r.get("espn_id")), None, sid(r.get("yahoo_id")),
-                     r.get("pff_id"), now))
+                     r.get("pff_id"), iso_date(r.get("birth_date")), now))
 
         forms = {"display": r.get("display_name")}
         for key, col in (("football", "football_name"), ("short", "short_name")):
@@ -176,8 +189,11 @@ def build_crosswalk(data: bytes, version: str = None):
     # hardcoded None on line ~148 and neither is populated in the store (0.0%),
     # so preserving them would protect nothing and imply a guarantee we do not
     # have.
+    #
+    # birth_date (a-14) is preserved for the same reason and is the same shape
+    # of fact: once known, it never legitimately becomes unknown.
     store.upsert_preserving("player_xwalk", xw_cols, rows,
-                            ("gsis_id",), ("pfr_id", "espn_id", "pff_id"))
+                            ("gsis_id",), ("pfr_id", "espn_id", "pff_id", "birth_date"))
     # player_alias has the INVERSE exposure and is left alone on purpose: rows
     # are never deleted, so a retired alias accumulates rather than vanishing.
     # That is a staleness problem, not a data-loss one, and fixing it is a

@@ -101,14 +101,22 @@ def normalize_weekly_stats(data: bytes, version: str, week=None):
         (_col(df, "passing_2pt_conversions", 0).fill_null(0)
          + _col(df, "rushing_2pt_conversions", 0).fill_null(0)
          + _col(df, "receiving_2pt_conversions", 0).fill_null(0)).alias("two_pt_conversions"),
-        # DISJOINT, verified: all 15 punt-return touchdowns in 2025 carry
-        # special_teams_tds = 0, and no row has pt_return_tds > special_teams_tds.
-        # So this sums rather than double-counts - and taking special_teams_tds
-        # alone, the cautious-looking choice, would have dropped every
-        # punt-return touchdown on the floor.
-        (_col(df, "special_teams_tds", 0).fill_null(0)
-         + _col(df, "pt_return_tds", 0).fill_null(0)).alias("return_tds"),
+        # special_teams_tds ALONE. CORRECTED 2026-09-23 (a-14). This used to add
+        # pt_return_tds on the reading that it was punt-return touchdowns the
+        # player scored. It is not: `pt_` is the PUNTING block (pt_att,
+        # pt_yards, pt_inside_20, ... pt_return_yards, pt_return_tds), and
+        # pt_return_tds is touchdowns ALLOWED on this player's punts. Measured
+        # on the raw archive 1999-2026: 330 of 330 non-zero rows are P or K,
+        # and nflverse's own fantasy_points_ppr credits none of them (max 1.1
+        # on those rows). The earlier note - "all 15 punt-return touchdowns in
+        # 2025 carry special_teams_tds = 0" - was this, read the other way
+        # round: those 15 were punters. The export published a return TD, worth
+        # 6 fantasy points, on 300 punter-weeks across 93 player pages.
+        # Returners' touchdowns ARE in special_teams_tds (2025: WR 16, RB 4,
+        # CB 3, ...).
+        _col(df, "special_teams_tds", 0).fill_null(0).alias("return_tds"),
         *[_col(df, c).alias(c) for c in store.DEF_COLS],
+        *[_col(df, c).alias(c) for c in store.ST_COLS],
     ]).drop_nulls("gsis_id")
 
     cols = ("sport", "gsis_id", "season", "week", "season_type", "data_version",
@@ -117,7 +125,7 @@ def normalize_weekly_stats(data: bytes, version: str, week=None):
             "carries", "rushing_yards", "rushing_tds", "attempts", "completions",
             "passing_yards", "passing_tds", "interceptions", "fantasy_points_ppr",
             "fumbles_lost", "two_pt_conversions", "return_tds",
-            *store.DEF_COLS, "source", "ingested_ts")
+            *store.DEF_COLS, *store.ST_COLS, "source", "ingested_ts")
     rows = [("nfl", r["gsis_id"], r["season"], r["week"], r["season_type"],
              version, r["player_name"], r["position"], r["team"], r["opponent"],
              _f(r["receptions"]), _f(r["targets"]), _f(r["receiving_yards"]),
@@ -127,6 +135,7 @@ def normalize_weekly_stats(data: bytes, version: str, week=None):
              _f(r["interceptions"]), _f(r["fantasy_points_ppr"]),
              _f(r["fumbles_lost"]), _f(r["two_pt_conversions"]), _f(r["return_tds"]),
              *[_f(r[c]) for c in store.DEF_COLS],
+             *[_f(r[c]) for c in store.ST_COLS],
              SOURCE, now)
             for r in out.iter_rows(named=True)]
     return "nfl_player_week", cols, rows
@@ -189,6 +198,33 @@ def normalize_snap_counts(data: bytes, version: str, week=None):
     return "nfl_snap_counts", cols, rows
 
 
+def normalize_weekly_rosters(data: bytes, version: str, week=None):
+    """Weekly rosters -> nfl_roster_week (a-14, A-B4: the per-season jersey
+    number). Source grain; the season's number is chosen at READ time by the
+    export, not here."""
+    pl = _pl()
+    df = pl.read_parquet(io.BytesIO(data))
+    if week is not None:
+        df = df.filter(pl.col("week") == week)
+    now = time.time()
+    cols = ("sport", "gsis_id", "season", "week", "game_type", "team",
+            "data_version", "position", "jersey_number", "status", "source",
+            "ingested_ts")
+    rows = []
+    for r in df.iter_rows(named=True):
+        gid, team, wk = r.get("gsis_id"), r.get("team"), r.get("week")
+        if not gid or not team or wk is None:
+            continue                   # no join key, or no place in the PK
+        # Verbatim, as text: String in 2002-2015, Int32 from 2016, and '69B' in
+        # 2004 - see the nfl_roster_week DDL. Parsing is the reader's decision.
+        jersey = r.get("jersey_number")
+        rows.append(("nfl", gid, r.get("season"), wk, r.get("game_type"), team,
+                     version, r.get("position"),
+                     None if jersey is None else str(jersey).strip(),
+                     r.get("status"), SOURCE, now))
+    return "nfl_roster_week", cols, rows
+
+
 def normalize_players(data: bytes, version: str, week=None):
     """The gsis_id crosswalk. Writes player_xwalk + player_alias directly - it
     is two tables, not one, so it does not fit the (table, cols, rows) shape."""
@@ -235,6 +271,7 @@ NORMALIZERS = {
     "games": normalize_games,
     "snap_counts": normalize_snap_counts,
     "teams": normalize_teams,
+    "weekly_rosters": normalize_weekly_rosters,
 }
 
 
