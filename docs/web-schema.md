@@ -462,6 +462,33 @@ every read from Cloudflare's egress (b-11: HTTP 429, 15 of 15).
   (`python -m research.live_prices_writes`, 09-10 to 09-22): 336-3,488 PUTs a
   day, mean 1,618, an upper bound; the ceiling is 5,760 a day at 15 s.
 
+## coverage.json — kind `coverage` (A-C7, adopted a-05/a-12)
+
+Sportless, one file. Every sport the site declares, each with `stats`, `odds` and
+`context` - each a holding or `null`, never an empty holding and never a zero.
+`stores[]` names what was read, which is what makes a null a measured absence.
+Each source carries `span` (event instants) or `event_dates` (calendar dates,
+A-C12, for a table with no time of day), never both. Producer:
+`jobs/export_coverage.py` (track C). **In the contract, not published:** the
+producer refuses `WEB_EXPORT_DIR`, and no scheduled job runs it. A-C11's
+per-sport `status` is filed and NOT yet in the contract.
+
+## predictors/{sport}/{predictor}.json — kind `predictor` (F6, adopted a-05/a-12)
+
+A predictor and its scoring record in one file, keyed by slice. The schema
+enforces the record rule: a `published` slice must carry `record` (an object,
+never null), `reading` and `statement`; a record with `score: null` must give a
+`reason`, and one with a score must not; a `withheld` slice names at least one
+reason, carries no measured field, and has `reading` and `statement` null and
+`values_reason: withheld`. The file carries `attribution` (the credit a source's
+terms require; render its `statement` wherever a slice in `applies_to` is shown)
+and `values_policy` (`show`/`hide`, Ethan's editorial call). Producer:
+`analytics/predictor_export.py` (track F). **In the contract, not published:**
+`predictors/` has no REFRESHED declaration threaded to the uploader yet, so a
+retired predictor could never be deleted from R2.
+`tests/test_contract_coverage_predictor.py` fails if a scheduled job runs
+either producer before that exists.
+
 ## Refresh
 
 `python -m jobs.weekly_refresh` logs to

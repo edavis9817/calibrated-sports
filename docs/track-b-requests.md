@@ -1028,3 +1028,55 @@ have (`points_for / games`), and its rank you compute from the 32 rows.
 Inferred, neither built nor measured: that may be enough for plays per game and neutral pass rate; it has no EPA or
 pressure column. The producer does not read another track's store, so pace arrives - if it does -
 as a track F analytic under its own `analytics/{sport}/` prefix, not in this manifest.
+
+## 13. a-12 — the six keywords b-22 must add to `RUNTIME_ONLY` before re-syncing (2026-09-23)
+
+**Status:** the `coverage` and `predictor` kinds are adopted into the contract on track A's
+branch `a-12-rebase-a05-contract` (a-05's adoption redone against the proposals as they stand on
+`origin/main`, so it carries c-11's `event_dates` and every f-07 field). **Not merged, not
+published.** When it merges, `contract-in-sync` goes red until you re-vendor, and re-vendoring
+without the change below makes `npm run contract:types` throw.
+
+**The six, exactly.** Each constrains values at runtime and says nothing about a TypeScript type,
+so each belongs in `RUNTIME_ONLY`, not in `known`:
+
+    uniqueItems  minLength  exclusiveMinimum  exclusiveMaximum  minProperties  propertyNames
+
+Where each one is used in the adopted contract (walked from the contract file, not recalled):
+
+| keyword | uses | first site |
+|---|---|---|
+| `uniqueItems` | 6 | `CoverageHolding.seasons` |
+| `minLength` | 4 | `PredictorFile.range_note` |
+| `exclusiveMinimum` | 2 | `PredictorFile.alpha` |
+| `exclusiveMaximum` | 1 | `PredictorFile.alpha` |
+| `minProperties` | 1 | `PredictorFile.slices` |
+| `propertyNames` | 1 | `PredictorFile.slices` |
+
+The diff, against `scripts/generate-schema-types.mjs` at web `origin/main` `9884f96`:
+
+```diff
+ const RUNTIME_ONLY = new Set([
+   "allOf", "if", "then", "else", "not", "minimum", "maximum", "minItems", "maxItems",
+   "pattern", "description", "$comment", "title", "default", "examples",
++  "uniqueItems", "minLength", "exclusiveMinimum", "exclusiveMaximum", "minProperties", "propertyNames",
+ ]);
+```
+
+**Checked on a scratch copy, not in your repo** (`D:\temp\a12\webgen`: your generator from
+`origin/main` plus the a-12 contract). Unpatched, it throws `unhandled keyword "uniqueItems" at
+#/$defs/CoverageHolding/properties/seasons`. Patched, it writes `lib/schema.generated.ts` with 65
+types and 16 kinds, and `PredictorSlice` carries `reading`, `statement` and `values_reason`.
+
+- **No `oneOf` reaches you.** f-07 wrote `attribution` and `statement` with `oneOf`. Both were
+  converted to `anyOf`, because each is a disjoint null-or-object and so accepts the identical set.
+  Do not add `oneOf` to the generator on this contract's account.
+- **`propertyNames` holds a schema.** `auditKeywords` does not recurse into it once it is in
+  `RUNTIME_ONLY`. That is correct, because it is a key pattern and not a type, but it means the
+  generator will not audit a keyword placed inside it later.
+- **`PredictorSlice.record` types as `null | PredictorRecord`.** The published/withheld split (a
+  published slice has a record, a reading and a statement; a withheld one has none of them) lives
+  in an `allOf` and is enforced at runtime only. The types cannot narrow on `status`, so the page
+  must.
+- `tests/test_contract_coverage_predictor.py::FILED_TO_B` is the producer's copy of this list. The
+  test fails if the contract starts using a keyword that is on neither list.
