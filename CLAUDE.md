@@ -2086,3 +2086,22 @@ integrated them. So, in all three clones:
 - **This rule lives in the committed `CLAUDE.md`, which is one file shared by all three
   clones.** A clone that has not fetched does not see it yet - which is one more reason to
   branch off `origin/main` rather than off whatever local `main` happens to hold.
+
+### Production runs from `code\prod\`, and no unit ever works there (a-10, 2026-09-22)
+
+Scheduled tasks ran from the same working trees units branch in, so production ran whatever
+branch a unit last checked out (a-07 found `calibrated-sports` on `a-06-verify-f01-drafting`
+while three writer tasks launched from it). a-10 built two production clones pinned to
+`origin/main`, one per `.env` (the CFB jobs deliberately point `LOGGER_DB` away from
+`market_log.db`):
+
+    code\prod\calibrated-sports   logger, weekly refresh
+    code\prod\cs-cfb              CFB odds forward, weekly CFB
+
+- **Never check out, commit, edit or run a unit in `code\prod\`.** `prod_sync.ps1` reports
+  anything other than a clean `main == origin/main` as DRIFT and exits 1.
+- **Whether the tasks point there yet is a fact about Task Scheduler, not about this file.**
+  Read it (`Get-ScheduledTask`), and see `docs/runbooks/production-clone.md` for the inventory,
+  the cutover and the one commit production makes itself (the slug registry).
+- **Once they do, merging to `origin/main` is deploying.** The sync fast-forwards within the
+  hour.
