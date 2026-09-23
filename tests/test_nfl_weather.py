@@ -158,7 +158,12 @@ def _now():
     return datetime(2026, 9, 22, 12, tzinfo=UTC).timestamp()
 
 
-def test_nfl_weather_rows_carry_offsets_roof_and_horizon(store):
+def test_nfl_weather_rows_carry_offsets_roof_and_horizon(store, monkeypatch):
+    # `fetched_ts` is the REAL fetch instant (ingest_feeds.py:404), on purpose - a
+    # forecast's horizon is only meaningful against the clock the fetch actually
+    # happened on, and a caller must not be able to write a false one. So freeze the
+    # real clock here rather than threading `now` into it, or this assertion rots.
+    monkeypatch.setattr(time, "time", _now)
     games = games_frame([
         ("2026_03_A_GB", 2026, "2026-09-24", "20:15", "GNB00", "Lambeau Field", "outdoors"),
         ("2026_03_B_DET", 2026, "2026-09-24", "13:00", "DET00", "Ford Field", "dome"),
