@@ -416,3 +416,120 @@ def test_writing_twice_changes_nothing(store, tmp_path):
     assert written == 0
     with open(os.path.join(out, "cfb", "manifest.json"), encoding="utf-8") as f:
         assert json.load(f)["kind"] == "sport_manifest"
+
+
+# --- c-14: the spread's SIGN, pinned against results rather than against the transform.
+# CFBD `spread` is the home side's betting line (negative = home favoured); nflverse
+# `spread_line` is the opposite, and copying the NFL rule published every CFB spread
+# upside down (c-13 P1). A test that only restated the transform would have passed on
+# the copy too, so these assert the DIRECTION against who actually won.
+
+def _line(con, game_id, spread, home_ml, away_ml):
+    g = con.execute("SELECT season, week, home_id, away_id FROM cfb_games WHERE game_id=?",
+                    (game_id,)).fetchone()
+    _insert(con, "cfb_game_lines", game_id=game_id, season=g[0], week=g[1],
+            home_id=g[2], away_id=g[3], provider="consensus", spread=spread, total=50.5,
+            home_moneyline=home_ml, away_moneyline=away_ml)
+    con.commit()
+
+
+def _game(files, slug, game_id):
+    return next(g for g in files[f"cfb/teams/{slug}.json"]["schedule"]
+                if g["game_id"] == str(game_id))
+
+
+def test_the_favourite_is_the_side_the_book_favoured_and_it_is_positive(store):
+    """Invented: Alpha State at home, CFBD line -7.0, home moneyline -300, won 31-17.
+    The contract says positive = THIS team favoured, so Alpha reads +7.0 and Beta -7.0."""
+    _line(store, 100, -7.0, -300.0, 240.0)
+    files, _ = X.build(store)
+    home, away = _game(files, "alpha-state-aces", 100), _game(files, "beta-tech-bears", 100)
+    assert home["home"] and not away["home"]
+    assert home["result"] == "W" and away["result"] == "L"
+    assert home["spread"] == 7.0 and away["spread"] == -7.0
+    # the side the moneyline favours is the side the published spread favours
+    assert (home["spread"] > 0) == (-300.0 < 240.0)
+
+
+def test_an_away_favourite_is_positive_on_the_away_file(store):
+    """The other branch: Alpha State AWAY at Beta Tech, home line +3.5 (Beta the dog)."""
+    _line(store, 101, 3.5, 150.0, -175.0)
+    files, _ = X.build(store)
+    assert _game(files, "alpha-state-aces", 101)["spread"] == 3.5
+    assert _game(files, "beta-tech-bears", 101)["spread"] == -3.5
+
+
+def test_a_pickem_is_zero_on_both_sides_and_never_negative_zero(store):
+    _line(store, 100, 0.0, -110.0, -110.0)
+    files, _ = X.build(store)
+    for slug in ("alpha-state-aces", "beta-tech-bears"):
+        s = _game(files, slug, 100)["spread"]
+        assert s == 0 and json.dumps(s) == "0.0"
+
+
+REAL = pytest.mark.skipif(not os.path.exists(paths.db_path()),
+                          reason="reads the real cfb.db, which CI has no copy of")
+
+
+def _ro():
+    import sqlite3
+    return sqlite3.connect(f"file:{paths.db_path()}?mode=ro", uri=True)
+
+
+@REAL
+def test_alabama_favoured_by_18_5_over_florida_state_is_published_as_plus_18_5():
+    """A NAMED GAME WITH A KNOWN OUTCOME. 2026 week 3, game 401856685: Florida State at
+    Alabama. CFBD stores the line -18.5 (Bovada and DraftKings alike) with Alabama's
+    moneyline at -1350/-1500, and Alabama won 50-36. Before c-14 the Alabama file said
+    -18.5 and the page rendered "+18.5" - an 18.5-point UNDERDOG that won."""
+    con = _ro()
+    try:
+        g = con.execute("SELECT home_id, away_id, home_points, away_points FROM cfb_games "
+                        "WHERE game_id=401856685 AND valid_to_ts IS NULL").fetchone()
+        assert g is not None, "the pinned game left the store - re-pin, do not delete"
+        home_id, away_id, hp, ap = g
+        assert hp > ap                                     # Alabama, at home, won
+        lines, abbrs = X.game_lines(con), X.abbr_map(con)
+        assert lines[401856685][0] == -18.5                # CFBD: negative = home favoured
+        rows = {tid: next(r for r in X.schedule_rows(con, tid, lines, abbrs, set())
+                          if r["game_id"] == "401856685") for tid in (home_id, away_id)}
+    finally:
+        con.close()
+    ala, fsu = rows[home_id], rows[away_id]
+    assert ala["home"] and ala["result"] == "W" and ala["spread"] == 18.5
+    assert not fsu["home"] and fsu["result"] == "L" and fsu["spread"] == -18.5
+
+
+@REAL
+def test_over_the_whole_store_the_published_favourite_wins_most_games():
+    """The direction, over every scored game with a line, from BOTH sides - through the
+    exporter's own line selection and `team_spread`. Measured c-14 (2026-09-23): the
+    home favourite wins ~79% of games and corr(team spread, own margin) ~ +0.71; the
+    wrong sign gives the mirror image, so a flip cannot pass either bound."""
+    con = _ro()
+    try:
+        lines = X.game_lines(con)
+        games = con.execute("SELECT game_id, home_points, away_points FROM cfb_games "
+                            "WHERE valid_to_ts IS NULL AND home_points IS NOT NULL AND "
+                            "away_points IS NOT NULL").fetchall()
+    finally:
+        con.close()
+    xs, ys, fav, fav_won = [], [], 0, 0
+    for gid, hp, ap in games:
+        spread = lines.get(gid, (None, None))[0]
+        if spread is None:
+            continue
+        for home, margin in ((True, hp - ap), (False, ap - hp)):
+            s = X.team_spread(spread, home)
+            xs.append(s)
+            ys.append(margin)
+            if s > 0:
+                fav += 1
+                fav_won += margin > 0
+    assert len(xs) > 20000, len(xs)
+    n = len(xs)
+    mx, my = sum(xs) / n, sum(ys) / n
+    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    corr = cov / (sum((x - mx) ** 2 for x in xs) * sum((y - my) ** 2 for y in ys)) ** 0.5
+    assert corr > 0.5, corr
+    assert fav_won / fav > 0.7, (fav_won, fav)

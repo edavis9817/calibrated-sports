@@ -200,8 +200,7 @@ def schedule_rows(con, team_id, lines, abbrs, blanks):
             "points_for": pf, "points_against": pa,
             "result": None if pf is None or pa is None else
                       ("W" if pf > pa else "L" if pf < pa else "T"),
-            # Spread from the team's own side; CFBD quotes the HOME line (measured).
-            "spread": None if spread is None else (spread if home else -spread),
+            "spread": team_spread(spread, home),
             "total": total,
             # No coach feed is ingested: the column exists, the data does not.
             "coach": None, "opponent_coach": None,
@@ -216,6 +215,22 @@ def _opponent_abbr(opp_id, listed, abbrs, blanks):
     if not out:
         blanks.add(opp_id)
     return out
+
+
+def team_spread(spread, home):
+    """CFBD `spread` is the HOME side's betting line: NEGATIVE when the home team is
+    favoured ("Alabama -18.5" is stored -18.5 with Alabama at home). The contract's
+    `spread` is POSITIVE when THIS team is favoured. So the home side negates and the
+    away side keeps the number - the opposite of `jobs.export_web.team_spread`, because
+    nflverse `spread_line` is positive when the home team is favoured. c-14 measured
+    it: corr(CFBD spread, home margin) = -0.713 over 13,738 scored games on the line
+    this export selects, and every provider in `cfb_game_lines` is negative. Copying the
+    NFL rule here published every CFB spread with the wrong sign (c-13, P1)."""
+    if spread is None or home is None:
+        return None
+    if spread == 0:
+        return 0.0                    # a pick'em; negating it would publish -0.0
+    return -spread if home else spread
 
 
 def game_lines(con):

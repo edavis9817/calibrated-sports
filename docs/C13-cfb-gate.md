@@ -118,6 +118,14 @@ gate.
   *Accept:* a test with a fixture CFBD row (home spread -7.0) asserts the home side exports +7.0
   and the away side -7.0; and a check over the exported tree asserts corr(spread, margin) > 0.
   **Exposure today:** raw JSON at `/data/cfb/teams/*.json` only. No page renders a CFB line.
+  **FIXED IN CODE, c-14 (2026-09-23); NOT YET REPUBLISHED.** `export_cfb_web.team_spread`.
+  The page is not a second sign error: `lib/format.spreadLine` renders the contract's
+  positive-favoured number the sportsbook way (favourite carries the minus), so exported -18.5
+  printing "+18.5" is one exporter error seen through a correct formatter; after the fix
+  Alabama exports +18.5 and prints "−18.5". Over the same 138 files the staged re-export reads
+  corr **+0.719** (21,378 rows with a line and a score: 21,374 flipped, 4 pick'ems unchanged,
+  no other field moved). The served tree keeps the old sign until the 138 changed team keys are
+  uploaded through the runbook.
 - **P2 - `ScheduleGame.opponent` is a display name; the contract says slug** (c-12's finding,
   confirmed: 12 of 12 on Alabama).
   *Accept:* every `opponent` matches `^[a-z0-9][a-z0-9-]*$`, and every opponent that is an
