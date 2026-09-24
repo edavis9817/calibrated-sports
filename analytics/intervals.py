@@ -300,3 +300,47 @@ def share_bootstrap(blocks, draws: int = 2000, conf: float = 0.95,
     return histogram_bootstrap(vecs, stats, draws=draws, conf=conf, seed=seed,
                                rows_by_block={k: 1 for k in vecs},
                                subject=subject)
+
+
+def ratio_t(blocks, conf: float = 0.95, bounds=None, rows=None) -> Estimate:
+    """A ratio of sums with a cluster-robust t interval. `blocks` is
+    {key: (num, den)}; the block is the unit of independence, as everywhere.
+
+        est  = sum(num) / sum(den)
+        se^2 = n/(n-1) * sum((num_b - est*den_b)^2) / sum(den)^2
+        est +/- t(n-1) * se
+
+    WHY NOT THE BOOTSTRAP, FOR A TEAM TWO GAMES INTO A SEASON. A percentile
+    block bootstrap over two blocks can only span the two blocks, so its width
+    is how closely two games happened to agree. Measured by
+    `research/a25_small_n_coverage.py` on 2023-2025 team-seasons, against the
+    full-season value: the bootstrap covers 0.51-0.53 at n=2, 0.76-0.77 at n=3
+    and 0.83 at n=4 while calling itself 95%; this interval covers 0.94-0.96 at
+    n=2 and 0.95-0.97 through n=5, by being as wide as two games deserve.
+
+    `bounds` clips to the range the quantity can take - a rate cannot leave
+    [0, 1], so clipping loses no coverage. A zero standard error (every block
+    the same ratio) is not certainty: the interval becomes `bounds`, or
+    unbounded when there are none, which the export drops and counts.
+    """
+    items = [(k, (float(a), float(b))) for k, (a, b) in
+             (blocks.items() if hasattr(blocks, "items") else blocks) if b]
+    n = len(items)
+    method = "cluster_t%d" % int(conf * 100)
+    lo_b, hi_b = bounds if bounds else (float("-inf"), float("inf"))
+    total_rows = rows if rows is not None else int(sum(b for _k, (_a, b) in items))
+    if n == 0:
+        return Estimate(None, lo_b, hi_b, 0, method, 0)
+    num = sum(a for _k, (a, _b) in items)
+    den = sum(b for _k, (_a, b) in items)
+    est = num / den
+    if n == 1:
+        return Estimate(est, float("-inf"), float("inf"), 1, method, total_rows)
+    ss = sum((a - est * b) ** 2 for _k, (a, b) in items)
+    se = math.sqrt(n / (n - 1) * ss) / den
+    if se == 0:
+        return Estimate(est, lo_b, hi_b, n, method, total_rows)
+    df = n - 1
+    t = _T975[df] if (conf == 0.95 and df < len(_T975)) else _Z[conf]
+    lo, hi = max(lo_b, est - t * se), min(hi_b, est + t * se)
+    return Estimate(est, min(lo, est), max(hi, est), n, method, total_rows)

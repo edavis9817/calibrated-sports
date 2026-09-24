@@ -14,6 +14,12 @@ Two tables, both components and no derived totals:
                 inter-snap seconds and drives as COUNTS. Pace is a division at
                 read time, over a sample the caller can see.
 
+`f_team_game_units`  one row per (game, offence, situation): the counts behind
+                the team unit table - early-down plays and dropbacks, EPA summed
+                over the plays it was measured on, sacks-or-hits, and charted
+                pressures where participation exists. Defence is the same row
+                read from the other side (`opponent`), so the two cannot drift.
+
 WHY A SPINE AT ALL. All five analytics slice the same three facts - who was
 involved, what the score state was, what the down and distance was. Deriving
 that five times gives five chances for the definitions to drift apart, and this
@@ -90,6 +96,32 @@ CREATE TABLE IF NOT EXISTS f_team_game_pace (
 );
 CREATE INDEX IF NOT EXISTS ix_ftgp ON f_team_game_pace(season, team, situation);
 
+-- THE UNIT TABLE'S COUNTS. Offence is `team`; a defence is the rows whose
+-- `opponent` it is. `charted_dropbacks` and `pressures` are NULL - not 0 - for
+-- a season with no participation file: absence of a feed is not zero pressure,
+-- and a zero here would be the silent-zero class written on purpose.
+CREATE TABLE IF NOT EXISTS f_team_game_units (
+    season            INTEGER NOT NULL,
+    week              INTEGER NOT NULL,
+    season_type       TEXT    NOT NULL,
+    game_id           TEXT    NOT NULL,
+    team              TEXT    NOT NULL,   -- the offence
+    opponent          TEXT,               -- the defence
+    situation         TEXT    NOT NULL,   -- all | neutral
+    plays             INTEGER NOT NULL,   -- runs and passes, no kneels/spikes
+    dropbacks         INTEGER NOT NULL,   -- `pass` = 1: includes sacks, scrambles
+    early_plays       INTEGER NOT NULL,   -- downs 1 and 2
+    early_dropbacks   INTEGER NOT NULL,
+    epa_plays         INTEGER NOT NULL,   -- plays carrying a non-null epa
+    epa_sum           REAL,
+    sack_or_hit       INTEGER NOT NULL,   -- dropbacks with sack = 1 or qb_hit = 1
+    charted_dropbacks INTEGER,            -- dropbacks with a non-null was_pressure
+    pressures         INTEGER,            -- of those, was_pressure = true
+    PRIMARY KEY (game_id, team, situation)
+);
+CREATE INDEX IF NOT EXISTS ix_ftgu ON f_team_game_units(season, team, situation);
+CREATE INDEX IF NOT EXISTS ix_ftgu_opp ON f_team_game_units(season, opponent, situation);
+
 CREATE TABLE IF NOT EXISTS f_spine_build (
     season      INTEGER PRIMARY KEY,
     pull_date   TEXT    NOT NULL,
@@ -111,14 +143,35 @@ PBP_COLUMNS = (
     "qb_dropback", "pass_attempt", "rush_attempt", "complete_pass", "shotgun",
     "fixed_drive", "passer_player_id", "receiver_player_id", "rusher_player_id",
     "air_yards", "yards_gained", "yards_after_catch", "receiving_yards",
-    "rushing_yards", "passing_yards",
+    "rushing_yards", "passing_yards", "pass", "epa", "sack", "qb_hit",
 )
+
+# The participation file that carries `was_pressure`, 2016 onward. Read by
+# `build_units` when it exists for the season and never assumed to.
+PARTICIPATION = "pbp_participation_{season}.parquet"
 
 SCRIPTS = ("trailing_7plus", "trailing_1_6", "tied", "leading_1_6",
            "leading_7plus")
 DOWN_BUCKETS = ("1st", "2nd", "3rd_short", "3rd_med", "3rd_long", "4th", "other")
 NEUTRAL_WP = (0.20, 0.80)
 NEUTRAL_HALF_SECONDS = 120
+EARLY_DOWNS = (1, 2)
+
+
+def neutral_definition() -> str:
+    """The neutral rule IN WORDS, generated from the constants that apply it.
+
+    Every metric that restricts to neutral plays carries this sentence in its
+    `unit`, so a page states the definition the number was computed under
+    rather than one somebody remembered. Built from `NEUTRAL_WP` and
+    `NEUTRAL_HALF_SECONDS`, so editing the rule edits the sentence.
+    """
+    lo, hi = NEUTRAL_WP
+    return ("neutral = offence's win probability between %d%% and %d%% "
+            "(game state only, not the betting line), more than %d:%02d left "
+            "in the half, regulation, runs and passes only, no kneels or spikes"
+            % (round(lo * 100), round(hi * 100), NEUTRAL_HALF_SECONDS // 60,
+               NEUTRAL_HALF_SECONDS % 60))
 
 
 def _expressions():
@@ -233,12 +286,68 @@ def build_pace(path):
                      how="vertical").collect()
 
 
+def build_units(path, participation_path=None):
+    """One row per (game, offence, situation), components only.
+
+    `participation_path` is the season's participation parquet, or None. With
+    it, `was_pressure` is joined on (game_id, play_id) and counted over the
+    dropbacks it charts; without it both pressure columns are NULL.
+    """
+    import polars as pl
+    plays = (_scrimmage(path)
+             .filter(pl.col("play_type").is_in(["pass", "run"]))
+             .with_columns(pl.col("play_id").cast(pl.Int64)))
+    if participation_path:
+        part = (pl.scan_parquet(participation_path)
+                .select(pl.col("nflverse_game_id").alias("game_id"),
+                        pl.col("play_id").cast(pl.Int64),
+                        pl.col("was_pressure"))
+                .unique(subset=["game_id", "play_id"], keep="first"))
+        plays = plays.join(part, on=["game_id", "play_id"], how="left")
+    else:
+        plays = plays.with_columns(pl.lit(None, dtype=pl.Boolean)
+                                   .alias("was_pressure"))
+    db = pl.col("pass").fill_null(0) == 1
+    early = pl.col("down").is_in(list(EARLY_DOWNS))
+
+    def agg(lf, situation):
+        out = (lf.group_by(["season", "week", "season_type", "game_id",
+                            "posteam", "defteam"])
+               .agg(pl.len().alias("plays"),
+                    db.sum().alias("dropbacks"),
+                    early.sum().alias("early_plays"),
+                    (early & db).sum().alias("early_dropbacks"),
+                    pl.col("epa").is_not_null().sum().alias("epa_plays"),
+                    pl.col("epa").sum().alias("epa_sum"),
+                    (db & ((pl.col("sack").fill_null(0) == 1)
+                           | (pl.col("qb_hit").fill_null(0) == 1)))
+                    .sum().alias("sack_or_hit"),
+                    (db & pl.col("was_pressure").is_not_null())
+                    .sum().alias("charted_dropbacks"),
+                    (db & pl.col("was_pressure").fill_null(False))
+                    .sum().alias("pressures"))
+               .with_columns(pl.lit(situation).alias("situation")))
+        if not participation_path:
+            out = out.with_columns(
+                pl.lit(None, dtype=pl.Int64).alias("charted_dropbacks"),
+                pl.lit(None, dtype=pl.Int64).alias("pressures"))
+        return out
+
+    return pl.concat([agg(plays, "all"),
+                      agg(plays.filter(pl.col("is_neutral")), "neutral")],
+                     how="vertical_relaxed").collect()
+
+
 USAGE_COLS = ("season", "week", "season_type", "game_id", "play_id",
               "player_id", "role", "team", "opponent", "script", "down_bucket",
               "is_neutral", "shotgun", "is_target", "is_reception", "is_carry",
               "is_dropback", "air_yards", "yards", "yac")
 PACE_COLS = ("season", "week", "season_type", "game_id", "team", "opponent",
              "situation", "plays", "seconds", "timed_plays", "drives")
+UNITS_COLS = ("season", "week", "season_type", "game_id", "team", "opponent",
+              "situation", "plays", "dropbacks", "early_plays", "early_dropbacks",
+              "epa_plays", "epa_sum", "sack_or_hit", "charted_dropbacks",
+              "pressures")
 
 
 def run_build(seasons=None, verbose=True):
@@ -248,20 +357,29 @@ def run_build(seasons=None, verbose=True):
     if not files:
         raise SystemExit("no play-by-play in the archive - nothing built. A "
                          "build that writes nothing and exits 0 is not a build.")
-    stats = {"seasons": 0, "usage_rows": 0, "pace_rows": 0}
+    stats = {"seasons": 0, "usage_rows": 0, "pace_rows": 0, "units_rows": 0}
     now = int(time.time())
+    # Participation by season, from the same mirror. A season without a file
+    # builds its units with NULL pressure columns, never zeros.
+    part = {s: p for s, p, _pull in paths.seasonal_files(PARTICIPATION)}
     for season, path, pull in files:
         t0 = time.time()
         usage = build_usage(path).rename({"posteam": "team", "defteam": "opponent"})
         pace = build_pace(path).rename({"posteam": "team", "defteam": "opponent"})
+        units = build_units(path, part.get(season)).rename(
+            {"posteam": "team", "defteam": "opponent"})
         con.execute("DELETE FROM f_play_usage WHERE season=?", (season,))
         con.execute("DELETE FROM f_team_game_pace WHERE season=?", (season,))
+        con.execute("DELETE FROM f_team_game_units WHERE season=?", (season,))
         con.executemany(
             "INSERT INTO f_play_usage VALUES (%s)" % ",".join("?" * len(USAGE_COLS)),
             usage.select(USAGE_COLS).rows())
         con.executemany(
             "INSERT INTO f_team_game_pace VALUES (%s)" % ",".join("?" * len(PACE_COLS)),
             pace.select(PACE_COLS).rows())
+        con.executemany(
+            "INSERT INTO f_team_game_units VALUES (%s)" % ",".join("?" * len(UNITS_COLS)),
+            units.select(UNITS_COLS).rows())
         games = con.execute("SELECT COUNT(DISTINCT game_id) FROM f_play_usage "
                             "WHERE season=?", (season,)).fetchone()[0]
         plays = con.execute("SELECT COUNT(DISTINCT game_id || ':' || play_id) "
@@ -272,10 +390,12 @@ def run_build(seasons=None, verbose=True):
         stats["seasons"] += 1
         stats["usage_rows"] += len(usage)
         stats["pace_rows"] += len(pace)
+        stats["units_rows"] += len(units)
         if verbose:
-            print("  %d  usage %7d  pace %5d  games %4d  %.1fs"
-                  % (season, len(usage), len(pace), games, time.time() - t0),
-                  flush=True)
+            print("  %d  usage %7d  pace %5d  units %5d%s  games %4d  %.1fs"
+                  % (season, len(usage), len(pace), len(units),
+                     "" if season in part else " (no participation)", games,
+                     time.time() - t0), flush=True)
     return stats
 
 
@@ -295,8 +415,9 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if a.build:
         s = run_build(seasons=set(a.season) if a.season else None)
-        print("built %d seasons: %d usage rows, %d pace rows -> %s"
-              % (s["seasons"], s["usage_rows"], s["pace_rows"], paths.db_path()))
+        print("built %d seasons: %d usage rows, %d pace rows, %d units rows -> %s"
+              % (s["seasons"], s["usage_rows"], s["pace_rows"], s["units_rows"],
+                 paths.db_path()))
     if a.status:
         rows = status()
         if not rows:

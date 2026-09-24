@@ -28,32 +28,54 @@ counted but not timed, which is why `timed_plays` is stored beside `plays`
 instead of being assumed equal.
 
 `n` IS GAMES. Plays inside a game share a script and an opponent.
+
+THE INTERVAL IS `intervals.ratio_t`, a cluster-robust t over games (unit a-25).
+It was a percentile block bootstrap with one fixed seed for every team - so 32
+teams side by side on the index shared their resamples, which is the common-
+random-number arrangement `analytics/crn_check.py` measured as anti-conservative
+- and `MIN_GAMES` was 5, so the current season published nothing until October.
+The by-season headline now publishes from 2 games, which the bootstrap could not
+honestly do: over two blocks it covered the full-season value about half the
+time while calling itself 95% (`research/a25_small_n_coverage.py`). Both
+statistics are ratios of sums - seconds over timed plays, plays over games - so
+the same interval serves both.
 """
 import argparse
 import sys
 
-from analytics import metrics, paths
-from analytics.intervals import block_bootstrap
+from analytics import metrics, paths, spine
+from analytics.intervals import ratio_t
 
-MIN_GAMES = 5
+MIN_GAMES = 5            # the pooled, all-seasons headline
+MIN_GAMES_SEASON = 2     # by season: one game has no interval, two do
 SITUATION = "neutral"
 
 REQUIRES = (("pbp", "wp"), ("pbp", "game_seconds_remaining"),
             ("pbp", "play_type"))
 
+# The page-facing reason the number is neutral-only, from the module docstring
+# above. Carried into every unit so the caveat travels with the figure.
+WHY_NEUTRAL = ("Raw plays per game is mostly a measure of how the games went: a "
+               "team that trailed all year ran more plays, faster, because it "
+               "was losing, and a team that led ran fewer to bleed the clock. "
+               "Excluding garbage time is what makes the number about the team")
+
 KINDS = {
     "seconds_per_play": (
         "Neutral-situation seconds per play",
-        "seconds between snaps within a drive, neutral situations only"),
+        "seconds between snaps within a drive, neutral situations only, "
+        "regular season"),
     "plays_per_game": (
         "Neutral-situation plays per game",
-        "run and pass plays in neutral situations, per game; still partly a "
-        "scoreboard measure - a team blown out weekly has fewer by construction"),
+        "run and pass plays in neutral situations, per game, regular season; "
+        "still partly a scoreboard measure - a team blown out weekly has fewer "
+        "by construction"),
 }
 
 
 def metric_for(kind, per_season):
     label, unit = KINDS[kind]
+    unit = "%s. %s. %s" % (unit, WHY_NEUTRAL, spine.neutral_definition())
     return metrics.Metric(
         key="pace.%s%s" % (kind, ".by_season" if per_season else ""),
         label=label + (", by season" if per_season else ", pooled"),
@@ -70,33 +92,29 @@ def _rows(con, season_from, season_to):
         "AND season_type='REG'", (SITUATION, season_from, season_to)).fetchall()
 
 
-def _sec_per_play(rows):
-    secs = sum(r[0] for r in rows if r[0] is not None)
-    n = sum(r[1] for r in rows if r[0] is not None)
-    return (secs / n) if n else None
-
-
-def _plays_per_game(rows):
-    return sum(r[0] for r in rows) / len(rows) if rows else None
-
-
-def compute(con, kind, season_from, season_to, per_season, min_games=MIN_GAMES):
-    blocks = {}
+def compute(con, kind, season_from, season_to, per_season, min_games=None):
+    """[(team, slice, Estimate)]. Both kinds are a ratio of sums per game:
+    seconds over timed plays, or plays over one game."""
+    if min_games is None:
+        min_games = MIN_GAMES_SEASON if per_season else MIN_GAMES
+    blocks, rows = {}, {}
     for team, season, game, plays, seconds, timed in _rows(con, season_from, season_to):
         key = (team, str(season) if per_season else "")
         if kind == "seconds_per_play":
-            row = (seconds, timed)
+            if seconds is None or not timed:
+                continue
+            pair = (seconds, timed)
         else:
-            row = (plays,)
-        blocks.setdefault(key, {}).setdefault(game, []).append(row)
-    stat = _sec_per_play if kind == "seconds_per_play" else _plays_per_game
+            pair = (plays, 1)
+        blocks.setdefault(key, {})[game] = pair
+        rows[key] = rows.get(key, 0) + plays
     out = []
-    for (team, slice_key), by_game in sorted(blocks.items()):
+    for key, by_game in sorted(blocks.items()):
         if len(by_game) < min_games:
             continue
-        e = block_bootstrap(by_game, stat)
+        e = ratio_t(by_game, bounds=(0.0, float("inf")), rows=rows[key])
         if e.est is not None:
-            out.append((team, slice_key, e))
+            out.append((key[0], key[1], e))
     return out
 
 
