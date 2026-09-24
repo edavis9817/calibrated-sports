@@ -111,6 +111,10 @@ def _retention():
             f"they were ingested, and held for as long as the market is on the site")
 
 
+_PAIRING = ("pairing a snap-count player id with a gsis id where no crosswalk row "
+            "does (pfr_alias), which every snap figure reads through")
+
+
 # `last_read`: how "last read" is measured, per source.
 #   ("health", names)       max(last_ok_ts) over those source_health rows
 #   ("quotes", pairs)       newest ingest_ts in `quotes` for (source, venue LIKE)
@@ -147,7 +151,8 @@ SOURCES = {
     "nflverse.rosters": dict(
         name="nflverse", sports=("nfl",), layer="FACTS",
         provides="Weekly rosters: team, jersey number and headshot URL per player-week",
-        used_for="Headshots and jersey numbers",
+        used_for=("Headshots and jersey numbers, and archived-release evidence for "
+                  + _PAIRING),
         last_read=("health", ("nflverse:weekly_rosters",))),
     "nflverse.teams": dict(
         name="nflverse", sports=("nfl",), layer="FACTS",
@@ -163,7 +168,8 @@ SOURCES = {
     "nflverse.participation": dict(
         name="nflverse", sports=("nfl",), layer="FACTS",
         provides="Participation: routes, coverage and pressure, refreshed after the postseason",
-        used_for="Analytics metrics whose basis is participation",
+        used_for=("Analytics metrics whose basis is participation, and on-field evidence "
+                  "for " + _PAIRING),
         last_read=("health", ("nflverse:participation",))),
     "nflverse.ngs": dict(
         name="nflverse", sports=("nfl",), layer="FACTS",
@@ -175,7 +181,8 @@ SOURCES = {
         name="nflverse", sports=("nfl",), layer="FACTS",
         provides=("Draft picks, including Pro-Football-Reference's career value columns, which "
                   "are credited to Sports-Reference where shown"),
-        used_for="The drafting-strengths predictor",
+        used_for=("The drafting-strengths predictor, and draft-slot evidence for "
+                  + _PAIRING),
         last_read=("health", ("nflverse:draft_picks",))),
     "nflverse.injuries": dict(
         name="nflverse", sports=("nfl",), layer="CONTEXT",
