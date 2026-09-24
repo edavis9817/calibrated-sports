@@ -655,6 +655,9 @@ def run(season, week, dest, read_ts=None, db=None, log=print):
         raise NoRows(f"board read produced ZERO rows for {season} wk{week} at {read_iso} "
                      f"({dict(counts) or 'no Odds API prop quotes'}) - nothing written")
     states = B.lean_states(old + new_ev, read_ts)
+    # Every published lean of the week on this read, as one row, in its ledger
+    # state - refused BEFORE any write (a-34: a moved line used to drop it).
+    on_board = B.leans_on_board(old + new_ev, rows, season, week, read_ts)
     generated_at = E.iso()
     doc = {**E.envelope("board_read", generated_at, "nfl"),
            "read_at": read_iso, "season": season, "week": week, "rows": rows}
@@ -671,12 +674,20 @@ def run(season, week, dest, read_ts=None, db=None, log=print):
              "definitions": {
                  "line": "the main line AT THIS READ: the listed threshold whose median de-vigged "
                          "over probability across DraftKings, FanDuel and BetMGM is closest to 0.5. "
-                         "is_main is a property of the read, not of the market.",
+                         "is_main is a property of the read, not of the market; it is false only on "
+                         "a row kept for a published lean whose line the main line moved off.",
                  "gap_pp": "model minus market, probability points, signed",
                  "lean": "over at gap >= +T, under at gap <= -T",
                  "longshot": "market P(over) outside [0.15, 0.85]; multiplicative de-vig is biased "
                              "there - to revisit with Shin or power de-vig once settled data exists",
-                 "void": "market_pulled | inactive | no_snap - a voided lean stays on the ledger"}}
+                 "void": "market_pulled | inactive | no_snap - a voided lean stays on the ledger",
+                 "published_lean": "a lean is published at the first read that carries it and graded "
+                                   "on the line it was published at, forever. It never leaves the "
+                                   "board: if the main line moves off it, or the current read stops "
+                                   "leaning that way at it, the row stays, frozen as priced at "
+                                   "priced_at, flagged line_moved_after_publication or "
+                                   "lean_changed_after_publication. So every published lean is on "
+                                   "every later read, as exactly one row."}}
     wanted = {read_key(season, week, read_iso): doc, index_key(season, week): index}
     # THE GATE, BEFORE ANY WRITE: contract and source declarations for both
     # files. The ledger is written only once both pass, and the JSON only after
@@ -694,7 +705,7 @@ def run(season, week, dest, read_ts=None, db=None, log=print):
         status[r["status"]] += 1
     summary = {"read_at": read_iso, "rows": len(rows), "status": dict(status),
                "fresh": dict(counts), "ledger_new": ledger_new, "written": written,
-               "leans": index["leans"], "tables_read": sorted(reads),
+               "leans": index["leans"], "leans_on_board": on_board, "tables_read": sorted(reads),
                "sources": {f"{s}/{k}": list(v) for (s, k), v in sorted(approved.items())}}
     log(json.dumps(summary))
     return summary
@@ -864,7 +875,21 @@ def check_tree(dest, show_keys=False, log=print):
         csv = pl.read_csv(ledger_path(dest).replace(".parquet", ".csv"), infer_schema_length=0)
         if csv.height != pq.height:
             raise E.ContractError(f"ledger.csv has {csv.height} rows, ledger.parquet {pq.height}")
-        B.lean_states(pq.to_dicts(), time.time())
+        led = pq.to_dicts()
+        B.lean_states(led, time.time())
+        # a-34: each week's LATEST read carries every lean the ledger had published
+        # for it by then, in the state the ledger then gave it. Events after that
+        # read (another week's read may grade this week's lean) are not yet on it.
+        for k in sorted(js):
+            idx = js[k]
+            if idx.get("kind") != "board_index":
+                continue
+            read = js.get(read_key(idx["season"], idx["week"], idx["latest"]))
+            if read is None:
+                raise E.ContractError(f"{k} names latest {idx['latest']}, which is not in the tree")
+            asof = [e for e in led if e["event_at"] <= idx["latest"]]
+            log(B.leans_on_board(asof, read["rows"], idx["season"], idx["week"],
+                                 parse_iso(idx["latest"])))
     total = 0
     for k in sorted(board):
         size = os.path.getsize(board[k])

@@ -288,7 +288,14 @@ def read(env, ts):
     wd = env["J"].week_dir(env["dest"], 2026, 3)
     idx = json.load(open(os.path.join(wd, "index.json")))
     doc = json.load(open(os.path.join(wd, env["J"].read_name(idx["latest"]))))
-    return {r["claim_id"].split(":")[1] + ":" + r["market"]: r for r in doc["rows"]}, idx
+    env["rows"] = doc["rows"]                    # every row, including kept leans (a-34)
+    main = [r for r in doc["rows"] if r["is_main"]]
+    assert len({r["claim_id"] for r in main}) == len(main)                # one main row per claim
+    return {r["claim_id"].split(":")[1] + ":" + r["market"]: r for r in main}, idx
+
+
+def by_row_id(env):
+    return {r["row_id"]: r for r in env["rows"]}
 
 
 def ledger(env):
@@ -350,6 +357,12 @@ def test_the_week_every_state_and_every_lean_accounted_for(env):
     sb_leans = {(e["line"], e["side"]) for e in l2
                 if e["claim_id"].endswith("00-SB:receptions") and e["event"] == "published"}
     assert sb_leans == {(7.5, "over"), (6.5, "over")}                       # both kept
+    # ...and both on the READ: the 7.5 lean is kept as it was priced, flagged (a-34)
+    sb75 = by_row_id(env)["2026-03-NYJ-DET:00-SB:receptions:7.5"]
+    assert sb75["lean"] == "over" and sb75["status"] == B.UPCOMING
+    assert sb75["line_moved_after_publication"] is True and sb75["is_main"] is False
+    assert sb75["priced_at"] == iso(T0)
+    assert sb["line_moved_after_publication"] is False and sb["priced_at"] == iso(T0 + 21 * H)
     pitts = [e for e in l2 if e["claim_id"].endswith("00-KP:receptions")]
     assert [e["event"] for e in pitts] == ["published", "void"]
     assert pitts[1]["void_reason"] == B.VOID_MARKET_PULLED
@@ -402,6 +415,14 @@ def test_the_week_every_state_and_every_lean_accounted_for(env):
     sb = {e["line"]: e["result"] for e in final
           if e["claim_id"].endswith("00-SB:receptions") and e["event"] == "graded"}
     assert sb == {6.5: "cleared", 7.5: "missed"}
+    # the read says the same thing the ledger does, line by line
+    on_read = {r["line"]: (r["status"], r["lean_result"]) for r in env["rows"]
+               if r["claim_id"].endswith("00-SB:receptions")}
+    assert on_read == {6.5: (B.CLEARED, "cleared"), 7.5: (B.MISSED, "missed")}
+    # published = graded + upcoming + live + void, ON THE ROWS, no remainder
+    leaning = [r for r in env["rows"] if r["lean"]]
+    assert len(leaning) == sum(idx["leans"].values()) == len(
+        [e for e in final if e["event"] == "published"])
 
     # ---- no gaps, ever: every published lean is graded or void once the week is over
     states = B.lean_states(final, K_DET + 5 * H)
@@ -488,3 +509,103 @@ def test_the_publish_tree_is_refused_because_the_board_has_its_own_tree(env, mon
             env["J"].run(2026, 3, str(d), read_ts=T0, log=lambda s: None)
     assert not web.exists()
     env["J"].refuse_publish_tree(str(env["tmp"] / "scratch"))     # anywhere else is fine
+
+
+# ============================================================ a-34: a published lean never leaves the board
+
+def _brow(line, lean="over", status=None, kick=1000.0, priced="r1"):
+    r = _row(claim="G:SB:receptions", line=line, lean=lean, kick=kick, status=status)
+    r.update(row_id=f"G:SB:receptions:{line}", is_main=True, priced_at=priced)
+    return r
+
+
+def test_st_brown_7_5_lean_stays_on_the_board_when_the_main_line_moves_to_6_5(env):
+    """b-36's case, by name. A lean published at receptions 7.5 must stay on
+    every later read after the main line moves to 6.5, flagged, and be graded on
+    7.5 with the actual stat - on the read AND on the ledger."""
+    J = env["J"]
+    DET = "ev-2026_03_NYJ_DET"
+    snapshot(T0 - H, DET, [("player_receptions", "Amon-Ra St. Brown", 7.5, -105, -115, None)])
+    read(env, T0)
+    snapshot(T0 + 20 * H, DET, [("player_receptions", "Amon-Ra St. Brown", 7.5, 150, -180, None),
+                                ("player_receptions", "Amon-Ra St. Brown", 6.5, -105, -115, None)])
+    read(env, T0 + 21 * H)
+    rows = by_row_id(env)
+    r75, r65 = rows["2026-03-NYJ-DET:00-SB:receptions:7.5"], rows["2026-03-NYJ-DET:00-SB:receptions:6.5"]
+    assert (r75["lean"], r75["line_moved_after_publication"], r75["is_main"]) == ("over", True, False)
+    assert r75["priced_at"] == iso(T0) and r75["mkt_p_over"] < 0.5          # as published
+    assert (r65["lean"], r65["line_moved_after_publication"], r65["is_main"]) == ("over", False, True)
+    assert r65["opened_line"] == r75["opened_line"] == 7.5
+
+    read(env, K_DET + 1 * H)                                                  # kicked off
+    assert {r["status"] for r in env["rows"]} == {B.LIVE} and len(env["rows"]) == 2
+    stats("2026_03_NYJ_DET", 3, {"00-SB": 7}, {"pfr-sb": 60})
+    _, idx = read(env, K_DET + 5 * H)
+    rows = by_row_id(env)
+    r75 = rows["2026-03-NYJ-DET:00-SB:receptions:7.5"]
+    assert (r75["status"], r75["lean_result"], r75["result"]) == (
+        B.MISSED, "missed", {"value": 7.0, "cleared": False})                 # 7 < 7.5
+    assert r75["line_moved_after_publication"] is True                        # the close still says so
+    assert rows["2026-03-NYJ-DET:00-SB:receptions:6.5"]["lean_result"] == "cleared"
+    graded = {e["line"]: e["result"] for e in ledger(env) if e["event"] == "graded"}
+    assert graded == {7.5: "missed", 6.5: "cleared"}
+    assert idx["leans"] == {B.S_GRADED: 2, B.S_UPCOMING: 0, B.S_LIVE: 0, B.S_VOID: 0}
+    assert B.leans_on_board(ledger(env), env["rows"], 2026, 3, K_DET + 5 * H).startswith(
+        "2026 wk03: 2 published = 2 graded + 0 upcoming + 0 live + 0 void")
+    J.check_tree(env["dest"], log=lambda s: None)
+
+
+def test_the_pre_a34_merge_would_have_dropped_it_and_the_guard_refuses_that():
+    """The guard discriminates: rows as the old merge produced them (one per
+    claim, at the new line) are refused, naming the lean that went missing."""
+    led = B.ledger_events([], [_brow(7.5)], "r1", lambda e: None, {}, "m", 4.0)
+    led += B.ledger_events(led, [_brow(6.5)], "r2", lambda e: None, {}, "m", 4.0)
+    with pytest.raises(AssertionError, match=r"G:SB:receptions:7.5 over is not on the read"):
+        B.leans_on_board(led, [_brow(6.5)], 2026, 3, 500.0)
+    rows = B.merge_read([_brow(7.5)], [_brow(6.5, priced="r2")], 500.0, "r2")
+    assert B.leans_on_board(led, rows, 2026, 3, 500.0).startswith("2026 wk03: 2 published")
+    # and the other two ways a read can lie are refused too
+    with pytest.raises(AssertionError, match="never published"):
+        B.leans_on_board(led, rows + [_brow(5.5)], 2026, 3, 500.0)
+    with pytest.raises(AssertionError, match="upcoming on the ledger"):
+        B.leans_on_board(led, [dict(r, status=B.LIVE) for r in rows], 2026, 3, 500.0)
+
+
+def test_a_lean_the_read_stops_making_at_the_same_line_is_kept_not_replaced():
+    prev = [_brow(7.5, lean="over")]
+    for now_lean in (None, "under"):
+        rows = B.merge_read(prev, [_brow(7.5, lean=now_lean, priced="r2")], 500.0, "r2")
+        assert len(rows) == 1                                   # one row per (claim, line)
+        r = rows[0]
+        assert (r["lean"], r["priced_at"], r["is_main"]) == ("over", "r1", True)
+        assert r["lean_changed_after_publication"] is True
+        assert r["line_moved_after_publication"] is False
+
+
+def test_a_kept_lean_rejoins_the_fresh_row_when_the_read_makes_it_again():
+    kept = B.merge_read([_brow(7.5)], [_brow(6.5, lean=None, priced="r2")], 500.0, "r2")
+    assert {(r["line"], r["line_moved_after_publication"]) for r in kept} == {(7.5, True), (6.5, False)}
+    back = B.merge_read(kept, [_brow(7.5, priced="r3")], 600.0, "r3")
+    assert [(r["line"], r["priced_at"], r["line_moved_after_publication"]) for r in back] == \
+        [(7.5, "r3", False)]                                    # the unleaned 6.5 row goes, as before
+
+
+def test_an_unleaned_row_is_still_replaced_when_the_line_moves():
+    rows = B.merge_read([_brow(7.5, lean=None)], [_brow(6.5, lean=None, priced="r2")], 500.0, "r2")
+    assert [r["line"] for r in rows] == [6.5]
+
+
+def test_a_pull_voids_the_kept_lean_as_well():
+    kept = B.merge_read([_brow(7.5)], [_brow(6.5, priced="r2")], 500.0, "r2")
+    pulled = B.merge_read(kept, [], 600.0, "r3")
+    assert {(r["line"], r["status"], r["void_reason"]) for r in pulled} == {
+        (7.5, B.VOID, B.VOID_MARKET_PULLED), (6.5, B.VOID, B.VOID_MARKET_PULLED)}
+
+
+def test_a_line_that_moves_twice_keeps_both_published_leans():
+    r1 = B.merge_read([], [_brow(7.5)], 100.0, "r1")
+    r2 = B.merge_read(r1, [_brow(6.5, priced="r2")], 200.0, "r2")
+    r3 = B.merge_read(r2, [_brow(5.5, lean=None, priced="r3")], 300.0, "r3")
+    assert [(r["line"], r["lean"], r["is_main"]) for r in r3] == [
+        (5.5, None, True), (6.5, "over", False), (7.5, "over", False)]
+    assert all(r["main_line_changed_since_open"] for r in r3)

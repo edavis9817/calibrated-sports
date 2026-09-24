@@ -150,6 +150,45 @@ def test_void_and_its_reason_come_together_and_pulled_at_only_on_a_pull(env):
     assert errors("BoardRow", dict(up, pulled_at=B.iso(T0)))
 
 
+def test_a_kept_lean_says_why_and_only_a_kept_lean_is_off_the_main_line(env):
+    """a-34's three fields, and the rules that tie them to `lean` and `is_main`."""
+    rows, _ = _scenario_first_two_reads(env)
+    row = rows["00-DL:receptions"]
+    assert row["lean"] and errors("BoardRow", row) == []
+    moved = dict(row, is_main=False, line_moved_after_publication=True)
+    assert errors("BoardRow", moved) == []
+    assert errors("BoardRow", dict(row, is_main=False))                  # off-main with no reason
+    assert errors("BoardRow", dict(moved, is_main=True))                 # moved but main
+    assert errors("BoardRow", dict(moved, lean=None, band=None))         # kept, yet no lean
+    assert errors("BoardRow", dict(moved, lean_changed_after_publication=True))   # both reasons
+    changed = dict(row, lean_changed_after_publication=True)
+    assert errors("BoardRow", changed) == []
+    assert errors("BoardRow", dict(changed, lean=None, band=None))
+    for f in ("priced_at", "line_moved_after_publication", "lean_changed_after_publication"):
+        assert errors("BoardRow", {k: v for k, v in row.items() if k != f}), f
+
+
+def test_check_refuses_a_tree_whose_latest_read_dropped_a_published_lean(env):
+    """The producer-side gate b-36 counted on the web side: a read missing a lean
+    the ledger published is refused by --check, not counted."""
+    J = env["J"]
+    snapshot(T0 - H, "ev-2026_03_NYJ_DET",
+             [("player_receptions", "Amon-Ra St. Brown", 7.5, -105, -115, None)])
+    read(env, T0)
+    snapshot(T0 + 20 * H, "ev-2026_03_NYJ_DET",
+             [("player_receptions", "Amon-Ra St. Brown", 7.5, 150, -180, None),
+              ("player_receptions", "Amon-Ra St. Brown", 6.5, -105, -115, None)])
+    _, idx = read(env, T0 + 21 * H)
+    J.check_tree(env["dest"], log=lambda *_: None)
+    path = os.path.join(J.week_dir(env["dest"], 2026, 3), J.read_name(idx["latest"]))
+    doc = json.load(open(path))
+    doc["rows"] = [r for r in doc["rows"] if not r["line_moved_after_publication"]]
+    assert len(doc["rows"]) == 1
+    json.dump(doc, open(path, "w"))
+    with pytest.raises(AssertionError, match="receptions:7.5 over is not on the read"):
+        J.check_tree(env["dest"], log=lambda *_: None)
+
+
 def test_a_row_with_no_lean_carries_no_band():
     s = copy.deepcopy(DEFS["BoardRow"]["allOf"][2])
     v = Draft202012Validator(s)
