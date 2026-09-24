@@ -958,6 +958,10 @@ def main(argv=None):
     ap.add_argument("--publish", action="store_true")
     ap.add_argument("--show", action="store_true")
     ap.add_argument("--stat", action="append", choices=sorted(PAIRINGS))
+    ap.add_argument("--no-asof", action="store_true",
+                    help="publish every family except opportunity_residual.asof.* (a-33): "
+                         "9.6-15.0 MB a key and no page reads them yet. Absent from the "
+                         "store means absent from analytics.export, so nothing ships")
     ap.add_argument("--check-notes", action="store_true",
                     help="exit 1 if any envelope's R^2 medians disagree with "
                          "its own published fit values")
@@ -977,7 +981,7 @@ def main(argv=None):
     if a.publish:
         facts = paths.market_log_ro()
         try:
-            publish(paths.connect(), facts, a.stat)
+            publish(paths.connect(), facts, a.stat, asof=not a.no_asof)
         finally:
             facts.close()
         return 0
