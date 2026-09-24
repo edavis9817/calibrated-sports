@@ -127,3 +127,20 @@ def test_no_asof_reaches_publish_and_its_absence_publishes_the_family(monkeypatc
     assert residual.main(["--publish", "--no-asof"]) == 0
     assert residual.main(["--publish"]) == 0
     assert seen == [False, True]
+
+
+# ------------------------------------------------------------------ served
+
+def test_verify_served_compares_bytes_and_refuses_fewer_than_four(tmp_path):
+    keys = [f"nfl/k{i}.json" for i in range(4)]
+    for k in keys:
+        _put(str(tmp_path), k, {"k": k})
+    body = {k: open(E.local_path(str(tmp_path), k), "rb").read() for k in keys}
+    served = dict(body)
+    served["nfl/k3.json"] = b'{"k": "stale"}\n'
+    fetch = lambda url: (200, served[url.split("/data/", 1)[1]])  # noqa: E731
+    assert P.verify_served(keys, str(tmp_path), "https://x", fetch=fetch, log=lambda *_: None) == 1
+    served["nfl/k3.json"] = body["nfl/k3.json"]
+    assert P.verify_served(keys, str(tmp_path), "https://x", fetch=fetch, log=lambda *_: None) == 0
+    with pytest.raises(SystemExit):
+        P.verify_served(keys[:3], str(tmp_path), "https://x", fetch=fetch)

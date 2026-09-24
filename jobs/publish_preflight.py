@@ -217,9 +217,9 @@ def run_analytics_publishers(season, only=None, no_asof=False, log=log):
     return out
 
 
-def run_site_export(dest, slugs, stages, log=log):
+def run_site_export(dest, slugs, stages, only=None, log=log):
     from jobs import export_web as E
-    s = E.export(dest=dest, registry_path=slugs, stages=stages, log=log)
+    s = E.export(only=only, dest=dest, registry_path=slugs, stages=stages, log=log)
     return s
 
 
@@ -402,19 +402,57 @@ def table(s, bucket_cmp, upload_result):
 
 
 # =============================================================================
+# after the upload: is it SERVED?
+# =============================================================================
+
+def verify_served(keys, dest, site, fetch=None, log=log):
+    """Each key fetched over HTTP from the site and compared, byte for byte after
+    content decoding, with the local file. CLAUDE.md: "verified served" means at
+    least four samples, over HTTP, against the local file - a 200 with plausible
+    JSON proves the route, not that the right bytes are in the bucket."""
+    if len(keys) < 4:
+        raise SystemExit(f"{len(keys)} key(s) - verifying served takes at least four")
+    if fetch is None:
+        import httpx
+
+        def fetch(url):
+            r = httpx.get(url, timeout=60, headers={"Cache-Control": "no-cache"})
+            return r.status_code, r.content
+    bad = 0
+    for key in keys:
+        path = os.path.join(dest, *key.split("/"))
+        with open(path, "rb") as f:
+            want = hashlib.sha256(f.read()).hexdigest()
+        status, body = fetch(f"{site.rstrip('/')}/data/{key}")
+        got = hashlib.sha256(body).hexdigest() if status == 200 else None
+        ok = got == want
+        bad += not ok
+        log(f"  {'OK  ' if ok else 'DIFF'} {status} {key}")
+    log(f"served: {len(keys) - bad} of {len(keys)} match the local file")
+    return bad
+
+
+# =============================================================================
 # main
 # =============================================================================
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--scratch", required=True,
+    ap.add_argument("--scratch",
                     help="an EMPTY or absent directory; every write lands here")
+    ap.add_argument("--verify-served", nargs="+", metavar="KEY",
+                    help="after a real upload: fetch each key from WEB_SITE_URL/data/ and "
+                         "compare it with WEB_EXPORT_DIR's file (at least four). Reads only")
     ap.add_argument("--env", default=os.path.join(ROOT, ".env"),
                     help="the .env whose store, tree and credentials to preflight "
                          "(default: this clone's)")
     ap.add_argument("--season", type=int, default=2026)
     ap.add_argument("--stage", action="append", choices=("fixtures", "air_rz"), default=[],
                     help="also build a staged export feature (a code change to publish)")
+    ap.add_argument("--only", action="append",
+                    choices=("players", "teams", "market", "research", "manifest", "components"),
+                    help="the site export's parts, exactly as `jobs.export_web --only` takes them "
+                         "(default: every part)")
     ap.add_argument("--no-analytics-publish", action="store_true",
                     help="export the analytics store as it is, without re-running the publishers")
     ap.add_argument("--analytics-only", action="append",
@@ -428,7 +466,15 @@ def main(argv=None):
                     help="skip the R2 reads (listing and dry-run upload)")
     ap.add_argument("--json", help="write the full report here (default <scratch>/preflight.json)")
     a = ap.parse_args(argv)
-
+    if a.verify_served:
+        from dotenv import load_dotenv
+        if os.path.exists(a.env):
+            load_dotenv(a.env, override=False)
+        import config
+        return 1 if verify_served(a.verify_served, config.WEB_EXPORT_DIR,
+                                  config.WEB_SITE_URL) else 0
+    if not a.scratch:
+        ap.error("--scratch is required")
     scratch = os.path.abspath(a.scratch)
     if os.path.exists(scratch) and os.listdir(scratch):
         raise SystemExit(f"{scratch} is not empty - use a fresh directory")
@@ -453,7 +499,7 @@ def main(argv=None):
             a.season, set(a.analytics_only) if a.analytics_only else None, no_asof=a.no_asof)
 
     t0 = time.time()
-    site = run_site_export(web, snap["slugs"], tuple(a.stage) or None)
+    site = run_site_export(web, snap["slugs"], tuple(a.stage) or None, only=a.only)
     report["steps"]["site_export"] = {
         k: site.get(k) for k in ("refreshed", "counts", "stages", "slugs_added", "runtime_s",
                                  "retention_holds", "sources", "market", "players", "teams",
