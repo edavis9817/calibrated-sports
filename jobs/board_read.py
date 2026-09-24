@@ -51,13 +51,14 @@ from __future__ import annotations
 
 import argparse
 import functools
+import io
 import json
 import os
 import sqlite3
 import statistics
 import time
 from collections import defaultdict
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -543,7 +544,7 @@ def _atomic(path, write):
     os.replace(tmp, path)
 
 
-def write_ledger(dest, old, new_events):
+def write_ledger(dest, old, new_events, log=None):
     """Append `new_events`. The whole file is rewritten (parquet cannot append),
     so the rewrite is CHECKED to be the old rows plus rows at the end, and it is
     atomic: a crash leaves the previous ledger, never half of a new one. No new
@@ -551,6 +552,11 @@ def write_ledger(dest, old, new_events):
     upload record) do not move on a read that changed nothing."""
     import polars as pl
     if not new_events and os.path.exists(ledger_path(dest)):
+        # a-35: a read that appends nothing still re-pairs the two files. The
+        # parquet and CSV are replaced as two steps, and before this a CSV left
+        # one step behind by a crash stayed behind until some later read
+        # appended - through every upload in between (f-21's plant).
+        pair_ledger(dest, log)
         return 0
     rows = old + new_events
     B.assert_append_only(old, rows)
@@ -563,6 +569,48 @@ def write_ledger(dest, old, new_events):
     return len(new_events)
 
 
+def ledger_csv_path(dest):
+    return ledger_path(dest).replace(".parquet", ".csv")
+
+
+def pair_ledger(dest, log=None):
+    """-> the statement it approved; raises otherwise. The ledger's CSV must hold
+    the parquet's rows. `write_ledger` writes the parquet FIRST, so the only
+    split a crash can leave is a CSV that TRAILS it; that one is healed by
+    rewriting the CSV from the parquet, after checking the CSV's rows are the
+    parquet's leading rows (so the rewrite only appends, which is what the
+    bucket's append-only check will then see). Any other split - a CSV AHEAD of
+    its parquet, a CSV that disagrees on an existing row, a CSV with no parquet -
+    is not something a crash in this job produces, and is REFUSED rather than
+    resolved: overwriting it would pick a winner between two records, and
+    absence fails toward keeping data."""
+    import polars as pl
+    pq_p, csv_p = ledger_path(dest), ledger_csv_path(dest)
+    if not os.path.exists(pq_p):
+        if os.path.exists(csv_p):
+            raise E.ContractError(f"{csv_p} exists with no ledger.parquet beside it - refusing "
+                                  "to guess which record is right; restore from the bucket")
+        return "no ledger yet"
+    pq = pl.read_parquet(pq_p)
+    as_csv = pl.read_csv(io.BytesIO(pq.write_csv().encode("utf-8")), infer_schema_length=0)
+    have = (pl.read_csv(csv_p, infer_schema_length=0) if os.path.exists(csv_p)
+            else as_csv.head(0))
+    if have.height == pq.height:
+        return f"ledger paired: parquet {pq.height} rows, csv {have.height} rows"
+    if have.height > pq.height:
+        raise E.ContractError(f"ledger.csv has {have.height} rows and ledger.parquet "
+                              f"{pq.height} - a CSV ahead of its parquet is not a crash this "
+                              "job can leave; refusing to shrink it")
+    if have.columns != as_csv.columns or have.to_dicts() != as_csv.head(have.height).to_dicts():
+        raise E.ContractError(f"ledger.csv's {have.height} rows are not the leading rows of "
+                              f"ledger.parquet ({pq.height}) - refusing to overwrite either")
+    _atomic(csv_p, pq.write_csv)
+    msg = (f"ledger re-paired: csv {have.height} -> {pq.height} rows, rewritten from the "
+           "parquet (a previous write stopped between the two files)")
+    (log or print)(msg)
+    return msg
+
+
 def previous_rows(dest, season, week):
     idx = load_json(os.path.join(week_dir(dest, season, week), "index.json"))
     if not idx or not idx.get("latest"):
@@ -572,7 +620,7 @@ def previous_rows(dest, season, week):
 
 
 def read_name(read_iso):
-    return f"read-{read_iso.replace(':', '')}.json"
+    return B.read_file_name(read_iso)
 
 
 def read_key(season, week, read_iso):
@@ -619,8 +667,10 @@ def run(season, week, dest, read_ts=None, db=None, log=print):
     read_iso = B.iso(read_ts)
     con = ro(db)
     # The registry's runtime check: SQLite reports every table this read touches,
-    # and sync_keys refuses the write if any of them has no declared source.
-    reads = R.watch(con, "nfl")
+    # and sync_keys refuses the write if any of them has no declared source. a-35:
+    # on THIS connection and on any other the read opens while it runs.
+    watching = ExitStack()
+    reads = watching.enter_context(R.watch_process(con, "nfl"))
     counts = defaultdict(int)
     try:
         games = week_games(con, season, week)
@@ -648,6 +698,7 @@ def run(season, week, dest, read_ts=None, db=None, log=print):
             pulled, mv, T)
     finally:
         con.close()
+        watching.close()
     if not rows:
         # Before lines post there is nothing to read, and an empty read file
         # would be indistinguishable from a broken one. Refuse BEFORE any write;
@@ -696,7 +747,7 @@ def run(season, week, dest, read_ts=None, db=None, log=print):
     # index naming leans the ledger does not hold.
     E.validate_contract(wanted)
     approved = R.require_declared(wanted)
-    ledger_new = write_ledger(dest, old, new_ev)
+    ledger_new = write_ledger(dest, old, new_ev, log)
     # No owned prefix: sync_keys deletes nothing here, whatever is on disk.
     written, deleted = E.sync_keys(dest, wanted, [])
     assert deleted == 0
@@ -848,6 +899,10 @@ def _tick(season, dest, upload, now_ts, db, client, log):
             log(str(e))
             out["no_rows"].append(w)
     if upload:
+        # a-35: re-pair the ledger before shipping it, so a tick with no read due
+        # heals a CSV a crash left behind rather than being refused by the
+        # uploader's pair check every five minutes until some read appends.
+        out["ledger_pair"] = pair_ledger(dest, log)
         out["upload"] = E.upload(dest=dest, client=client, log=log, tree="board")
     log(json.dumps(out, default=str))
     return out

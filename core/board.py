@@ -547,6 +547,63 @@ def lean_states(ledger, now_ts):
 
 ROW_LEAN_STATE = {UPCOMING: S_UPCOMING, LIVE: S_LIVE, VOID: S_VOID,
                   CLEARED: S_GRADED, MISSED: S_GRADED, PUSH: S_GRADED}
+LEAN_STATES = (S_GRADED, S_UPCOMING, S_LIVE, S_VOID)
+
+
+def read_file_name(read_iso):
+    """The file one read is written to, beside its week's index.json."""
+    return f"read-{read_iso.replace(':', '')}.json"
+
+
+def row_partition(rows):
+    """{state: n} over the rows that carry a lean, in the four-way partition."""
+    counts = {s: 0 for s in LEAN_STATES}
+    for r in rows:
+        if r.get("lean"):
+            counts[ROW_LEAN_STATE[r["status"]]] += 1
+    return counts
+
+
+def index_reconciles(index, read):
+    """-> the statement it approved; raises otherwise. The FILE-level half of the
+    partition (a-35), checkable with no ledger: a week's index and the read it
+    names as `latest` must agree. Since a-34 every published lean is on every
+    later read as exactly one row in its ledger state, so the index's four counts
+    ARE the lean-carrying rows of its latest read, partitioned by status - an
+    index of all zeros, or of +1000, or a read with a counted lean row removed,
+    cannot both be true. Also: the read is the one the index names, for the same
+    week, and its rows are unique by row_id and belong to that week."""
+    problems = []
+    if read.get("read_at") != index.get("latest"):
+        problems.append(f"index latest {index.get('latest')} but the read is {read.get('read_at')}")
+    if index.get("latest") not in (index.get("reads") or []):
+        problems.append(f"index latest {index.get('latest')} is not in its own reads list")
+    for f in ("season", "week", "sport"):
+        if read.get(f) != index.get(f):
+            problems.append(f"index {f} {index.get(f)!r} but the read's is {read.get(f)!r}")
+    rows = read.get("rows") or []
+    seen, dup, stray = set(), [], []
+    for r in rows:
+        if r.get("row_id") in seen:
+            dup.append(r.get("row_id"))
+        seen.add(r.get("row_id"))
+        if (r.get("season"), r.get("week")) != (read.get("season"), read.get("week")):
+            stray.append(r.get("row_id"))
+    if dup:
+        problems.append(f"row_id on the read more than once: {dup[:3]}")
+    if stray:
+        problems.append(f"{len(stray)} row(s) belong to another week, e.g. {stray[0]}")
+    got = row_partition(rows)
+    want = {s: (index.get("leans") or {}).get(s) for s in LEAN_STATES}
+    if got != want:
+        diff = ", ".join(f"{s} index {want[s]} / read {got[s]}" for s in LEAN_STATES
+                         if got[s] != want[s])
+        problems.append(f"lean counts do not reconcile with the latest read's rows: {diff}")
+    if problems:
+        raise AssertionError("; ".join(problems))
+    return (f"{index['season']} wk{int(index['week']):02d}: {sum(got.values())} leans = "
+            f"{got[S_GRADED]} graded + {got[S_UPCOMING]} upcoming + {got[S_LIVE]} live + "
+            f"{got[S_VOID]} void, index and latest read ({index['latest']}) agree")
 
 
 def leans_on_board(ledger, rows, season, week, now_ts):

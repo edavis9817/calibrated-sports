@@ -185,6 +185,16 @@ def test_check_refuses_a_tree_whose_latest_read_dropped_a_published_lean(env):
     doc["rows"] = [r for r in doc["rows"] if not r["line_moved_after_publication"]]
     assert len(doc["rows"]) == 1
     json.dump(doc, open(path, "w"))
+    # a-35: the CONTRACT refuses it first - the index counts two upcoming leans
+    # and its latest read carries one - with no ledger in sight.
+    with pytest.raises(E.ContractError, match="upcoming index 2 / read 1"):
+        J.check_tree(env["dest"], log=lambda *_: None)
+    # ... and with the index doctored to agree, the LEDGER check still refuses:
+    # two independent layers, each shown firing alone.
+    ipath = os.path.join(J.week_dir(env["dest"], 2026, 3), "index.json")
+    ix = json.load(open(ipath))
+    ix["leans"]["upcoming"] = 1
+    json.dump(ix, open(ipath, "w"))
     with pytest.raises(AssertionError, match="receptions:7.5 over is not on the read"):
         J.check_tree(env["dest"], log=lambda *_: None)
 
@@ -284,7 +294,7 @@ def test_the_board_writes_through_sync_keys_and_owns_no_prefix():
     prefixes = calls[0].args[2]
     assert isinstance(prefixes, ast.List) and prefixes.elts == []
     assert any(isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute)
-               and c.func.attr == "watch" for c in ast.walk(run))
+               and c.func.attr == "watch_process" for c in ast.walk(run))   # a-35: every connection
 
 
 # ================================================================== the job writes the contract
