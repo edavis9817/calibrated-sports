@@ -455,7 +455,7 @@ def metric_for(measure):
         floor_season=SNAP_FIRST_SEASON,
         floor_reason=("nfl_snap_counts, the only record of who dressed (it "
                       "starts in 2013)"),
-        range_caveat=CAVEAT)
+        note=CAVEAT)
 
 
 def market_log_ro(path=None):

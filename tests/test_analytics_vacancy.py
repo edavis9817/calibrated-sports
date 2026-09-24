@@ -138,7 +138,7 @@ def test_the_metric_declares_a_team_denominator_and_the_snap_floor():
         m = vacancy.metric_for(measure)
         assert m.shares_denominator == "team"
         assert m.floor_season == vacancy.SNAP_FIRST_SEASON == 2013
-        assert "SELECTION IS NOT CORRECTED" in m.range_caveat
+        assert "SELECTION IS NOT CORRECTED" in m.note
         assert m.block == "team" and m.subject_type == "league"
 
 
