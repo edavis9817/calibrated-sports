@@ -23,7 +23,8 @@
       "live.prices": "LivePricesFile",
       "components": "ComponentsFile",
       "coverage": "CoverageFile",
-      "predictor": "PredictorFile"
+      "predictor": "PredictorFile",
+      "sources": "SourcesFile"
     },
     "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.execution", "coverage"],
     "keys": [
@@ -42,7 +43,8 @@
       {"pattern": "^live/[a-z0-9]+/prices\\.json$", "kind": "live.prices"},
       {"pattern": "^[a-z0-9]+/components/\\d{4}\\.json$", "kind": "components"},
       {"pattern": "^coverage\\.json$", "kind": "coverage"},
-      {"pattern": "^predictors/[a-z0-9]+/[a-z0-9_]+\\.json$", "kind": "predictor"}
+      {"pattern": "^predictors/[a-z0-9]+/[a-z0-9_]+\\.json$", "kind": "predictor"},
+      {"pattern": "^[a-z0-9]+/sources\\.json$", "kind": "sources"}
     ]
   },
 
@@ -1732,6 +1734,57 @@
         "members": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true}
       },
       "required": ["leader", "members"],
+      "additionalProperties": false
+    },
+
+    "SourcesFile": {
+      "description": "Every upstream source a sport's files read, GENERATED from jobs/source_registry.py rather than written (a-22, audit S-04). `sources` is the union of what the kinds declare; `kinds` maps every contract kind to the source_ids it reads for this sport, so a page can refuse a kind whose sources are not listed; `not_connected` is what the producer does not export, with the state it is in.",
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "sources"},
+        "sport": {"type": "string"},
+        "sources": {"type": "array", "items": {"$ref": "#/$defs/SourceEntry"}},
+        "kinds": {
+          "type": "object",
+          "additionalProperties": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+        },
+        "not_connected": {"type": "array", "items": {"$ref": "#/$defs/NotConnectedEntry"}}
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "sources", "kinds", "not_connected"],
+      "additionalProperties": false
+    },
+
+    "SourceEntry": {
+      "type": "object",
+      "properties": {
+        "source_id": {"type": "string", "pattern": "^[a-z0-9_]+(\\.[a-z0-9_]+)*$"},
+        "name": {"type": "string"},
+        "layer": {"enum": ["FACTS", "PRICES", "BELIEFS", "CONTEXT", "HEADLINES"]},
+        "provides": {"type": "string"},
+        "used_for": {"type": "string"},
+        "read_by": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+        "last_read": {
+          "description": "When the pipeline last read this source successfully. Null when this export does not measure it, and `last_read_basis` then says why.",
+          "anyOf": [{"$ref": "#/$defs/Timestamp"}, {"type": "null"}]
+        },
+        "last_read_basis": {"type": "string"}
+      },
+      "required": ["source_id", "name", "layer", "provides", "used_for", "read_by", "last_read", "last_read_basis"],
+      "additionalProperties": false
+    },
+
+    "NotConnectedEntry": {
+      "type": "object",
+      "properties": {
+        "what": {"type": "string"},
+        "where": {"type": "string"},
+        "state": {"enum": ["not_ingested", "ingested_not_exported", "not_built", "declined"]},
+        "needs": {"type": "string"},
+        "evidence": {"type": "string"}
+      },
+      "required": ["what", "where", "state", "needs", "evidence"],
       "additionalProperties": false
     }
   }

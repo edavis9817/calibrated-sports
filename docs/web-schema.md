@@ -574,6 +574,24 @@ retired predictor could never be deleted from R2.
 `tests/test_contract_coverage_predictor.py` fails if a scheduled job runs
 either producer before that exists.
 
+## {sport}/sources.json — kind `sources` (a-22, audit S-04)
+
+GENERATED from `jobs/source_registry.py`, never written. `sources[]` lists every
+upstream source a file of this sport reads — `source_id`, `name`, `layer`
+(FACTS, PRICES, BELIEFS, CONTEXT, HEADLINES), `provides`, `used_for`, `read_by`
+(the kinds that read it) and `last_read`, which is measured at export time and is
+null only with a `last_read_basis` saying why. `kinds` maps every contract kind
+to the ids it reads for this sport, so a page can refuse a kind whose sources the
+file does not list. `not_connected[]` is what the producer does not export, each
+with a `state` — `not_ingested`, `ingested_not_exported`, `not_built` or
+`declined` — and the `evidence` to check it against.
+
+Written by the manifest part, which owns no prefix. **The gate:** `sync_keys`
+refuses any file whose kind has no declaration in the registry, and
+`tests/test_source_registry.py` fails when a contract kind is undeclared or when
+`jobs/export_web.py` reads a table no source is named for. Reads inside research
+modules the export imports are declared by hand and are not scanned.
+
 ## Refresh
 
 `python -m jobs.weekly_refresh` logs to
