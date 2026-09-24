@@ -230,7 +230,9 @@ SOURCES = {
                   "calibration study and the Method page's over-bias finding (median de-vigged "
                   "close across DraftKings, FanDuel and BetMGM), and the register's walk-forward "
                   "against the book close; and the Board's market price at every read, the "
-                  "median de-vigged DraftKings, FanDuel and BetMGM quote from forward capture"),
+                  "median de-vigged DraftKings, FanDuel and BetMGM quote from forward capture; and "
+                  "the Lab library's precomputed preset results, as aggregates and de-vigged "
+                  "probabilities only - no book price leaves the server"),
         last_read=("quotes", (("live", "oddsapi%"), ("oddsapi_historical", "oddsapi%")))),
 
     # --- beliefs: ours, and listed because a page shows it
@@ -360,7 +362,7 @@ PRODUCERS = {"nfl": "jobs.export_web", "cfb": "jobs.export_cfb_web", "mlb": "job
 # exactly like the export module, their functions attributed in LOADERS under the
 # qualified name `module.function` (a bare name would collide: two modules may
 # both have a `history`). a-31: the Board read job.
-SIDE_PRODUCERS = {"nfl": ("jobs.board_read",), "cfb": (), "mlb": ()}
+SIDE_PRODUCERS = {"nfl": ("jobs.board_read", "lab.universe"), "cfb": (), "mlb": ()}
 
 # Modules the scan does not follow into, each with why. The registry's own reads
 # (last_read over source_health and quotes) describe sources; they carry no row of
@@ -399,6 +401,14 @@ LOADERS = {
             "history", "posted_record", "model_prob", "kalshi_mid", "settle")},
         # --tick's choice of WHICH week to read; no row of it reaches a file.
         "jobs.board_read.weeks_in_play": (),
+        # a-32: the Lab library. `lab.universe` builds the table every preset runs
+        # over (jobs/lab_publish.py writes the files from it); every table it reads
+        # reaches the preset files, and the index inherits them through KIND_INPUTS.
+        **{f"lab.universe.{fn}": ("lab_preset",) for fn in (
+            "load_games", "load_divisions", "load_history", "load_props", "load_game_quotes")},
+        # the settlement-fix gate: it refuses a pre-fix store and its counts stay
+        # in the universe's meta; no row of it reaches a published file.
+        "lab.universe.settlement_evidence": (),
     },
     "cfb": {
         "teams": ("team", "sport_manifest"),
@@ -441,6 +451,13 @@ NARROW = {
         ("jobs.board_read.kalshi_mid", "market_outcome"): ("kalshi.ladders",),
         ("jobs.board_read.kalshi_mid", "quotes"): ("kalshi.ladders",),
         ("jobs.board_read.posted_record", "outcomes"): ("oddsapi",),
+        # a-32: every price in the Lab universe is an Odds API historical close
+        # (quotes.source = 'oddsapi_historical'); outcomes are read whole but only
+        # those joined to an Odds API close become rows.
+        ("lab.universe.load_props", "outcomes"): ("oddsapi",),
+        ("lab.universe.load_props", "market_outcome"): ("oddsapi",),
+        ("lab.universe.load_props", "quotes"): ("oddsapi",),
+        ("lab.universe.load_game_quotes", "quotes"): ("oddsapi",),
     },
     "cfb": {},
     "mlb": {},
@@ -458,6 +475,8 @@ KIND_INPUTS = {
         # a-31: the index names the reads, counts their leans and carries the
         # verdict - built from the read, so it reads what the read reads.
         "board_index": ("board_read",),
+        # a-32: the Lab index lists the presets and their verdicts.
+        "lab_index": ("lab_preset",),
     },
     "cfb": {},
     "mlb": {},
