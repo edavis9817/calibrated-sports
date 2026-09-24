@@ -715,9 +715,12 @@ class Health:
 def r2_put(key, body, client=None):
     """The site bucket, short timeouts, one PUT. Reuses a-09's client on purpose."""
     from jobs import publish_live_prices
-    if not publish_live_prices.configured():
-        raise RuntimeError("R2 not configured (WEB_R2_BUCKET / keys / endpoint)")
-    client = client or publish_live_prices.r2_client()
+    if not config.WEB_R2_BUCKET:
+        raise RuntimeError("R2 not configured: WEB_R2_BUCKET is unset")
+    if client is None:
+        if not publish_live_prices.configured():
+            raise RuntimeError("R2 not configured (WEB_R2_BUCKET / keys / endpoint)")
+        client = publish_live_prices.r2_client()
     client.put_object(Bucket=config.WEB_R2_BUCKET, Key=key, Body=body,
                       ContentType="application/json", CacheControl=CACHE_CONTROL)
     return client

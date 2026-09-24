@@ -51,6 +51,7 @@ def pinned(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "WEB_R2_BUCKET", "bucket")
     monkeypatch.setattr(config, "WEB_R2_ACCESS_KEY_ID", "x")
     monkeypatch.setattr(config, "WEB_R2_SECRET_ACCESS_KEY", "y")
+    monkeypatch.setattr(config, "R2_ENDPOINT", "https://r2.invalid")
     monkeypatch.setattr(config, "HEALTHCHECK_URL", None)
     monkeypatch.setattr(config, "LIVE_HEALTHCHECK_URL", None)
 
