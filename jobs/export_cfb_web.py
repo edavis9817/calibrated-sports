@@ -59,6 +59,7 @@ from cfb import paths, sources                                        # noqa: E4
 from jobs.export_web import (REFRESHED_SENTINEL, assert_stats_defined,  # noqa: E402
                              envelope, iso, require_setting, slugify, sync_keys,
                              validate_contract, write_if_changed)
+from jobs import source_registry                                      # noqa: E402
 
 SPORT = "cfb"
 SPORT_NAME = "College Football"
@@ -439,6 +440,7 @@ def export(out_dir, dry_run=False, verbose=True):
     prefix is a literal at the call site so `tests/test_prefix_ownership.owned_prefixes`
     can read it."""
     con = ro()
+    source_registry.watch(con, SPORT)    # a-30: sync_keys refuses after an unmapped read
     try:
         files, notes = build(con)
     finally:

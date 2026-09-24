@@ -2739,7 +2739,7 @@ def sync_keys(dest, wanted, prefixes, dry_run=False):
     generated from those declarations and could not list what it was never told.
     """
     validate_contract(wanted)
-    source_registry.require_declared(kind_for_key(k)[0] for k in wanted)
+    source_registry.require_declared(wanted)
     written = deleted = 0
     for key, obj in wanted.items():
         written += write_if_changed(local_path(dest, key), obj, dry_run)
@@ -2853,6 +2853,9 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
     generated_at = iso(now_ts)
     t0 = time.time()
     con = ro()
+    # Every table this run reads, as SQLite reports it; sync_keys refuses a write
+    # after an unmapped read, however the SQL was spelled or wherever it lives (a-30).
+    source_registry.watch(con, SPORT)
     games = load_games(con)
     weeks = load_player_weeks(con)
     xwalk, aliases = load_xwalk(con)
