@@ -30,7 +30,7 @@ wrong one, to size how much the blocks matter).
 import argparse
 import glob
 import json
-import sqlite3
+import os
 import sys
 import zlib
 from collections import Counter, defaultdict
@@ -43,16 +43,25 @@ SLOTS = 3
 DRAWS = 2000
 GROUPS = {"WR": "WR", "TE": "TE", "RB": "RB", "FB": "RB", "HB": "RB"}
 ALIAS = {"STL": "LA", "SD": "LAC", "OAK": "LV"}
-MIRROR = "D:/calibrated-sports/data/raw/nflverse"
-MARKET_LOG = "D:/calibrated-sports/data/market_log.db"
 
 
-def ro(path):
-    return sqlite3.connect("file:%s?mode=ro" % path, uri=True, timeout=5)
+def ro_market_log():
+    """The logger's store, mode=ro, through `analytics.paths` - and refused if
+    what it resolves to is not the store (this clone's configured DB_PATH is
+    deliberately inert, and an inert file would answer every query with zero)."""
+    from analytics import paths
+    con = paths.market_log_ro()
+    have = {r[0] for r in con.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'")}
+    if not {"nfl_snap_counts", "nfl_player_week", "player_xwalk"} <= have:
+        raise SystemExit("market_log resolved to %s, which is not the logger's "
+                         "store" % paths.market_log_path())
+    return con
 
 
 def latest(asset):
-    got = sorted(glob.glob("%s/*/%s" % (MIRROR, asset)))
+    from analytics import paths
+    got = sorted(glob.glob(os.path.join(paths.archive_root(), "*", asset)))
     return got[-1] if got else None
 
 
@@ -401,7 +410,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
     a = ap.parse_args(argv)
-    m = ro(MARKET_LOG)
+    m = ro_market_log()
     for pfr, pos in m.execute("SELECT pfr_player_id, position FROM nfl_snap_counts"
                               " WHERE season >= ?", (FIRST,)):
         if pos == "QB":
@@ -412,7 +421,11 @@ def main(argv=None):
     ab, pl, counts = build(xw, snaps, stat, team_tot, gmeta, status, depth)
     counts["absence events kept"] = len(ab)
     counts["placebo events"] = len(pl)
-    out = {"counts": dict(counts), "cells": {}}
+    out = {"counts": dict(counts), "cells": {},
+           # (season, team, game index in the team-season, pfr, group) - the
+           # key a-17's own events can be matched on exactly
+           "events": sorted([e["s"], e["team"], e["i"], e["pfr"], e["grp"]]
+                            for e in ab)}
     P = lambda *x: print(*x, flush=True)
     for k, v in counts.items():
         P("  %-58s %7d" % (k, v))
