@@ -536,6 +536,16 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
 - **A coaching change zeroes team scheme history** (shotgun rate .79 → .12).
   Carry the incoming playcaller's prior, not the team's.
 - **Player residuals don't persist** (r ≈ 0.09). No player-specific overrides.
+  SCOPE (a-21, from f-14, 2026-09-24): this is the residual of
+  `research/externals.py` - actual minus the player's OWN PRIOR EXPANDING MEAN,
+  2016-2024, >= 8 games - and f-14 re-derived it at 0.055 / 0.070 / -0.045 with
+  every interval spanning zero. It is NOT the site's efficiency metric.
+  `analytics.residual`'s opportunity residual (actual minus a same-season fit on
+  volume) persists at lag-1 r 0.09 to 0.49 with 25 of 26 intervals excluding
+  zero, so **"efficiency is noise, r ≈ 0.09" is false for that metric and is
+  never published about it.** What it supports is relative: efficiency persists
+  LESS than opportunity, the persistence metric's `gap`, excluding zero in 26 of
+  26 cells - cite that value, never a typed sentence.
 - **Wind is the only situational factor** surviving multiple-comparison
   correction (30 tests, Bonferroni |t| > 3.14). Divisional, primetime, home/away
   for receivers and short rest are tested nulls.
