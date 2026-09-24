@@ -46,6 +46,7 @@ import config  # noqa: E402
 import store  # noqa: E402
 from core import settlement as ST  # noqa: E402
 from core import stats as core_stats  # noqa: E402
+from jobs import source_registry  # noqa: E402
 from jobs.publish_live_prices import LIVE_PREFIX  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -2732,8 +2733,13 @@ def sync_keys(dest, wanted, prefixes, dry_run=False):
     Nothing reaches disk unvalidated: this is the one choke point every
     exported file passes through, so the contract check lives here rather than
     at each call site, where a new part could forget it.
+
+    The source gate sits beside it for the same reason (a-22): a file whose
+    kind does not name the sources it reads is refused, because Sources is
+    generated from those declarations and could not list what it was never told.
     """
     validate_contract(wanted)
+    source_registry.require_declared(kind_for_key(k)[0] for k in wanted)
     written = deleted = 0
     for key, obj in wanted.items():
         written += write_if_changed(local_path(dest, key), obj, dry_run)
@@ -2984,7 +2990,15 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
                                   fixtures=(current_fixtures(games, current)
                                             if "fixtures" in stages else None))
         assert_stats_defined({f"{SPORT}/manifest.json": manifest}, defs)
+        # Sources rides the manifest part and, like it, owns no prefix. Generated
+        # from jobs/source_registry.py, never written (a-22, audit S-04).
+        summary["sources_check"] = source_registry.check_registry(
+            CONTRACT["x-contract"]["kinds"])
+        sources = source_registry.build_sources(SPORT, generated_at, con, envelope)
+        summary["sources"] = {"listed": len(sources["sources"]),
+                              "not_connected": len(sources["not_connected"])}
         summary["manifest"] = sync_keys(dest, {f"{SPORT}/manifest.json": manifest,
+                                               f"{SPORT}/sources.json": sources,
                                                "sports.json": build_sports(generated_at)},
                                         [], dry_run)
     con.close()
