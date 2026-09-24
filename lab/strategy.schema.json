@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://calibratedsports/lab/strategy/1",
+  "title": "lab.strategy/1",
+  "description": "One backtest rule, however it was entered. The builder edits it, the engine runs it, a share link encodes it. Enumerations are AUDIT-2026-09-24 section 6.3. A value the schema accepts can still be refused by lab.strategy.check() when the data cannot support it (a 2026-only timing on history, a model side with no walk-forward predictions); a refusal names its reason and nothing runs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "sport", "bet_type", "markets", "seasons", "side"],
+  "properties": {
+    "schema": {"const": "lab.strategy/1"},
+    "name": {"type": "string", "maxLength": 200},
+    "sport": {"const": "nfl"},
+    "bet_type": {"enum": ["prop", "spread", "total", "moneyline"]},
+    "markets": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"enum": ["receptions", "receiving_yards", "rush_attempts",
+                         "tackles_assists", "sacks", "spread", "total", "moneyline"]}
+    },
+    "seasons": {
+      "type": "object", "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": {"type": "integer", "minimum": 1999, "maximum": 2100},
+        "to": {"type": "integer", "minimum": 1999, "maximum": 2100},
+        "season_type": {"enum": ["REG", "POST"]},
+        "weeks": {
+          "type": "object", "additionalProperties": false,
+          "required": ["from", "to"],
+          "properties": {"from": {"type": "integer", "minimum": 1, "maximum": 22},
+                         "to": {"type": "integer", "minimum": 1, "maximum": 22}}
+        }
+      }
+    },
+    "holdout": {
+      "type": "object", "additionalProperties": false,
+      "required": ["season", "revealed"],
+      "properties": {
+        "season": {"type": "integer", "minimum": 1999, "maximum": 2100},
+        "revealed": {"type": "boolean"},
+        "revealed_at": {"type": ["string", "null"]}
+      }
+    },
+    "side": {"enum": ["over", "under", "model_lean", "against_model",
+                      "favourite", "underdog", "home", "away"]},
+    "conditions": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["feature", "op", "value"],
+        "properties": {
+          "feature": {"type": "string", "pattern": "^[a-z]+\\.[a-z0-9_]+$"},
+          "op": {"enum": ["==", "!=", "<", "<=", ">", ">=", "in", "not_in", "between"]},
+          "value": {}
+        }
+      }
+    },
+    "line_choice": {
+      "oneOf": [
+        {"enum": ["main", "all_rungs"]},
+        {"type": "string", "pattern": "^nearest_to\\(-?[0-9]+(\\.[0-9]+)?\\)$"},
+        {"type": "object", "additionalProperties": false, "required": ["nearest_to"],
+         "properties": {"nearest_to": {"type": "number"}}}
+      ]
+    },
+    "price": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "source": {"enum": ["consensus_close", "best_close", "book", "kalshi_mid"]},
+        "books": {"type": "array", "minItems": 1, "uniqueItems": true,
+                  "items": {"type": "string", "pattern": "^[a-z_]+$"}},
+        "devig": {"enum": ["multiplicative"]},
+        "use_posted_juice": {"type": "boolean"},
+        "assume_juice_if_missing": {"type": "number"}
+      }
+    },
+    "timing": {"enum": ["close", "t_minus_24h", "t_minus_3h", "t_minus_1h"]},
+    "staking": {
+      "type": "object", "additionalProperties": false,
+      "required": ["method"],
+      "properties": {
+        "method": {"enum": ["flat", "pct_bankroll", "kelly_fraction"]},
+        "unit": {"type": "number", "exclusiveMinimum": 0},
+        "pct": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "bankroll": {"type": "number", "exclusiveMinimum": 0},
+        "fraction": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}
+      }
+    },
+    "limits": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "per_game": {"type": ["integer", "null"], "minimum": 1},
+        "per_player_week": {"type": ["integer", "null"], "minimum": 1},
+        "per_week": {"type": ["integer", "null"], "minimum": 1}
+      }
+    },
+    "settlement": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "push": {"const": "refund"},
+        "no_snap": {"const": "void"}
+      }
+    },
+    "evaluation": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "bootstrap": {"const": "by_week"},
+        "resamples": {"type": "integer", "minimum": 100, "maximum": 2000},
+        "null_draws": {"type": "integer", "minimum": 100, "maximum": 1000}
+      }
+    }
+  }
+}
