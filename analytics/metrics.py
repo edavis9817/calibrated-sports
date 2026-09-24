@@ -126,6 +126,11 @@ class Metric:
     requires: tuple = ()          # ((dataset, column, condition), ...)
     floor_season: int = 1999      # a bound the data cannot express
     floor_reason: str = ""
+    # WHAT THE RANGE CANNOT FIX, in words, appended to the derived note. The
+    # bound itself stays derived; this is for a limitation of the MEASUREMENT
+    # that holds in every season of it - a selection effect, say - and that a
+    # page must print beside the range rather than leave in a docstring.
+    range_caveat: str = ""
 
     def __post_init__(self):
         if self.availability not in gate.AVAILABILITY:
@@ -238,6 +243,8 @@ def register(con, metric: Metric):
     """Write the metric's row, with its range derived. Returns the row."""
     con.executescript(SCHEMA)
     lo, hi, note = derive_range(con, metric)
+    if metric.range_caveat:
+        note = "%s. %s" % (note, metric.range_caveat)
     # AVAILABILITY IS CHECKED AGAINST THE DERIVED RANGE, not taken on trust. A
     # metric whose inputs stop before the live season cannot serve a page about
     # this week, whatever its author declared, and "current" is precisely the
