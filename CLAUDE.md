@@ -1902,6 +1902,16 @@ the agent — stated as options with a recommendation, not as a question without
   moved lines and an in-game line on 0 - near-close evidence for one week, not a licence
   to say "close". The timestamped near-close is `--odds-forward`, already running.
   `total` rides the same row, so 2,907 games publish a null total another provider has.
+- **numberfire and teamrankings are never a published CFB line** (c-16). Every provider is
+  classified BY NAME in `cfb.cfbd_normalize.PROVIDER_KIND` (sportsbook / CFBD consensus /
+  third-party site); only the first two are eligible, and an unclassified provider refuses
+  the export. Spread and total are each taken from the first eligible provider that has
+  one. Their 197 published games (2013-2018) won by being the ONLY provider, not on name
+  order (SQLite sorts 'Bovada' before 'numberfire'), and now publish no line. Their
+  numbers are market-shaped, not model output - all on the half-point grid, teamrankings =
+  Bovada exactly on 51% of shared games - so the objection is unknown book and instant from
+  a non-book, not "projection". With them excluded the null-total fix fills only 6 totals:
+  2,901 of the 2,907 had only a third-party site beside them.
 - **Provider names are canonical in `cfb_game_lines.provider`** (map in
   `cfb.cfbd_normalize.PROVIDER_CANONICAL`); the CFBD string is `provider_raw`.
   DraftKings arrives as two feeds; the fuller one wins per game. A new book spelled
