@@ -540,11 +540,16 @@ KIND_EXTRA = {
 
 # source -> pages that read it AT REQUEST TIME, through no exported file.
 PAGE_READS = {
-    # a-23 is merged and the Live page now renders live/{sport}/snapshot.json
-    # alone (lib/liveSnapshot.ts): no nfl page calls a third party at request
-    # time, so nfl names none. The scoreboard and the exchange are read by
-    # `live.snapshot` above, on a schedule.
-    "nfl": {},
+    "nfl": {
+        # The Worker read the scoreboard and the exchange per request until a-23.
+        # a-23 is now merged and the Live page renders live/{sport}/snapshot.json
+        # alone (lib/liveSnapshot.ts), so these two rows are STALE - but retiring
+        # them needs a `last_read` mode for "read on a schedule by a job that
+        # records its own read time", which espn.scoreboard's ("runtime", ...)
+        # is not. Held as a deferred issue rather than half-done here.
+        "espn.scoreboard": ("page:live",),
+        "kalshi.ladders": ("page:live",),
+    },
     "cfb": {},
     "mlb": {},
 }
