@@ -385,6 +385,13 @@ LOADERS = {
         "load_looks": (*_PLAYER_KINDS, "components"),         # air_rz stage only
         "load_headshots": ("player_summary", "player_index"),
         "load_prop_history": ("player_summary",),
+        # a-24, the main line: one close-priced line per game, attached to the
+        # same prop_history the summary carries. `_book_closes` and
+        # `_exchange_close` are called from `load_main_lines` in this module, so
+        # the scan does not follow them - each is attributed on its own.
+        "load_main_lines": ("player_summary",),
+        "_book_closes": ("player_summary",),
+        "_exchange_close": ("player_summary",),
         "load_team_snaps": ("components",),
         "build_market": ("market",),
         "build_price_path": ("market",),
@@ -442,6 +449,16 @@ NARROW = {
         ("build_research", "markets"): ("kalshi.ladders",),
         ("build_research", "quotes"): ("kalshi.ladders", "kalshi.price_history"),
         # load_prop_history reads every venue's outcomes and their settlement.
+        # a-24, the main line: the book close is the backfilled Odds API de-vig
+        # (outcome_close exists for no other venue), so the outcomes it names are
+        # Odds API rows. The exchange fallback is asked for 'kalshi' and
+        # 'polymarket' by name and for no other venue, and market_outcome is read
+        # under that same IN list. outcome_settlement and the unfiltered outcomes
+        # read in load_main_lines stay whole: every venue's player outcome is
+        # settled and scoped there.
+        ("_book_closes", "outcomes"): ("oddsapi",),
+        ("_exchange_close", "quotes"): ("kalshi.ladders", "kalshi.price_history", "polymarket"),
+        ("load_main_lines", "market_outcome"): ("kalshi.ladders", "polymarket"),
         # a-31, the Board: book prices are Odds API rows only (venue 'oddsapi:*');
         # the exchange mid is Kalshi's only; the posted-line record joins
         # outcomes to outcome_close, which exists only for backfilled book closes.
@@ -496,6 +513,13 @@ KIND_EXTRA = {
         "analytics.index": ("nflverse.pbp", "nflverse.participation", "nflverse.ngs"),
         "analytics.metric": ("nflverse.pbp", "nflverse.participation", "nflverse.ngs"),
         "live.prices": ("kalshi.ladders",),
+        # a-23, merged: jobs/live_snapshot.py PUTs live/{sport}/snapshot.json on a
+        # schedule - outside sync_keys, so declared here from reading it. The
+        # skeleton is the schedule in this store, the overlays are the scoreboard
+        # and the exchange's game-winner quotes, and the injury block is the
+        # current nflverse report held in feeds.db.
+        "live.snapshot": ("nflverse.schedule", "espn.scoreboard", "kalshi.ladders",
+                          "nflverse.injuries"),
         "predictor": ("nflverse.draft_picks",),
         "coverage": ("nflverse.stats", "nflverse.schedule", "nflverse.snap_counts",
                      "kalshi.ladders", "kalshi.price_history", "kalshi.trades", "polymarket",
@@ -516,12 +540,11 @@ KIND_EXTRA = {
 
 # source -> pages that read it AT REQUEST TIME, through no exported file.
 PAGE_READS = {
-    "nfl": {
-        # The Worker read the scoreboard and the exchange per request until a-23
-        # (jobs/live_snapshot.py on origin/a-23-live-snapshot, not merged here).
-        "espn.scoreboard": ("page:live",),
-        "kalshi.ladders": ("page:live",),
-    },
+    # a-23 is merged and the Live page now renders live/{sport}/snapshot.json
+    # alone (lib/liveSnapshot.ts): no nfl page calls a third party at request
+    # time, so nfl names none. The scoreboard and the exchange are read by
+    # `live.snapshot` above, on a schedule.
+    "nfl": {},
     "cfb": {},
     "mlb": {},
 }
