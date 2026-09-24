@@ -123,6 +123,22 @@ CAVEAT = (
     "regression to the mean; the `net` slices subtract a placebo measured on "
     "games where the role player did play.")
 
+# f-15 (research/f15_vacancy_verify.py, branch f-15-verify-vacancy): on an
+# unvalidated proxy for a sudden exit - under half his baseline snaps the game
+# before - the WR room absorbed 14.7pp [1.3, 28.7] less of the vacated targets
+# than after other absences, and nothing distinguishable for TE or RB. The
+# proxy is too weak to split the published number, so the pooled figure stands
+# and the sentence below travels with every metric that publishes a WR group.
+WR_SELECTION_CAVEAT = (
+    "For receivers, absences that follow a sudden exit the game before "
+    "(an unvalidated proxy) were followed by less absorption within the WR "
+    "room than other absences; the figure shown pools both.")
+
+
+def _note(measure):
+    groups = MEASURES[measure][0]
+    return CAVEAT + (" " + WR_SELECTION_CAVEAT if "WR" in groups else "")
+
 
 # ---------------------------------------------------------------------------
 # loading
@@ -455,7 +471,7 @@ def metric_for(measure):
         floor_season=SNAP_FIRST_SEASON,
         floor_reason=("nfl_snap_counts, the only record of who dressed (it "
                       "starts in 2013)"),
-        note=CAVEAT)
+        note=_note(measure))
 
 
 def market_log_ro(path=None):

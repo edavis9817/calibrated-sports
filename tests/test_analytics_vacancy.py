@@ -142,6 +142,15 @@ def test_the_metric_declares_a_team_denominator_and_the_snap_floor():
         assert m.block == "team" and m.subject_type == "league"
 
 
+def test_the_wr_selection_caveat_rides_only_on_metrics_with_a_wr_group():
+    """f-15's sudden-exit caveat is about the WR room. Both answers are shown:
+    the carries metric publishes RB alone and must not carry it."""
+    carrying = {m for m in vacancy.MEASURES
+                if vacancy.WR_SELECTION_CAVEAT in vacancy.metric_for(m).note}
+    assert carrying == {"targets", "snaps"}
+    assert "WR" not in vacancy.MEASURES["carries"][0]
+
+
 def test_the_pre_registered_thresholds_are_the_briefs():
     assert vacancy.ROLE_TARGET_SHARE == 0.15
     assert vacancy.ROLE_SNAP_SHARE == 0.40
