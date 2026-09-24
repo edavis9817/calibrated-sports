@@ -579,6 +579,48 @@ every read from Cloudflare's egress (b-11: HTTP 429, 15 of 15).
   (`python -m research.live_prices_writes`, 09-10 to 09-22): 336-3,488 PUTs a
   day, mean 1,618, an upper bound; the ceiling is 5,760 a day at 15 s.
 
+## live/{sport}/snapshot.json — kind `live.snapshot` (unit a-23)
+
+The live page's whole input, written by ONE scheduled reader
+(`python -m jobs.live_snapshot --loop`) so that **no page request calls a third
+party**. It replaces the Worker's request-time reads of the scoreboard and the
+exchange, which were answering 403 and 429 on the audited page (2026-09-24).
+
+- **A slate always exists while the schedule has an unfinished game.** The
+  schedule in the producer's store (`nfl_games`, newest version per game, read
+  `mode=ro`) is the skeleton - kickoffs, teams, lines. The scoreboard overlays
+  state, clock and score; the exchange overlays game-winner quotes. A failed
+  overlay degrades a game to its fixture, never to an error.
+- **Which week.** `slate` is the week of the earliest game not known to be over
+  whose live window (`LIVE_WINDOW_MIN`) has not closed; `last_week` is the week
+  before it, for finals, with no markets attached. Out of season `slate` is null,
+  `slate_note` says why, and `last_week` is the most recent week played.
+- **Every source says when it was read** (`sources.*.read_at`, `last_ok_at`,
+  `attempted_at`, `next_attempt_at`). A failed source carries `failure` as a
+  WORD from a closed enum and no number: the file holds no HTTP status code, so
+  a page cannot print one. "Scores delayed · last read HH:MM" is
+  `sources.scoreboard.status == "failed"` plus `last_ok_at`.
+- **Every overlaid game field names its source**: `state_source`,
+  `score_source`. No score is carried forward from an earlier read; with the
+  scoreboard down an in-progress game has `state: "unknown"` and no score.
+- **The file states its own staleness.** `stale_after` = `generated_at` +
+  `next_read_in_s` + `LIVE_SNAPSHOT_STALE_GRACE` (120 s). `mode` is the cadence
+  of the next read: `live` 30 s, `gameday` 15 min (a kickoff on today's ET
+  date), `idle` hourly - and never past the next kickoff.
+- **Injury report**: the current version held in `feeds.db` for the slate's
+  week (or the latest earlier week of the season), each row with `captured_at`,
+  when this store first held it. The job runs `jobs.ingest_feeds --injuries`
+  every `LIVE_SNAPSHOT_INJURIES_EVERY` (6 h) to capture it.
+- **Team codes are the schedule's** (the site's team keys). The scoreboard's
+  LAR/WSH and the exchange's LAR/JAC are folded in the producer; anything that
+  joins no scheduled game is listed in `unmatched`, never dropped.
+- **Written by this one process only**, by PUT, `Cache-Control: no-store`. No
+  delete path. `export_web.upload()` refuses `live/` (a-09), so the batch
+  uploader can neither overwrite nor remove it.
+- **Not covered:** the featured game's candle path. The current Worker still
+  reads it from the exchange at request time; under S-09 it must go, or become a
+  producer read in this file.
+
 ## coverage.json — kind `coverage` (A-C7, adopted a-05/a-12)
 
 Sportless, one file. Every sport the site declares, each with `stats`, `odds` and

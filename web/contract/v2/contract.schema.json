@@ -21,6 +21,7 @@
       "analytics.index": "AnalyticsIndexFile",
       "analytics.metric": "AnalyticMetricFile",
       "live.prices": "LivePricesFile",
+      "live.snapshot": "LiveSnapshotFile",
       "components": "ComponentsFile",
       "coverage": "CoverageFile",
       "predictor": "PredictorFile",
@@ -41,6 +42,7 @@
       {"pattern": "^analytics/[a-z0-9]+/index\\.json$", "kind": "analytics.index"},
       {"pattern": "^analytics/[a-z0-9]+/[a-z0-9_]+(\\.[a-z0-9_]+)+\\.json$", "kind": "analytics.metric"},
       {"pattern": "^live/[a-z0-9]+/prices\\.json$", "kind": "live.prices"},
+      {"pattern": "^live/[a-z0-9]+/snapshot\\.json$", "kind": "live.snapshot"},
       {"pattern": "^[a-z0-9]+/components/\\d{4}\\.json$", "kind": "components"},
       {"pattern": "^coverage\\.json$", "kind": "coverage"},
       {"pattern": "^predictors/[a-z0-9]+/[a-z0-9_]+\\.json$", "kind": "predictor"},
@@ -1379,6 +1381,230 @@
         "markets": {"type": "array", "items": {"$ref": "#/$defs/LivePrice"}}
       },
       "required": ["schema_version", "generated_at", "kind", "sport", "venue", "source", "series", "publish_every_s", "heartbeat_s", "stale_after", "counts", "markets"],
+      "additionalProperties": false
+    },
+
+    "LiveSnapshotFile": {
+      "description": "The live page's whole input, written by ONE scheduled reader so that no page request ever calls a third party. A slate is present whenever the schedule holds an unfinished game: the schedule is the skeleton and the scoreboard and exchange are overlays, so a failed overlay degrades a game to its fixture and never to an error. Every source states when it was read. A failed source carries a reason in words and no number - there is no field an HTTP status code could be read from, so a page cannot print one.",
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "live.snapshot"},
+        "sport": {"type": "string"},
+        "mode": {
+          "description": "The cadence the NEXT read runs at: live (a game inside its live window, or the scoreboard says one is in progress), gameday (a kickoff on today's US Eastern calendar date), idle.",
+          "enum": ["live", "gameday", "idle"]
+        },
+        "next_read_in_s": {"description": "Seconds until the next scheduled read. Never past the next kickoff.", "type": "integer", "minimum": 1},
+        "stale_after": {
+          "description": "generated_at + next_read_in_s + a grace for a slow cycle. Past this the reader has stopped, and every read_at in the file is the last one there will be until it restarts.",
+          "$ref": "#/$defs/Timestamp"
+        },
+        "sources": {
+          "type": "object",
+          "properties": {
+            "scoreboard": {"$ref": "#/$defs/LiveSource"},
+            "prices": {"$ref": "#/$defs/LiveSource"},
+            "schedule": {"$ref": "#/$defs/LiveScheduleSource"},
+            "injuries": {"$ref": "#/$defs/LiveSource"}
+          },
+          "required": ["scoreboard", "prices", "schedule", "injuries"],
+          "additionalProperties": false
+        },
+        "slate": {
+          "description": "The week of the earliest game not known to be over whose live window has not closed. Null only when the schedule holds no such game (or could not be read); slate_note then says which.",
+          "anyOf": [{"$ref": "#/$defs/LiveWeek"}, {"type": "null"}]
+        },
+        "slate_note": {"description": "Why there is no slate, in words. Null when there is one.", "type": ["string", "null"]},
+        "last_week": {
+          "description": "The week before the slate, for its finals. Markets are never attached to it.",
+          "anyOf": [{"$ref": "#/$defs/LiveWeek"}, {"type": "null"}]
+        },
+        "injuries": {
+          "description": "The injury report for the slate's week, or the latest earlier week of the same season that has one. Null when none is held.",
+          "anyOf": [{"$ref": "#/$defs/LiveInjuries"}, {"type": "null"}]
+        },
+        "counts": {
+          "type": "object",
+          "properties": {
+            "slate_games": {"type": "integer", "minimum": 0},
+            "slate_scored_by_scoreboard": {"description": "Slate games whose score came from the scoreboard this cycle.", "type": "integer", "minimum": 0},
+            "slate_priced": {"description": "Slate games with at least one exchange market attached.", "type": "integer", "minimum": 0},
+            "markets_read": {"type": "integer", "minimum": 0},
+            "markets_off_slate_games": {"description": "Scheduled games outside the slate that the exchange also prices - later weeks, listed early. Counted, not attached.", "type": "integer", "minimum": 0}
+          },
+          "required": ["slate_games", "slate_scored_by_scoreboard", "slate_priced", "markets_read", "markets_off_slate_games"],
+          "additionalProperties": false
+        },
+        "unmatched": {
+          "description": "Events that joined no scheduled game - a feed's team code drifting, or a game the schedule does not hold yet. Listed, never dropped.",
+          "type": "object",
+          "properties": {
+            "scoreboard_events": {"type": "array", "items": {"type": "string"}},
+            "exchange_events": {"type": "array", "items": {"type": "string"}}
+          },
+          "required": ["scoreboard_events", "exchange_events"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "mode", "next_read_in_s", "stale_after", "sources", "slate", "slate_note", "last_week", "injuries", "counts", "unmatched"],
+      "additionalProperties": false
+    },
+
+    "LiveSource": {
+      "description": "One upstream as the reader last tried it. read_at is set only when THIS file's data came from a read that succeeded; otherwise failure names why in words and last_ok_at says when it last worked - the 'scores delayed, last read HH:MM' line.",
+      "type": "object",
+      "properties": {
+        "name": {"description": "How the page names the source.", "type": "string"},
+        "status": {
+          "description": "ok: this file carries this source's data. failed: the latest attempt failed, or the source is backing off after one. not_read: never tried (no slate to read it for). disabled: switched off by configuration.",
+          "enum": ["ok", "failed", "not_read", "disabled"]
+        },
+        "read_at": {"anyOf": [{"$ref": "#/$defs/Timestamp"}, {"type": "null"}]},
+        "last_ok_at": {"anyOf": [{"$ref": "#/$defs/Timestamp"}, {"type": "null"}]},
+        "attempted_at": {"anyOf": [{"$ref": "#/$defs/Timestamp"}, {"type": "null"}]},
+        "failure": {
+          "description": "refused: the upstream declined the read. rate_limited: it asked us to slow down. Null when status is ok.",
+          "enum": ["refused", "rate_limited", "server_error", "http_error", "timeout", "network", "shape", "ceiling", "store_unavailable", "refresh_failed", null]
+        },
+        "consecutive_failures": {"type": "integer", "minimum": 0},
+        "next_attempt_at": {"description": "When a backing-off source will be tried again. Null when it is not backing off.", "anyOf": [{"$ref": "#/$defs/Timestamp"}, {"type": "null"}]}
+      },
+      "required": ["name", "status", "read_at", "last_ok_at", "attempted_at", "failure", "consecutive_failures", "next_attempt_at"],
+      "additionalProperties": false
+    },
+
+    "LiveScheduleSource": {
+      "description": "The schedule is read from the producer's own store, not an upstream, and is held between reads because fixtures do not move by the minute. read_at is the read the file's fixtures came from; data_as_of is when the store last ingested the schedule.",
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "status": {"enum": ["ok", "failed", "not_read", "disabled"]},
+        "read_at": {"anyOf": [{"$ref": "#/$defs/Timestamp"}, {"type": "null"}]},
+        "last_ok_at": {"anyOf": [{"$ref": "#/$defs/Timestamp"}, {"type": "null"}]},
+        "attempted_at": {"anyOf": [{"$ref": "#/$defs/Timestamp"}, {"type": "null"}]},
+        "failure": {"enum": ["refused", "rate_limited", "server_error", "http_error", "timeout", "network", "shape", "ceiling", "store_unavailable", "refresh_failed", null]},
+        "consecutive_failures": {"type": "integer", "minimum": 0},
+        "next_attempt_at": {"anyOf": [{"$ref": "#/$defs/Timestamp"}, {"type": "null"}]},
+        "data_as_of": {"anyOf": [{"$ref": "#/$defs/Timestamp"}, {"type": "null"}]}
+      },
+      "required": ["name", "status", "read_at", "last_ok_at", "attempted_at", "failure", "consecutive_failures", "next_attempt_at", "data_as_of"],
+      "additionalProperties": false
+    },
+
+    "LiveWeek": {
+      "type": "object",
+      "properties": {
+        "season": {"type": "integer"},
+        "week": {"type": "integer"},
+        "label": {"description": "'Week N' in the regular season, the round's name after it.", "type": "string"},
+        "games": {"type": "array", "items": {"$ref": "#/$defs/LiveGame"}}
+      },
+      "required": ["season", "week", "label", "games"],
+      "additionalProperties": false
+    },
+
+    "LiveGame": {
+      "description": "One scheduled game with whatever the overlays added. Every overlaid field says which source it came from, so a fixture is never presented as a live read.",
+      "type": "object",
+      "properties": {
+        "game_id": {"description": "The schedule's game id.", "type": "string"},
+        "scoreboard_id": {"type": ["string", "null"]},
+        "kickoff_at": {"$ref": "#/$defs/Timestamp"},
+        "away": {"$ref": "#/$defs/LiveSide"},
+        "home": {"$ref": "#/$defs/LiveSide"},
+        "state": {
+          "description": "pre, in, post - or unknown: past kickoff and nothing read this cycle says how it stands.",
+          "enum": ["pre", "in", "post", "unknown"]
+        },
+        "state_source": {"enum": ["scoreboard", "schedule"]},
+        "score_source": {"description": "Null when no score is held (not started, or in progress with the scoreboard down).", "enum": ["scoreboard", "schedule", null]},
+        "detail": {"description": "The scoreboard's own short status line. Null when the scoreboard is not the state source.", "type": ["string", "null"]},
+        "situation": {"description": "Down and distance while in progress, when the scoreboard carries it.", "type": ["string", "null"]},
+        "line": {
+          "description": "The schedule's lines. spread_line is home-relative and POSITIVE when the home team is favoured, as the schedule source publishes it.",
+          "anyOf": [{
+            "type": "object",
+            "properties": {
+              "spread_line": {"type": ["number", "null"]},
+              "total_line": {"type": ["number", "null"]},
+              "home_moneyline": {"type": ["number", "null"]},
+              "away_moneyline": {"type": ["number", "null"]}
+            },
+            "required": ["spread_line", "total_line", "home_moneyline", "away_moneyline"],
+            "additionalProperties": false
+          }, {"type": "null"}]
+        },
+        "scoreboard_odds": {
+          "description": "The line the scoreboard publishes, verbatim, with its provider's name.",
+          "anyOf": [{
+            "type": "object",
+            "properties": {
+              "provider": {"type": ["string", "null"]},
+              "details": {"type": ["string", "null"]},
+              "over_under": {"type": ["number", "null"]}
+            },
+            "required": ["provider", "details", "over_under"],
+            "additionalProperties": false
+          }, {"type": "null"}]
+        },
+        "markets": {"description": "Open game-winner markets on this game, read at sources.prices.read_at. Empty when none, or when the exchange was not read this cycle.", "type": "array", "items": {"$ref": "#/$defs/LiveGameMarket"}}
+      },
+      "required": ["game_id", "scoreboard_id", "kickoff_at", "away", "home", "state", "state_source", "score_source", "detail", "situation", "line", "scoreboard_odds", "markets"],
+      "additionalProperties": false
+    },
+
+    "LiveSide": {
+      "type": "object",
+      "properties": {
+        "team": {"description": "The schedule's team code, which is the site's team key.", "type": "string"},
+        "score": {"type": ["number", "null"]}
+      },
+      "required": ["team", "score"],
+      "additionalProperties": false
+    },
+
+    "LiveGameMarket": {
+      "description": "One exchange market paying on one team. No mid and no de-vig: an exchange mid IS the probability, and the consumer derives it only where both sides are quoted.",
+      "type": "object",
+      "properties": {
+        "ticker": {"type": "string"},
+        "team": {"type": "string"},
+        "bid": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "ask": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+      },
+      "required": ["ticker", "team", "bid", "ask"],
+      "additionalProperties": false
+    },
+
+    "LiveInjuries": {
+      "description": "The official report as this producer's store holds it. The upstream file is rewritten in place and carries no capture time of its own, so each row carries captured_at - when this store first held that version of it. A table, one row per player.",
+      "type": "object",
+      "properties": {
+        "season": {"type": "integer"},
+        "week": {"type": "integer"},
+        "season_type": {"type": "string"},
+        "rows": {"type": "array", "items": {"$ref": "#/$defs/LiveInjury"}}
+      },
+      "required": ["season", "week", "season_type", "rows"],
+      "additionalProperties": false
+    },
+
+    "LiveInjury": {
+      "type": "object",
+      "properties": {
+        "team": {"type": "string"},
+        "player_id": {"type": ["string", "null"]},
+        "player": {"type": ["string", "null"]},
+        "position": {"type": ["string", "null"]},
+        "status": {"description": "The game designation, when the report gives one.", "type": ["string", "null"]},
+        "practice": {"type": ["string", "null"]},
+        "injury": {"type": ["string", "null"]},
+        "upstream_dated_at": {"description": "The upstream's own date for the row, where it publishes one (it stopped doing so in 2025).", "anyOf": [{"$ref": "#/$defs/Timestamp"}, {"type": "null"}]},
+        "captured_at": {"$ref": "#/$defs/Timestamp"}
+      },
+      "required": ["team", "player_id", "player", "position", "status", "practice", "injury", "upstream_dated_at", "captured_at"],
       "additionalProperties": false
     },
 
