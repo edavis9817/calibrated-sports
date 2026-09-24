@@ -25,6 +25,7 @@ log line and exit 0 - a pending token must not break the weekly job.
 import argparse
 import bisect
 import hashlib
+import io
 import json
 import os
 import random
@@ -46,6 +47,7 @@ import config  # noqa: E402
 import store  # noqa: E402
 from core import settlement as ST  # noqa: E402
 from core import stats as core_stats  # noqa: E402
+from jobs import source_registry  # noqa: E402
 from jobs.publish_live_prices import LIVE_PREFIX  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -86,6 +88,30 @@ REFRESHED_SENTINEL = "REFRESHED"
 # route - sanitizeKey requires every path segment to START with an alphanumeric,
 # so an underscore-led segment is refused (asserted in the site's tests).
 REMOTE_STATE_KEY = "_state/upload_state.json"
+# THE BOARD'S TREE (a-31). The Board read job writes `board/` into its OWN local
+# tree (config.BOARD_EXPORT_DIR, never inside WEB_EXPORT_DIR) and uploads it with
+# `upload(tree="board")`, which keeps its own record under its own state key. Two
+# uploaders sharing one record would each overwrite the other's copy of it.
+#
+# `board/` IS APPEND-ONLY IN R2, and three rules make that a property rather than
+# a habit:
+#   1. no upload ever deletes a key under `board/` - not the web tree's (it may
+#      not even claim the prefix: a declaration reaching it is refused, as for
+#      `live/`), and not the board tree's own (it accepts no declaration at all);
+#   2. the web tree's uploader skips any `board/` file it finds and counts it;
+#   3. a ledger table (contract `x-contract.tables`, append_only) is uploaded only
+#      after the bucket's copy has been read back and the new file shown to be
+#      that copy plus rows at the end. A lost local tree would otherwise start a
+#      fresh one-row ledger and overwrite the only record of what was published.
+BOARD_PREFIX = "board/"
+BOARD_STATE_KEY = "_state/board_upload_state.json"
+# Non-JSON keys the contract names, each with its kind and its table entry. A
+# non-JSON file matching none of these is never uploaded.
+TABLES = {k: v for k, v in CONTRACT["x-contract"].get("tables", {}).items() if k != "comment"}
+TABLE_BY_KEY = tuple((re.compile(pat), kind, entry)
+                     for kind, entry in TABLES.items() for pat in entry["patterns"])
+CONTENT_TYPES = {".json": "application/json", ".parquet": "application/vnd.apache.parquet",
+                 ".csv": "text/csv; charset=utf-8"}
 # The committed slug registry (docs/web-schema.md): id -> slug, append-only.
 SLUG_DIR = os.path.join(ROOT, "web", "slugs")
 UPLOAD_WORKERS = 8
@@ -932,6 +958,29 @@ def contract_validators():
     return _VALIDATORS
 
 
+def board_index_problems(key, index, files):
+    """a-35: the partition a Board index states, ENFORCED rather than documented.
+    JSON Schema can say each count is a non-negative integer; it cannot say the
+    four add up to the rows of another file. So an index is valid only in a batch
+    that also holds the read it names as `latest`, and only if its counts are that
+    read's lean-carrying rows partitioned by status (`core.board.index_reconciles`).
+    An index validated alone is REFUSED, not waved through: a check that cannot
+    run is not a check that passed."""
+    from core import board as B
+    rkey = key.rsplit("/", 1)[0] + "/" + B.read_file_name(index["latest"])
+    read = files.get(rkey)
+    if read is None:
+        return [f"{key}: its latest read {rkey} is not in this batch, so its lean counts cannot "
+                "be reconciled - validate an index together with the read it indexes"]
+    if kind_for_key(rkey)[0] != "board_read" or read.get("kind") != "board_read":
+        return [f"{key}: {rkey} is not a board_read"]
+    try:
+        B.index_reconciles(index, read)
+    except (AssertionError, KeyError, TypeError) as e:
+        return [f"{key}: {e}"]
+    return []
+
+
 def validate_contract(files, limit=12):
     """Every file must match the contract for the kind its key implies.
 
@@ -952,9 +1001,12 @@ def validate_contract(files, limit=12):
         if obj.get("kind") != kind:
             problems.append(f"{key}: the key implies kind {kind!r}, the file says {obj.get('kind')!r}")
             continue
-        for e in vs[kind].iter_errors(obj):
+        errs = list(vs[kind].iter_errors(obj))
+        for e in errs:
             loc = "/".join(str(p) for p in e.absolute_path) or "(root)"
             problems.append(f"{key}: {loc}: {e.message}")
+        if kind == "board_index" and not errs:
+            problems.extend(board_index_problems(key, obj, files))
     if problems:
         shown = "\n  ".join(problems[:limit])
         more = f"\n  ... and {len(problems) - limit} more" if len(problems) > limit else ""
@@ -2713,17 +2765,40 @@ def write_if_changed(path, obj, dry_run=False):
     return True
 
 
-def local_keys(dest):
+def table_for_key(key):
+    """(kind, table entry) for a non-JSON key the contract names, else (None, None)."""
+    for rx, kind, entry in TABLE_BY_KEY:
+        if rx.match(key):
+            return kind, entry
+    return None, None
+
+
+def local_keys(dest, tables=False):
+    """{key: path} for every *.json under `dest`. With `tables`, also every
+    non-JSON file whose key matches a contract table pattern (the Board's ledger).
+
+    `sync_keys` calls this WITHOUT `tables`, and that is load-bearing: its
+    deletion walk can therefore never reach a ledger, whatever prefix it owns."""
     out = {}
     if not os.path.isdir(dest):
         return out
     for root, _dirs, files in os.walk(dest):
         for fn in files:
-            if not fn.endswith(".json") or fn == STATE_FILE:
+            if fn == STATE_FILE:
                 continue
             path = os.path.join(root, fn)
-            out[os.path.relpath(path, dest).replace(os.sep, "/")] = path
+            key = os.path.relpath(path, dest).replace(os.sep, "/")
+            if fn.endswith(".json") or (tables and table_for_key(key)[0] is not None):
+                out[key] = path
     return out
+
+
+def content_type(key):
+    ext = os.path.splitext(key)[1]
+    if ext not in CONTENT_TYPES:
+        raise ValueError(f"{key}: no content type for {ext!r}; the uploader ships JSON and the "
+                         "contract's tables only")
+    return CONTENT_TYPES[ext]
 
 
 def sync_keys(dest, wanted, prefixes, dry_run=False):
@@ -2732,8 +2807,13 @@ def sync_keys(dest, wanted, prefixes, dry_run=False):
     Nothing reaches disk unvalidated: this is the one choke point every
     exported file passes through, so the contract check lives here rather than
     at each call site, where a new part could forget it.
+
+    The source gate sits beside it for the same reason (a-22): a file whose
+    kind does not name the sources it reads is refused, because Sources is
+    generated from those declarations and could not list what it was never told.
     """
     validate_contract(wanted)
+    source_registry.require_declared(wanted)
     written = deleted = 0
     for key, obj in wanted.items():
         written += write_if_changed(local_path(dest, key), obj, dry_run)
@@ -2847,6 +2927,9 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
     generated_at = iso(now_ts)
     t0 = time.time()
     con = ro()
+    # Every table this run reads, as SQLite reports it; sync_keys refuses a write
+    # after an unmapped read, however the SQL was spelled or wherever it lives (a-30).
+    source_registry.watch(con, SPORT)
     games = load_games(con)
     weeks = load_player_weeks(con)
     xwalk, aliases = load_xwalk(con)
@@ -2984,7 +3067,15 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
                                   fixtures=(current_fixtures(games, current)
                                             if "fixtures" in stages else None))
         assert_stats_defined({f"{SPORT}/manifest.json": manifest}, defs)
+        # Sources rides the manifest part and, like it, owns no prefix. Generated
+        # from jobs/source_registry.py, never written (a-22, audit S-04).
+        summary["sources_check"] = source_registry.check_registry(
+            CONTRACT["x-contract"]["kinds"])
+        sources = source_registry.build_sources(SPORT, generated_at, con, envelope)
+        summary["sources"] = {"listed": len(sources["sources"]),
+                              "not_connected": len(sources["not_connected"])}
         summary["manifest"] = sync_keys(dest, {f"{SPORT}/manifest.json": manifest,
+                                               f"{SPORT}/sources.json": sources,
                                                "sports.json": build_sports(generated_at)},
                                         [], dry_run)
     con.close()
@@ -3025,7 +3116,7 @@ def r2_client():
                       max_pool_connections=UPLOAD_WORKERS * 2))
 
 
-def _save_state(path, state, client=None, bucket=None):
+def _save_state(path, state, client=None, bucket=None, state_key=REMOTE_STATE_KEY):
     """Write the upload record locally, and mirror it into the bucket.
 
     A failed mirror is logged nowhere and raises nothing: the local copy is
@@ -3039,17 +3130,17 @@ def _save_state(path, state, client=None, bucket=None):
     os.replace(tmp, path)
     if client is not None and bucket:
         try:
-            client.put_object(Bucket=bucket, Key=REMOTE_STATE_KEY,
+            client.put_object(Bucket=bucket, Key=state_key,
                               Body=blob.encode("utf-8"), ContentType="application/json",
                               CacheControl="no-store")
         except Exception:
             pass
 
 
-def _remote_state(client, bucket):
+def _remote_state(client, bucket, state_key=REMOTE_STATE_KEY):
     """The record as the bucket last saw it, or None."""
     try:
-        return json.loads(client.get_object(Bucket=bucket, Key=REMOTE_STATE_KEY)["Body"].read())
+        return json.loads(client.get_object(Bucket=bucket, Key=state_key)["Body"].read())
     except Exception:
         return None
 
@@ -3067,7 +3158,7 @@ def _bucket_keys(client, bucket):
         return None
 
 
-def load_upload_state(dest, client, bucket, log=print):
+def load_upload_state(dest, client, bucket, log=print, state_key=REMOTE_STATE_KEY):
     """The upload record: local first, else the bucket's copy. -> (state, source).
 
     A record that does not describe the bucket is WORSE than no record, because
@@ -3083,7 +3174,7 @@ def load_upload_state(dest, client, bucket, log=print):
             return json.load(f), "local"
     except (OSError, ValueError):
         pass
-    remote = _remote_state(client, bucket)
+    remote = _remote_state(client, bucket, state_key)
     if not remote:
         return {}, "none"
     present = _bucket_keys(client, bucket)
@@ -3099,8 +3190,99 @@ def load_upload_state(dest, client, bucket, log=print):
     return remote, "r2"
 
 
+class AppendOnlyError(RuntimeError):
+    """A table the contract marks append-only would REPLACE the bucket's copy with
+    one that is not that copy plus rows at the end. Nothing was uploaded."""
+
+
+def _absent(exc):
+    """True when `get_object` failed because the key is not there - and ONLY then.
+    Any other failure (network, auth) is not evidence of absence."""
+    if isinstance(exc, KeyError):
+        return True
+    code = str(((getattr(exc, "response", None) or {}).get("Error") or {}).get("Code", ""))
+    return code in ("NoSuchKey", "404", "NotFound")
+
+
+def _table_rows(key, data):
+    import polars as pl
+    buf = io.BytesIO(data)
+    return (pl.read_parquet(buf) if key.endswith(".parquet")
+            else pl.read_csv(buf, infer_schema_length=0)).to_dicts()
+
+
+def check_append_only(client, bucket, key, data):
+    """Refuse unless `data` is the bucket's copy of `key` plus rows at the end.
+    -> the statement it approved. A first upload (no copy) is approved as such;
+    an unreadable bucket is REFUSED, because "could not look" is not "nothing
+    there", and approving on it is how a ledger gets overwritten.
+
+    CSV is compared as text (`infer_schema_length=0`), so a float that prints
+    differently is a changed row rather than a silently re-typed one."""
+    try:
+        remote = client.get_object(Bucket=bucket, Key=key)["Body"].read()
+    except Exception as e:  # noqa: BLE001 - classified here, never swallowed
+        if _absent(e):
+            return f"{key}: first upload ({len(_table_rows(key, data))} rows)"
+        raise AppendOnlyError(f"{key}: could not read the bucket's copy ({type(e).__name__}: "
+                              f"{e}) - refusing rather than overwrite an append-only table")
+    if remote == data:
+        return f"{key}: unchanged"
+    old, new = _table_rows(key, remote), _table_rows(key, data)
+    if len(new) < len(old):
+        raise AppendOnlyError(f"{key}: the local copy has {len(new)} rows and the bucket's has "
+                              f"{len(old)} - an append-only table may not shrink. Restore the "
+                              "local tree from the bucket (python -m jobs.board_read --restore)")
+    for i, (a, b) in enumerate(zip(old, new)):
+        if a != b:
+            raise AppendOnlyError(f"{key}: row {i} differs from the bucket's copy - an "
+                                  "append-only table may only gain rows at the end")
+    return f"{key}: {len(old)} -> {len(new)} rows, every existing row unchanged"
+
+
+class TablePairError(RuntimeError):
+    """One contract table written in two formats (the ledger's parquet and CSV)
+    holds a different number of rows in each. Nothing was uploaded."""
+
+
+def check_table_pairs(local):
+    """-> one statement per multi-format table; raises TablePairError otherwise.
+
+    a-35 (f-21's crash plant): `write_ledger` replaces the parquet and the CSV as
+    two atomic steps, so a crash between them leaves parquet N+1 beside CSV N -
+    and the append-only check compares each file only with ITS OWN bucket copy,
+    so both pass and the bucket ends up split, persistently. This compares the
+    two formats WITH EACH OTHER, over every local copy (not only the changed
+    ones: in the crash case the CSV is unchanged and would never be looked at).
+    Row counts only - a count is what a reader checking one against the other
+    sees first, and CSV text vs typed parquet cannot be compared value for value
+    without re-deciding how each float prints."""
+    import polars as pl
+    groups = defaultdict(dict)
+    for key, path in local.items():
+        kind, _ = table_for_key(key)
+        if kind is not None:
+            groups[(kind, key.rsplit(".", 1)[0])][key] = path
+    out = []
+    for (kind, stem), keys in sorted(groups.items()):
+        if len(keys) < 2:
+            continue
+        n = {}
+        for key, path in sorted(keys.items()):
+            n[key] = (pl.read_parquet(path) if key.endswith(".parquet")
+                      else pl.read_csv(path, infer_schema_length=0)).height
+        if len(set(n.values())) > 1:
+            raise TablePairError(
+                f"{kind} {stem}: " + ", ".join(f"{k.rsplit('/', 1)[1]} {v} rows" for k, v in n.items())
+                + " - the formats must hold the same rows; refusing to upload a split pair. "
+                  "The next Board read heals a CSV that trails its parquet "
+                  "(jobs.board_read.pair_ledger)")
+        out.append(f"{stem}: {len(keys)} formats, {next(iter(n.values()))} rows each")
+    return out
+
+
 def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORKERS,
-           refreshed=None):
+           refreshed=None, tree="web"):
     """Upload keys whose sha256 differs from the local upload record, and delete
     keys that were removed FROM A PREFIX THIS RUN REFRESHED.
 
@@ -3136,16 +3318,28 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
     run that produced it, and nowhere else. Persisting it would let a stale copy
     authorise deletions for a run that never happened - this same defect wearing
     a fresh coat.
+
+    `tree="board"` (a-31) uploads the Board's own tree: BOARD_EXPORT_DIR, its own
+    record under BOARD_STATE_KEY, JSON plus the contract's tables, and it DELETES
+    NOTHING - it accepts no declaration, and every append-only table is checked
+    against the bucket's copy first. See BOARD_PREFIX for why.
     """
-    dest = dest or require_setting("WEB_EXPORT_DIR")
+    if tree not in ("web", "board"):
+        raise ValueError(f"unknown tree {tree!r}")
+    board = tree == "board"
+    if board and refreshed is not None:
+        raise ValueError("the Board's tree deletes nothing and takes no declaration: "
+                         f"refusing refreshed={refreshed!r}")
+    dest = dest or require_setting("BOARD_EXPORT_DIR" if board else "WEB_EXPORT_DIR")
     if not (config.WEB_R2_ACCESS_KEY_ID and config.WEB_R2_SECRET_ACCESS_KEY):
         log("R2 upload not configured (WEB_R2_ACCESS_KEY_ID / WEB_R2_SECRET_ACCESS_KEY unset) - "
             "local export only")
         return {"configured": False}
     bucket = require_setting("WEB_R2_BUCKET")
     client = client or r2_client()
+    state_key = BOARD_STATE_KEY if board else REMOTE_STATE_KEY
     state_path = os.path.join(dest, STATE_FILE)
-    state, state_source = load_upload_state(dest, client, bucket, log)
+    state, state_source = load_upload_state(dest, client, bucket, log, state_key=state_key)
 
     # `live/` BELONGS TO THE LOGGER (unit a-09), which PUTs it every few seconds
     # and never records it here. This uploader may not claim it, may not upload
@@ -3157,7 +3351,25 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
     if foreign:
         raise ValueError(f"declared prefixes {foreign} reach {LIVE_PREFIX!r}, which the logger "
                          "publishes and this uploader never owns")
-    local = local_keys(dest)
+    # The same refusal for `board/`, which is append-only in the bucket: no run
+    # may claim it, because a claim is a licence to delete by absence.
+    on_board = [p for p in (refreshed or [])
+                if p.startswith(BOARD_PREFIX) or BOARD_PREFIX.startswith(p)]
+    if on_board:
+        raise ValueError(f"declared prefixes {on_board} reach {BOARD_PREFIX!r}, which is "
+                         "append-only in the bucket: no upload deletes under it")
+    local = local_keys(dest, tables=board)
+    if board:
+        stray = sorted(k for k in local if not k.startswith(BOARD_PREFIX))
+        if stray:
+            raise ValueError(f"{len(stray)} key(s) in the Board's tree lie outside "
+                             f"{BOARD_PREFIX!r} (e.g. {stray[0]}) - it carries the Board only")
+    board_skipped = [] if board else sorted(k for k in local if k.startswith(BOARD_PREFIX))
+    for k in board_skipped:
+        local.pop(k)
+    if board_skipped:
+        log(f"  WARN {len(board_skipped)} file(s) under {BOARD_PREFIX} in the web export tree "
+            "were NOT uploaded: the Board publishes from its own tree (BOARD_EXPORT_DIR)")
     # A `live/` file in the export tree is a stale copy by definition - the only
     # writer of that key is the logger, straight to R2. Uploading it would
     # overwrite a fresh price with an old one. Skipped, and counted.
@@ -3178,7 +3390,8 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
         removed, withheld, declared = [], absent, None
     else:
         removed = [k for k in absent if any(k.startswith(p) for p in refreshed)
-                   and not k.startswith(LIVE_PREFIX)]
+                   and not k.startswith(LIVE_PREFIX) and not k.startswith(BOARD_PREFIX)
+                   and table_for_key(k)[0] is None]
         withheld = [k for k in absent if k not in set(removed)]
         declared = list(refreshed)
     result = {"configured": True, "bucket": bucket, "considered": len(local),
@@ -3191,7 +3404,18 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
               # is the signal; this is its subject.
               "withheld_prefixes": sorted({k.split("/")[0] + "/" for k in withheld}),
               "declared_prefixes": declared, "state_source": state_source,
-              "live_skipped": len(live_skipped)}
+              "live_skipped": len(live_skipped), "board_skipped": len(board_skipped),
+              "tree": tree, "append_only": [], "table_pairs": []}
+    # a-35: a table shipped in two formats must hold the same rows in both,
+    # checked over the whole local tree before anything is put, dry run included.
+    result["table_pairs"] = check_table_pairs(local)
+    # Every append-only table is checked against the bucket BEFORE anything is
+    # put, dry run included: a refusal must stop the whole upload, not the half
+    # of it after the reads were already published.
+    for key, data, _sha in todo:
+        kind, entry = table_for_key(key)
+        if kind is not None and entry.get("append_only"):
+            result["append_only"].append(check_append_only(client, bucket, key, data))
     if live_skipped:
         log(f"  WARN {len(live_skipped)} file(s) under {LIVE_PREFIX} in the export tree were NOT "
             "uploaded: the logger is that prefix's only writer, and a local copy is stale")
@@ -3214,7 +3438,7 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
 
     def put(item):
         key, data, sha = item
-        client.put_object(Bucket=bucket, Key=key, Body=data, ContentType="application/json",
+        client.put_object(Bucket=bucket, Key=key, Body=data, ContentType=content_type(key),
                           CacheControl=cache_control(key))
         return key, sha, len(data)
 
@@ -3225,14 +3449,14 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
                 result["uploaded"] += 1
                 result["bytes"] += size
                 if i % 500 == 0:
-                    _save_state(state_path, state, client, bucket)
+                    _save_state(state_path, state, client, bucket, state_key)
                     log(f"  uploaded {i:,}/{len(todo):,}")
         for key in removed:
             client.delete_object(Bucket=bucket, Key=key)
             state.pop(key, None)
             result["deleted"] += 1
     finally:
-        _save_state(state_path, state, client, bucket)
+        _save_state(state_path, state, client, bucket, state_key)
     return result
 
 
