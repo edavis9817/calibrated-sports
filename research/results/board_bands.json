@@ -1,0 +1,211 @@
+{
+ "generated_by": "research/board_bands.py",
+ "threshold_pp": 4.0,
+ "seasons": [
+  2023,
+  2024,
+  2025
+ ],
+ "population": {
+  "ledger_rows": 25370,
+  "with_p_bench": 16041,
+  "leans": 13253,
+  "leans_priced": 13253,
+  "leans_unpriced": 0
+ },
+ "definitions": "The Board's \"leans this size\" base rates (audit 5.3, unit a-26).\n\n    python -m research.walkforward --ledger-out D:/scratch/walkforward_ledger.csv\n    python -m research.board_bands --ledger D:/scratch/walkforward_ledger.csv\n\nFor every walk-forward outcome (brief 023 Part 1: receptions and rush attempts,\n2023-2025, over side, constants refit on seasons <= T-1, features strictly\nas-of), the lean the Board WOULD have shown at the close:\n\n    market   p_bench - the median of DraftKings / FanDuel / BetMGM de-vigged\n             over probabilities at the closing snapshot (outcome_close)\n    gap      (p_model - p_bench) x 100, signed\n    lean     over at gap >= +T, under at gap <= -T; T = the Board's FIRST\n             threshold-log entry (4.0), never a value tuned on this output\n    band     |gap| in [4,6), [6,8), [8,inf)\n    price    the lean side's AMERICAN price at that same snapshot, median in\n             decimal odds across the benchmark books that quoted both sides -\n             \"the price that stood\", vig included. NOT the best price: the best\n             of three books is a selection the reader would not have made.\n    cleared  the lean side won (settled by core.settlement via walkforward,\n             corrected arm: played with no stat row = 0). Pushes are excluded\n             upstream by walkforward; a push refunds, so it moves no ROI.",
+ "bands": {
+  "receptions|4-6": {
+   "n": 1084,
+   "k": 546,
+   "cleared": 0.5037,
+   "ci": [
+    0.474,
+    0.5334
+   ],
+   "ci_method": "wilson_95",
+   "roi": -0.0517,
+   "roi_ci": [
+    -0.1121,
+    0.0111
+   ],
+   "roi_ci_method": "game_block_bootstrap_2000",
+   "games": 630,
+   "by_season": {
+    "2023": {
+     "n": 344,
+     "k": 176
+    },
+    "2024": {
+     "n": 364,
+     "k": 186
+    },
+    "2025": {
+     "n": 376,
+     "k": 184
+    }
+   },
+   "break_even": 0.5322
+  },
+  "receptions|6-8": {
+   "n": 1059,
+   "k": 507,
+   "cleared": 0.4788,
+   "ci": [
+    0.4488,
+    0.5089
+   ],
+   "ci_method": "wilson_95",
+   "roi": -0.1026,
+   "roi_ci": [
+    -0.1632,
+    -0.0422
+   ],
+   "roi_ci_method": "game_block_bootstrap_2000",
+   "games": 614,
+   "by_season": {
+    "2023": {
+     "n": 363,
+     "k": 173
+    },
+    "2024": {
+     "n": 322,
+     "k": 152
+    },
+    "2025": {
+     "n": 374,
+     "k": 182
+    }
+   },
+   "break_even": 0.5349
+  },
+  "receptions|8+": {
+   "n": 6862,
+   "k": 3605,
+   "cleared": 0.5254,
+   "ci": [
+    0.5135,
+    0.5372
+   ],
+   "ci_method": "wilson_95",
+   "roi": -0.0063,
+   "roi_ci": [
+    -0.0297,
+    0.0165
+   ],
+   "roi_ci_method": "game_block_bootstrap_2000",
+   "games": 852,
+   "by_season": {
+    "2023": {
+     "n": 2043,
+     "k": 1047
+    },
+    "2024": {
+     "n": 2242,
+     "k": 1166
+    },
+    "2025": {
+     "n": 2577,
+     "k": 1392
+    }
+   },
+   "break_even": 0.5283
+  },
+  "rush_attempts|4-6": {
+   "n": 315,
+   "k": 147,
+   "cleared": 0.4667,
+   "ci": [
+    0.4123,
+    0.5218
+   ],
+   "ci_method": "wilson_95",
+   "roi": -0.1369,
+   "roi_ci": [
+    -0.2476,
+    -0.0265
+   ],
+   "roi_ci_method": "game_block_bootstrap_2000",
+   "games": 254,
+   "by_season": {
+    "2023": {
+     "n": 72,
+     "k": 35
+    },
+    "2024": {
+     "n": 102,
+     "k": 44
+    },
+    "2025": {
+     "n": 141,
+     "k": 68
+    }
+   },
+   "break_even": 0.5392
+  },
+  "rush_attempts|6-8": {
+   "n": 331,
+   "k": 174,
+   "cleared": 0.5257,
+   "ci": [
+    0.4719,
+    0.5789
+   ],
+   "ci_method": "wilson_95",
+   "roi": -0.0286,
+   "roi_ci": [
+    -0.1305,
+    0.0739
+   ],
+   "roi_ci_method": "game_block_bootstrap_2000",
+   "games": 264,
+   "by_season": {
+    "2023": {
+     "n": 98,
+     "k": 49
+    },
+    "2024": {
+     "n": 109,
+     "k": 60
+    },
+    "2025": {
+     "n": 124,
+     "k": 65
+    }
+   },
+   "break_even": 0.5349
+  },
+  "rush_attempts|8+": {
+   "n": 3602,
+   "k": 1968,
+   "cleared": 0.5464,
+   "ci": [
+    0.5301,
+    0.5626
+   ],
+   "ci_method": "wilson_95",
+   "roi": 0.0311,
+   "roi_ci": [
+    -0.0044,
+    0.0651
+   ],
+   "roi_ci_method": "game_block_bootstrap_2000",
+   "games": 841,
+   "by_season": {
+    "2023": {
+     "n": 993,
+     "k": 541
+    },
+    "2024": {
+     "n": 1225,
+     "k": 650
+    },
+    "2025": {
+     "n": 1384,
+     "k": 777
+    }
+   },
+   "break_even": 0.5325
+  }
+ }
+}

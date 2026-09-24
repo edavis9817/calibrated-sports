@@ -363,7 +363,12 @@ def naive_inputs(con, T):
     return hist, pooled
 
 
-def run(workers=20, seasons=SEASONS, limit=None, out=print):
+def run(workers=20, seasons=SEASONS, limit=None, out=print, ledger_out=None):
+    """`ledger_out` (a-26): write the DEFAULT variant's per-outcome walk-forward
+    ledger - one row per settled over outcome, corrected settlement - to that
+    path as CSV, and skip the bracketing variants and every bootstrap. The
+    pre-registered run (no ledger_out) is byte-for-byte the same computation."""
+    ledger_rows = [] if ledger_out else None
     from jobs.settle_outcomes import settle_one, UNSETTLED, OVER, PUSH
     from research.score import naive_prob
     from research.sweep import common as SW
@@ -380,7 +385,7 @@ def run(workers=20, seasons=SEASONS, limit=None, out=print):
             f"(n={dn['rush_attempts']}), receptions {drift['receptions']:.3f} (n={dn['receptions']})"
             f"   [committed constants were 8.56 / 1.12]")
         cvals = {}
-        for vname, ov in VARIANTS:
+        for vname, ov in (VARIANTS[:1] if ledger_out else VARIANTS):
             c = constants_for(T, ov, lambda a, b: (drift, dn))
             cvals[vname] = c.values
 
@@ -420,6 +425,7 @@ def run(workers=20, seasons=SEASONS, limit=None, out=print):
                 ccensus["push"] += 1
                 continue
             rec = {"game": game, "stat": stat, "line": line, "gsis": gsis, "moved": moved,
+                   "week": week, "kick": kick,
                    "y": 1.0 if result == OVER else 0.0, "p_bench": pb, "p_all": pa}
             if not moved:
                 settled[oid] = rec
@@ -471,6 +477,14 @@ def run(workers=20, seasons=SEASONS, limit=None, out=print):
         out(f"  fits {meta['fits']}: team change {meta['team_change']}, coach change {meta['coach_change']}, "
             f"MIN_VMR binds {meta['min_vmr_binds']}, MIN_MEAN binds {meta['min_mean_binds']}")
 
+        if ledger_out is not None:
+            for oid, s in sorted(settled_corr.items()):
+                if oid in preds["default"]:
+                    ledger_rows.append((T, s["week"], s["game"], s["kick"], s["gsis"], s["stat"],
+                                        s["line"], oid, s["y"], s["p_bench"], s["p_all"],
+                                        preds["default"][oid], int(s["moved"])))
+            out(f"  ledger rows so far {len(ledger_rows)}")
+            continue
         hist, pooled = naive_inputs(con, T)
         base = []
         for oid, s in settled.items():
@@ -535,6 +549,17 @@ def run(workers=20, seasons=SEASONS, limit=None, out=print):
         for (s, name, res) in tests:
             if s == T:
                 out(f"    {name:<52} {_iv(res)}")
+    if ledger_out is not None:
+        import csv
+        with open(ledger_out, "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(("season", "week", "game_id", "kickoff_ts", "gsis_id", "stat", "line",
+                        "outcome_id", "y", "p_bench", "p_all", "p_model", "moved"))
+            w.writerows(ledger_rows)
+        if not ledger_rows:
+            raise SystemExit("walk-forward ledger is EMPTY - refusing to report success")
+        out(f"  wrote {len(ledger_rows)} ledger rows to {ledger_out}")
+        return []
     _hdr(out, "SUMMARY")
     out(f"  intervals computed {len(tests)} (declared 54 + 6 corrected-arm = 60); "
         f"estimable {sum(1 for *_, r in tests if r)}")
@@ -564,9 +589,11 @@ def main():
     ap.add_argument("--workers", type=int, default=20)
     ap.add_argument("--season", type=int, action="append")
     ap.add_argument("--limit", type=int)
+    ap.add_argument("--ledger-out", help="a-26: write the default variant's per-outcome "
+                    "ledger (CSV) and skip variants and bootstraps")
     a = ap.parse_args()
     run(a.workers, tuple(a.season) if a.season else SEASONS, a.limit,
-        out=lambda s: print(s, flush=True))
+        out=lambda s: print(s, flush=True), ledger_out=a.ledger_out)
 
 
 if __name__ == "__main__":
