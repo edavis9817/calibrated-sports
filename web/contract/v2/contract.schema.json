@@ -674,6 +674,10 @@
           "type": "object",
           "additionalProperties": {"$ref": "#/$defs/MarketDefinition"}
         },
+        "main_line_definition": {
+          "description": "How `prop_history.games[].line` was chosen, verbatim from the producer (jobs/export_web.MAIN_LINE_DEFINITION), for the Method page. Optional: a sport that publishes no prop history has no main line.",
+          "type": "string"
+        },
         "scoring_presets": {"type": "object", "additionalProperties": {"$ref": "#/$defs/ScoringPreset"}},
         "scoring_note": {"type": "string"},
         "teams": {
@@ -837,14 +841,74 @@
       "additionalProperties": false
     },
 
+    "PropMainLineGame": {
+      "description": "One game's main line and how it settled. `p_over` is the closing probability of the over that chose the line; `provider` and `close_ts` say whose price it was and when it was read, because a line with no provenance stamp becomes a claim about what it is. `books` counts the sportsbooks in the median and is null for an exchange. `result` is cleared | missed | push | void: a push and a void are not graded and count toward no rate. `opponent` and `home` are null when the player's team for that week is not known. `actual` is the settled stat value, null on a void.",
+      "type": "object",
+      "properties": {
+        "stat": {"type": "string"},
+        "season": {"type": "integer"},
+        "week": {"type": "integer"},
+        "date": {"type": ["string", "null"]},
+        "opponent": {"type": ["string", "null"]},
+        "home": {"type": ["boolean", "null"]},
+        "line": {"type": "number"},
+        "p_over": {"type": "number"},
+        "provider": {"enum": ["books_benchmark", "books_all", "kalshi", "polymarket"]},
+        "books": {"type": ["integer", "null"]},
+        "close_ts": {"type": "number"},
+        "actual": {"type": ["number", "null"]},
+        "result": {"enum": ["cleared", "missed", "push", "void"]}
+      },
+      "required": ["stat", "season", "week", "date", "opponent", "home", "line", "p_over", "provider", "books", "close_ts", "actual", "result"],
+      "additionalProperties": false
+    },
+
+    "PropMainLineRate": {
+      "description": "How often the main line cleared over a window. `n` counts graded games (cleared + missed); each game is one claim, so the Wilson interval is on `n` directly. rate and interval are null at n = 0.",
+      "type": "object",
+      "properties": {
+        "cleared": {"type": "integer"},
+        "n": {"type": "integer"},
+        "rate": {"type": ["number", "null"]},
+        "interval": {"anyOf": [{"$ref": "#/$defs/Interval"}, {"type": "null"}]}
+      },
+      "required": ["cleared", "n", "rate", "interval"],
+      "additionalProperties": false
+    },
+
+    "PropMainLineStat": {
+      "description": "One market's main-line record: the last 10 graded games (any season), the current season (`season`, the sport's current season, which may have n = 0), and the career. `pushes` and `voids` are counted beside the rates rather than inside them.",
+      "type": "object",
+      "properties": {
+        "stat": {"type": "string"},
+        "priority": {"type": "boolean"},
+        "last_10": {"$ref": "#/$defs/PropMainLineRate"},
+        "season": {"type": "integer"},
+        "this_season": {"$ref": "#/$defs/PropMainLineRate"},
+        "career": {"$ref": "#/$defs/PropMainLineRate"},
+        "pushes": {"type": "integer"},
+        "voids": {"type": "integer"}
+      },
+      "required": ["stat", "priority", "last_10", "season", "this_season", "career", "pushes", "voids"],
+      "additionalProperties": false
+    },
+
     "PropHistory": {
       "description": "The settled prop record: how often the OVER cleared. A FACT, not a pick - per the editorial line, hit-rate history is publishable and a recommendation is not. It needs no closing price, only the posted line and the settled result, which is why it covers the current season while market-comparison figures cannot. Each market is counted ONCE: a settled prop is stored twice in the producer (over and under) carrying the same market-level result, so counting both would leave the rate right and double n. `stats` is ordered, priority markets first.",
       "type": "object",
       "properties": {
         "stats": {"type": "array", "items": {"$ref": "#/$defs/PropHistoryStat"}},
-        "records": {"type": "array", "items": {"$ref": "#/$defs/PropHistoryRecord"}}
+        "records": {"type": "array", "items": {"$ref": "#/$defs/PropHistoryRecord"}},
+        "games": {
+          "description": "One row per game per market on the MAIN LINE (sport manifest `main_line_definition`), ordered by stat then season then week. Empty when no closing price picked a main line for any game - a player can have settled records and no main line.",
+          "type": "array", "items": {"$ref": "#/$defs/PropMainLineGame"}
+        },
+        "main": {
+          "description": "Main-line rates per market: one claim per game, so unlike `stats[].rate` these are not pooled across a ladder. Ordered as `stats` is.",
+          "type": "array", "items": {"$ref": "#/$defs/PropMainLineStat"}
+        }
       },
-      "required": ["stats", "records"],
+      "required": ["stats", "records", "games", "main"],
       "additionalProperties": false
     },
 
