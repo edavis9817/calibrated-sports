@@ -932,6 +932,8 @@ def market_keys_used(obj):
         history = obj.get("prop_history") or {}
         keys |= {s["stat"] for s in history.get("stats", [])}
         keys |= {r["stat"] for r in history.get("records", [])}
+        keys |= {g["stat"] for g in history.get("games", [])}
+        keys |= {m["stat"] for m in history.get("main", [])}
     return keys
 
 
@@ -1193,6 +1195,238 @@ def load_prop_history(con, scope):
 
         out[gsis] = {"stats": stats_out, "records": records}
     return out
+
+
+# =============================================================================
+# the main line: one posted line per game, so a rate means something
+# =============================================================================
+#
+# WHY THIS EXISTS. `stats[].rate` pools every ladder rung. A ladder prices 3.5
+# through 10.5 on one game; the low rungs nearly always clear and the high ones
+# nearly always miss, so the pooled rate sits near 50% whatever the player does
+# (audit 2026-09-24, P-player-03). The main line is one claim per game - the
+# one the market itself thought was a coin flip - so "cleared the main line in
+# k of n games" is about the player and not about how far the ladder reached.
+
+# Published verbatim in the sport manifest, so the site's /method page renders
+# the rule the producer ran rather than a paraphrase of it.
+MAIN_LINE_DEFINITION = (
+    "The main line is one posted line per player, game and market: of the lines "
+    "posted for that claim, the one whose de-vigged probability of the over was "
+    "closest to 0.5 at the close. Where sportsbook closing prices exist (2023-2025, "
+    "via The Odds API) they are used: the median de-vigged price across DraftKings, "
+    "FanDuel and BetMGM, or across every book quoting when none of those three did, "
+    "taken at the last snapshot at or before kickoff. Where no sportsbook price exists "
+    "the exchange mid is used - Kalshi, else Polymarket - from the last quote in the "
+    "hour before kickoff with both a bid and an ask; an exchange mid is already a "
+    "probability and is not de-vigged. Sportsbook and exchange prices are never mixed "
+    "within one game's ladder. Quarter lines (0.25, 0.75), which settle as two half "
+    "bets, are not candidates. Ties go to the lower line. Every row carries the source "
+    "and the capture time of the price that chose it. A push or a void (the player took "
+    "no snap) is shown and is not counted as cleared or missed; a player who played and "
+    "recorded nothing settles at 0, which is a miss on an over.")
+
+# Provider priority. Books first because the brief and the audit define the main
+# line as "the sportsbook main line where one exists"; the exchanges fill 2026,
+# where `outcome_close` has no rows.
+MAIN_LINE_TIERS = ("books", "kalshi", "polymarket")
+
+# An exchange close older than this is not a close. research/clv.py flags a
+# market that stopped quoting over an hour before kickoff; this refuses it.
+EXCHANGE_CLOSE_MAX_AGE_S = 3600
+
+MAIN_LINE_LAST_N = 10
+
+RESULT_WORD = {ST.OVER: "cleared", ST.UNDER: "missed", ST.PUSH: "push", ST.VOID: "void"}
+
+
+def quarter_line(line):
+    """0.25 / 0.75 lines: an Asian split bet, two claims in one. Measured
+    2026-09-24: 6,862 sacks outcomes, and nothing else, sit on one."""
+    return line is not None and (line * 4) % 2 == 1
+
+
+def _book_closes(con):
+    """outcome_id -> (p_over, provider, books, close_ts), sportsbook closes.
+
+    `p_bench`/`p_all` are de-vigged for the outcome's OWN side, so an under row
+    is flipped. A table absent on an old store is no closes, not an error."""
+    out = {}
+    try:
+        cur = con.execute(
+            "SELECT oc.outcome_id, o.side, oc.p_bench, oc.n_bench, oc.p_all, oc.n_all, oc.close_ts "
+            "FROM outcome_close oc JOIN outcomes o ON o.outcome_id = oc.outcome_id "
+            "WHERE o.entity_type = 'player'")
+    except sqlite3.OperationalError:
+        return out
+    for oid, side, pb, nb, pa, na, cts in cur:
+        if nb and pb is not None:
+            p, provider, books = pb, "books_benchmark", nb
+        elif na and pa is not None:
+            p, provider, books = pa, "books_all", na
+        else:
+            continue
+        out[oid] = (p if side == ST.OVER else 1.0 - p, provider, books, cts)
+    return out
+
+
+def _exchange_close(con, venue, market_id, kickoff_ts):
+    """(mid, ts) from the LAST yes-quote strictly before kickoff, or None.
+
+    The last quote, not the last usable one: an earlier two-sided quote behind a
+    one-sided last one is a stale price, and a stale price picking the main line
+    is a claim about the close that the close does not support. bid > 0 and
+    ask < 1 because an empty Polymarket book quotes 0/1 and its mid is a
+    meaningless 0.5 - exactly the value this rule selects for."""
+    q = con.execute(
+        "SELECT ts, best_bid, best_ask FROM quotes WHERE venue = ? AND market_id = ? "
+        "AND ts < ? AND (side = 'yes' OR side IS NULL) ORDER BY ts DESC LIMIT 1",
+        (venue, market_id, kickoff_ts)).fetchone()
+    if q is None:
+        return None
+    ts, bid, ask = q
+    if (kickoff_ts - ts > EXCHANGE_CLOSE_MAX_AGE_S or bid is None or ask is None
+            or bid <= 0 or ask >= 1 or bid > ask):
+        return None
+    return (bid + ask) / 2, ts
+
+
+def load_main_lines(con, scope, games, team_of, current_season):
+    """gsis -> {"games": [...], "main": [...]}, plus a census. See MAIN_LINE_DEFINITION.
+
+    BUILT ON THE FIXED SETTLEMENT, and it reads nothing else. A player who
+    played and recorded no stat has no nflverse row; `jobs/settle_outcomes.py`
+    settles him at 0 from his snaps (an over MISSES), and one with no snap is a
+    VOID. Before that fix the zeros were dropped - every one a miss - so any rate
+    built on the old settlement flattered the player. This reads the latest
+    `outcome_settlement` version, which is where the fix writes; the census
+    counts main-line zeros per market so the claim can be checked, not trusted.
+
+    `team_of` maps (gsis, season, week) -> team, for the opponent. Unknown team
+    publishes opponent and home as null rather than a guess.
+    """
+    markets = {}
+    for oid, season, week, gsis, stat, line, side, event_id, result, actual in con.execute(
+            "SELECT o.outcome_id, o.season, o.week, o.entity_id, o.stat, o.line, o.side, "
+            "o.event_id, s.result, s.actual "
+            "FROM outcome_settlement s JOIN outcomes o ON o.outcome_id = s.outcome_id "
+            "JOIN (SELECT outcome_id, MAX(data_version) dv FROM outcome_settlement "
+            "      GROUP BY outcome_id) latest "
+            "  ON latest.outcome_id = s.outcome_id AND latest.dv = s.data_version "
+            "WHERE o.entity_type = 'player' AND o.week IS NOT NULL "
+            "ORDER BY o.season, o.week, o.entity_id, o.stat, o.line, o.side"):
+        if gsis not in scope or line is None:
+            continue
+        k = (season, week, gsis, stat, line)
+        m = markets.setdefault(k, {"oids": [], "event_id": event_id, "result": result,
+                                   "actual": actual})
+        m["oids"].append(oid)
+
+    census = Counter()
+    census["markets"] = len(markets)
+    book = _book_closes(con)
+
+    venues = defaultdict(list)            # outcome_id -> [(venue, market_id)]
+    try:
+        for venue, mid, oid in con.execute(
+                "SELECT venue, market_id, outcome_id FROM market_outcome "
+                "WHERE outcome_id IS NOT NULL AND venue IN ('kalshi', 'polymarket')"):
+            venues[oid].append((venue, mid))
+    except sqlite3.OperationalError:
+        pass
+
+    by_game = defaultdict(list)
+    for k, m in markets.items():
+        by_game[k[:4]].append((k[4], m))
+
+    rows_by_player = defaultdict(list)
+    for (season, week, gsis, stat), rungs in by_game.items():
+        rungs = [(line, m) for line, m in rungs if not quarter_line(line)]
+        if not rungs:
+            census["game_quarter_lines_only"] += 1
+            continue
+        g = games.get(rungs[0][1]["event_id"])
+        priced = {}
+        for line, m in rungs:
+            for oid in m["oids"]:
+                if oid in book:
+                    p, provider, books, cts = book[oid]
+                    priced.setdefault("books", []).append((line, m, p, provider, books, cts))
+                    break
+        if "books" not in priced and g is not None and g.get("kickoff_ts"):
+            for line, m in rungs:
+                for venue in ("kalshi", "polymarket"):
+                    hit = next((_exchange_close(con, v, mid, g["kickoff_ts"])
+                                for oid in m["oids"] for v, mid in venues.get(oid, ())
+                                if v == venue), None)
+                    if hit is not None:
+                        priced.setdefault(venue, []).append(
+                            (line, m, hit[0], venue, None, hit[1]))
+        tier = next((t for t in MAIN_LINE_TIERS if priced.get(t)), None)
+        if tier is None:
+            census["game_no_close_price"] += 1
+            continue
+        line, m, p, provider, books, cts = min(
+            priced[tier], key=lambda c: (abs(c[2] - 0.5), c[0]))
+        census[f"tier_{tier}"] += 1
+        team = team_of.get((gsis, season, week))
+        home = None if (g is None or team is None) else team == g["home_team"]
+        opp = None if home is None else (g["away_team"] if home else g["home_team"])
+        result = RESULT_WORD.get(m["result"], m["result"])
+        if m["actual"] == 0 and result == "missed":
+            census[f"zero_{stat}"] += 1
+        rows_by_player[gsis].append({
+            "stat": stat, "season": season, "week": week,
+            "date": None if g is None else g["gameday"],
+            "opponent": opp, "home": home,
+            "line": line, "p_over": rnd(p), "provider": provider, "books": books,
+            "close_ts": int(cts),
+            "actual": None if m["actual"] is None else intish(m["actual"]),
+            "result": result})
+
+    out = {}
+    for gsis, rows in rows_by_player.items():
+        rows.sort(key=lambda r: (r["stat"], r["season"], r["week"]))
+        by_stat = defaultdict(list)
+        for r in rows:
+            by_stat[r["stat"]].append(r)
+        main = []
+        for stat, srows in by_stat.items():
+            graded = [r for r in srows if r["result"] in ("cleared", "missed")]
+            main.append({
+                "stat": stat, "priority": stat in PRIORITY_PROPS,
+                "last_10": _main_rate(graded[-MAIN_LINE_LAST_N:]),
+                "season": current_season,
+                "this_season": _main_rate([r for r in graded if r["season"] == current_season]),
+                "career": _main_rate(graded),
+                "pushes": sum(1 for r in srows if r["result"] == "push"),
+                "voids": sum(1 for r in srows if r["result"] == "void")})
+        main.sort(key=lambda s: (
+            PRIORITY_PROPS.index(s["stat"]) if s["priority"] else len(PRIORITY_PROPS),
+            -s["career"]["n"], s["stat"]))
+        out[gsis] = {"games": rows, "main": main}
+    return out, census
+
+
+def _main_rate(graded):
+    """One main line per game, so each row IS one event: the Wilson interval is on
+    `n` games directly, through the same `core.stats.hit_rate` every rate uses."""
+    h = core_stats.hit_rate(
+        [{"season": r["season"], "week": r["week"], "entity_id": "", "stat": r["stat"],
+          "line": r["line"], "side": ST.OVER,
+          "result": ST.OVER if r["result"] == "cleared" else ST.UNDER} for r in graded])
+    return {"cleared": h["cleared"], "n": h["n"], "rate": rnd(h["rate"]),
+            "interval": None if h["rate"] is None else [rnd(h["lo"]), rnd(h["hi"])]}
+
+
+def attach_main_lines(prop_history, main_lines):
+    """Every prop_history gets `games` and `main`, empty when no close priced a line.
+    A player with settled lines and no priced close has a record and no main line -
+    stated as [] rather than by omitting the field."""
+    for gsis, h in prop_history.items():
+        ml = main_lines.get(gsis) or {"games": [], "main": []}
+        h["games"], h["main"] = ml["games"], ml["main"]
+    return prop_history
 
 
 def load_snaps(con, xwalk):
@@ -2599,6 +2833,8 @@ def build_manifest(games, current, index, market_keys, unresolved, source_versio
         "stat_definitions": STAT_DEFINITIONS if stat_definitions is None else stat_definitions,
         "market_definitions": (MARKET_DEFINITIONS if market_definitions is None
                                else market_definitions),
+        # The rule that picks `prop_history.games[].line`, verbatim, for /method.
+        "main_line_definition": MAIN_LINE_DEFINITION,
         "scoring_presets": SCORING_PRESETS,
         "scoring_note": scoring_note,
         # Published as the source holds them: `division` is nflverse's
@@ -2982,6 +3218,14 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
 
     headshots = load_headshots(con)
     prop_history = load_prop_history(con, scope)
+    team_of = {k: FRANCHISE.get(v[0], v[0]) for k, v in snap_index.items() if v[0]}
+    team_of.update({(r["gsis_id"], r["season"], r["week"]): FRANCHISE.get(r["team"], r["team"])
+                    for r in weeks if r.get("team")})
+    main_lines, main_census = load_main_lines(con, set(prop_history), games, team_of,
+                                              current["season"])
+    attach_main_lines(prop_history, main_lines)
+    summary["main_line"] = dict(sorted(main_census.items()))
+    log("main line: " + ", ".join(f"{k} {v}" for k, v in sorted(main_census.items())))
     player_files, index, unresolved = build_players(games, by_player, snaps, xwalk, aliases, slugs,
                                                     market_keys, generated_at, headshots,
                                                     snap_index=snap_index,
