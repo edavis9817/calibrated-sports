@@ -180,6 +180,9 @@ research/execution.json
   binary where `td` is a count, and `sacks` / `tackles_assists` settle on columns
   published only inside team splits. A null is a measured state, not a gap —
   pointing a market at a near-miss key would publish a false equivalence.
+- **`main_line_definition`** (a-24) is the rule that picks
+  `prop_history.games[].line`, verbatim from the producer, for the Method page.
+  Optional in the contract: a sport with no prop history has no main line.
 - **`format`** is one of `int`, `dec1`, `dec2`, `pct` or `signed_dec1`.
 - **`group`** is free text owned by the sport. The site orders groups from
   `config/sports/{sport}.ts`, not from here.
@@ -246,6 +249,35 @@ game logs.
 `market` is `null` when there is no current-period market.
 
 `identity.headshot_url`: optional-in-meaning, always-present key; https URL hotlinked from the source (NFL: static.www.nfl.com); never stored in R2; null when unknown.
+
+### `prop_history.games` and `prop_history.main` — the main line (a-24, P-player-03)
+
+`stats[].rate` pools every ladder rung. `games` is one row per game per market on
+the **main line** — the rule is `manifest.main_line_definition`, published verbatim
+from `jobs/export_web.MAIN_LINE_DEFINITION`: the posted line whose de-vigged over
+probability was closest to 0.5 at the close; sportsbook closes (DK/FD/MGM median,
+else every book) where they exist, else the Kalshi then Polymarket mid in the last
+hour before kickoff; never mixed within one game; quarter lines excluded; ties to
+the lower line.
+
+```json
+"games": [{"stat": "receptions", "season": 2026, "week": 1, "date": "2026-09-13",
+           "opponent": "BAL", "home": true, "line": 3.5, "p_over": 0.475,
+           "provider": "kalshi", "books": null, "close_ts": 1789318306,
+           "actual": 6, "result": "cleared"}],
+"main": [{"stat": "receptions", "priority": true, "season": 2026,
+          "last_10":     {"cleared": 5,  "n": 10, "rate": 0.5,    "interval": [0.2366, 0.7634]},
+          "this_season": {"cleared": 1,  "n": 1,  "rate": 1.0,    "interval": [0.2065, 1.0]},
+          "career":      {"cleared": 24, "n": 46, "rate": 0.5217, "interval": [0.3814, 0.6588]},
+          "pushes": 0, "voids": 0}]
+```
+
+- `result` is `cleared | missed | push | void`. A push and a void count toward no
+  rate; a player who played and recorded nothing settled at 0 and is `missed`.
+- `n` is graded games. One claim per game, so the Wilson interval is on `n`.
+- `provider` + `close_ts` are the provenance of the price that CHOSE the line.
+- The ladder matrix (line × season, `k of n`) is `records`: one entry per
+  (season, stat, line) carrying `cleared` of `n`. It is not duplicated.
 
 ## {sport}/players/{id}/{season}.json — kind `player_season`
 
