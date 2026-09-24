@@ -680,6 +680,35 @@ committed result files, the producers that do not write through `sync_keys`
 `page:<name>` - a source a page reads at request time through no file (ESPN's
 scoreboard, today).
 
+## board/{sport}/... — kinds `board_index`, `board_read`, table `board_ledger` (a-26, a-31)
+
+    board/{sport}/{season}/wk{NN}/index.json            board_index  (NN zero-padded)
+    board/{sport}/{season}/wk{NN}/read-{iso}.json       board_read   (iso with colons removed)
+    board/{sport}/ledger.parquet, ledger.csv            board_ledger (x-contract.tables)
+
+Written by `jobs/board_read.py`, into its OWN tree (`BOARD_EXPORT_DIR`, never inside
+`WEB_EXPORT_DIR`), through `sync_keys` with no owned prefix. One read file per read,
+never rewritten; the index names every read, the latest, the lean threshold in force
+and the week's ledger counts in the four-way partition {graded, upcoming, live, void}.
+
+**Every estimate carries a non-nullable interval and an integer sample**, the
+`AnalyticValue` rule: a row's `band` (walk-forward leans this size - `n` leans with a
+Wilson `ci`, `games` with a game-block `roi_ci`), `rates.*` (k of n games), `streak`
+(`next_rate`, `next_ci`, `next_n`) and the index's `verdict` (`lo`, `hi`, `games`).
+Where there is no record the field is NULL - never an object with `n = 0`. Prices
+(`mkt_p_over`, `kalshi_mid`, `books[]`) and the model's `model_p_over` are not
+estimates from a sample and carry none.
+
+`status` is void exactly when `void_reason` is set, and `pulled_at` exactly when the
+reason is `market_pulled`; a row with no `lean` has no `band` and no `lean_result`.
+
+**The ledger is not JSON and has no `$def`.** `x-contract.tables.board_ledger` names
+its key patterns, formats and column types; the job asserts its own columns and types
+against that entry before every write. It is append-only EVENTS (`published`, then at
+most one `graded` or `void`). The uploader ships it only after reading the bucket's
+copy back and showing the new file is that copy plus rows at the end, and **no uploader
+ever deletes a key under `board/`**.
+
 ## Refresh
 
 `python -m jobs.weekly_refresh` logs to

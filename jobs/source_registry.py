@@ -121,6 +121,7 @@ _PAIRING = ("pairing a snap-count player id with a gsis id where no crosswalk ro
 #   ("max", (table, col))   max(col) over a table in this store
 #   ("elsewhere", store)    held in another store this export does not open
 #   ("runtime", reader)     read at request time by `reader`; no producer reads it
+#   ("committed", path)     a result file committed to the repo; no store measures it
 SOURCES = {
     # --- nflverse: one id per release the export reads, because "schedule" and
     # "player stats" are separate files that go stale separately.
@@ -196,7 +197,8 @@ SOURCES = {
         provides="Event ladders for receptions and rush attempts, per rung, bid and ask",
         used_for=("The current week's market-implied fantasy distributions, read at the mid of "
                   "each rung with no de-vig (an exchange spread is not a bookmaker's margin), "
-                  "and the 2026 lines in each player's prop history"),
+                  "the 2026 lines in each player's prop history, and the exchange mid shown "
+                  "beside each Board row"),
         last_read=("quotes", (("live", "kalshi"),))),
     "kalshi.price_history": dict(
         name="Kalshi", sports=("nfl",), layer="PRICES",
@@ -227,16 +229,32 @@ SOURCES = {
         used_for=("Every player's 2023-2025 prop history (posted line and result), the market "
                   "calibration study and the Method page's over-bias finding (median de-vigged "
                   "close across DraftKings, FanDuel and BetMGM), and the register's walk-forward "
-                  "against the book close"),
+                  "against the book close; and the Board's market price at every read, the "
+                  "median de-vigged DraftKings, FanDuel and BetMGM quote from forward capture"),
         last_read=("quotes", (("live", "oddsapi%"), ("oddsapi_historical", "oddsapi%")))),
 
     # --- beliefs: ours, and listed because a page shows it
     "calibrated.model": dict(
         name="Calibrated Sports", sports=("nfl",), layer="BELIEFS",
         provides="The baseline usage model's predictions, immutable and timestamped",
-        used_for="Scored against the market in the register and on the Method page, never shown "
-                 "as a pick",
+        used_for=("Scored against the market in the register and on the Method page, and the "
+                  "Board's model probability at each read (fit at the read, frozen in that read's "
+                  "file and the lean ledger) - never shown as a pick"),
         last_read=("health", ("predictions",))),
+
+    # The walk-forward is ours too, and a different thing from the predictions
+    # table: the model REFIT on seasons <= T-1 and scored per outcome against the
+    # 2023-2025 sportsbook close. The Board quotes it twice - the verdict strip
+    # (R15) and every lean's "leans this size" band. It reaches the Board as a
+    # committed result file, so nothing in a store measures when it was last read.
+    "calibrated.walkforward": dict(
+        name="Calibrated Sports", sports=("nfl",), layer="BELIEFS",
+        provides=("The walk-forward ledger: the model refit on seasons before each one it "
+                  "forecasts, every outcome scored against the de-vigged 2023-2025 sportsbook "
+                  "close"),
+        used_for=("The Board's verdict strip and each lean's walk-forward record for leans "
+                  "that size (research/board_bands.py), never a forecast of the lean"),
+        last_read=("committed", "research/results/board_bands.json")),
 
     # --- held in other stores; registered because `coverage` counts them
     "sportsdataverse.cfb": dict(
@@ -307,6 +325,9 @@ SPORT_TABLE_SOURCES = {
         # books, 2026 rows from Kalshi and Polymarket markets (measured 2026-09-24
         # by joining settled player outcomes to market_outcome.venue).
         "outcomes": ("oddsapi", "kalshi.ladders", "polymarket"),
+        # The de-vigged sportsbook close per outcome (backfill, 2023-2025). Read by
+        # the Board's posted-line record; a-26 added the read, a-31 mapped it.
+        "outcome_close": ("oddsapi",),
         # The actual, and whether a player with no stat row played.
         "outcome_settlement": ("nflverse.stats", "nflverse.snap_counts"),
         "market_outcome": ("kalshi.ladders", "polymarket", "oddsapi"),
@@ -334,6 +355,12 @@ TABLE_SOURCES = SPORT_TABLE_SOURCES["nfl"]
 
 # The producer module whose functions are scanned, per sport.
 PRODUCERS = {"nfl": "jobs.export_web", "cfb": "jobs.export_cfb_web", "mlb": "jobs.export_mlb_web"}
+
+# Producers that write kinds through `sync_keys` from their OWN module - scanned
+# exactly like the export module, their functions attributed in LOADERS under the
+# qualified name `module.function` (a bare name would collide: two modules may
+# both have a `history`). a-31: the Board read job.
+SIDE_PRODUCERS = {"nfl": ("jobs.board_read",), "cfb": (), "mlb": ()}
 
 # Modules the scan does not follow into, each with why. The registry's own reads
 # (last_read over source_health and quotes) describe sources; they carry no row of
@@ -365,6 +392,13 @@ LOADERS = {
         # research.score.load: predictions scored against Kalshi, settled. Only the
         # calibration file carries it; hypotheses and execution read committed files.
         "build_research": ("research.calibration",),
+        # a-31: the Board read job (SIDE_PRODUCERS). Every read it makes lands in
+        # the read file; the index inherits it through KIND_INPUTS.
+        **{f"jobs.board_read.{fn}": ("board_read",) for fn in (
+            "week_games", "oddsapi_events", "load_quotes", "resolve_player", "current_team",
+            "history", "posted_record", "model_prob", "kalshi_mid", "settle")},
+        # --tick's choice of WHICH week to read; no row of it reaches a file.
+        "jobs.board_read.weeks_in_play": (),
     },
     "cfb": {
         "teams": ("team", "sport_manifest"),
@@ -398,6 +432,15 @@ NARROW = {
         ("build_research", "markets"): ("kalshi.ladders",),
         ("build_research", "quotes"): ("kalshi.ladders", "kalshi.price_history"),
         # load_prop_history reads every venue's outcomes and their settlement.
+        # a-31, the Board: book prices are Odds API rows only (venue 'oddsapi:*');
+        # the exchange mid is Kalshi's only; the posted-line record joins
+        # outcomes to outcome_close, which exists only for backfilled book closes.
+        ("jobs.board_read.oddsapi_events", "markets"): ("oddsapi",),
+        ("jobs.board_read.load_quotes", "quotes"): ("oddsapi",),
+        ("jobs.board_read.kalshi_mid", "outcomes"): ("kalshi.ladders",),
+        ("jobs.board_read.kalshi_mid", "market_outcome"): ("kalshi.ladders",),
+        ("jobs.board_read.kalshi_mid", "quotes"): ("kalshi.ladders",),
+        ("jobs.board_read.posted_record", "outcomes"): ("oddsapi",),
     },
     "cfb": {},
     "mlb": {},
@@ -412,6 +455,9 @@ KIND_INPUTS = {
         # counts.market, counts.rungs and teams[].season.markets come off the market
         # files; counts.players and unresolved_ids off the index.
         "sport_manifest": ("market", "player_index"),
+        # a-31: the index names the reads, counts their leans and carries the
+        # verdict - built from the read, so it reads what the read reads.
+        "board_index": ("board_read",),
     },
     "cfb": {},
     "mlb": {},
@@ -436,6 +482,10 @@ KIND_EXTRA = {
                      "kalshi.ladders", "kalshi.price_history", "kalshi.trades", "polymarket",
                      "oddsapi", "nflverse.injuries", "sportsdataverse.cfb", "cfbd",
                      "retrosheet", "openmeteo", "rss.headlines"),
+        # a-31: the Board's committed result files - research/results/board_bands.json
+        # (walk-forward bands) and the hard-coded R15 verdict - and the model it fits
+        # at every read. F11's next-game rates are nflverse stats, already derived.
+        "board_read": ("calibrated.walkforward", "calibrated.model"),
         # read nothing upstream: a static list, and this registry itself
         "sports": (),
         "sources": (),
@@ -557,7 +607,24 @@ def sql_tables(text):
     return tables, gaps
 
 
-def _closure(mod, fname, follow_local, seen):
+_CTE_DEF = re.compile(r"(?:\bwith\b(?:\s+recursive)?|,)\s*([A-Za-z_][A-Za-z0-9_]*)\s+as\s*\(",
+                      re.I)
+
+
+def cte_names(text):
+    """Names a string DEFINES as common table expressions (`WITH pg AS (`,
+    `, ranked AS (`). `FROM ranked` then reads the CTE, not a table - and the
+    definition and the read may sit in different strings of one closure
+    (models.features builds the CTE in one function and selects from it in
+    another), so the subtraction happens over the whole closure, in scan()."""
+    return {m.group(1).lower() for m in _CTE_DEF.finditer(text)} if _SQL_WORD.search(text) else set()
+
+
+def _mapped_tables():
+    return {t for tables in SPORT_TABLE_SOURCES.values() for t in tables}
+
+
+def _closure(mod, fname, follow_local, seen, ctes=None):
     """Tables and gaps for one function, following calls into other repo modules
     (and, once outside the producer, within them)."""
     if (mod, fname) in seen or mod in NOT_FOLLOWED:
@@ -577,6 +644,8 @@ def _closure(mod, fname, follow_local, seen):
             t, g = sql_tables(text)
             tables.update(t)
             gaps.extend(f"{where}:{line}: {x}" for x in g)
+            if ctes is not None:
+                ctes.update(cte_names(text))
 
     take(fn, f"{mod}.{fname}")
     for n in ast.walk(fn):
@@ -591,7 +660,7 @@ def _closure(mod, fname, follow_local, seen):
             elif isinstance(f, ast.Name) and follow_local and f.id in funcs:
                 target = (mod, f.id)
             if target and _module_file(target[0]):
-                t, g = _closure(target[0], target[1], True, seen)
+                t, g = _closure(target[0], target[1], True, seen, ctes)
                 tables |= t
                 gaps += g
     return tables, gaps
@@ -603,7 +672,12 @@ def scan(mod):
     _, funcs, _ = _parse(mod)
     out = {}
     for name in funcs:
-        tables, gaps = _closure(mod, name, False, set())
+        ctes = set()
+        tables, gaps = _closure(mod, name, False, set(), ctes)
+        # A CTE name is not a table read. But a CTE that SHADOWS a mapped table
+        # name is kept as a read: dropping it would let a name collision hide a
+        # real table, and a false read is refused loudly while a hidden one is not.
+        tables = tables - (ctes - _mapped_tables())
         if tables or gaps:
             out[name] = (tables, gaps)
     return out
@@ -620,13 +694,20 @@ def derive(sport):
     tables_map = SPORT_TABLE_SOURCES.get(sport, {})
     loaders = LOADERS.get(sport, {})
     narrow = NARROW.get(sport, {})
-    try:
-        found = scan(PRODUCERS[sport])
-    except (OSError, SyntaxError, KeyError, TypeError) as e:
-        return {}, [f"{sport}: producer scan failed: {type(e).__name__}: {e}"]
+    found = {}
+    for mod in (PRODUCERS[sport],) + tuple(SIDE_PRODUCERS.get(sport, ())):
+        try:
+            scanned = scan(mod)
+        except (OSError, SyntaxError, KeyError, TypeError) as e:
+            return {}, [f"{sport}: producer scan failed ({mod}): {type(e).__name__}: {e}"]
+        for fn, v in scanned.items():
+            found[fn if mod == PRODUCERS[sport] else f"{mod}.{fn}"] = v
+
+    def qual(fn):
+        return fn if "." in fn else f"{PRODUCERS[sport]}.{fn}"
     out = {}
     for fn in sorted(set(found) - set(loaders)):
-        problems.append(f"{sport}: {PRODUCERS[sport]}.{fn} reads {sorted(found[fn][0])} "
+        problems.append(f"{sport}: {qual(fn)} reads {sorted(found[fn][0])} "
                         f"and is not attributed to any kind in LOADERS")
     for fn in sorted(set(loaders) - set(found)):
         problems.append(f"{sport}: LOADERS names {fn}, which reads no table (stale entry)")
@@ -634,7 +715,7 @@ def derive(sport):
         problems += [f"{sport}: SQL the scan cannot read, {g}" for g in gaps]
         for t in sorted(tables):
             if t not in tables_map:
-                problems.append(f"{sport}: {PRODUCERS[sport]}.{fn} reads table {t!r}, "
+                problems.append(f"{sport}: {qual(fn)} reads table {t!r}, "
                                 f"which has no entry in SPORT_TABLE_SOURCES[{sport!r}]")
                 continue
             ids = narrow.get((fn, t), tables_map[t])
@@ -902,6 +983,9 @@ def _last_read(con, spec):
     how, arg = spec
     if how == "elsewhere":
         return None, f"held in {arg}, which this export does not open"
+    if how == "committed":
+        return None, (f"a committed result file ({arg}), regenerated by its research script; "
+                      "no store records when it was last read")
     if how == "runtime":
         return None, f"read at request time by {arg}; no producer reads it, so nothing measures it"
     if how == "health":

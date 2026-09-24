@@ -1,15 +1,26 @@
-"""The Board read job (audit 5.5, unit a-26). One read -> one static JSON file.
+"""The Board read job (audit 5.5, units a-26 and a-31). One read -> one static JSON file.
 
     python -m jobs.board_read --season 2026 --week 3 --dest D:/scratch/board
     python -m jobs.board_read --season 2026 --week 2 --dest ... --at 2026-09-20T15:00:00Z
     python -m jobs.board_read --season 2026 --week 3 --dest ... --due     # cadence only
+    python -m jobs.board_read --tick [--upload]      # the scheduled entry point (a-31)
+    python -m jobs.board_read --check --keys --dest ...   # validate a tree, list its keys
+    python -m jobs.board_read --restore              # pull board/ back from the bucket
 
-Writes, under `--dest` (there is NO default - config has no defaults and a job
-that can publish must be told where):
+Writes, under `--dest` (or BOARD_EXPORT_DIR for --tick; there is NO default -
+config has no defaults and a job that can publish must be told where):
 
-    board/nfl/{season}/wk{week}/read-{iso}.json    rows[] for this read
-    board/nfl/{season}/wk{week}/index.json         reads[], latest, T, model, verdict
-    board/nfl/ledger.parquet  + ledger.csv          append-only lean events
+    board/nfl/{season}/wk{week}/read-{iso}.json    kind board_read
+    board/nfl/{season}/wk{week}/index.json         kind board_index
+    board/nfl/ledger.parquet  + ledger.csv          contract table board_ledger, append-only
+
+THE CONTRACT (a-31). Both JSON kinds are in web/contract/v2/contract.schema.json
+and go through `export_web.sync_keys` with NO owned prefix: validated against the
+contract, gated on their source declarations (the registry scans this module as
+a producer - jobs.source_registry.SIDE_PRODUCERS), and never deleted by absence.
+The ledger's columns and types are asserted against `x-contract.tables` before
+every write. Every estimate a row carries has an interval and an integer sample,
+or the row carries null in its place - never a record with n = 0.
 
 READ-ONLY ON THE STORE. Every query opens `market_log.db` with `mode=ro`; the
 Board's own state is the files it wrote last time, so a read needs no table and
@@ -17,10 +28,11 @@ can never write a fact. `venues.mapping.resolve_player` is NOT used for that
 reason - it opens `store.db()` read-write - and its alias-then-team rule is
 repeated here over a read-only connection.
 
-NOT WIRED INTO THE LOGGER YET, and does not upload. The cadence is
-`core.board.read_due` / `grade_due` (pure, tested); `--due` prints what they say.
-Wiring it into run_logger is a restart of a production process and is left to
-a unit that is allowed to deploy.
+THE CADENCE (a-31). `--tick` is what a scheduled task runs every
+config.BOARD_TICK_MIN minutes, from the production clone. It finds the week or
+weeks in play, asks `core.board.read_due` / `grade_due`, reads only when one says
+so, and with `--upload` ships the Board's own tree (export_web.upload(tree="board")).
+Registering the task is Ethan's - see docs/runbooks/board-cadence.md.
 
 What each row is built from, per audit 5.3:
   books        Odds API forward capture (source 'live'), benchmark books only,
@@ -52,6 +64,8 @@ from zoneinfo import ZoneInfo
 import config
 from core import board as B
 from core import outcomes as O
+from jobs import export_web as E
+from jobs import source_registry as R
 from venues.mapping import norm_name, team_abbr
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -229,8 +243,13 @@ def rates(hist, line, season):
     out = {}
     for name, games in (("last10", hist[-10:]), ("season", this), ("career", hist)):
         r = kn(games)
+        # No graded game is no record: null, never {k: 0, n: 0} - the contract's
+        # BoardRate requires n >= 1 and an interval (a-31, the AnalyticValue rule).
+        if not r["n"]:
+            out[name] = None
+            continue
         lo, hi = wilson(r["k"], r["n"])
-        out[name] = dict(r, ci=[round(lo, 4), round(hi, 4)] if r["n"] else None)
+        out[name] = dict(r, ci=[round(lo, 4), round(hi, 4)])
     # "career" above is against TODAY's line and says so by its key;
     # "career_posted" (below, `posted_record`) is against each game's OWN line.
     return out
@@ -256,7 +275,7 @@ def posted_record(con, gsis, stat, before_ts):
     for gid, line, pb, pa, _k, res in rows:
         games[gid].append((line, pb, pa, res))
     k = n = 0
-    basis = defaultdict(int)
+    basis = {"p_bench": 0, "p_all": 0}         # both keys always: a closed shape
     for gid, rungs in games.items():
         use = "p_bench" if any(r[1] is not None for r in rungs) else "p_all"
         cands = [r for r in rungs if (r[1] if use == "p_bench" else r[2]) is not None]
@@ -322,29 +341,45 @@ def load_json(path):
         return json.load(f)
 
 
-def band_payload(bands, market, gap):
+def band_payload(bands, market, gap, counts=None):
+    """The walk-forward record for leans this size, or None when there is none.
+
+    a-26 returned an object with n = 0 and null rates in that case. The contract
+    (a-31) forbids it: an estimate carries an interval and a sample or it is not
+    published, so a lean with no walk-forward record carries `band: null` and is
+    COUNTED here, rather than rendering as a band with nothing in it."""
     b = B.band_for(gap)
     if b is None:
         return None
     lo, hi = b
     key = f"{market}|{lo:g}-{hi:g}" if hi is not None else f"{market}|{lo:g}+"
     s = (bands or {}).get("bands", {}).get(key)
-    base = {"lo_pp": lo, "hi_pp": hi, "source": "research/board_bands.py"}
-    if not s:
-        return dict(base, n=0, cleared=None, ci=None, roi=None, roi_ci=None,
-                    note="no walk-forward record for this market and band")
-    return dict(base, n=s["n"], cleared=s["cleared"], ci=s["ci"], roi=s["roi"],
-                roi_ci=s["roi_ci"], roi_ci_method=s.get("roi_ci_method"))
+    if not s or not s.get("n") or s.get("ci") is None or s.get("roi_ci") is None:
+        if counts is not None:
+            counts["lean with no walk-forward band"] += 1
+        return None
+    return {"lo_pp": lo, "hi_pp": hi, "n": s["n"], "games": s["games"], "cleared": s["cleared"],
+            "ci": s["ci"], "ci_method": s["ci_method"], "roi": s["roi"], "roi_ci": s["roi_ci"],
+            "roi_ci_method": s["roi_ci_method"], "source": "research/board_bands.py"}
 
 
-def streak_payload(f11, stat, hist, line, away, opp):
+def streak_payload(f11, stat, hist, line, away, opp, counts=None):
+    """A fired streak with F11's measured next-game rate, or None.
+
+    A streak whose next-game rate is not on file is NOT shown (a-31): "5 of 5"
+    without the rate that corrects it is the hot-hand display F11 measured as
+    overstating the next game by 32-56 points. Counted, never silent."""
     s = B.streak(hist, line, away, opp)
     if s is None:
         return None
     nxt = ((f11 or {}).get("next_rates") or {}).get(s["rule"])
+    if not nxt or not nxt.get("n"):
+        if counts is not None:
+            counts["streak with no F11 next-game rate"] += 1
+        return None
     return {"rule": s["rule"], "k": s["k"], "n": s["n"], "display_rate": s["display_rate"],
-            "next_rate": nxt["next_rate"] if nxt else None,
-            "next_ci": [nxt["lo"], nxt["hi"]] if nxt else None,
+            "next_rate": nxt["next_rate"], "next_ci": [nxt["lo"], nxt["hi"]],
+            "next_n": nxt["n"],
             "source": "F11", "line_basis": "posted line (F11 measured a constructed median line)"}
 
 
@@ -449,16 +484,17 @@ def fresh_rows(con, season, week, read_ts, games, counts):
             "model_p_over": None if p_model is None else round(p_model, 4),
             "gap_pp": gap, "lean": side,
             "lean_price": statistics.median(lean_prices) if lean_prices else None,
-            "band": band_payload(bands, market, gap) if side else None,
+            "band": band_payload(bands, market, gap, counts) if side else None,
             "last10": [{"game_id": h["game_id"], "value": h["value"],
                         "cleared": None if h["value"] is None or h["value"] == line
                         else h["value"] > line} for h in hist[-10:]],
             "rates": dict(rates(hist, line, season),
                           career_posted=posted_record(con, gsis, market, g["kickoff_ts"])),
-            "streak": streak_payload(f11, market, hist, line, team == g["away"], opp),
+            "streak": streak_payload(f11, market, hist, line, team == g["away"], opp, counts),
             "line_path": line_path(claim_books, snaps, eid, line, read_ts),
             "news": [],
             "status": B.UPCOMING, "result": None, "lean_result": None, "void_reason": None,
+            "pulled_at": None,
         })
         counts["rows"] += 1
     return rows
@@ -480,21 +516,51 @@ def read_ledger(dest):
     return pl.read_parquet(p).to_dicts()
 
 
-def write_ledger(dest, old, new_events):
+LEDGER_KIND = "board_ledger"
+_POLARS_TYPES = {"string": "Utf8", "int64": "Int64", "float64": "Float64"}
+
+
+def ledger_schema():
+    """The ledger's polars schema, READ OFF THE CONTRACT (x-contract.tables) and
+    checked against core.board's column order - so the job, the contract and the
+    reader cannot drift. Raises if they disagree."""
     import polars as pl
+    entry = E.TABLES.get(LEDGER_KIND)
+    if entry is None:
+        raise E.ContractError(f"the contract has no {LEDGER_KIND!r} table")
+    cols = entry["columns"]
+    if tuple(cols) != tuple(B.LEDGER_COLUMNS):
+        raise E.ContractError(f"ledger columns drifted from the contract: job {B.LEDGER_COLUMNS}, "
+                              f"contract {tuple(cols)}")
+    if tuple(cols.values()) != tuple(B.LEDGER_DTYPES[c] for c in B.LEDGER_COLUMNS):
+        raise E.ContractError("ledger column types drifted from the contract")
+    return {c: getattr(pl, _POLARS_TYPES[t]) for c, t in cols.items()}
+
+
+def _atomic(path, write):
+    tmp = path + ".tmp"
+    write(tmp)
+    os.replace(tmp, path)
+
+
+def write_ledger(dest, old, new_events):
+    """Append `new_events`. The whole file is rewritten (parquet cannot append),
+    so the rewrite is CHECKED to be the old rows plus rows at the end, and it is
+    atomic: a crash leaves the previous ledger, never half of a new one. No new
+    events and a ledger on disk -> nothing is written, so the bytes (and the
+    upload record) do not move on a read that changed nothing."""
+    import polars as pl
+    if not new_events and os.path.exists(ledger_path(dest)):
+        return 0
     rows = old + new_events
     B.assert_append_only(old, rows)
-    schema = {c: pl.Utf8 for c in B.LEDGER_COLUMNS}
-    for c in ("season", "week", "mkt_books"):
-        schema[c] = pl.Int64
-    for c in ("line", "kickoff_ts", "mkt_p_over", "model_p_over", "gap_pp", "price",
-              "lean_threshold_pp", "actual"):
-        schema[c] = pl.Float64
+    schema = ledger_schema()
     df = pl.DataFrame([{c: r.get(c) for c in B.LEDGER_COLUMNS} for r in rows], schema=schema,
                       orient="row") if rows else pl.DataFrame(schema=schema)
     os.makedirs(os.path.dirname(ledger_path(dest)), exist_ok=True)
-    df.write_parquet(ledger_path(dest))
-    df.write_csv(ledger_path(dest).replace(".parquet", ".csv"))
+    _atomic(ledger_path(dest), df.write_parquet)
+    _atomic(ledger_path(dest).replace(".parquet", ".csv"), df.write_csv)
+    return len(new_events)
 
 
 def previous_rows(dest, season, week):
@@ -509,6 +575,14 @@ def read_name(read_iso):
     return f"read-{read_iso.replace(':', '')}.json"
 
 
+def read_key(season, week, read_iso):
+    return f"board/nfl/{season}/wk{int(week):02d}/{read_name(read_iso)}"
+
+
+def index_key(season, week):
+    return f"board/nfl/{season}/wk{int(week):02d}/index.json"
+
+
 def verdict():
     """R15, the walk-forward record the verdict strip quotes. The 2025 season is
     the latest; the other seasons are in brief 023 Part 1."""
@@ -519,20 +593,24 @@ def verdict():
 def refuse_publish_tree(dest):
     """Refuse WEB_EXPORT_DIR (and anything inside it) as a destination.
 
-    The uploader ships every *.json under that tree on the next weekly
-    `--upload-only`, validated against nothing: the Board has no contract kind
-    yet (`board_index` / `board_read` are not in contract.schema.json, and a new
-    kind must also be declared in the source registry - f-17 C1). And it would
-    ship the reads WITHOUT the ledger, because the uploader skips non-JSON. So
-    until both land, the Board writes only to a scratch tree it is pointed at.
-    Lift this in the same commit that adds the contract kinds."""
+    a-26 refused it because the Board had no contract kind. a-31 added the kinds
+    and KEPT the refusal, for a different reason: the Board has its OWN tree
+    (BOARD_EXPORT_DIR) and its own upload record. It publishes every 15-60
+    minutes; the site export publishes three times a week. One tree would put two
+    uploaders on one record, each overwriting the other's copy, and the web
+    uploader skips `board/` anyway (export_web.BOARD_PREFIX)."""
     web = getattr(config, "WEB_EXPORT_DIR", None) or os.getenv("WEB_EXPORT_DIR")
     if not web:
         return
     d, w = os.path.normcase(os.path.abspath(dest)), os.path.normcase(os.path.abspath(web))
-    if d == w or d.startswith(w + os.sep):
-        raise SystemExit(f"--dest {dest} is inside WEB_EXPORT_DIR; the Board has no contract kind "
-                         "yet and the uploader would publish it unvalidated - refusing")
+    if d == w or d.startswith(w + os.sep) or w.startswith(d + os.sep):
+        raise SystemExit(f"--dest {dest} overlaps WEB_EXPORT_DIR; the Board publishes from its "
+                         "own tree (BOARD_EXPORT_DIR) with its own upload record - refusing")
+
+
+class NoRows(SystemExit):
+    """A due read found nothing to put on the board (lines have not posted). Not
+    a failure of the job: nothing is written, and `--tick` reports it and exits 0."""
 
 
 def run(season, week, dest, read_ts=None, db=None, log=print):
@@ -540,6 +618,9 @@ def run(season, week, dest, read_ts=None, db=None, log=print):
     read_ts = read_ts or time.time()
     read_iso = B.iso(read_ts)
     con = ro(db)
+    # The registry's runtime check: SQLite reports every table this read touches,
+    # and sync_keys refuses the write if any of them has no declared source.
+    reads = R.watch(con, "nfl")
     counts = defaultdict(int)
     try:
         games = week_games(con, season, week)
@@ -571,20 +652,19 @@ def run(season, week, dest, read_ts=None, db=None, log=print):
         # Before lines post there is nothing to read, and an empty read file
         # would be indistinguishable from a broken one. Refuse BEFORE any write;
         # the page's "lines post from Tuesday" state reads last week's board.
-        raise SystemExit(f"board read produced ZERO rows for {season} wk{week} at {read_iso} "
-                         f"({dict(counts) or 'no Odds API prop quotes'}) - nothing written")
+        raise NoRows(f"board read produced ZERO rows for {season} wk{week} at {read_iso} "
+                     f"({dict(counts) or 'no Odds API prop quotes'}) - nothing written")
     states = B.lean_states(old + new_ev, read_ts)
-    wd = week_dir(dest, season, week)
-    os.makedirs(wd, exist_ok=True)
-    doc = {"read_at": read_iso, "sport": "nfl", "season": season, "week": week, "rows": rows}
-    with open(os.path.join(wd, read_name(read_iso)), "w", encoding="utf-8") as f:
-        json.dump(doc, f, indent=1)
-    write_ledger(dest, old, new_ev)
-    reads = sorted(set((idx or {}).get("reads", [])) | {read_iso})
+    generated_at = E.iso()
+    doc = {**E.envelope("board_read", generated_at, "nfl"),
+           "read_at": read_iso, "season": season, "week": week, "rows": rows}
+    reads_listed = sorted(set((idx or {}).get("reads", [])) | {read_iso})
     week_leans = {e["lean_id"] for e in old + new_ev
                   if e["event"] == "published" and e["season"] == season and e["week"] == week}
-    index = {"sport": "nfl", "season": season, "week": week, "reads": reads, "latest": read_iso,
-             "lean_threshold_pp": T, "lean_threshold_log": [list(x) for x in config.BOARD_LEAN_THRESHOLD_LOG],
+    index = {**E.envelope("board_index", generated_at, "nfl"),
+             "season": season, "week": week, "reads": reads_listed, "latest": read_iso,
+             "lean_threshold_pp": T,
+             "lean_threshold_log": [list(x) for x in config.BOARD_LEAN_THRESHOLD_LOG],
              "model_version": mv, "verdict": verdict(),
              "leans": {s: sum(1 for l in week_leans if states[l] == s)
                        for s in (B.S_GRADED, B.S_UPCOMING, B.S_LIVE, B.S_VOID)},
@@ -597,39 +677,295 @@ def run(season, week, dest, read_ts=None, db=None, log=print):
                  "longshot": "market P(over) outside [0.15, 0.85]; multiplicative de-vig is biased "
                              "there - to revisit with Shin or power de-vig once settled data exists",
                  "void": "market_pulled | inactive | no_snap - a voided lean stays on the ledger"}}
-    with open(os.path.join(wd, "index.json"), "w", encoding="utf-8") as f:
-        json.dump(index, f, indent=1)
+    wanted = {read_key(season, week, read_iso): doc, index_key(season, week): index}
+    # THE GATE, BEFORE ANY WRITE: contract and source declarations for both
+    # files. The ledger is written only once both pass, and the JSON only after
+    # the ledger, so a crash between them leaves a ledger AHEAD of the index (the
+    # next read re-derives the same rows and appends nothing twice) and never an
+    # index naming leans the ledger does not hold.
+    E.validate_contract(wanted)
+    approved = R.require_declared(wanted)
+    ledger_new = write_ledger(dest, old, new_ev)
+    # No owned prefix: sync_keys deletes nothing here, whatever is on disk.
+    written, deleted = E.sync_keys(dest, wanted, [])
+    assert deleted == 0
     status = defaultdict(int)
     for r in rows:
         status[r["status"]] += 1
     summary = {"read_at": read_iso, "rows": len(rows), "status": dict(status),
-               "fresh": dict(counts), "ledger_new": len(new_ev),
-               "leans": index["leans"]}
+               "fresh": dict(counts), "ledger_new": ledger_new, "written": written,
+               "leans": index["leans"], "tables_read": sorted(reads),
+               "sources": {f"{s}/{k}": list(v) for (s, k), v in sorted(approved.items())}}
     log(json.dumps(summary))
     return summary
 
 
+# ------------------------------------------------------------------ the cadence
+
+def _in_play(row, now_ts):
+    """Kicked off and not settled. A row still UPCOMING in the last read whose
+    game has since started is live now; the read that says so is a grading read."""
+    return row["status"] == B.LIVE or (row["status"] == B.UPCOMING and row["kickoff_ts"] <= now_ts)
+
+
+def weeks_in_play(con, season, now_ts, dest):
+    """The weeks a tick must consider: the week of the NEXT kickoff (it is reading
+    toward its games) plus any earlier week of the season whose latest read still
+    has a LIVE row (it is grading). Returns [(week, games, prev_rows, idx)]."""
+    rows = con.execute("SELECT week, MAX(kickoff_ts), MIN(kickoff_ts) FROM nfl_games "
+                       "WHERE season=? AND game_type='REG' GROUP BY week ORDER BY week",
+                       (season,)).fetchall()
+    out = []
+    upcoming = next((w for w, last, _first in rows if last > now_ts), None)
+    for w, _last, _first in rows:
+        if upcoming is not None and w > upcoming:
+            break
+        prev, idx = previous_rows(dest, season, w)
+        grading = any(_in_play(r, now_ts) for r in prev)
+        if w == upcoming or grading:
+            out.append((w, week_games(con, season, w), prev, idx))
+    return out
+
+
+def due_reads(season, now_ts, dest, db=None):
+    """[(week, reason)] of reads due now. Pure over the store and the tree."""
+    con = ro(db)
+    try:
+        weeks = weeks_in_play(con, season, now_ts, dest)
+    finally:
+        con.close()
+    out = []
+    for w, games, prev, idx in weeks:
+        last = parse_iso(idx["latest"]) if idx and idx.get("latest") else None
+        kicks = [g["kickoff_ts"] for g in games.values()]
+        live = [r for r in prev if _in_play(r, now_ts)]
+        if B.read_due(now_ts, last, kicks, window_open_ts(games)):
+            out.append((w, "read"))
+        elif B.grade_due(now_ts, last, live):
+            out.append((w, "grade"))
+    return out
+
+
+def tree_intact(dest, client, bucket, log=print):
+    """-> the statement it approved; raises otherwise. Every key the Board's upload
+    record (local, else the bucket's mirror) says was published must be on disk.
+    A tree that lost its ledger would start a fresh one and a fresh index, and
+    the uploader's append-only check would then refuse every tick - loud, but a
+    dead Board. Refusing HERE names the fix (`--restore`) before any read."""
+    state, source = E.load_upload_state(dest, client, bucket, log, state_key=E.BOARD_STATE_KEY)
+    local = E.local_keys(dest, tables=True)
+    missing = sorted(k for k in state if k not in local)
+    if missing:
+        raise SystemExit(f"the Board's tree at {dest} is missing {len(missing)} key(s) its upload "
+                         f"record ({source}) says are published, e.g. {missing[0]} - run "
+                         "`python -m jobs.board_read --restore` before reading again")
+    return f"tree intact: {len(state)} published key(s) all on disk (record: {source})"
+
+
+def restore(dest, client, bucket, log=print):
+    """Download every `board/` key in the bucket that is missing locally. Writes
+    only into the local tree; never uploads, never deletes."""
+    keys = E._bucket_keys(client, bucket)
+    if keys is None:
+        raise SystemExit("could not list the bucket - nothing restored")
+    board = sorted(k for k in keys if k.startswith(E.BOARD_PREFIX))
+    local = E.local_keys(dest, tables=True)
+    got = 0
+    for k in board:
+        if k in local:
+            continue
+        body = client.get_object(Bucket=bucket, Key=k)["Body"].read()
+        path = E.local_path(dest, k)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        def put(tmp, b=body):
+            with open(tmp, "wb") as f:
+                f.write(b)
+        _atomic(path, put)
+        got += 1
+    log(f"restored {got} of {len(board)} board key(s) into {dest}")
+    return got
+
+
+def board_lock(dest):
+    """ONE WRITER PER BOARD TREE. A full-slate read measured 164-225 s on
+    2026-09-24; the tick fires every 5 minutes, so a slow read and the next tick
+    can overlap, and two processes rewriting one ledger is the 2026-09-11 shard
+    incident again. The lock sits BESIDE the tree (never inside it: everything in
+    the tree is a candidate key) and is keyed on the tree, not the checkout."""
+    from core.single_instance import InstanceLock
+    d = os.path.abspath(dest)
+    return InstanceLock(os.path.join(os.path.dirname(d), os.path.basename(d) + ".board.lock"))
+
+
+def tick(season, dest, upload=False, now_ts=None, db=None, client=None, log=print):
+    """What the scheduled task runs. Reads the weeks that are due, then uploads.
+
+    Exit semantics: a due read with no rows yet (lines not posted), and a tick
+    that finds the previous one still running, are NOT failures - logged, exit 0.
+    Anything else that refuses (the contract, the source gate, a lost tree, an
+    append-only violation) raises and the task records a failure."""
+    from core.single_instance import AlreadyRunning
+    try:
+        with board_lock(dest):
+            return _tick(season, dest, upload, now_ts, db, client, log)
+    except AlreadyRunning as e:
+        log(f"previous tick still running - skipped: {e}")
+        return {"skipped": "already running"}
+
+
+def _tick(season, dest, upload, now_ts, db, client, log):
+    now_ts = time.time() if now_ts is None else now_ts
+    refuse_publish_tree(dest)
+    out = {"at": B.iso(now_ts), "due": [], "read": [], "no_rows": [], "upload": None}
+    bucket = None
+    if upload:
+        if not (config.WEB_R2_ACCESS_KEY_ID and config.WEB_R2_SECRET_ACCESS_KEY):
+            log("R2 upload not configured - reading locally only")
+            upload = False
+        else:
+            bucket = E.require_setting("WEB_R2_BUCKET")
+            client = client or E.r2_client()
+            out["tree"] = tree_intact(dest, client, bucket, log)
+    due = due_reads(season, now_ts, dest, db)
+    out["due"] = [f"wk{w:02d}:{why}" for w, why in due]
+    for w, _why in due:
+        try:
+            s = run(season, w, dest, now_ts, db=db, log=log)
+            out["read"].append({"week": w, "rows": s["rows"], "ledger_new": s["ledger_new"]})
+        except NoRows as e:
+            log(str(e))
+            out["no_rows"].append(w)
+    if upload:
+        out["upload"] = E.upload(dest=dest, client=client, log=log, tree="board")
+    log(json.dumps(out, default=str))
+    return out
+
+
+def check_tree(dest, show_keys=False, log=print):
+    """Validate every Board file in a tree against the contract and the source
+    gate WITHOUT writing, and (with `show_keys`) list every key with its bytes.
+    -> {"keys", "bytes", "json", "tables"}. Refuses a tree with nothing in it:
+    a check over zero files is not a check."""
+    local = E.local_keys(dest, tables=True)
+    board = {k: p for k, p in local.items() if k.startswith(E.BOARD_PREFIX)}
+    if not board:
+        raise SystemExit(f"no board/ keys under {dest} - nothing to check")
+    js = {k: load_json(p) for k, p in board.items() if k.endswith(".json")}
+    E.validate_contract(js)
+    R.require_declared(js)
+    tables = sorted(k for k in board if not k.endswith(".json"))
+    if os.path.exists(ledger_path(dest)):
+        import polars as pl
+        pq = pl.read_parquet(ledger_path(dest))
+        schema = ledger_schema()
+        if dict(pq.schema) != schema:
+            raise E.ContractError(f"ledger on disk does not match the contract: {dict(pq.schema)}")
+        csv = pl.read_csv(ledger_path(dest).replace(".parquet", ".csv"), infer_schema_length=0)
+        if csv.height != pq.height:
+            raise E.ContractError(f"ledger.csv has {csv.height} rows, ledger.parquet {pq.height}")
+        B.lean_states(pq.to_dicts(), time.time())
+    total = 0
+    for k in sorted(board):
+        size = os.path.getsize(board[k])
+        total += size
+        if show_keys:
+            log(f"  {k:<64} {size} bytes")
+    log(f"{len(board)} keys ({len(js)} JSON, {len(tables)} table files), {total} bytes, "
+        f"all validated against {os.path.relpath(E.CONTRACT_PATH, E.ROOT)}")
+    return {"keys": len(board), "bytes": total, "json": len(js), "tables": len(tables)}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--season", type=int, required=True)
-    ap.add_argument("--week", type=int, required=True)
-    ap.add_argument("--dest", required=True)
+    ap.add_argument("--season", type=int)
+    ap.add_argument("--week", type=int)
+    ap.add_argument("--dest", help="the Board's tree; --tick/--restore default to BOARD_EXPORT_DIR")
     ap.add_argument("--at", help="read time, ISO Z (replay); default now")
     ap.add_argument("--due", action="store_true", help="print whether a read is due, and exit")
+    ap.add_argument("--tick", action="store_true",
+                    help="the scheduled entry point: read every week that is due now")
+    ap.add_argument("--upload", action="store_true",
+                    help="with --tick: upload the Board's tree (never deletes)")
+    ap.add_argument("--check", action="store_true",
+                    help="validate the tree against the contract and the source gate; writes nothing")
+    ap.add_argument("--keys", action="store_true", help="with --check: list every key and its bytes")
+    ap.add_argument("--restore", action="store_true",
+                    help="download board/ keys missing from the local tree; uploads nothing")
+    ap.add_argument("--log", action="store_true",
+                    help="append output, any traceback and the exit code to "
+                         "<STORAGE_DIR>/logs/board_tick.log (the scheduled task's record)")
     a = ap.parse_args(argv)
+    if a.log:
+        return _logged(lambda: _main(a, ap), config.storage_path("logs", "board_tick.log"))
+    return _main(a, ap)
+
+
+def _logged(fn, path):
+    """Run `fn` with stdout and stderr appended to `path`, and record the exit code
+    and any traceback there - a scheduled task's console is seen by nobody."""
+    import contextlib
+    import traceback
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f, contextlib.redirect_stdout(f), \
+            contextlib.redirect_stderr(f):
+        print(f"--- board_read {B.iso(time.time())}")
+        try:
+            rc = fn()
+        except SystemExit as e:
+            rc = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+            if e.code not in (None, 0):
+                print(f"refused: {e.code}")
+        except BaseException:  # noqa: BLE001 - recorded, then re-signalled by the exit code
+            traceback.print_exc()
+            rc = 1
+        print(f"exit={rc}")
+    return rc
+
+
+def _main(a, ap):
     now = parse_iso(a.at) if a.at else time.time()
+    dest = a.dest
+    if a.tick or a.restore:
+        dest = dest or E.require_setting("BOARD_EXPORT_DIR")
+    if not dest:
+        ap.error("--dest is required (no default: a job that can publish must be told where)")
+    if a.check:
+        check_tree(dest, show_keys=a.keys)
+        return 0
+    if a.restore:
+        with board_lock(dest):
+            restore(dest, E.r2_client(), E.require_setting("WEB_R2_BUCKET"))
+        return 0
+    if a.tick:
+        tick(a.season or current_season(now), dest, upload=a.upload, now_ts=now)
+        return 0
+    if a.season is None or a.week is None:
+        ap.error("--season and --week are required for a single read")
     if a.due:
         con = ro()
         games = week_games(con, a.season, a.week)
         con.close()
-        prev, idx = previous_rows(a.dest, a.season, a.week)
+        prev, idx = previous_rows(dest, a.season, a.week)
         last = parse_iso(idx["latest"]) if idx and idx.get("latest") else None
         due = B.read_due(now, last, [g["kickoff_ts"] for g in games.values()], window_open_ts(games))
         gdue = B.grade_due(now, last, [r for r in prev if r["status"] == B.LIVE])
         print(json.dumps({"read_due": due, "grade_due": gdue, "window_open": B.iso(window_open_ts(games))}))
         return 0
-    run(a.season, a.week, a.dest, now)
+    try:
+        with board_lock(dest):
+            run(a.season, a.week, dest, now)
+    except NoRows as e:
+        print(str(e))
+        return 3
     return 0
+
+
+def current_season(now_ts):
+    """The NFL season a date falls in: September-December is that year's, January
+    to August the previous year's (the postseason and the offseason)."""
+    d = datetime.fromtimestamp(now_ts, ET)
+    return d.year if d.month >= 9 else d.year - 1
 
 
 if __name__ == "__main__":
