@@ -201,8 +201,12 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "RAW_DIR", str(tmp_path / "raw"))
     store.init_db()
     from jobs import board_read as J
+    # The shape research/board_bands.py writes (games, ci_method and
+    # roi_ci_method included - the contract requires them on a published band).
     bands = {"bands": {"receptions|8+": {"n": 100, "k": 48, "cleared": 0.48, "ci": [0.38, 0.58],
-                                         "roi": -0.08, "roi_ci": [-0.2, 0.05]}}}
+                                         "ci_method": "wilson_95", "games": 40,
+                                         "roi": -0.08, "roi_ci": [-0.2, 0.05],
+                                         "roi_ci_method": "game_block_bootstrap_2000"}}}
     (tmp_path / "bands.json").write_text(json.dumps(bands))
     monkeypatch.setattr(J, "BANDS_PATH", str(tmp_path / "bands.json"))
     monkeypatch.setattr(J, "SLUGS_PATH", str(tmp_path / "no-slugs.json"))
@@ -473,7 +477,10 @@ def test_career_posted_grades_each_game_on_its_own_closing_main_line(env):
         c.close()
 
 
-def test_the_publish_tree_is_refused_until_the_board_has_a_contract_kind(env, monkeypatch):
+def test_the_publish_tree_is_refused_because_the_board_has_its_own_tree(env, monkeypatch):
+    """a-26 refused WEB_EXPORT_DIR for want of a contract kind; a-31 keeps the
+    refusal for a different reason - the Board uploads its own tree with its own
+    record (see refuse_publish_tree)."""
     web = env["tmp"] / "web-export"
     monkeypatch.setattr(config, "WEB_EXPORT_DIR", str(web), raising=False)
     for d in (web, web / "board"):

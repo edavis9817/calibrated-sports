@@ -494,3 +494,13 @@ BOARD_READ_EVERY_MIN = 60
 BOARD_CLOSE_READ_EVERY_MIN = 15
 BOARD_CLOSE_WINDOW_MIN = 120
 BOARD_GRADE_EVERY_MIN = 60
+# Where the Board's tree lives (a-31). NO DEFAULT, like WEB_EXPORT_DIR, and it
+# must NOT be inside WEB_EXPORT_DIR: the Board publishes every 15-60 minutes
+# with its own upload record, and two uploaders sharing one tree would share one
+# record. `--tick` refuses when it is unset. The bucket is the site's
+# (WEB_R2_BUCKET, same keys); only the local tree and the upload record differ.
+BOARD_EXPORT_DIR = os.getenv("BOARD_EXPORT_DIR")
+# How often the scheduled `--tick` wakes (the task's trigger, documented in
+# docs/runbooks/board-cadence.md). It bounds the resolution of every cadence
+# above - a 15-minute read cannot be taken more often than the tick fires.
+BOARD_TICK_MIN = 5

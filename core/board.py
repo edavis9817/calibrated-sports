@@ -374,6 +374,12 @@ LEDGER_COLUMNS = (
     "mkt_p_over", "mkt_books", "model_p_over", "gap_pp", "price", "band",
     "model_version", "lean_threshold_pp", "result", "actual", "void_reason",
     "event_at")
+# Column types, in the contract's vocabulary (web/contract/v2 x-contract.tables
+# .board_ledger.columns). jobs/board_read.ledger_schema asserts the two agree.
+LEDGER_DTYPES = {c: "string" for c in LEDGER_COLUMNS}
+LEDGER_DTYPES.update({c: "int64" for c in ("season", "week", "mkt_books")})
+LEDGER_DTYPES.update({c: "float64" for c in ("line", "kickoff_ts", "mkt_p_over", "model_p_over",
+                                             "gap_pp", "price", "lean_threshold_pp", "actual")})
 
 
 def ledger_events(ledger, rows, read_at_iso, settle_lean, pulled_claims,

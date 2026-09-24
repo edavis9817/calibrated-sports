@@ -24,7 +24,9 @@
       "components": "ComponentsFile",
       "coverage": "CoverageFile",
       "predictor": "PredictorFile",
-      "sources": "SourcesFile"
+      "sources": "SourcesFile",
+      "board_index": "BoardIndexFile",
+      "board_read": "BoardReadFile"
     },
     "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.execution", "coverage"],
     "keys": [
@@ -44,8 +46,29 @@
       {"pattern": "^[a-z0-9]+/components/\\d{4}\\.json$", "kind": "components"},
       {"pattern": "^coverage\\.json$", "kind": "coverage"},
       {"pattern": "^predictors/[a-z0-9]+/[a-z0-9_]+\\.json$", "kind": "predictor"},
-      {"pattern": "^[a-z0-9]+/sources\\.json$", "kind": "sources"}
-    ]
+      {"pattern": "^[a-z0-9]+/sources\\.json$", "kind": "sources"},
+      {"pattern": "^board/[a-z0-9]+/\\d{4}/wk\\d{2}/index\\.json$", "kind": "board_index"},
+      {"pattern": "^board/[a-z0-9]+/\\d{4}/wk\\d{2}/read-\\d{4}-\\d{2}-\\d{2}T\\d{6}Z\\.json$", "kind": "board_read"}
+    ],
+    "tables": {
+      "comment": "Keys that are NOT JSON and are not validated by a $def: columnar files a producer appends to. Each entry names its pattern, its format and its columns with their types, and the producer asserts its own column list and types against this entry before it writes, so the two cannot drift. The uploader ships a non-JSON key only when it matches a pattern here, and NEVER deletes one by absence: an append-only file that vanished because one run did not re-declare it would destroy the only record of what was published.",
+      "board_ledger": {
+        "patterns": ["^board/[a-z0-9]+/ledger\\.parquet$", "^board/[a-z0-9]+/ledger\\.csv$"],
+        "formats": ["parquet", "csv"],
+        "append_only": true,
+        "sources_as": "board_read",
+        "description": "The Board's lean ledger: append-only EVENTS, never mutable rows. One `published` event when a lean first appears at a read, and at most one terminal event later - `graded` (result cleared / missed / push) or `void` (with void_reason). A later file must equal the earlier one row for row, plus rows at the end. The CSV is the same rows as the parquet, written in the same step.",
+        "columns": {
+          "event": "string", "lean_id": "string", "claim_id": "string", "row_id": "string",
+          "season": "int64", "week": "int64", "game_id": "string", "gsis_id": "string",
+          "market": "string", "line": "float64", "side": "string", "read_at": "string",
+          "kickoff_ts": "float64", "mkt_p_over": "float64", "mkt_books": "int64",
+          "model_p_over": "float64", "gap_pp": "float64", "price": "float64", "band": "string",
+          "model_version": "string", "lean_threshold_pp": "float64", "result": "string",
+          "actual": "float64", "void_reason": "string", "event_at": "string"
+        }
+      }
+    }
   },
 
   "$defs": {
@@ -1785,6 +1808,288 @@
         "evidence": {"type": "string"}
       },
       "required": ["what", "where", "state", "needs", "evidence"],
+      "additionalProperties": false
+    },
+
+    "BoardIndexFile": {
+      "description": "One week's Board: every read taken, which is latest, the lean threshold in force and the week's ledger counts. Written by the Board read job at every read, beside the read file it names. `leans` counts the ledger's four-way partition for this week - every published lean is in exactly one of graded, upcoming, live, void - so a lean that has left the board (its main line moved, its market was pulled) is still counted here.",
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "board_index"},
+        "sport": {"type": "string"},
+        "season": {"type": "integer"},
+        "week": {"type": "integer", "minimum": 1},
+        "reads": {"description": "Every read of this week, ascending. Each names a board_read file.", "type": "array", "items": {"$ref": "#/$defs/Timestamp"}, "minItems": 1},
+        "latest": {"$ref": "#/$defs/Timestamp"},
+        "lean_threshold_pp": {"description": "T in force at the latest read, probability points.", "type": "number"},
+        "lean_threshold_log": {"description": "Every threshold ever in force: [effective from, T, why]. A change is appended, never edited, so a lean is always graded against the T it was published under.", "type": "array", "items": {"$ref": "#/$defs/BoardThresholdEntry"}, "minItems": 1},
+        "model_version": {"type": "string"},
+        "verdict": {"$ref": "#/$defs/BoardVerdict"},
+        "leans": {
+          "type": "object",
+          "properties": {
+            "graded": {"type": "integer", "minimum": 0},
+            "upcoming": {"type": "integer", "minimum": 0},
+            "live": {"type": "integer", "minimum": 0},
+            "void": {"type": "integer", "minimum": 0}
+          },
+          "required": ["graded", "upcoming", "live", "void"],
+          "additionalProperties": false
+        },
+        "definitions": {
+          "type": "object",
+          "properties": {
+            "line": {"type": "string"},
+            "gap_pp": {"type": "string"},
+            "lean": {"type": "string"},
+            "longshot": {"type": "string"},
+            "void": {"type": "string"}
+          },
+          "required": ["line", "gap_pp", "lean", "longshot", "void"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "season", "week", "reads", "latest", "lean_threshold_pp", "lean_threshold_log", "model_version", "verdict", "leans", "definitions"],
+      "additionalProperties": false
+    },
+
+    "BoardThresholdEntry": {
+      "type": "array",
+      "prefixItems": [{"$ref": "#/$defs/Timestamp"}, {"type": "number"}, {"type": "string"}],
+      "minItems": 3,
+      "maxItems": 3,
+      "items": false
+    },
+
+    "BoardVerdict": {
+      "description": "The walk-forward record the verdict strip quotes: Brier(model) - Brier(close) with its interval and the games it was bootstrapped over. The interval and `games` are REQUIRED AND NOT NULLABLE, for the reason AnalyticValue gives: the consumer words the verdict from the interval and must refuse a bare number rather than trust the producer.",
+      "type": "object",
+      "properties": {
+        "id": {"type": "string"},
+        "season": {"type": "integer"},
+        "brier_gap": {"type": "number"},
+        "lo": {"type": "number"},
+        "hi": {"type": "number"},
+        "games": {"description": "Independent units the interval was built on: games, not predictions.", "type": "integer", "minimum": 1},
+        "source": {"type": "string"}
+      },
+      "required": ["id", "season", "brier_gap", "lo", "hi", "games", "source"],
+      "additionalProperties": false
+    },
+
+    "BoardReadFile": {
+      "description": "One Board read: every row as the books and the model stood at `read_at`. A read is never rewritten; the next read is a new file. Rows are keyed across reads by `claim_id` (one player, one market, one game); `row_id` names the main line at THIS read and changes when the line moves.",
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "board_read"},
+        "sport": {"type": "string"},
+        "read_at": {"$ref": "#/$defs/Timestamp"},
+        "season": {"type": "integer"},
+        "week": {"type": "integer", "minimum": 1},
+        "rows": {"description": "Never empty: a read that found nothing is refused by the producer and never written, because an empty read is indistinguishable from a broken one.", "type": "array", "items": {"$ref": "#/$defs/BoardRow"}, "minItems": 1}
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "read_at", "season", "week", "rows"],
+      "additionalProperties": false
+    },
+
+    "BoardRow": {
+      "type": "object",
+      "properties": {
+        "row_id": {"type": "string"},
+        "claim_id": {"type": "string"},
+        "season": {"type": "integer"},
+        "week": {"type": "integer"},
+        "gsis_id": {"type": "string"},
+        "slug": {"type": ["string", "null"]},
+        "name": {"type": "string"},
+        "pos": {"type": ["string", "null"]},
+        "team": {"type": "string"},
+        "opp": {"type": "string"},
+        "game_id": {"type": "string"},
+        "kickoff": {"$ref": "#/$defs/Timestamp"},
+        "kickoff_ts": {"type": "number"},
+        "market": {"type": "string"},
+        "line": {"type": "number"},
+        "is_main": {"description": "Always true: a row IS the main line at its read. A property of the read, not of the market.", "const": true},
+        "ladder": {"description": "Every threshold the benchmark books listed at this read.", "type": "array", "items": {"type": "number"}, "minItems": 1},
+        "mkt_p_over": {"description": "Median across the benchmark books of each book's multiplicatively de-vigged P(over) at `line`. A price, not an estimate from a sample: `mkt_books` says how many books it is the median of.", "type": "number", "minimum": 0, "maximum": 1},
+        "mkt_books": {"type": "integer", "minimum": 1},
+        "mkt_method": {"const": "median_devig_mult"},
+        "longshot": {"type": "boolean"},
+        "books": {"type": "array", "items": {"$ref": "#/$defs/BoardBook"}},
+        "kalshi_mid": {"description": "The exchange's mid on the same claim, as-is and never de-vigged. Null when no mapped exchange market was quoted.", "type": ["number", "null"]},
+        "model_p_over": {"description": "The model's P(over) at this read. Null for a market the model does not price, or a fit that failed.", "type": ["number", "null"]},
+        "gap_pp": {"description": "Model minus market, probability points, signed. Null when either side is null.", "type": ["number", "null"]},
+        "lean": {"enum": ["over", "under", null]},
+        "lean_price": {"description": "Median American price on the lean side across the benchmark books at this read.", "type": ["number", "null"]},
+        "band": {"description": "The walk-forward base rate for leans this size in this market. Null when the row carries no lean, or when the walk-forward has no record for the band - never an object with no sample.", "anyOf": [{"$ref": "#/$defs/BoardBand"}, {"type": "null"}]},
+        "last10": {"type": "array", "items": {"$ref": "#/$defs/BoardGame"}, "maxItems": 10},
+        "rates": {"$ref": "#/$defs/BoardRates"},
+        "streak": {"anyOf": [{"$ref": "#/$defs/BoardStreak"}, {"type": "null"}]},
+        "line_path": {"type": "array", "items": {"$ref": "#/$defs/BoardLinePoint"}},
+        "news": {"description": "Empty until a news source is ingested. Not faked.", "type": "array", "items": {"$ref": "#/$defs/BoardNews"}},
+        "status": {"enum": ["upcoming", "live", "cleared", "missed", "push", "void"]},
+        "result": {"anyOf": [{"$ref": "#/$defs/BoardResult"}, {"type": "null"}]},
+        "lean_result": {"enum": ["cleared", "missed", "push", null]},
+        "void_reason": {"description": "Present exactly when status is void, so a voided row can never be mistaken for a quietly dropped one.", "enum": ["market_pulled", "inactive", "no_snap", null]},
+        "pulled_at": {"description": "The read at which the books stopped listing the claim; null unless void_reason is market_pulled.", "anyOf": [{"$ref": "#/$defs/Timestamp"}, {"type": "null"}]},
+        "opened_line": {"type": "number"},
+        "main_line_changed_since_open": {"type": "boolean"}
+      },
+      "required": ["row_id", "claim_id", "season", "week", "gsis_id", "slug", "name", "pos", "team", "opp", "game_id", "kickoff", "kickoff_ts", "market", "line", "is_main", "ladder", "mkt_p_over", "mkt_books", "mkt_method", "longshot", "books", "kalshi_mid", "model_p_over", "gap_pp", "lean", "lean_price", "band", "last10", "rates", "streak", "line_path", "news", "status", "result", "lean_result", "void_reason", "pulled_at", "opened_line", "main_line_changed_since_open"],
+      "additionalProperties": false,
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "void"}}}, "then": {"properties": {"void_reason": {"enum": ["market_pulled", "inactive", "no_snap"]}}}, "else": {"properties": {"void_reason": {"type": "null"}}}},
+        {"if": {"properties": {"void_reason": {"const": "market_pulled"}}}, "then": {"properties": {"pulled_at": {"$ref": "#/$defs/Timestamp"}}}, "else": {"properties": {"pulled_at": {"type": "null"}}}},
+        {"if": {"properties": {"lean": {"type": "null"}}}, "then": {"properties": {"band": {"type": "null"}, "lean_result": {"type": "null"}}}}
+      ]
+    },
+
+    "BoardBook": {
+      "description": "One benchmark book's two-way quote at `line`, as that book last showed it. Prices are American odds.",
+      "type": "object",
+      "properties": {
+        "book": {"type": "string"},
+        "over": {"type": ["number", "null"]},
+        "under": {"type": ["number", "null"]},
+        "read_at": {"$ref": "#/$defs/Timestamp"},
+        "p_over_devig": {"type": ["number", "null"]},
+        "hold": {"type": ["number", "null"]}
+      },
+      "required": ["book", "over", "under", "read_at", "p_over_devig", "hold"],
+      "additionalProperties": false
+    },
+
+    "BoardBand": {
+      "description": "The walk-forward record of leans this size: how often they cleared and what they returned at the price that stood. EVERY ESTIMATE CARRIES A NON-NULLABLE INTERVAL AND AN INTEGER SAMPLE - the AnalyticValue rule. `n` is LEANS and `ci` is a Wilson interval on leans; `games` is the independent unit, and `roi_ci` is a game-block bootstrap over it. The two sample sizes are published together because only one of them is the sample the Wilson interval assumes.",
+      "type": "object",
+      "properties": {
+        "lo_pp": {"type": "number"},
+        "hi_pp": {"type": ["number", "null"]},
+        "n": {"type": "integer", "minimum": 1},
+        "games": {"type": "integer", "minimum": 1},
+        "cleared": {"type": "number", "minimum": 0, "maximum": 1},
+        "ci": {"$ref": "#/$defs/Interval"},
+        "ci_method": {"type": "string"},
+        "roi": {"type": "number"},
+        "roi_ci": {"$ref": "#/$defs/Interval"},
+        "roi_ci_method": {"type": "string"},
+        "source": {"type": "string"}
+      },
+      "required": ["lo_pp", "hi_pp", "n", "games", "cleared", "ci", "ci_method", "roi", "roi_ci", "roi_ci_method", "source"],
+      "additionalProperties": false
+    },
+
+    "BoardGame": {
+      "type": "object",
+      "properties": {
+        "game_id": {"type": "string"},
+        "value": {"type": ["number", "null"]},
+        "cleared": {"description": "Against TODAY's line. Null when the value is null or exactly on the line.", "type": ["boolean", "null"]}
+      },
+      "required": ["game_id", "value", "cleared"],
+      "additionalProperties": false
+    },
+
+    "BoardRates": {
+      "description": "The player's record against today's line (last10, season, career) and against each game's own posted line (career_posted). Each is null when there is no graded game in it - never a record with n = 0.",
+      "type": "object",
+      "properties": {
+        "last10": {"anyOf": [{"$ref": "#/$defs/BoardRate"}, {"type": "null"}]},
+        "season": {"anyOf": [{"$ref": "#/$defs/BoardRate"}, {"type": "null"}]},
+        "career": {"anyOf": [{"$ref": "#/$defs/BoardRate"}, {"type": "null"}]},
+        "career_posted": {"anyOf": [{"$ref": "#/$defs/BoardPostedRate"}, {"type": "null"}]}
+      },
+      "required": ["last10", "season", "career", "career_posted"],
+      "additionalProperties": false
+    },
+
+    "BoardRate": {
+      "description": "k of n games cleared, with a Wilson interval. `n` is games - one graded game per row - and never zero.",
+      "type": "object",
+      "properties": {
+        "k": {"type": "integer", "minimum": 0},
+        "n": {"type": "integer", "minimum": 1},
+        "ci": {"$ref": "#/$defs/Interval"}
+      },
+      "required": ["k", "n", "ci"],
+      "additionalProperties": false
+    },
+
+    "BoardPostedRate": {
+      "type": "object",
+      "properties": {
+        "k": {"type": "integer", "minimum": 0},
+        "n": {"type": "integer", "minimum": 1},
+        "ci": {"$ref": "#/$defs/Interval"},
+        "basis": {
+          "description": "How many of the n games took their market at the close from the benchmark-book median, and how many from every book.",
+          "type": "object",
+          "properties": {
+            "p_bench": {"type": "integer", "minimum": 0},
+            "p_all": {"type": "integer", "minimum": 0}
+          },
+          "required": ["p_bench", "p_all"],
+          "additionalProperties": false
+        },
+        "seasons": {"type": "string"}
+      },
+      "required": ["k", "n", "ci", "basis", "seasons"],
+      "additionalProperties": false
+    },
+
+    "BoardStreak": {
+      "description": "A streak rule that fired against today's line, and the measured rate at which the NEXT game cleared after the same rule fired. `display_rate` is the streak as a reader sees it; `next_rate` is the estimate, with its interval and sample, and they differ by design.",
+      "type": "object",
+      "properties": {
+        "rule": {"enum": ["L7", "L5", "AWAY5", "H2H1"]},
+        "k": {"type": "integer", "minimum": 0},
+        "n": {"type": "integer", "minimum": 1},
+        "display_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "next_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "next_ci": {"$ref": "#/$defs/Interval"},
+        "next_n": {"description": "Streak instances the next-game rate was measured on.", "type": "integer", "minimum": 1},
+        "source": {"type": "string"},
+        "line_basis": {"type": "string"}
+      },
+      "required": ["rule", "k", "n", "display_rate", "next_rate", "next_ci", "next_n", "source", "line_basis"],
+      "additionalProperties": false
+    },
+
+    "BoardLinePoint": {
+      "type": "object",
+      "properties": {
+        "t": {"$ref": "#/$defs/Timestamp"},
+        "p_over": {"type": "number", "minimum": 0, "maximum": 1},
+        "books": {"type": "integer", "minimum": 1}
+      },
+      "required": ["t", "p_over", "books"],
+      "additionalProperties": false
+    },
+
+    "BoardNews": {
+      "type": "object",
+      "properties": {
+        "t": {"$ref": "#/$defs/Timestamp"},
+        "outlet": {"type": "string"},
+        "title": {"type": "string"},
+        "url": {"type": "string"}
+      },
+      "required": ["t", "outlet", "title", "url"],
+      "additionalProperties": false
+    },
+
+    "BoardResult": {
+      "type": "object",
+      "properties": {
+        "value": {"type": ["number", "null"]},
+        "cleared": {"type": ["boolean", "null"]}
+      },
+      "required": ["value", "cleared"],
       "additionalProperties": false
     }
   }

@@ -177,7 +177,14 @@ def test_every_producers_scan_found_what_it_should():
     # Count against expectation, never trust an empty scan.
     counts = {s: len(R.scan(R.PRODUCERS[s])) for s in R.SPORTS}
     assert counts["nfl"] >= 15 and counts["cfb"] >= 8 and counts["mlb"] >= 1, counts
-    assert set(R.scan("jobs.export_web")) == set(R.LOADERS["nfl"])
+    # a-31: a side producer's functions are attributed under `module.function`;
+    # the union of every scanned module must be exactly LOADERS - both ways.
+    scanned = set(R.scan("jobs.export_web"))
+    for mod in R.SIDE_PRODUCERS["nfl"]:
+        side = R.scan(mod)
+        assert len(side) >= 10, (mod, side)          # the Board reads through ten functions
+        scanned |= {f"{mod}.{fn}" for fn in side}
+    assert scanned == set(R.LOADERS["nfl"])
 
 
 LOADER = '\n\ndef load_f19_planted(con):\n    return con.execute({sql}).fetchall()\n'
