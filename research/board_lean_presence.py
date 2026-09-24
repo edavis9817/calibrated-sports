@@ -59,7 +59,7 @@ def snapshot_times(season, week):
     return sorted(out)
 
 
-def replay(season, week, dest, until_ts=None, changes_only=False, log=print):
+def replay(season, week, dest, until_ts=None, changes_only=False, resume=False, log=print):
     """`changes_only`: of the ticks the cadence makes due, read only those with a
     benchmark-book snapshot or a kickoff since the last read (and the last one).
     Between those instants a read's lines, prices and statuses cannot differ from
@@ -67,8 +67,10 @@ def replay(season, week, dest, until_ts=None, changes_only=False, log=print):
     can differ is kalshi_mid and each row's line_path tail, which this audit
     does not read. It exists because each read loads every quote up to its own
     instant, so a full-cadence week is ~180 reads at 11-30 s each."""
-    if os.path.exists(J.ledger_path(dest)):
-        raise SystemExit(f"{dest} already holds a Board tree - replay into an empty scratch dir")
+    prev, idx = J.previous_rows(dest, season, week)
+    if os.path.exists(J.ledger_path(dest)) and not resume:
+        raise SystemExit(f"{dest} already holds a Board tree - replay into an empty scratch dir, "
+                         "or --resume one this script started")
     con = J.ro()
     try:
         games = J.week_games(con, season, week)
@@ -77,12 +79,14 @@ def replay(season, week, dest, until_ts=None, changes_only=False, log=print):
     if not games:
         raise SystemExit(f"no schedule for {season} wk{week}")
     t = J.window_open_ts(games)
+    if resume and idx and idx.get("latest"):
+        t = J.parse_iso(idx["latest"]) + config.BOARD_TICK_MIN * 60
     last_kick = max(g["kickoff_ts"] for g in games.values())
     end = min(until_ts or time.time(), last_kick + 36 * 3600)
     step = config.BOARD_TICK_MIN * 60
     marks = sorted(set(snapshot_times(season, week) if changes_only else [])
                    | {g["kickoff_ts"] for g in games.values()})
-    last_read = None
+    last_read = J.parse_iso(idx["latest"]) if resume and idx and idx.get("latest") else None
     reads, empty, skipped, started = 0, 0, 0, time.time()
     while t <= end:
         due = [w for w, _why in J.due_reads(season, t, dest) if w == week]
@@ -162,10 +166,11 @@ def main(argv=None):
     ap.add_argument("--week", type=int)
     ap.add_argument("--until")
     ap.add_argument("--changes-only", action="store_true")
+    ap.add_argument("--resume", action="store_true")
     ap.add_argument("--dest", required=True)
     a = ap.parse_args(argv)
     if a.replay:
-        replay(a.season, a.week, a.dest, J.parse_iso(a.until) if a.until else None, a.changes_only)
+        replay(a.season, a.week, a.dest, J.parse_iso(a.until) if a.until else None, a.changes_only, a.resume)
     if a.audit or a.replay:
         res = audit(a.dest)
         if not all(r["identity_holds"] for r in res):
