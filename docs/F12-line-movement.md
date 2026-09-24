@@ -2,7 +2,7 @@
 
 Track F, unit f-12. Research. Scripts:
 
-    python -m research.f12_extract            --out D:/temp/f12/extract.db
+    python -m research.f12_extract            --market-log <STORAGE_DIR>/market_log.db --cfb-db <STORAGE_DIR>/cfb.db --out D:/temp/f12/extract.db
     python -m research.f12_movement_inventory --extract D:/temp/f12/extract.db --raw D:/calibrated-sports/data/raw --out <json>
     python -m research.f12_movement_test      --extract D:/temp/f12/extract.db --out <json>
 

@@ -23,15 +23,17 @@ What is copied, and why:
 Opened with mode=ro and nothing else. The scratch path is an argument with no
 default: a diagnostic writes where it is told, never beside the store.
 
-    python -m research.f12_extract --out D:/temp/f12/extract.db
+    python -m research.f12_extract --market-log <STORAGE_DIR>/market_log.db         --cfb-db <STORAGE_DIR>/cfb.db --out D:/temp/f12/extract.db
+
+Both store paths are required arguments: this clone's .env points LOGGER_DB at an
+unused file on purpose (track F never writes the logger's store), so config cannot
+name the store to READ, and a literal path would choose the disk for every reader.
 """
 import argparse
 import os
 import sqlite3
 import time
 
-MARKET_LOG = "D:/calibrated-sports/data/market_log.db"
-CFB_DB = "D:/calibrated-sports/data/cfb.db"
 GAME_SERIES = ("KXNFLSPREAD", "KXNFLTOTAL", "KXNFLGAME")
 
 
@@ -61,12 +63,14 @@ def copy(src, dst, name, sql, params=()):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--market-log", required=True)
+    ap.add_argument("--cfb-db", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--skip-kalshi-rows", action="store_true")
     a = ap.parse_args()
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
     dst = sqlite3.connect(a.out)
-    src = ro(MARKET_LOG)
+    src = ro(a.market_log)
     try:
         # markets.venue is plain 'oddsapi'; quotes.venue is 'oddsapi:<book>'. The
         # book list is read from the quotes index (skip-scan), not assumed.
@@ -111,7 +115,7 @@ def main():
             print(f"  kalshi_game            {n:>10,} rows")
     finally:
         src.close()
-    src = ro(CFB_DB)
+    src = ro(a.cfb_db)
     try:
         for t in ("cfb_game_lines", "cfb_odds_quotes", "cfb_odds_events",
                   "cfb_odds_snapshots", "cfb_games"):
