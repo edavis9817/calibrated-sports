@@ -156,6 +156,21 @@ def block_bootstrap_roi(profit, staked, blocks, draws, seed):
     return float(lo), float(hi), float(samples.std()), samples
 
 
+def block_bootstrap_sum(profit, blocks, draws, seed):
+    """Percentile interval for sum(profit), resampling the same week BLOCKS
+    with the same seed as `block_bootstrap_roi` - the units interval that sits
+    beside the ROI interval (a-32). -> (lo, hi), None throughout when empty."""
+    profit = np.asarray(profit, dtype=float)
+    if len(profit) == 0:
+        return None, None
+    nb = int(blocks.max()) + 1
+    bp = np.bincount(blocks, weights=profit, minlength=nb)
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, nb, size=(draws, nb))
+    lo, hi = np.percentile(bp[idx].sum(axis=1), [2.5, 97.5])
+    return float(lo), float(hi)
+
+
 # =============================================================================
 # the pipeline
 # =============================================================================
@@ -204,8 +219,10 @@ def _price(rows, s):
                 "note": "one line per game, provider not verified per season; "
                         "not labelled a close. Juice from nflverse odds where "
                         "present, else assumed %s" % p["assume_juice_if_missing"]}
-    if chosen.is_empty():
-        return chosen, provenance
+    # An empty slice still goes through the aggregation below, so it comes out
+    # with the price columns every later step reads: returning the bare slice
+    # made a rule with no rows crash (ColumnNotFoundError "decimal", a-32)
+    # instead of reporting NO BETS.
     chosen = chosen.with_columns(
         pl.when(pl.col("american").is_not_null())
         .then(pl.col("american").map_elements(american_to_decimal, return_dtype=pl.Float64))
@@ -365,8 +382,9 @@ def _summary(bets, stake, profit, unit, draws, seed):
         blocks = week_blocks(bets.get_column("season").to_numpy(),
                              bets.get_column("week").to_numpy())
         r_lo, r_hi, se, _samp = block_bootstrap_roi(profit, stake, blocks, draws, seed)
+        u_lo, u_hi = block_bootstrap_sum(profit, blocks, draws, seed)
     else:
-        r_lo = r_hi = se = None
+        r_lo = r_hi = se = u_lo = u_hi = None
     p = bets.get_column("p_devig").to_numpy()
     gmask = (out == CLEARED) | (out == MISSED)
     mean_dec = dec[live].mean() if live.any() else None
@@ -385,6 +403,8 @@ def _summary(bets, stake, profit, unit, draws, seed):
         "pricing_gap_pp": _f(100 * (n_c / graded - p[gmask].mean())) if graded else None,
         "staked": _f(staked), "profit": _f(profit.sum()),
         "units": _f(profit.sum() / unit) if unit else None,
+        "units_lo": _f(u_lo / unit) if (unit and u_lo is not None) else None,
+        "units_hi": _f(u_hi / unit) if (unit and u_hi is not None) else None,
         "roi": _f(roi), "roi_lo": _f(r_lo), "roi_hi": _f(r_hi), "roi_se": _f(se),
     }
 
@@ -429,7 +449,11 @@ def _by(bets, stake, profit, col, draws, seed, label=None):
         sub = bets.filter(pl.Series(m))
         s_ = _summary(sub, stake[m], profit[m], 1.0, draws, seed)
         out.append({"key": label(k) if label else k, "bets": s_["bets"],
-                    "hit_rate": s_["hit_rate"], "roi": s_["roi"],
+                    "weeks": s_["weeks"],
+                    "cleared": s_["cleared"], "missed": s_["missed"],
+                    "push": s_["push"], "void": s_["void"],
+                    "hit_rate": s_["hit_rate"], "hit_rate_lo": s_["hit_rate_lo"],
+                    "hit_rate_hi": s_["hit_rate_hi"], "roi": s_["roi"],
                     "roi_lo": s_["roi_lo"], "roi_hi": s_["roi_hi"],
                     "thin": s_["bets"] < SEGMENT_MIN})
     return out
@@ -497,14 +521,16 @@ def _chart(bets, profit, unit):
 
 
 def _bet_list(bets, stake, profit):
-    cols = ["season", "week", "kickoff_ts", "game_id", "subject", "market", "line",
-            "side", "decimal", "p_devig", "price.books_quoting", "outcome", "actual"]
+    cols = ["season", "week", "kickoff_ts", "game_id", "subject", "team", "opp",
+            "market", "line", "side", "decimal", "p_devig", "price.books_quoting",
+            "outcome", "actual"]
     rows = bets.select([c for c in cols if c in bets.columns]).to_dicts()
     out = []
     for r, st, pr in zip(rows, stake, profit):
         out.append({"season": r["season"], "week": r["week"],
                     "date": _date(r["kickoff_ts"]), "game_id": r["game_id"],
-                    "subject": r["subject"], "market": r["market"],
+                    "subject": r["subject"], "team": r.get("team"),
+                    "opp": r.get("opp"), "market": r["market"],
                     "line": r["line"], "side": r["side"],
                     "price_american": decimal_to_american(r["decimal"]),
                     "price_decimal": _f(r["decimal"], 4),

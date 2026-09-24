@@ -122,19 +122,25 @@ FEATURES = (
                  "research/walkforward.py and never persisted; the stored "
                  "predictions are the live model, in-sample on history"),
     Feature("model.gap", "Model minus market", "model", "number", PROP,
-            availability="none", note="as model.p"),
+            availability="none",
+            note="walk-forward predictions are computed in memory by "
+                 "research/walkforward.py and never persisted, so there is no "
+                 "model probability to subtract the market from"),
     Feature("weather.temp_forecast", "Forecast kickoff temperature", "weather",
             "number", ALL, availability="none",
             note="no forecast weather is joined to the universe; observed "
                  "weather would be look-ahead for a pre-kickoff rule"),
     Feature("weather.wind_forecast", "Forecast kickoff wind", "weather",
-            "number", ALL, availability="none", note="as weather.temp_forecast"),
+            "number", ALL, availability="none",
+            note="no forecast weather is joined to the universe; observed "
+                 "weather would be look-ahead for a pre-kickoff rule"),
     Feature("move.since_open", "Line change since open", "movement", "number",
             ALL, availability="none",
             note="2026 forward capture only; history has one close per claim "
                  "(partial 2023 opens are not in the universe)"),
     Feature("move.last_24h", "Line change in the last 24 hours", "movement",
-            "number", ALL, availability="none", note="as move.since_open"),
+            "number", ALL, availability="none",
+            note="2026 forward capture only; history has one close per claim"),
 )
 
 BY_KEY = {f.key: f for f in FEATURES}

@@ -180,9 +180,13 @@ def test_every_producers_scan_found_what_it_should():
     # a-31: a side producer's functions are attributed under `module.function`;
     # the union of every scanned module must be exactly LOADERS - both ways.
     scanned = set(R.scan("jobs.export_web"))
+    # a-32: the minimum is per module - the Board reads through ten functions, the
+    # Lab universe through six. A bare ">= 10" held only while the Board was alone.
+    expected = {"jobs.board_read": 10, "lab.universe": 6}
+    assert set(R.SIDE_PRODUCERS["nfl"]) == set(expected)
     for mod in R.SIDE_PRODUCERS["nfl"]:
         side = R.scan(mod)
-        assert len(side) >= 10, (mod, side)          # the Board reads through ten functions
+        assert len(side) >= expected[mod], (mod, side)
         scanned |= {f"{mod}.{fn}" for fn in side}
     assert scanned == set(R.LOADERS["nfl"])
 
