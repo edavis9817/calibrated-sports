@@ -26,7 +26,9 @@
       "predictor": "PredictorFile",
       "sources": "SourcesFile",
       "board_index": "BoardIndexFile",
-      "board_read": "BoardReadFile"
+      "board_read": "BoardReadFile",
+      "lab_index": "LabIndexFile",
+      "lab_preset": "LabPresetFile"
     },
     "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.execution", "coverage"],
     "keys": [
@@ -48,7 +50,9 @@
       {"pattern": "^predictors/[a-z0-9]+/[a-z0-9_]+\\.json$", "kind": "predictor"},
       {"pattern": "^[a-z0-9]+/sources\\.json$", "kind": "sources"},
       {"pattern": "^board/[a-z0-9]+/\\d{4}/wk\\d{2}/index\\.json$", "kind": "board_index"},
-      {"pattern": "^board/[a-z0-9]+/\\d{4}/wk\\d{2}/read-\\d{4}-\\d{2}-\\d{2}T\\d{6}Z\\.json$", "kind": "board_read"}
+      {"pattern": "^board/[a-z0-9]+/\\d{4}/wk\\d{2}/read-\\d{4}-\\d{2}-\\d{2}T\\d{6}Z\\.json$", "kind": "board_read"},
+      {"pattern": "^lab/[a-z0-9]+/index\\.json$", "kind": "lab_index"},
+      {"pattern": "^lab/[a-z0-9]+/presets/[a-z0-9_]+\\.json$", "kind": "lab_preset"}
     ],
     "tables": {
       "comment": "Keys that are NOT JSON and are not validated by a $def: columnar files a producer appends to. Each entry names its pattern, its format and its columns with their types, and the producer asserts its own column list and types against this entry before it writes, so the two cannot drift. The uploader ships a non-JSON key only when it matches a pattern here, and NEVER deletes one by absence: an append-only file that vanished because one run did not re-declare it would destroy the only record of what was published.",
@@ -2090,6 +2094,1147 @@
         "cleared": {"type": ["boolean", "null"]}
       },
       "required": ["value", "cleared"],
+      "additionalProperties": false
+    },
+
+    "LabStrategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "sport",
+        "bet_type",
+        "markets",
+        "seasons",
+        "side"
+      ],
+      "properties": {
+        "schema": {
+          "const": "lab.strategy/1"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "sport": {
+          "const": "nfl"
+        },
+        "bet_type": {
+          "enum": [
+            "prop",
+            "spread",
+            "total",
+            "moneyline"
+          ]
+        },
+        "markets": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "receptions",
+              "receiving_yards",
+              "rush_attempts",
+              "tackles_assists",
+              "sacks",
+              "spread",
+              "total",
+              "moneyline"
+            ]
+          }
+        },
+        "seasons": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from",
+            "to"
+          ],
+          "properties": {
+            "from": {
+              "type": "integer",
+              "minimum": 1999,
+              "maximum": 2100
+            },
+            "to": {
+              "type": "integer",
+              "minimum": 1999,
+              "maximum": 2100
+            },
+            "season_type": {
+              "enum": [
+                "REG",
+                "POST"
+              ]
+            },
+            "weeks": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "from",
+                "to"
+              ],
+              "properties": {
+                "from": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 22
+                },
+                "to": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 22
+                }
+              }
+            }
+          }
+        },
+        "holdout": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "season",
+            "revealed"
+          ],
+          "properties": {
+            "season": {
+              "type": "integer",
+              "minimum": 1999,
+              "maximum": 2100
+            },
+            "revealed": {
+              "type": "boolean"
+            },
+            "revealed_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "side": {
+          "enum": [
+            "over",
+            "under",
+            "model_lean",
+            "against_model",
+            "favourite",
+            "underdog",
+            "home",
+            "away"
+          ]
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "feature",
+              "op",
+              "value"
+            ],
+            "properties": {
+              "feature": {
+                "type": "string",
+                "pattern": "^[a-z]+\\.[a-z0-9_]+$"
+              },
+              "op": {
+                "enum": [
+                  "==",
+                  "!=",
+                  "<",
+                  "<=",
+                  ">",
+                  ">=",
+                  "in",
+                  "not_in",
+                  "between"
+                ]
+              },
+              "value": {}
+            }
+          }
+        },
+        "line_choice": {
+          "oneOf": [
+            {
+              "enum": [
+                "main",
+                "all_rungs"
+              ]
+            },
+            {
+              "type": "string",
+              "pattern": "^nearest_to\\(-?[0-9]+(\\.[0-9]+)?\\)$"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "nearest_to"
+              ],
+              "properties": {
+                "nearest_to": {
+                  "type": "number"
+                }
+              }
+            }
+          ]
+        },
+        "price": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "enum": [
+                "consensus_close",
+                "best_close",
+                "book",
+                "kalshi_mid"
+              ]
+            },
+            "books": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z_]+$"
+              }
+            },
+            "devig": {
+              "enum": [
+                "multiplicative"
+              ]
+            },
+            "use_posted_juice": {
+              "type": "boolean"
+            },
+            "assume_juice_if_missing": {
+              "type": "number"
+            }
+          }
+        },
+        "timing": {
+          "enum": [
+            "close",
+            "t_minus_24h",
+            "t_minus_3h",
+            "t_minus_1h"
+          ]
+        },
+        "staking": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "method"
+          ],
+          "properties": {
+            "method": {
+              "enum": [
+                "flat",
+                "pct_bankroll",
+                "kelly_fraction"
+              ]
+            },
+            "unit": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "pct": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            },
+            "bankroll": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "fraction": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "per_game": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "per_player_week": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "per_week": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            }
+          }
+        },
+        "settlement": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "push": {
+              "const": "refund"
+            },
+            "no_snap": {
+              "const": "void"
+            }
+          }
+        },
+        "evaluation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bootstrap": {
+              "const": "by_week"
+            },
+            "resamples": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 2000
+            },
+            "null_draws": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 1000
+            }
+          }
+        }
+      }
+    },
+
+    "LabRate": {
+      "description": "k of n graded bets cleared, with a Wilson interval. `n` counts BETS, and the Wilson interval treats them as independent, which they are not quite (bets in one week share game-level shocks); the ROI and units intervals beside it are week-block bootstrapped for that reason. Null in place of this object when nothing was graded - never an object with n = 0.",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "number"
+        },
+        "ci": {
+          "$ref": "#/$defs/Interval"
+        },
+        "k": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "method": {
+          "const": "wilson"
+        }
+      },
+      "required": [
+        "value",
+        "ci",
+        "k",
+        "n",
+        "method"
+      ],
+      "additionalProperties": false
+    },
+
+    "LabBootstrap": {
+      "description": "An ROI (profit over staked) or a units total (profit over the unit stake) with a percentile interval from resampling whole WEEKS (`blocks` of them) `draws` times. `n` is the staked bets: cleared, missed and pushed; voids stake nothing. Null in place of this object when it is withheld or nothing was staked.",
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "number"
+        },
+        "ci": {
+          "$ref": "#/$defs/Interval"
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "blocks": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "method": {
+          "const": "week_block_bootstrap"
+        },
+        "draws": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "value",
+        "ci",
+        "n",
+        "blocks",
+        "method",
+        "draws"
+      ],
+      "additionalProperties": false
+    },
+
+    "LabWithheld": {
+      "description": "Why ROI and units are absent, or null when they are published. They are withheld wherever they would average fewer than `min_cleared` cleared bets' prices: an ROI over one cleared bet, published beside its counts, IS that bet's book price, and book prices do not leave the server.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+
+    "LabCell": {
+      "description": "One row of a by-season or segment breakdown. `thin` marks fewer than 100 bets, where the interval is wide enough that the row should not be read on its own.",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "bets": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cleared": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "push": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "void": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hit_rate": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/LabRate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "roi": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/LabBootstrap"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "thin": {
+          "type": "boolean"
+        },
+        "withheld": {
+          "$ref": "#/$defs/LabWithheld"
+        }
+      },
+      "required": [
+        "key",
+        "bets",
+        "cleared",
+        "missed",
+        "push",
+        "void",
+        "hit_rate",
+        "roi",
+        "thin",
+        "withheld"
+      ],
+      "additionalProperties": false
+    },
+
+    "LabVerdict": {
+      "description": "The verdict chip, by fixed rule in lab.engine.verdict - never judgement. LOSES: the ROI interval is below zero. WORTH A FORWARD TEST: above zero with the holdout unrevealed. SURVIVED / FAILED HOLDOUT: above zero, holdout revealed, holdout ROI above / at or below zero. NO EVIDENCE OF EDGE: the interval spans zero and the luck check sits inside 5-95. UNCLEAR: spans zero, luck outside 5-95 or not computable. NO BETS: nothing graded.",
+      "type": "string",
+      "enum": [
+        "LOSES",
+        "NO EVIDENCE OF EDGE",
+        "WORTH A FORWARD TEST",
+        "SURVIVED HOLDOUT",
+        "FAILED HOLDOUT",
+        "UNCLEAR",
+        "NO BETS"
+      ]
+    },
+
+    "LabLuck": {
+      "description": "The luck check: the same number of bets drawn at random from the same universe and side, `draws` times, flat stakes. `percentile` is where the rule's flat ROI falls among them; `band` reads it against 5 and 95. Null percentile, with `note` saying why, when the rule takes every bet the universe offers (a random draw of the same size IS the rule). `paths` is the 5th-95th percentile band of the random draws' cumulative units at `index` bets - the draws', never the rule's own curve.",
+      "type": "object",
+      "properties": {
+        "percentile": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "band": {
+          "enum": [
+            "below_5",
+            "inside_5_95",
+            "above_95",
+            null
+          ]
+        },
+        "draws": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pool": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "n": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "null_mean_roi": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "null_roi_range": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Interval"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rule_roi_flat": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "paths": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                },
+                "p5": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "p95": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "index",
+                "p5",
+                "p95"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "percentile",
+        "band",
+        "draws",
+        "pool",
+        "n",
+        "null_mean_roi",
+        "null_roi_range",
+        "rule_roi_flat",
+        "paths",
+        "note"
+      ],
+      "additionalProperties": false
+    },
+
+    "LabProvenance": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "is_close": {
+          "type": "boolean"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "is_close",
+        "note"
+      ],
+      "additionalProperties": false
+    },
+
+    "LabPresetFile": {
+      "description": "One Lab library preset, run by lab.run over the universe table (the same code a user's rule runs) and published as AGGREGATES ONLY - no service. The holdout is the Lab's default: the latest complete season held out and NOT revealed, so no figure here includes it. `bet_list` deliberately carries no book price, book, stake or profit, and there is no equity curve: see `bet_list.restriction`, which is the reason in the file itself.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "lab_preset"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "strategy": {
+          "description": "lab.strategy/1 exactly as the engine approved it, defaults filled. The shape is a copy of lab/strategy.schema.json, asserted identical by tests/test_lab_publish.py.",
+          "$ref": "#/$defs/LabStrategy"
+        },
+        "strategy_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "statement": {
+          "description": "One line, generated by lab.strategy.check from the strategy it approved.",
+          "type": "string"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "verdict": {
+          "$ref": "#/$defs/LabVerdict"
+        },
+        "summary": {
+          "type": "object",
+          "properties": {
+            "bets": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cleared": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "missed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "push": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "void": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "weeks": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "hit_rate": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/LabRate"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "break_even": {
+              "description": "1 / the mean decimal price paid over staked bets: the hit rate at which this rule's ROI is zero. Withheld with ROI.",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "mean_devig_prob": {
+              "description": "Mean de-vigged probability of the side bet, over graded bets.",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "roi": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/LabBootstrap"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "units": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/LabBootstrap"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "withheld": {
+              "$ref": "#/$defs/LabWithheld"
+            }
+          },
+          "required": [
+            "bets",
+            "cleared",
+            "missed",
+            "push",
+            "void",
+            "weeks",
+            "hit_rate",
+            "break_even",
+            "mean_devig_prob",
+            "roi",
+            "units",
+            "withheld"
+          ],
+          "additionalProperties": false
+        },
+        "by_season": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LabCell"
+          }
+        },
+        "segments": {
+          "type": "object",
+          "properties": {
+            "dome": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/LabCell"
+              }
+            },
+            "home_away": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/LabCell"
+              }
+            },
+            "market": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/LabCell"
+              }
+            },
+            "position": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/LabCell"
+              }
+            },
+            "price_bucket": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/LabCell"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "luck": {
+          "$ref": "#/$defs/LabLuck"
+        },
+        "holdout": {
+          "type": "object",
+          "properties": {
+            "season": {
+              "type": "integer"
+            },
+            "revealed": {
+              "type": "boolean"
+            },
+            "note": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "season",
+            "revealed",
+            "note"
+          ],
+          "additionalProperties": false
+        },
+        "provenance": {
+          "description": "Where each season's prices came from, keyed by season. `is_close` is false for the nflverse games line, which is one line per game from an unverified provider, never labelled a close.",
+          "type": "object",
+          "patternProperties": {
+            "^\\d{4}$": {
+              "$ref": "#/$defs/LabProvenance"
+            }
+          },
+          "additionalProperties": false
+        },
+        "universe_built": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "bet_list": {
+          "type": "object",
+          "properties": {
+            "restriction": {
+              "description": "Why this list carries no book price, book, stake or profit. Deliberate; do not add them back without a decision that The Odds API's terms allow it.",
+              "type": "string"
+            },
+            "columns": {
+              "const": [
+                "date",
+                "season",
+                "week",
+                "game_id",
+                "subject",
+                "team",
+                "opp",
+                "market",
+                "line",
+                "side",
+                "p_devig",
+                "outcome",
+                "actual"
+              ]
+            },
+            "n": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rows": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "prefixItems": [
+                  {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  {
+                    "enum": [
+                      "cleared",
+                      "missed",
+                      "push",
+                      "void"
+                    ]
+                  },
+                  {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                ],
+                "minItems": 13,
+                "maxItems": 13,
+                "items": false
+              }
+            }
+          },
+          "required": [
+            "restriction",
+            "columns",
+            "n",
+            "rows"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "key",
+        "title",
+        "strategy",
+        "strategy_hash",
+        "statement",
+        "notes",
+        "verdict",
+        "summary",
+        "by_season",
+        "segments",
+        "luck",
+        "holdout",
+        "provenance",
+        "universe_built",
+        "bet_list"
+      ],
+      "additionalProperties": false
+    },
+
+    "LabIndexEntry": {
+      "description": "One launch preset. `published` names its lab_preset file. `unsupported` means the engine cannot run it and says why in `reasons` - the engine's own refusal where it refused, or the language's limit where a rule has two legs - so the Library shows it as known-and-excluded rather than silently missing. `register` cites the register row that measures it elsewhere, when one does.",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "published",
+            "unsupported"
+          ]
+        },
+        "file": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "verdict": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/LabVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bets": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "strategy_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "register": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "status",
+        "file",
+        "verdict",
+        "bets",
+        "strategy_hash",
+        "reasons",
+        "register"
+      ],
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "status": {
+            "const": "published"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "verdict": {
+            "$ref": "#/$defs/LabVerdict"
+          },
+          "bets": {
+            "type": "integer"
+          },
+          "reasons": {
+            "maxItems": 0
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "file": {
+            "type": "null"
+          },
+          "verdict": {
+            "type": "null"
+          },
+          "reasons": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+
+    "LabIndexFile": {
+      "description": "The Lab library: every preset in the audit's launch set, in its order, published or not. Written on every run of jobs/lab_publish.py, and names every lab_preset file it wrote.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "lab_index"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "launch_set": {
+          "type": "string"
+        },
+        "universe_built": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "latest_complete_season": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "min_cleared": {
+          "description": "The fewest cleared bets an ROI may average over before it is published.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "restriction": {
+          "type": "string"
+        },
+        "presets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LabIndexEntry"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "launch_set",
+        "universe_built",
+        "latest_complete_season",
+        "min_cleared",
+        "restriction",
+        "presets"
+      ],
       "additionalProperties": false
     }
   }
