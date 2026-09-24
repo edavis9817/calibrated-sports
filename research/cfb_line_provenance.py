@@ -30,6 +30,7 @@ from collections import Counter, defaultdict
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from cfb import paths  # noqa: E402
+from cfb.cfbd_normalize import LINE_KINDS, PROVIDER_KIND  # noqa: E402
 from cfb.oddsapi_join import match, norm, team_names  # noqa: E402
 from jobs.export_cfb_web import STAT_ERA_FROM, game_lines  # noqa: E402
 
@@ -68,19 +69,28 @@ def provider_rule(conn):
 
     by_prov, by_season = Counter(), defaultdict(Counter)
     spread_null_other_has, total_null_other_has = 0, 0
+    spread_null_eligible_has, total_null_eligible_has = 0, 0   # must stay 0 (c-16)
     books_per_game = Counter()
     for gid in exported & set(chosen):
         cands = rows[gid]
         sp, tot = chosen[gid]
-        # which provider produced the tuple: the rule is consensus first, then name order
-        order = sorted(cands, key=lambda r: (r[0] != "consensus", r[0]))
-        prov, season = order[0][0], order[0][3]
-        assert (order[0][1], order[0][2]) == (sp, tot), gid   # rule reproduced exactly
+        # which provider produced the SPREAD: consensus first, then name order, among
+        # line-eligible providers with a spread (c-16: third-party sites excluded, and
+        # spread and total each chosen on their own - the total may be another row's)
+        order = sorted((r for r in cands if PROVIDER_KIND.get(r[0]) in LINE_KINDS),
+                       key=lambda r: (r[0] != "consensus", r[0]))
+        with_sp = [r for r in order if r[1] is not None]
+        with_tot = [r for r in order if r[2] is not None]
+        assert sp == (with_sp[0][1] if with_sp else None), gid     # rule reproduced exactly
+        assert tot == (with_tot[0][2] if with_tot else None), gid
+        prov, season = (with_sp or order)[0][0], order[0][3]
         by_prov[prov] += 1
         by_season[season]["consensus" if prov == "consensus" else "fallback"] += 1
         books_per_game[len(cands)] += 1
         spread_null_other_has += sp is None and any(r[1] is not None for r in cands)
         total_null_other_has += tot is None and any(r[2] is not None for r in cands)
+        spread_null_eligible_has += sp is None and bool(with_sp)
+        total_null_eligible_has += tot is None and bool(with_tot)
     return {
         "games_exported_with_a_line": sum(by_prov.values()),
         "games_exported_total": len(exported),
@@ -89,6 +99,10 @@ def provider_rule(conn):
         "providers_per_game": dict(sorted(books_per_game.items())),
         "spread_null_but_another_provider_has_one": spread_null_other_has,
         "total_null_but_another_provider_has_one": total_null_other_has,
+        # "another provider" above includes third-party sites; these count only the
+        # providers a line may come from, and the per-field rule makes them zero.
+        "spread_null_but_a_line_provider_has_one": spread_null_eligible_has,
+        "total_null_but_a_line_provider_has_one": total_null_eligible_has,
     }
 
 

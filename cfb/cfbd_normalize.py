@@ -83,6 +83,39 @@ PROVIDER_CANONICAL = {
 }
 
 
+# canonical name -> what KIND of source it is. A published "line" may come only from
+# a SPORTSBOOK or from CFBD's CONSENSUS of them; a THIRD-PARTY SITE is never a line,
+# whatever its number looks like. Listed by name, never matched by pattern: a new
+# provider is unclassified until someone decides what it is, and the export refuses
+# it (c-16) rather than guessing.
+SPORTSBOOK, MARKET_CONSENSUS, THIRD_PARTY_SITE = "sportsbook", "market_consensus", "third_party_site"
+PROVIDER_KIND = {
+    # CFBD's aggregate of the books it lists beside it. Not a quote any one book
+    # offered (c-15: equals the book median on 1,270 of 2,541 games), but it IS a
+    # market number and it is on the half-point grid.
+    "consensus": MARKET_CONSENSUS,
+    # Licensed US retail sportsbooks - an operator that takes the bet at this line.
+    "Bovada": SPORTSBOOK,
+    "Caesars": SPORTSBOOK,
+    "Caesars (Pennsylvania)": SPORTSBOOK,
+    "Caesars Sportsbook (Colorado)": SPORTSBOOK,
+    "DraftKings": SPORTSBOOK,
+    "ESPN Bet": SPORTSBOOK,
+    "SugarHouse": SPORTSBOOK,
+    "William Hill (New Jersey)": SPORTSBOOK,
+    # Sports-data / projection sites. Neither takes a bet, and CFBD does not say
+    # which book or which instant their number reflects. c-16 measured the numbers
+    # as market-shaped (100% on the half-point grid; teamrankings equals Bovada
+    # exactly on 51% of shared games), so this is NOT "a model projection published
+    # as a line" - it is a line of unknown origin from a non-book, which is still
+    # not what a page saying "the line" may show. Against consensus their p90 |diff|
+    # is 3.0-3.5 points, where every book's is 0.5-1.0.
+    "numberfire": THIRD_PARTY_SITE,
+    "teamrankings": THIRD_PARTY_SITE,
+}
+LINE_KINDS = frozenset({SPORTSBOOK, MARKET_CONSENSUS})
+
+
 class ProviderSplit(ValueError):
     """One file spells an UNMAPPED provider two ways. Refused so the name is
     added to PROVIDER_CANONICAL rather than guessed."""

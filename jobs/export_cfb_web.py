@@ -56,6 +56,7 @@ from collections import defaultdict
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from cfb import paths, sources                                        # noqa: E402
+from cfb.cfbd_normalize import LINE_KINDS, PROVIDER_KIND                # noqa: E402
 from jobs.export_web import (REFRESHED_SENTINEL, assert_stats_defined,  # noqa: E402
                              envelope, iso, require_setting, slugify, sync_keys,
                              validate_contract, write_if_changed)
@@ -233,15 +234,41 @@ def team_spread(spread, home):
     return -spread if home else spread
 
 
+class UnclassifiedProvider(ValueError):
+    """A provider in `cfb_game_lines` with no entry in `PROVIDER_KIND`. Refused so a
+    new source is classified by a person, not published as "the line" by default."""
+
+
 def game_lines(con):
-    """game_id -> (spread, total). One provider per game, consensus preferred."""
-    out = {}
+    """game_id -> (spread, total), each field chosen INDEPENDENTLY: consensus first,
+    then providers in name order, skipping any provider whose value is NULL.
+
+    Only sportsbooks and CFBD's consensus are eligible (`LINE_KINDS`); a third-party
+    site never supplies a published line (c-16). Before c-16 the total rode the row
+    the spread came from, so a consensus row with no overUnder published total=null
+    beside a book that carried one (c-15: 2,907 games)."""
+    kinds = {}
+    for (provider,) in con.execute(
+            "SELECT DISTINCT provider FROM cfb_game_lines WHERE valid_to_ts IS NULL"):
+        kinds[provider] = PROVIDER_KIND.get(provider)
+    unknown = sorted(p for p, k in kinds.items() if k is None)
+    if unknown:
+        raise UnclassifiedProvider(
+            f"cfb_game_lines names provider(s) with no PROVIDER_KIND entry: {unknown}. "
+            "Classify each in cfb/cfbd_normalize.py - sportsbook, consensus or third-party "
+            "site - before exporting; an unclassified number is never published as a line.")
+    spreads, totals = {}, {}
     for gid, provider, spread, total in con.execute(
             "SELECT game_id, provider, spread, total FROM cfb_game_lines WHERE "
             "valid_to_ts IS NULL ORDER BY game_id, CASE provider WHEN 'consensus' THEN 0 "
             "ELSE 1 END, provider"):
-        out.setdefault(gid, (spread, total))
-    return out
+        if kinds[provider] not in LINE_KINDS:
+            continue
+        if spread is not None:
+            spreads.setdefault(gid, spread)
+        if total is not None:
+            totals.setdefault(gid, total)
+    return {gid: (spreads.get(gid), totals.get(gid)) for gid in spreads.keys() | totals.keys()}
 
 
 def team_splits(con, team_ids):

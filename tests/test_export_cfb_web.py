@@ -540,6 +540,8 @@ def test_over_the_whole_store_the_published_favourite_wins_most_games():
 # every published number. research/cfb_line_provenance.py measures what it does to the
 # real store: `consensus` 2013-2022, then - because CFBD stops sending consensus - the
 # alphabetically first book (Bovada / ESPN Bet / DraftKings), per game, unlabelled.
+# c-16 changed the rule deliberately: third-party sites are excluded, and spread and
+# total are each chosen on their own.
 
 def _prov(con, game_id, provider, spread, total):
     g = con.execute("SELECT season, week, home_id, away_id FROM cfb_games WHERE game_id=?",
@@ -568,12 +570,62 @@ def test_c15_without_consensus_the_alphabetically_first_book_is_published(store)
     assert X.game_lines(store)[101] == (6.5, 44.5)          # a different book, same rule
 
 
-def test_c15_the_total_comes_from_the_chosen_row_even_when_that_row_has_none(store):
-    """KNOWN DEFECT, measured by c-15: 2,907 exported games publish total=null although
-    another provider in the store carries one (2,901 of them a consensus row with no
-    overUnder, 2013-2016). Fixing it changes published totals, so it waits until c-14's
-    republish is out (one export publishes everything that changed). When it is fixed,
-    this assertion is the one that must flip."""
+def test_c15_c16_the_total_is_taken_from_the_best_provider_that_has_one(store):
+    """FIXED in c-16. c-15 measured 2,907 exported games publishing total=null although
+    another provider carried one: the total rode the row the spread came from. Each field
+    is now chosen independently, down the same order. This assertion used to read
+    (-4.0, None) - it is the one c-15 said must flip."""
     _prov(store, 100, "consensus", -4.0, None)
     _prov(store, 100, "Bovada", -3.0, 52.0)
+    assert X.game_lines(store)[100] == (-4.0, 52.0)
+
+
+def test_c16_a_null_spread_is_filled_from_the_next_provider_too(store):
+    _prov(store, 100, "consensus", None, 50.5)
+    _prov(store, 100, "DraftKings", -3.5, 51.0)
+    assert X.game_lines(store)[100] == (-3.5, 50.5)
+
+
+# --- c-16: a third-party site is never a published line. On the real store 197 games
+# (2013-2018) published numberfire or teamrankings because NO book or consensus row
+# existed for them - they did not win on name order (SQLite sorts 'Bovada' before
+# 'numberfire'); they won by being alone. They now publish no line at all.
+
+def test_c16_a_third_party_site_is_never_selected_even_alone(store):
+    _prov(store, 100, "numberfire", -7.0, 55.5)
+    _prov(store, 100, "teamrankings", -6.5, 56.0)
+    assert 100 not in X.game_lines(store)
+
+
+def test_c16_a_third_party_site_never_fills_a_gap_a_book_left(store):
+    """The null-total fix must not reach PAST the exclusion: a consensus row with no
+    total beside a site that has one stays null. On the real store this is 3,014 of the
+    games c-15 counted - the gap was almost entirely numberfire/teamrankings."""
+    _prov(store, 100, "consensus", -4.0, None)
+    _prov(store, 100, "numberfire", -4.5, 49.5)
+    _prov(store, 100, "teamrankings", -4.0, 50.0)
     assert X.game_lines(store)[100] == (-4.0, None)
+
+
+def test_c16_every_third_party_site_is_excluded_by_kind_not_by_name():
+    """Whatever PROVIDER_KIND calls a third-party site, the export cannot select it -
+    checked over the whole table, so adding a site to the table is enough."""
+    from cfb.cfbd_normalize import LINE_KINDS, PROVIDER_KIND, THIRD_PARTY_SITE
+    sites = {p for p, k in PROVIDER_KIND.items() if k == THIRD_PARTY_SITE}
+    assert sites == {"numberfire", "teamrankings"}     # a change here is a decision
+    assert THIRD_PARTY_SITE not in LINE_KINDS
+
+
+def test_c16_every_canonical_provider_is_classified():
+    """A provider the ingest canonicalises but nobody classified would make the export
+    refuse on its first appearance - better to fail here, where the map is edited."""
+    from cfb.cfbd_normalize import PROVIDER_CANONICAL, PROVIDER_KIND
+    assert set(PROVIDER_CANONICAL.values()) == set(PROVIDER_KIND)
+
+
+def test_c16_an_unclassified_provider_refuses_the_export(store):
+    """Not excluded quietly, not published by default: a person decides what it is."""
+    _prov(store, 100, "consensus", -4.0, 50.5)
+    _prov(store, 100, "FanDuel", -4.5, 50.5)
+    with pytest.raises(X.UnclassifiedProvider, match="FanDuel"):
+        X.game_lines(store)
