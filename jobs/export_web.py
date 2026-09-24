@@ -61,13 +61,17 @@ SCHEMA_VERSION = CONTRACT["x-contract"]["schema_version"]
 SPORT = "nfl"
 SPORT_NAME = "NFL"
 PERIOD_TYPE = "week"
-PARTS = ("players", "teams", "market", "research", "manifest")
-# Built only when named with --only. NOT in PARTS, so a default export - which is
-# what weekly_refresh runs, from whatever branch this clone has checked out -
-# cannot produce these keys and the uploader cannot ship them. Staged, not
-# published (a-11): moving a part into PARTS is the publish decision, and it is
-# Ethan's, taken after the site has a reader for it.
-OPTIONAL_PARTS = ("components",)
+PARTS = ("players", "teams", "market", "research", "manifest", "components")
+# Empty. `components` moved into PARTS on 2026-09-24 - the publish decision a-11
+# left to Ethan, taken because /nfl/analytics renders 64 marked blanks without it
+# and the site's reader (b-17) is ready to merge behind it.
+#
+# ONE WAY, measured by a-13: the first publish is all 28 seasons, 27 MB raw /
+# 3.1 MB gzip, then normally one file a run (+31 s, ~16% on a default export).
+# Taking a part back OUT of PARTS does NOT remove what it published: no run would
+# declare `nfl/components/` again, and `upload()` only deletes inside declared
+# prefixes, so the objects would stay in R2 with nothing to clean them up.
+OPTIONAL_PARTS = ()
 STATE_FILE = ".upload_state.json"
 
 # The one line an export prints so a caller in the SAME JOB can learn which
