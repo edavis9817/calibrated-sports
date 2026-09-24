@@ -38,8 +38,9 @@ from datetime import date
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config                                                          # noqa: E402
+from jobs import source_registry                                       # noqa: E402
 from jobs.export_web import (CONTRACT, assert_stats_defined, envelope,  # noqa: E402
-                             iso, slugify, validate_contract, write_if_changed)
+                             iso, slugify, sync_keys, validate_contract)
 from mlb import paths, schema, sources, totals                         # noqa: E402
 from mlb.totals import REGULAR_SEASON                                  # noqa: E402
 
@@ -396,13 +397,17 @@ def measure(con):
 
 def export(out_dir, seasons, dry_run=False, verbose=True):
     con = ro()
+    source_registry.watch(con, SPORT)
     files = build(con, seasons)
     validate_contract(files)
     assert_stats_defined(files, files[f"{SPORT}/manifest.json"]["stat_definitions"])
     check_destination(out_dir, files[f"{SPORT}/manifest.json"])
     written = write_notice(out_dir, dry_run)
-    for key, obj in sorted(files.items()):
-        written += write_if_changed(os.path.join(out_dir, *key.split("/")), obj, dry_run)
+    # THROUGH sync_keys, the choke point every exported file passes (a-30; f-19 found
+    # this loop wrote around it, so the sources gate never ran for MLB). The prefix
+    # list is EMPTY on purpose: a probe directory owns nothing, so nothing is deleted.
+    w, _deleted = sync_keys(out_dir, files, [], dry_run)
+    written += w
     if verbose:
         kinds = defaultdict(int)
         for k in files:

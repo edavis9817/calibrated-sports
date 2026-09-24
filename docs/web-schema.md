@@ -587,10 +587,24 @@ with a `state` — `not_ingested`, `ingested_not_exported`, `not_built` or
 `declined` — and the `evidence` to check it against.
 
 Written by the manifest part, which owns no prefix. **The gate:** `sync_keys`
-refuses any file whose kind has no declaration in the registry, and
-`tests/test_source_registry.py` fails when a contract kind is undeclared or when
-`jobs/export_web.py` reads a table no source is named for. Reads inside research
-modules the export imports are declared by hand and are not scanned.
+refuses any file whose `(sport, kind)` has no declaration in the registry, and
+that is the one write path for `export_web`, `export_cfb_web` and (from a-30)
+`export_mlb_web`. Declarations are PER SPORT: `kinds` in `cfb/sources.json` is
+the college producer's own, never the NFL's filtered by sport.
+
+**What is derived and what is typed (a-30).** A kind's sources are derived from
+the tables its producer functions read - scanned by AST, case-insensitively,
+through calls into `store.py` and research modules - mapped through one
+hand-written table -> source map per sport. A function that reads and is not
+attributed to a kind, a table name the scan cannot read (an f-string hole), or an
+unmapped table refuses the registry. At run time a sqlite authorizer on the
+producer's connection records every table actually read, and `sync_keys` refuses
+after an unmapped one. A kind built from another kind's output (the index's
+`has_market`) inherits that kind's sources. Still typed by hand: reads of
+committed result files, the producers that do not write through `sync_keys`
+(analytics, predictor, coverage, live.prices), and `read_by` entries of the form
+`page:<name>` - a source a page reads at request time through no file (ESPN's
+scoreboard, today).
 
 ## Refresh
 
