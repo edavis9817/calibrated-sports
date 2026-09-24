@@ -143,7 +143,9 @@ def test_espn_is_registered_and_read_by_the_live_page(db):  # noqa: F811
     assert "espn.scoreboard" in R.SOURCES
     _, obj = _sources_file(db)
     rows = {r["source_id"]: r for r in obj["sources"]}
-    assert rows["espn.scoreboard"]["read_by"] == ["page:live"]
+    # a-33: with a-23 merged, the Live snapshot kind reads the scoreboard too. The
+    # page read stays until the site's Live page reads the snapshot instead.
+    assert rows["espn.scoreboard"]["read_by"] == ["live.snapshot", "page:live"]
     assert rows["espn.scoreboard"]["last_read"] is None
     assert "request time" in rows["espn.scoreboard"]["last_read_basis"]
 
