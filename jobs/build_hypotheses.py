@@ -238,7 +238,11 @@ HYPOTHESES = [
         "question": "After a player reaches a receptions rung mid-game, is the winning side still offered?",
         "verdict": "open",
         "metric": "executable net per contract at 120s, 10 contracts, depth-confirmed",
-        "why": "Passes four of five bars and awaits week-2 replication; about $17 for the week, and final-stat determination is look-ahead against the live feed.",
+        # f-16's proposed wording, verbatim (track-f report 2026-09-24 04:37).
+        # Week 2 finished 2026-09-21 but cannot grade H1: its figure is a mean
+        # over depth-confirmed prices, and the logger captured no week-2
+        # Sunday/Monday prop depth. Grade on the first week that has it.
+        "why": "Passes four of five bars. The week-2 replication cannot be graded: the logger captured no order-book depth for week-2 Sunday or Monday player props, and the figure is defined on depth-confirmed prices. Awaits a week with prop depth.",
         "script": "research/sweep/h1_settlement.py",
         # The number, by identity. Reproduces the published
         # 1.81 [1.24, 2.47] n=16 games=8 from est=1.8125..,
@@ -335,6 +339,34 @@ HYPOTHESES = [
         "games": None,
         "why": "No source on disk timestamps an inactive; Kalshi pulled a Friday-OUT player's markets on Saturday, removing the game-day window for known outs.",
         "script": "research/inactives.py",
+    },
+    {
+        # a-29. The /studies/market-calibration finding, which had no row: its
+        # header said "R01", which is longshot.py. Figures are the output of
+        # `python -m research.calibration --register`, run 2026-09-24 read-only
+        # against the live store (_relay/reports/a-29-calibration-register.txt).
+        # Still a literal: calibration.py prints rather than registers, and its
+        # registry would have to live outside research/sweep/results, which
+        # summarize.py globs. Converting it is the same increment as the others.
+        #
+        # NOT the study page's -1.40pp on 43,209. That was computed 2026-09-10,
+        # before the 09-17 settlement fix began settling played-with-no-stat-row
+        # at 0 (989 regular-season overs, all losses). Postseason is excluded
+        # because settle_outcomes reads REG stat rows only and settles every
+        # postseason over as a loss - see calibration.LAST_REG_WEEK.
+        "id": "R18",
+        "brief": "calibration",
+        "date": "2026-09-24",
+        "question": "Does the sportsbook close overprice the over on player props, by more than it costs to bet the under?",
+        "verdict": "retired",
+        "metric": "realized minus priced over rate; de-vigged DraftKings / FanDuel / BetMGM close; settled regular-season player props 2023-2025, over side; game-block bootstrap",
+        "estimate": -2.43,
+        "interval": [-3.13, -1.72],
+        "unit": "pp",
+        "n": 44198,
+        "games": 814,
+        "why": "The close priced the over at 0.4880 and it cleared 0.4637 of the time; half the archive's median 1.0675 overround is 3.38c a side, which is what a sportsbook under costs. Restated 2026-09-24 from the 2026-09-10 figure (-1.40pp, n 43,209): the 2026-09-17 settlement fix now settles a player who played with no stat row at 0. Postseason games are excluded because their props are not yet settled correctly.",
+        "script": "research/calibration.py",
     },
 ]
 

@@ -5,6 +5,7 @@
     python -m research.calibration --skew        # the under skew, isolated
     python -m research.calibration --trust       # the data-trust checks
     python -m research.calibration --export      # CSVs
+    python -m research.calibration --register    # the register figure, read-only
 
 This is the scoreboard the whole repo exists to keep honest. Every number below
 is measured on SETTLED outcomes only: a claim whose truth is known from
@@ -884,6 +885,95 @@ def export(rows, price="bench"):
 
 
 # --------------------------------------------------------------------------
+# the register's figure (unit a-29)
+# --------------------------------------------------------------------------
+
+# The last regular-season week. Postseason weeks (19-22) are EXCLUDED from the
+# register figure, and not as a preference: jobs/settle_outcomes.py reads
+# `nfl_player_week` with season_type = 'REG' only, so a postseason prop has no
+# stat row, and since the 2026-09-17 settlement fix a player with snaps and no
+# row settles at 0. Every postseason over in this population therefore settles
+# as a loss whatever the player did - measured 2026-09-24: 2,941 postseason over
+# outcomes, all `under` at 0.0, while e.g. Nico Collins 2023 wk19 has 96 POST
+# receiving yards against a 76.5 line. Included, they move the over-side gap
+# from -2.43pp to -5.29pp. Remove this filter only after the settlement is
+# fixed AND re-run.
+LAST_REG_WEEK = 18
+REGISTER_DRAWS = 2000
+REGISTER_SEED = 29
+
+
+def register_figure(price="bench", draws=REGISTER_DRAWS, seed=REGISTER_SEED):
+    """The over-side pricing gap as the register publishes it.
+
+    estimate = realized over rate - priced over rate, in pp, over settled
+    regular-season outcomes carrying a benchmark close. The interval is a GAME
+    block bootstrap: props in one game share a scoring environment, so the
+    effective sample is games, not outcomes, and the null-variance `se` the
+    curve prints (z = diff / se) treats 40,000+ outcomes as independent. Both
+    are returned; the register quotes the bootstrap.
+    """
+    import random
+    k = _key(price)
+    rows = [r for r in population(price)
+            if r.side == "over" and r.week is not None and r.week <= LAST_REG_WEEK]
+    con = _ro()
+    game = dict(con.execute("SELECT outcome_id, event_id FROM outcomes"))
+    post = con.execute(
+        "SELECT COUNT(*) FROM outcome_settlement s JOIN outcomes o USING (outcome_id) "
+        "JOIN outcome_close c USING (outcome_id) WHERE o.side = 'over' AND o.week > ? "
+        "AND s.result IN ('over','under') AND c.%s IS NOT NULL" % k,
+        (LAST_REG_WEEK,)).fetchone()[0]
+    con.close()
+    by = {}
+    for r in rows:
+        g = game.get(r.oid)
+        if g is None:
+            raise RuntimeError("outcome %s has no event_id; cannot block by game" % r.oid)
+        s = by.setdefault(g, [0.0, 0])
+        s[0] += r.hit - getattr(r, k)
+        s[1] += 1
+    if not rows:
+        raise RuntimeError("register_figure: empty population - refusing to print a figure")
+    n = len(rows)
+    est = sum(v[0] for v in by.values()) / n
+    blocks = list(by.values())
+    rng = random.Random(seed)
+    out = []
+    for _ in range(draws):
+        tot = cnt = 0
+        for _ in range(len(blocks)):
+            b = blocks[rng.randrange(len(blocks))]
+            tot += b[0]
+            cnt += b[1]
+        out.append(tot / cnt)
+    out.sort()
+    se_null = _se(rows, price)
+    return {"n": n, "games": len(blocks), "seasons": sorted({r.season for r in rows}),
+            "priced_over": sum(getattr(r, k) for r in rows) / n,
+            "realized_over": sum(r.hit for r in rows) / n,
+            "est_pp": 100 * est,
+            "lo_pp": 100 * out[int(0.025 * draws)],
+            "hi_pp": 100 * out[int(0.975 * draws) - 1],
+            "boot_se_pp": 100 * statistics.pstdev(out),
+            "z_null": est / se_null if se_null else None,
+            "excluded_postseason": post, "draws": draws, "seed": seed}
+
+
+def print_register(price="bench"):
+    f = register_figure(price)
+    print("REGISTER FIGURE - over side, %s close, regular season %s"
+          % (price, "-".join(str(s) for s in (f["seasons"][0], f["seasons"][-1]))))
+    print("  n %s outcomes, %s games; %s postseason overs EXCLUDED (see LAST_REG_WEEK)"
+          % (format(f["n"], ","), f["games"], format(f["excluded_postseason"], ",")))
+    print("  priced over %.4f   realized over %.4f" % (f["priced_over"], f["realized_over"]))
+    print("  realized - priced %+.2fpp   game-block 95%% [%+.2f, %+.2f]   boot se %.2fpp"
+          % (f["est_pp"], f["lo_pp"], f["hi_pp"], f["boot_se_pp"]))
+    print("  z under the null-variance se (outcomes treated as independent): %+.1f"
+          % f["z_null"])
+    print("  bootstrap: %d draws, seed %d" % (f["draws"], f["seed"]))
+    return f
+
 
 def report(price="bench"):
     rows = population(price)
@@ -950,7 +1040,15 @@ def main():
     ap.add_argument("--seed", type=int)
     ap.add_argument("--export", action="store_true")
     ap.add_argument("--all", action="store_true", help="everything")
+    ap.add_argument("--register", action="store_true",
+                    help="print the figure docs/hypotheses.json carries (read-only)")
     args = ap.parse_args()
+
+    # Before init_db, which opens the store read-write. The register figure
+    # only reads, so it must be runnable against the live store.
+    if args.register:
+        print_register(args.price)
+        return
 
     store.init_db()
     if args.build or args.all:
