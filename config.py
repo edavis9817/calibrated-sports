@@ -176,6 +176,30 @@ LIVE_PRICES_MAX_MARKETS = int(os.getenv("LIVE_PRICES_MAX_MARKETS", 200))
 # A market not read for this long leaves the file rather than sitting in it.
 LIVE_PRICES_KEEP_S = float(os.getenv("LIVE_PRICES_KEEP_S", 6 * 3600))
 
+# --- The Live page's snapshot (unit a-23) ------------------------------------
+# One scheduled reader writes `live/{sport}/snapshot.json`; no page request calls a
+# third party. See jobs/live_snapshot.py. Cadence by mode, in seconds:
+LIVE_SNAPSHOT_EVERY_LIVE = float(os.getenv("LIVE_SNAPSHOT_EVERY_LIVE", 30))        # a game in its window
+LIVE_SNAPSHOT_EVERY_GAMEDAY = float(os.getenv("LIVE_SNAPSHOT_EVERY_GAMEDAY", 900))  # ET date with a kickoff
+LIVE_SNAPSHOT_EVERY_IDLE = float(os.getenv("LIVE_SNAPSHOT_EVERY_IDLE", 3600))
+# `stale_after` = generated_at + the cadence + this; covers a slow cycle and PUT.
+LIVE_SNAPSHOT_STALE_GRACE = float(os.getenv("LIVE_SNAPSHOT_STALE_GRACE", 120))
+LIVE_SNAPSHOT_TIMEOUT = float(os.getenv("LIVE_SNAPSHOT_TIMEOUT", 10))
+# Per-source exponential backoff on failure; a longer Retry-After wins, up to the cap.
+LIVE_SNAPSHOT_BACKOFF_BASE = float(os.getenv("LIVE_SNAPSHOT_BACKOFF_BASE", 30))
+LIVE_SNAPSHOT_BACKOFF_MAX = float(os.getenv("LIVE_SNAPSHOT_BACKOFF_MAX", 3600))
+# The exchange's game-winner quotes. ON by default because the 2026-09-24 audit asks
+# for them; the 2026-09-23 ledger dropped a-09's logger publisher. Set 0 to drop them.
+LIVE_SNAPSHOT_PRICES = os.getenv("LIVE_SNAPSHOT_PRICES", "1") == "1"
+LIVE_SNAPSHOT_SCHEDULE_EVERY = float(os.getenv("LIVE_SNAPSHOT_SCHEDULE_EVERY", 3600))
+# How often `jobs.ingest_feeds --injuries` is run to capture the report.
+LIVE_SNAPSHOT_INJURIES_EVERY = float(os.getenv("LIVE_SNAPSHOT_INJURIES_EVERY", 6 * 3600))
+# One failure event per (source, reason) per this long on the logger's check.
+LIVE_SNAPSHOT_LOG_THROTTLE = float(os.getenv("LIVE_SNAPSHOT_LOG_THROTTLE", 900))
+# This job's OWN dead-man. Never the logger's HEALTHCHECK_URL: a success ping from a
+# second process would keep the logger's check green while the logger was dead.
+LIVE_HEALTHCHECK_URL = os.getenv("LIVE_HEALTHCHECK_URL")
+
 
 QUOTES_RETENTION_DAYS = float(os.getenv("QUOTES_RETENTION_DAYS", 14))
 # Retention prunes LIVE capture only. Backfilled rows carry the timestamp of

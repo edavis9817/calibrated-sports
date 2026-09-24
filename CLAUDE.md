@@ -432,6 +432,18 @@ writes it, which is luck holding a guarantee up.
 - Never poll live. Snapshot on a schedule keyed to kickoff; the T−5 snapshot is
   the close and is the only one CLV strictly requires.
 
+**ESPN scoreboard** (`site.api.espn.com/.../football/nfl/scoreboard`, unit a-23)
+- **The User-Agent decides a 403, and "a real browser string" is the WRONG fix.**
+  Measured 2026-09-24 from this machine, same minute, repeated: 403 for a Chrome
+  UA (with or without browser headers), for no UA header, for an empty one, and
+  for a bare product token (`calibratedsports-live/1.0`); 200 for `curl/8.9.1`,
+  `python-requests/2.32`, `python-httpx/0.28.1`, and for our product token WITH
+  `python-httpx/0.28.1` appended. A Cloudflare Worker's `fetch` sends no UA by
+  default, which matches the production 403. `jobs.live_snapshot.user_agent()`
+  names the job and carries the client token.
+- Team codes: the scoreboard writes LAR/WSH, Kalshi LAR/JAC, nflverse LA/WAS/JAX.
+  Fold to nflverse's (the site's team keys) at ingest.
+
 **nflverse**
 - The `player_stats` release is **dead** — last asset update 2025-05-07. Use
   `stats_player`. Building against the dead one gives green health rows and
@@ -1376,6 +1388,14 @@ domain by decision**.
   `python -m jobs.weekly_refresh` at 09:00 Tue/Wed/Thu. It needs the PC on and
   the user logged on. It uploads to R2 and commits only `web/slugs`; it never
   pushes the site, so a data refresh cannot deploy code.
+
+**No public page calls a third party at request time (S-09, audit 2026-09-24).**
+Every external read happens in a scheduled job that writes a snapshot carrying
+its read time, and pages render the snapshot. The Live page's request-time reads
+were answering 403 and 429 - traffic made the rate limit worse, the wrong
+direction for it to move. The producer side is `jobs/live_snapshot.py` ->
+`live/{sport}/snapshot.json` (kind `live.snapshot`); it must be scheduled from
+the production clone to be live.
 
 **v1 scope.** Team and player pages, and market-derived fantasy distributions.
 **No login, paywall, betting recommendations or "best bets" - by decision, not
