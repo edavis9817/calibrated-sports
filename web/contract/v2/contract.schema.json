@@ -2113,11 +2113,10 @@
           "const": "lab.strategy/1"
         },
         "name": {
-          "type": "string",
-          "maxLength": 200
+          "type": "string"
         },
         "sport": {
-          "const": "nfl"
+          "type": "string"
         },
         "bet_type": {
           "enum": [
@@ -2254,12 +2253,40 @@
                   "between"
                 ]
               },
-              "value": {}
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "boolean"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
             }
           }
         },
         "line_choice": {
-          "oneOf": [
+          "anyOf": [
             {
               "enum": [
                 "main",
@@ -2526,7 +2553,7 @@
           "minimum": 0
         },
         "hit_rate": {
-          "oneOf": [
+          "anyOf": [
             {
               "$ref": "#/$defs/LabRate"
             },
@@ -2536,7 +2563,7 @@
           ]
         },
         "roi": {
-          "oneOf": [
+          "anyOf": [
             {
               "$ref": "#/$defs/LabBootstrap"
             },
@@ -2622,7 +2649,7 @@
           ]
         },
         "null_roi_range": {
-          "oneOf": [
+          "anyOf": [
             {
               "$ref": "#/$defs/Interval"
             },
@@ -2638,7 +2665,7 @@
           ]
         },
         "paths": {
-          "oneOf": [
+          "anyOf": [
             {
               "type": "object",
               "properties": {
@@ -2704,6 +2731,9 @@
     "LabProvenance": {
       "type": "object",
       "properties": {
+        "season": {
+          "type": "integer"
+        },
         "source": {
           "type": "string"
         },
@@ -2715,6 +2745,7 @@
         }
       },
       "required": [
+        "season",
         "source",
         "is_close",
         "note"
@@ -2746,7 +2777,7 @@
           "type": "string"
         },
         "strategy": {
-          "description": "lab.strategy/1 exactly as the engine approved it, defaults filled. The shape is a copy of lab/strategy.schema.json, asserted identical by tests/test_lab_publish.py.",
+          "description": "lab.strategy/1 exactly as the engine approved it, defaults filled. The shape is DERIVED from lab/strategy.schema.json by jobs.lab_publish.contract_strategy (sport as a plain string, maxLength dropped, a condition value typed as a scalar or a list of scalars) and tests/test_lab_publish.py asserts the derivation, so it is never edited by hand.",
           "$ref": "#/$defs/LabStrategy"
         },
         "strategy_hash": {
@@ -2794,7 +2825,7 @@
               "minimum": 0
             },
             "hit_rate": {
-              "oneOf": [
+              "anyOf": [
                 {
                   "$ref": "#/$defs/LabRate"
                 },
@@ -2818,7 +2849,7 @@
               ]
             },
             "roi": {
-              "oneOf": [
+              "anyOf": [
                 {
                   "$ref": "#/$defs/LabBootstrap"
                 },
@@ -2828,7 +2859,7 @@
               ]
             },
             "units": {
-              "oneOf": [
+              "anyOf": [
                 {
                   "$ref": "#/$defs/LabBootstrap"
                 },
@@ -2926,14 +2957,11 @@
           "additionalProperties": false
         },
         "provenance": {
-          "description": "Where each season's prices came from, keyed by season. `is_close` is false for the nflverse games line, which is one line per game from an unverified provider, never labelled a close.",
-          "type": "object",
-          "patternProperties": {
-            "^\\d{4}$": {
-              "$ref": "#/$defs/LabProvenance"
-            }
-          },
-          "additionalProperties": false
+          "description": "Where each season's prices came from, one entry per season, ascending. `is_close` is false for the free games-schedule line, which is one line per game from a provider not verified per season, never labelled a close.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LabProvenance"
+          }
         },
         "universe_built": {
           "$ref": "#/$defs/Timestamp"
@@ -2946,21 +2974,52 @@
               "type": "string"
             },
             "columns": {
-              "const": [
-                "date",
-                "season",
-                "week",
-                "game_id",
-                "subject",
-                "team",
-                "opp",
-                "market",
-                "line",
-                "side",
-                "p_devig",
-                "outcome",
-                "actual"
-              ]
+              "description": "The name of each position in a row, in order.",
+              "type": "array",
+              "prefixItems": [
+                {
+                  "const": "date"
+                },
+                {
+                  "const": "season"
+                },
+                {
+                  "const": "week"
+                },
+                {
+                  "const": "game_id"
+                },
+                {
+                  "const": "subject"
+                },
+                {
+                  "const": "team"
+                },
+                {
+                  "const": "opp"
+                },
+                {
+                  "const": "market"
+                },
+                {
+                  "const": "line"
+                },
+                {
+                  "const": "side"
+                },
+                {
+                  "const": "p_devig"
+                },
+                {
+                  "const": "outcome"
+                },
+                {
+                  "const": "actual"
+                }
+              ],
+              "minItems": 13,
+              "maxItems": 13,
+              "items": false
             },
             "n": {
               "type": "integer",
@@ -3094,7 +3153,7 @@
           ]
         },
         "verdict": {
-          "oneOf": [
+          "anyOf": [
             {
               "$ref": "#/$defs/LabVerdict"
             },

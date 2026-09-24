@@ -55,7 +55,7 @@
       }
     },
     "line_choice": {
-      "oneOf": [
+      "anyOf": [
         {"enum": ["main", "all_rungs"]},
         {"type": "string", "pattern": "^nearest_to\\(-?[0-9]+(\\.[0-9]+)?\\)$"},
         {"type": "object", "additionalProperties": false, "required": ["nearest_to"],

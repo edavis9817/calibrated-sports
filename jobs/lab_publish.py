@@ -119,6 +119,40 @@ PRESETS = [
 ]
 
 
+def contract_strategy(schema):
+    """lab/strategy.schema.json -> the contract's `LabStrategy`, by exactly three
+    mechanical changes, so the shape is written once and the copy is checked
+    (tests/test_lab_publish.py), never maintained by hand:
+
+      - `sport` becomes a plain string: the contract names no sport (the file's
+        envelope carries it), and lab.strategy/1 still pins it where rules are
+        validated;
+      - `maxLength` is dropped: the site's type generator cannot read it, and it
+        constrains a value, not a type. Every published strategy has already
+        passed `lab.strategy.validate_shape`, which enforces it;
+      - a condition's `value`, which lab.strategy/1 leaves unconstrained (`{}`),
+        becomes a scalar or a list of scalars: the generator refuses a bare `{}`
+        rather than typing it `any`, and every operator takes one of those two.
+        This NARROWS the contract below the strategy schema - a rule whose value
+        is an object would fail at export, loudly, which is the right place.
+    """
+    import copy
+
+    def strip(node):
+        if isinstance(node, dict):
+            return {k: strip(v) for k, v in node.items() if k != "maxLength"}
+        if isinstance(node, list):
+            return [strip(v) for v in node]
+        return node
+    out = strip({k: v for k, v in copy.deepcopy(schema).items()
+                 if k not in ("$schema", "$id", "title", "description")})
+    out["properties"]["sport"] = {"type": "string"}
+    scalar = [{"type": "number"}, {"type": "string"}, {"type": "boolean"}]
+    cond = out["properties"]["conditions"]["items"]["properties"]
+    cond["value"] = {"anyOf": scalar + [{"type": "array", "items": {"anyOf": scalar}}]}
+    return out
+
+
 def _not_expressible():
     from lab.presets import NOT_EXPRESSIBLE
     return NOT_EXPRESSIBLE
@@ -228,8 +262,8 @@ def project(result, preset, universe_meta):
         "luck": luck,
         "holdout": {"season": ho["season"], "revealed": bool(ho["revealed"]),
                     "note": ho.get("note")},
-        "provenance": {k: {"source": v["source"], "is_close": bool(v["is_close"]),
-                           "note": v["note"]} for k, v in result["provenance"].items()},
+        "provenance": [{"season": int(k), "source": v["source"], "is_close": bool(v["is_close"]),
+                        "note": v["note"]} for k, v in sorted(result["provenance"].items())],
         "universe_built": iso_z(universe_meta["built"]),
         "bet_list": {"restriction": BET_LIST_RESTRICTION, "columns": cols,
                      "n": len(rows), "rows": rows},

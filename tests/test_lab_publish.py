@@ -239,11 +239,47 @@ def test_a_summary_below_the_threshold_withholds_break_even_and_units_too():
 
 # ------------------------------------------------------------------ one copy of the strategy shape
 
-def test_the_contracts_strategy_is_lab_strategy_schema_exactly():
+def test_the_contracts_strategy_is_derived_from_lab_strategy_schema():
     with open(os.path.join(ROOT, "lab", "strategy.schema.json"), encoding="utf-8") as fh:
         strat = json.load(fh)
-    want = {k: v for k, v in strat.items() if k not in ("$schema", "$id", "title", "description")}
-    assert E.CONTRACT["$defs"]["LabStrategy"] == want
+    got = E.CONTRACT["$defs"]["LabStrategy"]
+    assert got == L.contract_strategy(strat)
+    # the derivation changes exactly three things, and they are visible here
+    assert strat["properties"]["sport"] != got["properties"]["sport"] == {"type": "string"}
+    assert "maxLength" in strat["properties"]["name"] and "maxLength" not in got["properties"]["name"]
+    sv = strat["properties"]["conditions"]["items"]["properties"]["value"]
+    gv = got["properties"]["conditions"]["items"]["properties"]["value"]
+    assert sv == {} and "anyOf" in gv
+    a, b = copy.deepcopy(strat["properties"]), copy.deepcopy(got["properties"])
+    for k in ("sport", "name"):
+        a.pop(k), b.pop(k)
+    a["conditions"]["items"]["properties"].pop("value")
+    b["conditions"]["items"]["properties"].pop("value")
+    assert a == b
+
+
+def test_every_published_strategy_passes_the_strategy_schema_itself(files):
+    """The contract dropped maxLength and the sport const; the producer still
+    enforces both, because every strategy it publishes passed validate_shape."""
+    from lab import strategy as S
+    for f in files.values():
+        if f["kind"] == "lab_preset":
+            S.validate_shape(f["strategy"])
+    with pytest.raises(S.Invalid):
+        S.validate_shape(dict(files["lab/nfl/presets/fade_every_over.json"]["strategy"],
+                              name="x" * 201))
+
+
+def test_line_choice_branches_are_disjoint_so_anyof_equals_oneof():
+    """lab/strategy.schema.json's line_choice was oneOf; it is anyOf because the
+    site's generator cannot read oneOf. The two accept the same set only if no
+    value matches two branches - checked on every shape each branch accepts."""
+    import jsonschema
+    with open(os.path.join(ROOT, "lab", "strategy.schema.json"), encoding="utf-8") as fh:
+        branches = json.load(fh)["properties"]["line_choice"]["anyOf"]
+    for v in ("main", "all_rungs", "nearest_to(4.5)", "nearest_to(-3)", {"nearest_to": 4.5}):
+        hits = sum(jsonschema.Draft202012Validator(b).is_valid(v) for b in branches)
+        assert hits == 1, (v, hits)
 
 
 # ------------------------------------------------------------------ the prefix
