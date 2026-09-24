@@ -1,0 +1,47 @@
+{
+ "source": "research/f11_streak_null.py (f-11); intervals 'real|2000-2025|<rule>' from its --out JSON",
+ "generated_from": "_relay/reports/f-11-streak-null.json (vendored 2026-09-24 by a-26)",
+ "population": "all F11 stats pooled, 2000-2025 regular season, F11's constructed median line",
+ "next_rates": {
+  "L7": {
+   "next_rate": 0.5340075658148692,
+   "lo": 0.5248854132321595,
+   "hi": 0.543479598278559,
+   "n": 12953,
+   "players": 944,
+   "displayed": 0.8838217291085354
+  },
+  "L5": {
+   "next_rate": 0.5691089640365002,
+   "lo": 0.5564768619624972,
+   "hi": 0.5812557770509993,
+   "n": 7452,
+   "players": 904,
+   "displayed": 1.0
+  },
+  "AWAY5": {
+   "next_rate": 0.5167607036176568,
+   "lo": 0.4952846664338107,
+   "hi": 0.537018819201485,
+   "n": 3013,
+   "players": 614,
+   "displayed": 1.0
+  },
+  "H2H1": {
+   "next_rate": 0.45064883995281163,
+   "lo": 0.4425591290173431,
+   "hi": 0.4588840076948325,
+   "n": 22887,
+   "players": 1383,
+   "displayed": 1.0
+  },
+  "base": {
+   "next_rate": 0.449803919639035,
+   "lo": 0.4463991532374677,
+   "hi": 0.45303939316287795,
+   "n": 203233,
+   "players": 1814,
+   "displayed": null
+  }
+ }
+}

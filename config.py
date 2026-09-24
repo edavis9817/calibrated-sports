@@ -482,3 +482,39 @@ VENUES = [
     VenueConfig("kalshi", enabled=os.getenv("ENABLE_KALSHI", "1") == "1"),
     VenueConfig("polymarket", enabled=os.getenv("ENABLE_POLYMARKET", "1") == "1"),
 ]
+
+# --- The Board (a-26, audit 5.3 / 5.5) ---------------------------------------
+# The lean threshold T, in probability points. NOT read from the environment on
+# purpose: T is set before the season's first board and is never tuned on
+# results, so a changed T is a new LOG ENTRY here - (effective from, T, why) -
+# not an edit to an existing one. `core.board.lean_threshold_at` picks the entry
+# in force at a read, and the index file records the value it used.
+# tests/test_board.py asserts the log is sorted and that its first entry is 4.0.
+BOARD_LEAN_THRESHOLD_LOG = (
+    ("2026-09-01T00:00:00Z", 4.0, "decided 2026-09-24 (audit 5.3, unit a-26) before the first "
+     "board; effective from season start because no board read predates it"),
+)
+# The market probability is the median over THESE books' de-vigged over prices.
+BOARD_BENCH_BOOKS = ("draftkings", "fanduel", "betmgm")
+# Markets the Board lists, Odds API key -> the stat name used everywhere else.
+BOARD_MARKETS = {"player_receptions": "receptions",
+                 "player_rush_attempts": "rush_attempts",
+                 "player_reception_yds": "receiving_yards"}
+# Markets the MODEL prices on the Board: only those with a walk-forward record
+# (brief 023 Part 1 scored receptions and rush attempts, 2023-2025). Any other
+# market is listed with model and gap "-" and never leans.
+BOARD_MODEL_STATS = ("receptions", "rush_attempts")
+# A row whose market P(over) is below this, or above 1 minus it, is flagged
+# `longshot`: multiplicative de-vig is biased at the extremes (revisit Shin or
+# power de-vig once the Lab has settled data). 0.15 is research/longshot.py's
+# bucket edge.
+BOARD_LONGSHOT_P = 0.15
+# Gap bands for "leans this size", in absolute probability points.
+BOARD_GAP_BANDS = ((4.0, 6.0), (6.0, 8.0), (8.0, None))
+# Cadence (audit 5.5): hourly from Tuesday 12:00 ET to kickoff, every 15 min in
+# the last two hours before each kickoff slot, grading within an hour of final
+# stats.
+BOARD_READ_EVERY_MIN = 60
+BOARD_CLOSE_READ_EVERY_MIN = 15
+BOARD_CLOSE_WINDOW_MIN = 120
+BOARD_GRADE_EVERY_MIN = 60

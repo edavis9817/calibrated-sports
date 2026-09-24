@@ -42,17 +42,21 @@ def test_the_key_routes_to_its_kind_and_to_nothing_else():
 
 # ------------------------------------------------------------------ staged, not published
 
-def test_a_default_export_does_not_build_it(db, tmp_path, monkeypatch):
-    """Moving it into PARTS is the publish decision. Until then weekly_refresh,
-    which exports with only=None, cannot produce these keys - shown both ways, so
-    the absence is not just a fixture that never had any.
+def test_a_default_export_builds_it(db, tmp_path, monkeypatch):
+    """Moving it into PARTS was the publish decision, taken in 4b7e86b (2026-09-24).
+    Since then weekly_refresh, which exports with only=None, produces these keys -
+    shown both ways, default and named, so the presence is not one path's accident.
+
+    Was `test_a_default_export_does_not_build_it`, which asserted the staged state
+    and went stale on that commit (a-26 fixed it; f-14, f-17, a-20, a-21 saw it red).
 
     The research part reads committed research outputs and model predictions this
     fixture does not have; it is stubbed so `only=None` - the real default - runs."""
     monkeypatch.setattr(E, "build_research", lambda generated_at: {})
-    assert "components" not in E.PARTS and "components" in E.OPTIONAL_PARTS
+    assert "components" in E.PARTS and "components" not in E.OPTIONAL_PARTS
     default = _export(tmp_path / "a", None)
-    assert not [k for k in default if "/components/" in k]
+    assert sorted(k for k in default if "/components/" in k) == [
+        "nfl/components/2025.json", "nfl/components/2026.json"]
     named = _export(tmp_path / "b", ["components"])
     assert sorted(k for k in named if "/components/" in k) == [
         "nfl/components/2025.json", "nfl/components/2026.json"]
