@@ -336,6 +336,24 @@ HYPOTHESES = [
         "why": "No source on disk timestamps an inactive; Kalshi pulled a Friday-OUT player's markets on Saturday, removing the game-day window for known outs.",
         "script": "research/inactives.py",
     },
+    {
+        # Registered BEFORE any call exists, so it has no figure and cannot have
+        # one yet. The script is the frozen rule; it exits 2 until a call ledger
+        # exists. docs/briefs/f13-fantasy-calls-preregistration.md.
+        "id": "R18",
+        "brief": "f-13",
+        "date": "2026-09-24",
+        "question": "Do the fantasy board's buy-low and sell-high calls hold up - does a band's scoring beyond what its volume bought carry into the games after the call?",
+        "verdict": "open",
+        "metric": "excess carried fraction of the sell-high minus buy-low residual, PPR, next game and rest of season",
+        "estimate": None,
+        "interval": None,
+        "unit": "fraction",
+        "n": None,
+        "games": None,
+        "why": "Pre-registered before the board made a single call: supported if at most a quarter of the residual carries, failed if more than a quarter does, graded once per season against a world with no persistent efficiency. A failed band is published and stays on the page.",
+        "script": "research/f13_call_grading.py",
+    },
 ]
 
 
