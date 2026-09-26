@@ -385,10 +385,8 @@ LOADERS = {
         "load_looks": (*_PLAYER_KINDS, "components"),         # air_rz stage only
         "load_headshots": ("player_summary", "player_index"),
         "load_prop_history": ("player_summary",),
-        # a-24, the main line: one close-priced line per game, attached to the
-        # same prop_history the summary carries. `_book_closes` and
-        # `_exchange_close` are called from `load_main_lines` in this module, so
-        # the scan does not follow them - each is attributed on its own.
+        # a-24's main line rides the summary's prop_history. Unattributed when a-24
+        # and a-30 were built apart; the merged tree refused to export (a-33).
         "load_main_lines": ("player_summary",),
         "_book_closes": ("player_summary",),
         "_exchange_close": ("player_summary",),
@@ -449,14 +447,12 @@ NARROW = {
         ("build_research", "markets"): ("kalshi.ladders",),
         ("build_research", "quotes"): ("kalshi.ladders", "kalshi.price_history"),
         # load_prop_history reads every venue's outcomes and their settlement.
-        # a-24, the main line: the book close is the backfilled Odds API de-vig
-        # (outcome_close exists for no other venue), so the outcomes it names are
-        # Odds API rows. The exchange fallback is asked for 'kalshi' and
-        # 'polymarket' by name and for no other venue, and market_outcome is read
-        # under that same IN list. outcome_settlement and the unfiltered outcomes
-        # read in load_main_lines stay whole: every venue's player outcome is
-        # settled and scoped there.
+        # a-24/a-33: the main line's book close is outcome_close (Odds API backfill
+        # only), and its exchange close is Kalshi's or Polymarket's last quote.
         ("_book_closes", "outcomes"): ("oddsapi",),
+        # Kept from the hand fix: the price_history backfill also writes
+        # quotes at venue = 'kalshi', and _exchange_close filters on venue
+        # alone, so a backfilled row can be the close it selects.
         ("_exchange_close", "quotes"): ("kalshi.ladders", "kalshi.price_history", "polymarket"),
         ("load_main_lines", "market_outcome"): ("kalshi.ladders", "polymarket"),
         # a-31, the Board: book prices are Odds API rows only (venue 'oddsapi:*');
@@ -513,11 +509,12 @@ KIND_EXTRA = {
         "analytics.index": ("nflverse.pbp", "nflverse.participation", "nflverse.ngs"),
         "analytics.metric": ("nflverse.pbp", "nflverse.participation", "nflverse.ngs"),
         "live.prices": ("kalshi.ladders",),
-        # a-23, merged: jobs/live_snapshot.py PUTs live/{sport}/snapshot.json on a
-        # schedule - outside sync_keys, so declared here from reading it. The
-        # skeleton is the schedule in this store, the overlays are the scoreboard
-        # and the exchange's game-winner quotes, and the injury block is the
-        # current nflverse report held in feeds.db.
+        # a-23's Live snapshot (jobs/live_snapshot.py, written straight to R2 under
+        # live/): the schedule skeleton from the store, the scoreboard overlay, the
+        # exchange's game-winner quotes and the injury report held in feeds.db.
+        # Declared at integration (a-33): a-23 and a-30 were built apart and the
+        # merged tree refused every export on the undeclared kind. PAGE_READS below
+        # stays until the site's Live page reads the snapshot instead (track B).
         "live.snapshot": ("nflverse.schedule", "espn.scoreboard", "kalshi.ladders",
                           "nflverse.injuries"),
         "predictor": ("nflverse.draft_picks",),
