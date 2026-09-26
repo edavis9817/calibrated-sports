@@ -520,6 +520,16 @@ this producer does not publish fixtures; `[]` would mean a period with no games.
   and must establish that convention itself; nothing here assumes a second source shares
   nflverse's.
 - For an unplayed game the line is the source's at export and can still move. It is not a close.
+- **Every fixture carries its line's provenance (a-37, audit N-03)**: `line_source`
+  (`nflverse_schedule`), `line_read_at` (when the store WROTE the schedule row this line comes
+  from; a later unchanged check writes nothing, so it can be older than the last check) and
+  `line_previous` (`{spread, total, read_at}` of the most recent EARLIER line that differed, or
+  null). The live snapshot's `games[].line` carries the SAME three fields from the same function
+  (`jobs/game_lines.py`), so a page compares `line_read_at` across the two files and prints the
+  newer line on every route. The store keeps one version per game per DAY, so two moves in one day
+  are one move here; a version with no line (nflverse blanks unposted weeks) is skipped, so a
+  previous line can be days old - its `read_at` says how old. The scoreboard's own odds on the Live
+  card are a different source (`scoreboard_odds`) and are never carried under `line_source`.
 
 **`air_rz` — three period stat keys (A-B8)**, on player period rows, season totals and career,
 and, with `--only components`, appended as the LAST three `columns` of the components table (no

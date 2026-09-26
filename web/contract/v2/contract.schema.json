@@ -393,10 +393,37 @@
           "description": "The HOME team's expected margin of victory in points, so the sign is from the HOME team's perspective: positive means the home team is favoured, negative means the away team is favoured, 0 is a pick'em. A home side listed at -3.5 by a sportsbook is +3.5 here - this is NOT the sportsbook convention, in which the favourite carries the minus sign. A producer whose source uses the sportsbook convention must negate it. Null when the source has no line. For a game not yet played it is the source's line at export and can still move.",
           "type": ["number", "null"]
         },
-        "total": {"description": "The points line on the combined score of both teams. Null when the source has none.", "type": ["number", "null"]}
+        "total": {"description": "The points line on the combined score of both teams. Null when the source has none.", "type": ["number", "null"]},
+        "line_source": {"$ref": "#/$defs/LineSource"},
+        "line_read_at": {"$ref": "#/$defs/LineReadAt"},
+        "line_previous": {"$ref": "#/$defs/LinePrevious"}
       },
-      "required": ["game_id", "kickoff_ts", "home", "away", "spread", "total"],
+      "required": ["game_id", "kickoff_ts", "home", "away", "spread", "total", "line_source", "line_read_at", "line_previous"],
       "additionalProperties": false
+    },
+
+    "LineSource": {
+      "description": "Which source a game line is (a-37, audit N-03). The same three fields - line_source, line_read_at, line_previous - ride every game line the producer publishes, on the manifest's current.fixtures[] and on the live snapshot's games, and are computed by one function (jobs/game_lines.py), so a page can print one line for a game on every route and choose the newer read. nflverse_schedule: the lines in the nflverse games file, as this producer's store holds them. A scoreboard's own odds are a different source and are never carried under this field.",
+      "enum": ["nflverse_schedule"]
+    },
+
+    "LineReadAt": {
+      "description": "When the producer's store wrote the schedule row this line comes from - the read of the source file that carried this value. A later read that found the file unchanged writes nothing, so this can be older than the most recent check; it is never later than the truth. Two files carrying the same game compare on this field: the later read_at is the newer line.",
+      "$ref": "#/$defs/Timestamp"
+    },
+
+    "LinePrevious": {
+      "description": "The most recent EARLIER line for this game that differed from the current one, with when it was last read - for 'moved from -4.5'. Null when every stored read carried the current line. Reads are kept one per game per day, so two moves inside one day are one move here. A read with no line at all (the source blanks lines for weeks not yet posted) is skipped, so a previous line can be days older than the current one; read_at says how old. spread uses the same HOME-positive convention as the line it sits beside.",
+      "anyOf": [{
+        "type": "object",
+        "properties": {
+          "spread": {"type": ["number", "null"]},
+          "total": {"type": ["number", "null"]},
+          "read_at": {"$ref": "#/$defs/Timestamp"}
+        },
+        "required": ["spread", "total", "read_at"],
+        "additionalProperties": false
+      }, {"type": "null"}]
     },
 
     "ScheduleGame": {
@@ -1240,7 +1267,7 @@
           "type": ["integer", "null"]
         },
         "method": {
-          "description": "How the interval was constructed - `block2000`, `hist2000`, `wilson95`, `t95`. An interval hides its own construction; this does not.",
+          "description": "How the interval was constructed, as the producer's tag - `block2000`, `hist2000`, `wilson95`, `t95`. An interval hides its own construction; this does not. A TAG, NOT COPY: its plain meaning and coverage level are the entry with the same `code` in the file's `methods` (a-37). A page renders that entry, never the tag.",
           "type": "string"
         }
       },
@@ -1289,9 +1316,26 @@
           "type": "array",
           "items": {"type": "string"}
         },
+        "methods": {
+          "description": "One entry per distinct `values[].method` in this file, sorted by code: what built the interval, in words, and at what nominal level (a-37, audit N-21). Empty only when `values` is.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/AnalyticMethod"}
+        },
         "values": {"type": "array", "items": {"$ref": "#/$defs/AnalyticValue"}}
       },
-      "required": ["schema_version", "generated_at", "kind", "sport", "metric", "label", "unit", "subject_type", "block", "basis", "slice_kind", "shares_denominator", "season_from", "season_to", "range_note", "availability", "requires", "values"],
+      "required": ["schema_version", "generated_at", "kind", "sport", "metric", "label", "unit", "subject_type", "block", "basis", "slice_kind", "shares_denominator", "season_from", "season_to", "range_note", "availability", "requires", "methods", "values"],
+      "additionalProperties": false
+    },
+
+    "AnalyticMethod": {
+      "description": "One interval construction, stated for a reader (a-37, audit N-21). `coverage_level` is NOMINAL: the level the interval was built at, not a measured coverage - research/a25_small_n_coverage.py measured a percentile block bootstrap over two games covering about half the time while built at 0.95. The producer refuses a tag it cannot state a level for rather than guessing one.",
+      "type": "object",
+      "properties": {
+        "code": {"description": "The tag as it appears in `values[].method`.", "type": "string"},
+        "interval": {"description": "What built the interval, in words, naming what was resampled (the metric's `block` - games or players, not always games). A page may render this verbatim.", "type": "string"},
+        "coverage_level": {"description": "The nominal coverage level, as a proportion: 0.95 is a 95% interval.", "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1}
+      },
+      "required": ["code", "interval", "coverage_level"],
       "additionalProperties": false
     },
 
@@ -1312,10 +1356,15 @@
         "season_to": {"type": "integer"},
         "range_note": {"type": "string"},
         "availability": {"$ref": "#/$defs/Availability"},
+        "methods": {
+          "description": "The metric file's own `methods`, repeated so a listing can state the coverage level without fetching the file.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/AnalyticMethod"}
+        },
         "value_count": {"type": "integer", "minimum": 0},
         "subject_count": {"type": "integer", "minimum": 0}
       },
-      "required": ["metric", "key", "label", "unit", "subject_type", "shares_denominator", "season_from", "season_to", "range_note", "availability", "value_count", "subject_count"],
+      "required": ["metric", "key", "label", "unit", "subject_type", "shares_denominator", "season_from", "season_to", "range_note", "availability", "methods", "value_count", "subject_count"],
       "additionalProperties": false
     },
 
@@ -1550,16 +1599,19 @@
         "detail": {"description": "The scoreboard's own short status line. Null when the scoreboard is not the state source.", "type": ["string", "null"]},
         "situation": {"description": "Down and distance while in progress, when the scoreboard carries it.", "type": ["string", "null"]},
         "line": {
-          "description": "The schedule's lines. spread_line is home-relative and POSITIVE when the home team is favoured, as the schedule source publishes it.",
+          "description": "The schedule's lines. spread_line is home-relative and POSITIVE when the home team is favoured, as the schedule source publishes it. line_source, line_read_at and line_previous are the same fields, from the same function, as on the manifest's current.fixtures[] (a-37).",
           "anyOf": [{
             "type": "object",
             "properties": {
               "spread_line": {"type": ["number", "null"]},
               "total_line": {"type": ["number", "null"]},
               "home_moneyline": {"type": ["number", "null"]},
-              "away_moneyline": {"type": ["number", "null"]}
+              "away_moneyline": {"type": ["number", "null"]},
+              "line_source": {"$ref": "#/$defs/LineSource"},
+              "line_read_at": {"$ref": "#/$defs/LineReadAt"},
+              "line_previous": {"$ref": "#/$defs/LinePrevious"}
             },
-            "required": ["spread_line", "total_line", "home_moneyline", "away_moneyline"],
+            "required": ["spread_line", "total_line", "home_moneyline", "away_moneyline", "line_source", "line_read_at", "line_previous"],
             "additionalProperties": false
           }, {"type": "null"}]
         },
