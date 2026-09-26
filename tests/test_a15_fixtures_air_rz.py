@@ -155,7 +155,7 @@ def test_fixtures_are_the_current_period_only_in_kickoff_order():
     out = E.current_fixtures(games, {"season": 2026, "period": {"index": 3}}, one_read(games))
     assert [f["game_id"] for f in out] == ["a", "b"]
     assert out[0] == {"game_id": "a", "kickoff_ts": 100.0, "home": "lv", "away": "den",
-                      "spread": -2.0, "total": 40.0, "line_source": "nflverse_schedule",
+                      "spread": -2.0, "total": 40.0, "line_source": "nflverse.schedule",
                       "line_read_at": "1970-01-01T00:00:01Z", "line_previous": None}
 
 

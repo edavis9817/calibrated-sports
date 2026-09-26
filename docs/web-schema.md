@@ -521,7 +521,7 @@ this producer does not publish fixtures; `[]` would mean a period with no games.
   nflverse's.
 - For an unplayed game the line is the source's at export and can still move. It is not a close.
 - **Every fixture carries its line's provenance (a-37, audit N-03)**: `line_source`
-  (`nflverse_schedule`), `line_read_at` (when the store WROTE the schedule row this line comes
+  (`nflverse.schedule`, the source-registry id the Sources file labels), `line_read_at` (when the store WROTE the schedule row this line comes
   from; a later unchanged check writes nothing, so it can be older than the last check) and
   `line_previous` (`{spread, total, read_at}` of the most recent EARLIER line that differed, or
   null). The live snapshot's `games[].line` carries the SAME three fields from the same function

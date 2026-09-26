@@ -10,7 +10,8 @@ which was newer.
 So every game line either producer publishes carries the same three fields, computed
 here and nowhere else:
 
-    line_source     which source the line is: today only the nflverse schedule
+    line_source     which source the line is, as its source-registry id: today only
+                    `nflverse.schedule`
     line_read_at    when this store WROTE the schedule row the line comes from - the read
                     of the source file that carried this value. A later read that found
                     the file unchanged writes nothing, so this can be older than the most
@@ -35,10 +36,11 @@ from __future__ import annotations
 import math
 from datetime import datetime, timezone
 
-# The contract's enum (`$defs.LineSource`). One value while one source is read; the
+# The source's id in jobs/source_registry.py, so the site labels it from the Sources
+# file (`$defs.LineSource`). The contract cannot enumerate it: it names no sport. The
 # scoreboard's own odds on the Live card are a DIFFERENT source and stay in their own
 # field (`scoreboard_odds`), never in this one.
-LINE_SOURCE = "nflverse_schedule"
+LINE_SOURCE = "nflverse.schedule"
 
 # What each caller selects from nfl_games, in this order.
 HISTORY_COLUMNS = ("game_id", "data_version", "spread_line", "total_line", "ingested_ts")

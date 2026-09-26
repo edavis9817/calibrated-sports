@@ -29,7 +29,7 @@ def rows(gid, *versions):
 
 def test_a_single_read_has_a_read_time_and_no_previous_line():
     got = G.provenance(rows("g", ("2026-09-20", 4.5, 43.5, 1_758_400_000.9)))["g"]
-    assert got == {"line_source": "nflverse_schedule", "line_read_at": "2025-09-20T20:26:40Z",
+    assert got == {"line_source": "nflverse.schedule", "line_read_at": "2025-09-20T20:26:40Z",
                    "line_previous": None}
 
 
@@ -133,8 +133,15 @@ def test_the_contract_accepts_a_stamped_fixture_and_refuses_an_unstamped_one():
     unstamped = fixture()
     del unstamped["line_read_at"]
     assert list(v.iter_errors(unstamped))
-    assert list(v.iter_errors(fixture(line_source="draftkings")))       # one source, named
+    assert list(v.iter_errors(fixture(line_source=None)))               # a line always has one
+    assert list(v.iter_errors(fixture(line_source="")))
     assert list(v.iter_errors(fixture(line_read_at=300.0)))             # a Timestamp, not a ts
+
+
+def test_the_line_source_is_an_id_the_sources_file_can_label():
+    from jobs import source_registry
+    assert G.LINE_SOURCE in source_registry.SOURCES
+    assert "nfl" in source_registry.SOURCES[G.LINE_SOURCE]["sports"]
 
 
 def test_the_live_line_uses_the_same_three_fields():

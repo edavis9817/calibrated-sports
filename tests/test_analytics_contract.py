@@ -63,6 +63,8 @@ def _metric(**kw):
             "requires": ["pbp.receiver_player_id|incomplete_pass"],
             "values": [_value()]}
     base.update(kw)
+    # a-37: the method block follows whatever values the case ends up with.
+    base.setdefault("methods", export.methods_block(base["values"], base["block"]))
     return base
 
 

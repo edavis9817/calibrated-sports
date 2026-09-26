@@ -403,8 +403,9 @@
     },
 
     "LineSource": {
-      "description": "Which source a game line is (a-37, audit N-03). The same three fields - line_source, line_read_at, line_previous - ride every game line the producer publishes, on the manifest's current.fixtures[] and on the live snapshot's games, and are computed by one function (jobs/game_lines.py), so a page can print one line for a game on every route and choose the newer read. nflverse_schedule: the lines in the nflverse games file, as this producer's store holds them. A scoreboard's own odds are a different source and are never carried under this field.",
-      "enum": ["nflverse_schedule"]
+      "description": "Which source a game line is (a-37, audit N-03), as the source's id in the sport's sources file (`sources.json`, generated from jobs/source_registry.py), so a page labels it from that file rather than inventing a name. The same three fields - line_source, line_read_at, line_previous - ride every game line the producer publishes, on the manifest's current.fixtures[] and on the live snapshot's games, and are computed by one function (jobs/game_lines.py), so a page can print one line for a game on every route and choose the newer read. A scoreboard's own odds are a different source and are never carried under this field.",
+      "type": "string",
+      "minLength": 1
     },
 
     "LineReadAt": {
@@ -413,7 +414,7 @@
     },
 
     "LinePrevious": {
-      "description": "The most recent EARLIER line for this game that differed from the current one, with when it was last read - for 'moved from -4.5'. Null when every stored read carried the current line. Reads are kept one per game per day, so two moves inside one day are one move here. A read with no line at all (the source blanks lines for weeks not yet posted) is skipped, so a previous line can be days older than the current one; read_at says how old. spread uses the same HOME-positive convention as the line it sits beside.",
+      "description": "The most recent EARLIER line for this game that differed from the current one, with when it was last read - for 'moved from -4.5'. Null when every stored read carried the current line. Reads are kept one per game per day, so two moves inside one day are one move here. A read with no line at all (the schedule source blanks lines for weeks whose lines are not yet posted) is skipped, so a previous line can be days older than the current one; read_at says how old. spread uses the same HOME-positive convention as the line it sits beside.",
       "anyOf": [{
         "type": "object",
         "properties": {
