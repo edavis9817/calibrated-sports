@@ -1,7 +1,13 @@
 name: ci
 
 on:
+  # Branch-filtered 2026-09-26. Every relay unit pushes a branch, and an
+  # unfiltered `push:` ran this whole workflow on each one: 117 branches
+  # burned 1,804 of the account's 2,000 monthly Actions minutes. Units run
+  # the full gate locally before they report, so branch CI was a duplicate.
+  # main and pull requests are where it is worth the minutes.
   push:
+    branches: [main]
   pull_request:
 
 jobs:
