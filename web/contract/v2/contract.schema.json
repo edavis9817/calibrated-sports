@@ -763,7 +763,7 @@
           }
         },
         "metrics": {
-          "description": "THE METRIC REGISTRY (a-36, audit N-02). One entry per published figure: `source` is the ONE served file and JSON path that owns it, `copies` every other served location known to carry the same number. A page renders a registered figure by resolving `source`, never by typing it. The producer refuses to export when a copy disagrees with its owner at `decimals`, unless the copy carries `declared` - a written reason it is KNOWN to disagree, which the site should show rather than hide. Path grammar: dot-separated keys; `[N]` is an array index; `[key=value]` selects the ONE element whose `key`, as a string, equals `value` (zero or two matches is an error). Written by jobs/metric_registry.py; optional because only the nfl producer publishes figures.",
+          "description": "THE METRIC REGISTRY (a-36, audit N-02). One entry per published figure: `source` is the ONE served file and JSON path that owns it, `copies` every other served location known to carry the same number. A page renders a registered figure by resolving `source`, never by typing it. The producer refuses to export when a copy disagrees with its owner at `decimals`, unless the copy carries `declared` - a written reason it is KNOWN to disagree, which the site should show rather than hide. Path grammar: dot-separated keys; `[N]` is an array index; `[key=value]` selects the ONE element whose `key`, as a string, equals `value` (zero or two matches is an error). Written by jobs/metric_registry.py; optional because not every sport's producer publishes registered figures.",
           "type": "array",
           "items": {"$ref": "#/$defs/MetricEntry"}
         }
