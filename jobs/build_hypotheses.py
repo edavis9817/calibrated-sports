@@ -81,6 +81,36 @@ class Pointer:
         return "Pointer(%s:%s/%s)" % (self.registry, self.family, self.name)
 
 
+class FileFigure:
+    """A figure read from a COMMITTED research/results/*.json file (a-36).
+
+    For scripts that publish a file rather than append to a sweep registry -
+    today only research/calibration.py --publish. `path` is one named file,
+    never a glob, for the reason Pointer gives. `why` is a template formatted
+    against the file's `over_bias` block, so prose rates cannot drift from the
+    figure beside them (CLAUDE.md, "it covers EXPORTED PROSE").
+    """
+
+    __slots__ = ("path", "digits", "why")
+
+    def __init__(self, path, digits, why=None):
+        self.path, self.digits, self.why = path, digits, why
+
+    def __repr__(self):
+        return "FileFigure(%s)" % self.path
+
+    def figure(self, root=ROOT):
+        with open(os.path.join(root, self.path), encoding="utf-8") as f:
+            src = json.load(f)
+        ob, pop, d = src["over_bias"], src["population"], self.digits
+        out = {"estimate": round(ob["estimate_pp"], d),
+               "interval": [round(ob["interval_pp"][0], d), round(ob["interval_pp"][1], d)],
+               "n": pop["n"], "games": pop["games"]}
+        if self.why:
+            out["why"] = self.why.format(**ob)
+        return out
+
+
 HYPOTHESES = [
     {
         "id": "R01",
@@ -342,12 +372,13 @@ HYPOTHESES = [
     },
     {
         # a-29. The /studies/market-calibration finding, which had no row: its
-        # header said "R01", which is longshot.py. Figures are the output of
-        # `python -m research.calibration --register`, run 2026-09-24 read-only
+        # header said "R01", which is longshot.py. First run 2026-09-24 read-only
         # against the live store (_relay/reports/a-29-calibration-register.txt).
-        # Still a literal: calibration.py prints rather than registers, and its
-        # registry would have to live outside research/sweep/results, which
-        # summarize.py globs. Converting it is the same increment as the others.
+        # a-36: no longer a literal. The figure is read from the committed
+        # research/results/market_calibration.json (`python -m research.calibration
+        # --publish`), which export_web also serves as
+        # research/market_calibration.json - one file, so the register and the
+        # study cannot be restated separately. jobs/metric_registry.py gates it.
         #
         # NOT the study page's -1.40pp on 43,209. That was computed 2026-09-10,
         # before the 09-17 settlement fix began settling played-with-no-stat-row
@@ -360,12 +391,10 @@ HYPOTHESES = [
         "question": "Does the sportsbook close overprice the over on player props, by more than it costs to bet the under?",
         "verdict": "retired",
         "metric": "realized minus priced over rate; de-vigged DraftKings / FanDuel / BetMGM close; settled regular-season player props 2023-2025, over side; game-block bootstrap",
-        "estimate": -2.43,
-        "interval": [-3.13, -1.72],
         "unit": "pp",
-        "n": 44198,
-        "games": 814,
-        "why": "The close priced the over at 0.4880 and it cleared 0.4637 of the time; half the archive's median 1.0675 overround is 3.38c a side, which is what a sportsbook under costs. Restated 2026-09-24 from the 2026-09-10 figure (-1.40pp, n 43,209): the 2026-09-17 settlement fix now settles a player who played with no stat row at 0. Postseason games are excluded because their props are not yet settled correctly.",
+        "figure": FileFigure(
+            "research/results/market_calibration.json", 2,
+            why="The close priced the over at {priced:.4f} and it cleared {realized:.4f} of the time; half the archive's median 1.0675 overround is 3.38c a side, which is what a sportsbook under costs. Restated 2026-09-24 from the 2026-09-10 figure (-1.40pp, n 43,209): the 2026-09-17 settlement fix now settles a player who played with no stat row at 0. Postseason games are excluded because their props are not yet settled correctly."),
         "script": "research/calibration.py",
     },
 ]
@@ -423,7 +452,9 @@ def build(results_dir=RESULTS):
     for spec in HYPOTHESES:
         rec = dict(spec)
         ptr = rec.pop("figure", None)
-        if ptr is not None:
+        if isinstance(ptr, FileFigure):
+            rec.update(ptr.figure())
+        elif ptr is not None:
             rec.update(figure(ptr, results_dir))
         missing = [k for k in FIELDS if k not in rec]
         if missing:

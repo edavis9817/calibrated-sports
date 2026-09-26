@@ -316,6 +316,35 @@ def load(season=2026, week=1):
     return rows, census, mv, note, versions, book_fields, sorted(fields)
 
 
+def published(rows):
+    """The block the site publishes as research/calibration.json (a-36).
+
+    Brier and ECE are computed HERE, together, on ONE set - the common set of
+    `rows` where Kalshi was two-sided at entry - so a page reading the file gets
+    both from the same rows. Before a-36 the Method page cited its ECE from
+    DECISIONS.md (the n=706 set) beside a chart reading this computation (n=935):
+    two calibration errors for one claim, one of them from a different
+    population. `ece` duplicates `series[].ece` on purpose, from the SAME value,
+    so a consumer never has to search an array for a headline figure; the
+    metric-registry gate asserts the two agree.
+
+    Values are full precision; rounding is the exporter's display decision.
+    """
+    common = [r for r in rows if r["market_p"] is not None]
+    series, ece = [], {}
+    for name, field in (("model", "model"), ("market", "market_p")):
+        table, e = reliability([r[field] for r in common], [r["y"] for r in common])
+        ece[name] = e
+        series.append({"name": name, "ece": e, "bins": table})
+    br = {f: statistics.fmean(brier(r[k], r["y"]) for r in common)
+          for f, k in (("model", "model"), ("market", "market_p"), ("naive", "naive"))}
+    head = boot_mean(common, lambda r: brier(r["model"], r["y"]) - brier(r["market_p"], r["y"]))
+    # ON `common`, NOT on the full settled set - see export_web.build_research.
+    nv = boot_mean(common, lambda r: brier(r["model"], r["y"]) - brier(r["naive"], r["y"]))
+    return {"n": len(common), "games": len(by_game(common)), "series": series,
+            "brier": br, "ece": ece, "model_minus_market": head, "model_minus_naive": nv}
+
+
 # =============================================================================
 # report
 # =============================================================================

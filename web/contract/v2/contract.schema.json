@@ -17,6 +17,7 @@
       "market": "MarketFile",
       "research.hypotheses": "HypothesesFile",
       "research.calibration": "CalibrationResearchFile",
+      "research.market_calibration": "MarketCalibrationFile",
       "research.execution": "ExecutionFile",
       "analytics.index": "AnalyticsIndexFile",
       "analytics.metric": "AnalyticMetricFile",
@@ -31,7 +32,7 @@
       "lab_index": "LabIndexFile",
       "lab_preset": "LabPresetFile"
     },
-    "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.execution", "coverage"],
+    "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.market_calibration", "research.execution", "coverage"],
     "keys": [
       {"pattern": "^sports\\.json$", "kind": "sports"},
       {"pattern": "^[a-z0-9]+/manifest\\.json$", "kind": "sport_manifest"},
@@ -42,6 +43,7 @@
       {"pattern": "^[a-z0-9]+/market/[^/]+/\\d{4}-\\d+\\.json$", "kind": "market"},
       {"pattern": "^research/hypotheses\\.json$", "kind": "research.hypotheses"},
       {"pattern": "^research/calibration\\.json$", "kind": "research.calibration"},
+      {"pattern": "^research/market_calibration\\.json$", "kind": "research.market_calibration"},
       {"pattern": "^research/execution\\.json$", "kind": "research.execution"},
       {"pattern": "^analytics/[a-z0-9]+/index\\.json$", "kind": "analytics.index"},
       {"pattern": "^analytics/[a-z0-9]+/[a-z0-9_]+(\\.[a-z0-9_]+)+\\.json$", "kind": "analytics.metric"},
@@ -759,6 +761,11 @@
             "required": ["id", "name", "reason"],
             "additionalProperties": false
           }
+        },
+        "metrics": {
+          "description": "THE METRIC REGISTRY (a-36, audit N-02). One entry per published figure: `source` is the ONE served file and JSON path that owns it, `copies` every other served location known to carry the same number. A page renders a registered figure by resolving `source`, never by typing it. The producer refuses to export when a copy disagrees with its owner at `decimals`, unless the copy carries `declared` - a written reason it is KNOWN to disagree, which the site should show rather than hide. Path grammar: dot-separated keys; `[N]` is an array index; `[key=value]` selects the ONE element whose `key`, as a string, equals `value` (zero or two matches is an error). Written by jobs/metric_registry.py; optional because not every sport's producer publishes registered figures.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/MetricEntry"}
         }
       },
       "required": ["schema_version", "generated_at", "kind", "sport", "name", "period_type", "current", "seasons", "stat_definitions", "market_definitions", "scoring_presets", "scoring_note", "teams", "team_colors", "counts", "unresolved_ids"],
@@ -1097,6 +1104,15 @@
         "sport": {"type": "null"},
         "source": {"type": "string"},
         "population": {"type": "string"},
+        "n": {"description": "Predictions in the common set every figure in this file is computed on (a-36).", "type": "integer"},
+        "games": {"description": "Games in that set; the bootstrap blocks.", "type": "integer"},
+        "ece": {
+          "description": "Expected calibration error, 10 equal-width bins, on the SAME set as `brier` (a-36). The same values as `series[].ece`, published beside Brier so a page reads both from one place.",
+          "type": "object",
+          "properties": {"model": {"type": ["number", "null"]}, "market": {"type": ["number", "null"]}},
+          "required": ["model", "market"],
+          "additionalProperties": false
+        },
         "series": {
           "type": "array",
           "items": {
@@ -1150,7 +1166,99 @@
           "additionalProperties": false
         }
       },
-      "required": ["schema_version", "generated_at", "kind", "sport", "source", "population", "series", "brier"],
+      "required": ["schema_version", "generated_at", "kind", "sport", "source", "population", "n", "games", "ece", "series", "brier"],
+      "additionalProperties": false
+    },
+
+    "MetricLocation": {
+      "type": "object",
+      "properties": {
+        "file": {"type": "string"},
+        "path": {"type": "string"},
+        "declared": {"description": "Present only on a copy KNOWN to disagree with its owner: the reason, in words. The export fails if a declared copy agrees (the declaration is stale).", "type": "string"}
+      },
+      "required": ["file", "path"],
+      "additionalProperties": false
+    },
+    "MetricEntry": {
+      "type": "object",
+      "properties": {
+        "id": {"type": "string"},
+        "label": {"type": "string"},
+        "unit": {"type": "string"},
+        "decimals": {"description": "The published precision; agreement is tested after rounding both sides to it.", "type": "integer", "minimum": 0},
+        "source": {"$ref": "#/$defs/MetricLocation"},
+        "copies": {"type": "array", "items": {"$ref": "#/$defs/MetricLocation"}}
+      },
+      "required": ["id", "label", "unit", "decimals", "source", "copies"],
+      "additionalProperties": false
+    },
+    "MarketCalibrationSlice": {
+      "type": "object",
+      "properties": {
+        "bucket": {"type": "string"},
+        "stat": {"type": "string"},
+        "season": {"type": "integer"},
+        "n": {"type": "integer"},
+        "games": {"type": "integer"},
+        "priced": {"type": "number"},
+        "realized": {"type": "number"},
+        "estimate_pp": {"type": "number"},
+        "interval_pp": {"$ref": "#/$defs/Interval"}
+      },
+      "required": ["n", "games", "priced", "realized", "estimate_pp", "interval_pp"],
+      "additionalProperties": false
+    },
+    "MarketCalibrationFile": {
+      "description": "The closing sportsbook market's over-side calibration, 2023-2025 regular season (register R18), a-36. Every figure is on ONE population - `population` - and every interval is a game-block bootstrap. Read from the committed output of `python -m research.calibration --publish`; `computed_at` is when it was measured, `generated_at` when it was exported.",
+      "type": "object",
+      "properties": {
+        "schema_version": {"const": 2},
+        "generated_at": {"$ref": "#/$defs/Timestamp"},
+        "kind": {"const": "research.market_calibration"},
+        "sport": {"type": "null"},
+        "source": {"type": "string"},
+        "computed_at": {"$ref": "#/$defs/Timestamp"},
+        "benchmark": {"type": "string"},
+        "population": {
+          "type": "object",
+          "properties": {
+            "description": {"type": "string"},
+            "seasons": {"type": "array", "items": {"type": "integer"}},
+            "n": {"type": "integer"},
+            "games": {"type": "integer"},
+            "excluded_postseason": {"description": "Postseason overs left out because their props do not yet settle correctly (research/calibration.py LAST_REG_WEEK).", "type": "integer"}
+          },
+          "required": ["description", "seasons", "n", "games", "excluded_postseason"],
+          "additionalProperties": false
+        },
+        "over_bias": {
+          "type": "object",
+          "properties": {
+            "priced": {"type": "number"},
+            "realized": {"type": "number"},
+            "estimate_pp": {"description": "realized minus priced over rate, percentage points", "type": "number"},
+            "interval_pp": {"$ref": "#/$defs/Interval"},
+            "boot_se_pp": {"type": "number"},
+            "z_null": {"description": "z under the null-variance se, which treats every outcome as independent. Overstates confidence; the interval is the figure to quote.", "type": ["number", "null"]},
+            "draws": {"type": "integer"},
+            "seed": {"type": "integer"}
+          },
+          "required": ["priced", "realized", "estimate_pp", "interval_pp", "boot_se_pp", "z_null", "draws", "seed"],
+          "additionalProperties": false
+        },
+        "score": {
+          "description": "Over side, the same population. ECE uses 0.05 bins on the close. NOT the both-sides ECE (~0.004) quoted before a-36: complements hide an over/under asymmetry inside their sum.",
+          "type": "object",
+          "properties": {"ece": {"type": "number"}, "brier": {"type": "number"}, "log_loss": {"type": "number"}},
+          "required": ["ece", "brier", "log_loss"],
+          "additionalProperties": false
+        },
+        "buckets": {"type": "array", "items": {"$ref": "#/$defs/MarketCalibrationSlice"}},
+        "by_stat": {"type": "array", "items": {"$ref": "#/$defs/MarketCalibrationSlice"}},
+        "by_season": {"type": "array", "items": {"$ref": "#/$defs/MarketCalibrationSlice"}}
+      },
+      "required": ["schema_version", "generated_at", "kind", "sport", "source", "computed_at", "benchmark", "population", "over_bias", "score", "buckets", "by_stat", "by_season"],
       "additionalProperties": false
     },
 

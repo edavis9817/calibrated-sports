@@ -501,6 +501,10 @@ KIND_EXTRA = {
     "nfl": {
         # research/sweep/results/h3.jsonl, the book lifecycle study (brief 022)
         "research.execution": ("kalshi.ladders", "kalshi.price_history"),
+        # a-36: research/results/market_calibration.json, committed output of
+        # research/calibration.py - de-vigged Odds API closes, settled on nflverse
+        # stat rows, with snap counts settling a played-with-no-row over at 0.
+        "research.market_calibration": ("oddsapi", "nflverse.stats", "nflverse.snap_counts"),
         # docs/hypotheses.json: every register row's script, R01-R17
         "research.hypotheses": ("oddsapi", "kalshi.ladders", "kalshi.price_history",
                                 "kalshi.trades", "nflverse.stats", "nflverse.schedule",
