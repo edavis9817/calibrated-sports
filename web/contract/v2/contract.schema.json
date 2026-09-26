@@ -2139,9 +2139,10 @@
             "gap_pp": {"type": "string"},
             "lean": {"type": "string"},
             "longshot": {"type": "string"},
-            "void": {"type": "string"}
+            "void": {"type": "string"},
+            "published_lean": {"type": "string"}
           },
-          "required": ["line", "gap_pp", "lean", "longshot", "void"],
+          "required": ["line", "gap_pp", "lean", "longshot", "void", "published_lean"],
           "additionalProperties": false
         }
       },
@@ -2208,7 +2209,7 @@
         "kickoff_ts": {"type": "number"},
         "market": {"type": "string"},
         "line": {"type": "number"},
-        "is_main": {"description": "Always true: a row IS the main line at its read. A property of the read, not of the market.", "const": true},
+        "is_main": {"description": "True when `line` is the main line at this read - a property of the read, not of the market. False only on a row kept because it carries a published lean whose line the main line has since moved off (line_moved_after_publication).", "type": "boolean"},
         "ladder": {"description": "Every threshold the benchmark books listed at this read.", "type": "array", "items": {"type": "number"}, "minItems": 1},
         "mkt_p_over": {"description": "Median across the benchmark books of each book's multiplicatively de-vigged P(over) at `line`. A price, not an estimate from a sample: `mkt_books` says how many books it is the median of.", "type": "number", "minimum": 0, "maximum": 1},
         "mkt_books": {"type": "integer", "minimum": 1},
@@ -2232,14 +2233,20 @@
         "void_reason": {"description": "Present exactly when status is void, so a voided row can never be mistaken for a quietly dropped one.", "enum": ["market_pulled", "inactive", "no_snap", null]},
         "pulled_at": {"description": "The read at which the books stopped listing the claim; null unless void_reason is market_pulled.", "anyOf": [{"$ref": "#/$defs/Timestamp"}, {"type": "null"}]},
         "opened_line": {"type": "number"},
-        "main_line_changed_since_open": {"type": "boolean"}
+        "main_line_changed_since_open": {"type": "boolean"},
+        "priced_at": {"description": "The read whose books this row's market fields (ladder, books, mkt_p_over, kalshi_mid, model_p_over, gap_pp, lean_price, band, line_path) describe. Equal to the file's read_at on a row priced at this read; earlier on a row frozen at kickoff, or kept because it carries a published lean the current read no longer reproduces.", "$ref": "#/$defs/Timestamp"},
+        "line_moved_after_publication": {"description": "This row carries a published lean and the main line has since moved off its line, so the row is kept as priced at `priced_at` and graded on its own line. The market moving away from a lean is shown, never hidden: the lean stays on the board (a-34).", "type": "boolean"},
+        "lean_changed_after_publication": {"description": "This row carries a published lean, the main line is still its line, and the current read no longer leans that way at it. Kept as priced at `priced_at` and graded on its own line (a-34).", "type": "boolean"}
       },
-      "required": ["row_id", "claim_id", "season", "week", "gsis_id", "slug", "name", "pos", "team", "opp", "game_id", "kickoff", "kickoff_ts", "market", "line", "is_main", "ladder", "mkt_p_over", "mkt_books", "mkt_method", "longshot", "books", "kalshi_mid", "model_p_over", "gap_pp", "lean", "lean_price", "band", "last10", "rates", "streak", "line_path", "news", "status", "result", "lean_result", "void_reason", "pulled_at", "opened_line", "main_line_changed_since_open"],
+      "required": ["row_id", "claim_id", "season", "week", "gsis_id", "slug", "name", "pos", "team", "opp", "game_id", "kickoff", "kickoff_ts", "market", "line", "is_main", "ladder", "mkt_p_over", "mkt_books", "mkt_method", "longshot", "books", "kalshi_mid", "model_p_over", "gap_pp", "lean", "lean_price", "band", "last10", "rates", "streak", "line_path", "news", "status", "result", "lean_result", "void_reason", "pulled_at", "opened_line", "main_line_changed_since_open", "priced_at", "line_moved_after_publication", "lean_changed_after_publication"],
       "additionalProperties": false,
       "allOf": [
         {"if": {"properties": {"status": {"const": "void"}}}, "then": {"properties": {"void_reason": {"enum": ["market_pulled", "inactive", "no_snap"]}}}, "else": {"properties": {"void_reason": {"type": "null"}}}},
         {"if": {"properties": {"void_reason": {"const": "market_pulled"}}}, "then": {"properties": {"pulled_at": {"$ref": "#/$defs/Timestamp"}}}, "else": {"properties": {"pulled_at": {"type": "null"}}}},
-        {"if": {"properties": {"lean": {"type": "null"}}}, "then": {"properties": {"band": {"type": "null"}, "lean_result": {"type": "null"}}}}
+        {"if": {"properties": {"lean": {"type": "null"}}}, "then": {"properties": {"band": {"type": "null"}, "lean_result": {"type": "null"}}}},
+        {"if": {"properties": {"line_moved_after_publication": {"const": true}}}, "then": {"properties": {"lean": {"enum": ["over", "under"]}, "is_main": {"const": false}, "lean_changed_after_publication": {"const": false}}}},
+        {"if": {"properties": {"lean_changed_after_publication": {"const": true}}}, "then": {"properties": {"lean": {"enum": ["over", "under"]}, "is_main": {"const": true}}}},
+        {"if": {"properties": {"is_main": {"const": false}}}, "then": {"properties": {"line_moved_after_publication": {"const": true}}}}
       ]
     },
 

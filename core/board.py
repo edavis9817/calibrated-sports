@@ -24,11 +24,14 @@ THE DEFINITIONS, each one a function below:
 
 ROW IDENTITY. `row_id` is the contract's `{season}-{week}-{away}-{home}:{gsis}:
 {market}:{line}`, so it changes when the main line moves. The CLAIM - one player,
-one market, one game - is `claim_id`, and it is what a board row is keyed on
-across reads. A LEAN is keyed on (claim, line, side) in the ledger, so a lean
-published at 4.5 is still graded at 4.5 after the main line moves to 5.5: it is
-never looked up by the line the board shows now (f-17's warning, answered by
-carrying the line on the lean rather than by dropping it from the key).
+one market, one game - is `claim_id`; a read has one MAIN row per claim, and a
+read's rows are unique by `row_id`. A LEAN is keyed on (claim, line, side) in the
+ledger, so a lean published at 4.5 is still graded at 4.5 after the main line
+moves to 5.5: it is never looked up by the line the board shows now (f-17's
+warning, answered by carrying the line on the lean rather than by dropping it
+from the key). And it stays ON THE BOARD (a-34): the row that carried it is kept,
+frozen as priced, beside the new main row - see `merge_read`. Before a-34 the
+ledger graded it and every later read had lost it.
 
 THE LEDGER is append-only EVENTS, not mutable rows: a `published` event when a
 lean first appears at a read, and exactly one terminal event later - `graded`
@@ -38,7 +41,9 @@ rewritten" is then a property of the file, checked by `assert_append_only`.
 THE INVARIANT (brief addendum 2, replacing "published = graded + upcoming"):
 every published lean is in exactly one of {graded, upcoming, live, void}; the
 four are disjoint and exhaust the ledger. `lean_states` computes it and raises if
-a lean falls into none or two.
+a lean falls into none or two. `leans_on_board` asserts the same partition on a
+READ's rows (a-34): every lean the ledger published for the week is on the read
+as exactly one row, in its ledger state - so the page need not reconcile.
 """
 from __future__ import annotations
 
@@ -304,7 +309,8 @@ def void_reason_from_settlement(reason):
 
 def merge_read(prev_rows, fresh_rows, read_at_ts, read_at_iso):
     """The rows of a new read, given the previous read's rows and what the
-    books show now. Pure; `fresh_rows` are keyed by claim.
+    books show now. Pure; `fresh_rows` are one per claim, at this read's main
+    line; the result is keyed by `row_id` (claim + line), unique.
 
       settled in prev              copied verbatim - never edited again
       kicked off (prev)            prev row frozen, status LIVE, no lean change
@@ -312,34 +318,79 @@ def merge_read(prev_rows, fresh_rows, read_at_ts, read_at_iso):
       upcoming, gone from books    VOID market_pulled, pulled_at = this read
       new claim, not kicked off    the fresh row
 
+    NOTHING THAT LEANED LEAVES THE BOARD (a-34). A row carrying a lean was
+    published to the ledger at the read that first carried it, and is graded
+    there on its OWN line. If the fresh read no longer reproduces that lean -
+    the main line moved off it, or the row at that line now leans another way
+    or not at all - the row is KEPT, frozen as it was priced (`priced_at`), and
+    says why: `line_moved_after_publication` / `lean_changed_after_publication`.
+    It then goes live, is graded and is voided exactly like any other row.
+    Before a-34 the fresh row replaced it by claim and the lean vanished from
+    every later read while the ledger still graded it (b-36, St. Brown 7.5).
+
+    One row per (claim, line): where a frozen lean holds a line, a fresh row at
+    the same line that leans differently is not shown, so an opposite lean at
+    one line is never published while the first stands.
+
     A fresh row for a claim whose game has started is ignored: nothing a book
     says after kickoff reaches the board.
     """
-    prev = {r["claim_id"]: r for r in prev_rows}
+    prev = {}
+    for r in prev_rows:
+        prev.setdefault(r["claim_id"], []).append(r)
     fresh = {r["claim_id"]: r for r in fresh_rows}
     out = []
-    for cid, p in prev.items():
-        if p["status"] in SETTLED:
-            out.append(p)
-        elif p["kickoff_ts"] <= read_at_ts:
-            out.append(dict(p, status=LIVE))
-        elif cid in fresh:
-            f = dict(fresh[cid])
-            f["opened_line"] = p.get("opened_line", p["line"])
-            f["main_line_changed_since_open"] = (
-                p.get("main_line_changed_since_open", False) or f["line"] != f["opened_line"])
-            out.append(f)
-        else:
-            out.append(dict(p, status=VOID, void_reason=VOID_MARKET_PULLED,
-                            pulled_at=read_at_iso, lean_result=None))
+    for cid, ps in prev.items():
+        f = fresh.get(cid)
+        emit_fresh = False
+        held = set()
+        for p in ps:
+            p = dict(p)
+            p.setdefault("line_moved_after_publication", False)
+            p.setdefault("lean_changed_after_publication", False)
+            if p["status"] in SETTLED:
+                out.append(p)
+            elif p["kickoff_ts"] <= read_at_ts:
+                out.append(dict(p, status=LIVE))
+            elif f is None:
+                out.append(dict(p, status=VOID, void_reason=VOID_MARKET_PULLED,
+                                pulled_at=read_at_iso, lean_result=None))
+            else:
+                emit_fresh = True
+                if not p.get("lean") or (f["row_id"] == p["row_id"]
+                                         and f.get("lean") == p["lean"]):
+                    continue                    # the fresh row carries it on
+                moved = f["line"] != p["line"]
+                out.append(dict(p, is_main=not moved,
+                                line_moved_after_publication=moved,
+                                lean_changed_after_publication=not moved,
+                                main_line_changed_since_open=(
+                                    p.get("main_line_changed_since_open", False)
+                                    or f["line"] != p.get("opened_line", p["line"]))))
+                held.add(p["row_id"])
+        if emit_fresh and f["row_id"] not in held:
+            opened = ps[0].get("opened_line", ps[0]["line"])
+            out.append(dict(f, opened_line=opened, priced_at=f.get("priced_at", read_at_iso),
+                            main_line_changed_since_open=(
+                                any(p.get("main_line_changed_since_open", False) for p in ps)
+                                or f["line"] != opened),
+                            line_moved_after_publication=False,
+                            lean_changed_after_publication=False))
     for cid, f in fresh.items():
         if cid in prev or f["kickoff_ts"] <= read_at_ts:
             continue
         f = dict(f)
+        f.setdefault("priced_at", read_at_iso)
         f.setdefault("opened_line", f["line"])
         f.setdefault("main_line_changed_since_open", False)
+        f.setdefault("line_moved_after_publication", False)
+        f.setdefault("lean_changed_after_publication", False)
         out.append(f)
-    return sorted(out, key=lambda r: (r["kickoff_ts"], r["claim_id"]))
+    ids = [r["row_id"] for r in out]
+    if len(ids) != len(set(ids)):
+        raise AssertionError(f"merge_read produced a duplicate row_id: "
+                             f"{sorted(i for i in ids if ids.count(i) > 1)[:3]}")
+    return sorted(out, key=lambda r: (r["kickoff_ts"], r["claim_id"], r["line"]))
 
 
 def apply_grades(rows, settle_fn):
@@ -492,6 +543,106 @@ def lean_states(ledger, now_ts):
         else:
             out[lid] = S_UPCOMING if now_ts < p["kickoff_ts"] else S_LIVE
     return out
+
+
+ROW_LEAN_STATE = {UPCOMING: S_UPCOMING, LIVE: S_LIVE, VOID: S_VOID,
+                  CLEARED: S_GRADED, MISSED: S_GRADED, PUSH: S_GRADED}
+LEAN_STATES = (S_GRADED, S_UPCOMING, S_LIVE, S_VOID)
+
+
+def read_file_name(read_iso):
+    """The file one read is written to, beside its week's index.json."""
+    return f"read-{read_iso.replace(':', '')}.json"
+
+
+def row_partition(rows):
+    """{state: n} over the rows that carry a lean, in the four-way partition."""
+    counts = {s: 0 for s in LEAN_STATES}
+    for r in rows:
+        if r.get("lean"):
+            counts[ROW_LEAN_STATE[r["status"]]] += 1
+    return counts
+
+
+def index_reconciles(index, read):
+    """-> the statement it approved; raises otherwise. The FILE-level half of the
+    partition (a-35), checkable with no ledger: a week's index and the read it
+    names as `latest` must agree. Since a-34 every published lean is on every
+    later read as exactly one row in its ledger state, so the index's four counts
+    ARE the lean-carrying rows of its latest read, partitioned by status - an
+    index of all zeros, or of +1000, or a read with a counted lean row removed,
+    cannot both be true. Also: the read is the one the index names, for the same
+    week, and its rows are unique by row_id and belong to that week."""
+    problems = []
+    if read.get("read_at") != index.get("latest"):
+        problems.append(f"index latest {index.get('latest')} but the read is {read.get('read_at')}")
+    if index.get("latest") not in (index.get("reads") or []):
+        problems.append(f"index latest {index.get('latest')} is not in its own reads list")
+    for f in ("season", "week", "sport"):
+        if read.get(f) != index.get(f):
+            problems.append(f"index {f} {index.get(f)!r} but the read's is {read.get(f)!r}")
+    rows = read.get("rows") or []
+    seen, dup, stray = set(), [], []
+    for r in rows:
+        if r.get("row_id") in seen:
+            dup.append(r.get("row_id"))
+        seen.add(r.get("row_id"))
+        if (r.get("season"), r.get("week")) != (read.get("season"), read.get("week")):
+            stray.append(r.get("row_id"))
+    if dup:
+        problems.append(f"row_id on the read more than once: {dup[:3]}")
+    if stray:
+        problems.append(f"{len(stray)} row(s) belong to another week, e.g. {stray[0]}")
+    got = row_partition(rows)
+    want = {s: (index.get("leans") or {}).get(s) for s in LEAN_STATES}
+    if got != want:
+        diff = ", ".join(f"{s} index {want[s]} / read {got[s]}" for s in LEAN_STATES
+                         if got[s] != want[s])
+        problems.append(f"lean counts do not reconcile with the latest read's rows: {diff}")
+    if problems:
+        raise AssertionError("; ".join(problems))
+    return (f"{index['season']} wk{int(index['week']):02d}: {sum(got.values())} leans = "
+            f"{got[S_GRADED]} graded + {got[S_UPCOMING]} upcoming + {got[S_LIVE]} live + "
+            f"{got[S_VOID]} void, index and latest read ({index['latest']}) agree")
+
+
+def leans_on_board(ledger, rows, season, week, now_ts):
+    """-> the statement it approved; raises otherwise. The read-level half of the
+    partition (a-34): every lean the ledger published for this week is on this
+    read as EXACTLY ONE row - same row_id, same side - in the state the ledger
+    gives it, and no row carries a lean the ledger never published. So
+    published = graded + upcoming + live + void holds on the rows themselves,
+    with no remainder, and a page can check it rather than count what is missing."""
+    states = lean_states(ledger, now_ts)
+    pubs = {e["lean_id"]: e for e in ledger if e["event"] == "published"
+            and e["season"] == season and e["week"] == week}
+    by_row = {}
+    for r in rows:
+        by_row.setdefault(r["row_id"], []).append(r)
+    dup = [k for k, v in by_row.items() if len(v) > 1]
+    if dup:
+        raise AssertionError(f"row_id on the read more than once: {dup[:3]}")
+    counts = {S_GRADED: 0, S_UPCOMING: 0, S_LIVE: 0, S_VOID: 0}
+    for lid, p in pubs.items():
+        r = by_row.get(p["row_id"], [None])[0]
+        if r is None or r.get("lean") != p["side"]:
+            raise AssertionError(
+                f"published lean {p['row_id']} {p['side']} is not on the read"
+                + ("" if r is None else f" (the row there leans {r.get('lean')!r})"))
+        got = ROW_LEAN_STATE[r["status"]]
+        if got != states[lid]:
+            raise AssertionError(f"lean {p['row_id']} {p['side']} is {got} on the read and "
+                                 f"{states[lid]} on the ledger")
+        counts[got] += 1
+    published = {(p["row_id"], p["side"]) for p in pubs.values()}
+    phantom = [r["row_id"] for r in rows if r.get("lean") and (r["row_id"], r["lean"]) not in published]
+    if phantom:
+        raise AssertionError(f"rows carry a lean the ledger never published: {phantom[:3]}")
+    moved = sum(1 for r in rows if r.get("lean") and r.get("line_moved_after_publication"))
+    changed = sum(1 for r in rows if r.get("lean") and r.get("lean_changed_after_publication"))
+    return (f"{season} wk{int(week):02d}: {len(pubs)} published = {counts[S_GRADED]} graded + "
+            f"{counts[S_UPCOMING]} upcoming + {counts[S_LIVE]} live + {counts[S_VOID]} void, "
+            f"every one on the read ({moved} line moved, {changed} lean changed after publication)")
 
 
 # ------------------------------------------------------------------ cadence

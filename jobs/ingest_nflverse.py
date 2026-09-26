@@ -61,9 +61,13 @@ def today() -> str:
 
 def _col(df, name, default=None):
     """A column if the frame has it, else a constant. nflverse adds and renames
-    columns between seasons; a missing one must not fail a 26-season backfill."""
+    columns between seasons; a missing one must not fail a 26-season backfill.
+
+    The constant is ALIASED to `name` (a-16). A bare `pl.lit` is called
+    `literal`, so a select holding two absent columns without their own
+    `.alias` raised DuplicateError - the opposite of what this promises."""
     pl = _pl()
-    return df[name] if name in df.columns else pl.lit(default)
+    return df[name] if name in df.columns else pl.lit(default).alias(name)
 
 
 def normalize_weekly_stats(data: bytes, version: str, week=None):

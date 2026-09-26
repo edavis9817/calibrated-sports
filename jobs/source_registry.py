@@ -827,21 +827,50 @@ _READS = {}      # sport -> {table} read on the connection watched for that spor
 _QUIET = [0]
 
 
-def watch(con, sport):
-    """Record every table read on `con`, as SQLite reports it. Starts a fresh ledger
-    for `sport`: one per producer run. -> the set, so a caller can look."""
-    reads = set()
-    _READS[sport] = reads
-
+def _recorder(reads):
     def authorizer(action, arg1, arg2, dbname, source):
         if action == sqlite3.SQLITE_READ and arg1 and not _QUIET[0]:
             name = arg1.lower()
             if not name.startswith("sqlite_"):
                 reads.add(name)
         return sqlite3.SQLITE_OK
+    return authorizer
 
-    con.set_authorizer(authorizer)
+
+def watch(con, sport):
+    """Record every table read on `con`, as SQLite reports it. Starts a fresh ledger
+    for `sport`: one per producer run. -> the set, so a caller can look."""
+    reads = set()
+    _READS[sport] = reads
+    con.set_authorizer(_recorder(reads))
     return reads
+
+
+@contextlib.contextmanager
+def watch_process(con, sport):
+    """`watch(con)`, AND every sqlite3 connection this process opens until exit
+    (a-35). f-21 planted an unmapped read on a SECOND connection with its SQL
+    built by `" ".join(...)`: the static scan cannot read the table name and the
+    authorizer on `con` never sees the query, so the gate passed and the file was
+    written. Inside this block `sqlite3.connect` hands back connections carrying
+    the same recorder, so a read on any of them lands in the same ledger.
+
+    What it still cannot see, stated rather than implied: a connection opened
+    BEFORE the block, `from sqlite3 import connect` bound at import time, a
+    `sqlite3.Connection(...)` built directly, and another process. The original
+    is restored on exit, including on a raise."""
+    reads = watch(con, sport)
+    real = sqlite3.connect
+
+    def connect(*a, **k):
+        c = real(*a, **k)
+        c.set_authorizer(_recorder(reads))
+        return c
+    sqlite3.connect = connect
+    try:
+        yield reads
+    finally:
+        sqlite3.connect = real
 
 
 @contextlib.contextmanager

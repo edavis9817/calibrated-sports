@@ -79,10 +79,11 @@ def test_the_staged_registry_is_a_copy_beside_the_tree_never_the_committed_one(d
 
 # ------------------------------------------------------- the ingest, return TDs
 
-# The core columns are REQUIRED here, not decoration: normalize_weekly_stats
-# selects them without an alias, so two absent ones collide as `literal` and the
-# normalizer raises. Pre-existing (not a-14's); reported, not fixed here.
-CORE = ("receptions", "targets", "receiving_yards", "receiving_tds", "target_share",
+# Until a-16 the core columns were REQUIRED here: normalize_weekly_stats selected
+# them without an alias, so two absent ones collided as `literal` and the
+# normalizer raised. `_col` now aliases its null literal; see
+# test_two_absent_core_columns_normalize_to_null below.
+CORE =("receptions", "targets", "receiving_yards", "receiving_tds", "target_share",
         "carries", "rushing_yards", "rushing_tds", "attempts", "completions",
         "passing_yards", "passing_tds", "fantasy_points_ppr")
 WEEKLY_SCHEMA = {"player_id": pl.Utf8, "season": pl.Int32, "week": pl.Int32,
@@ -123,6 +124,25 @@ def test_kicking_and_return_columns_flow_through_and_absent_ones_are_null():
     assert (row["fg_att"], row["fg_made"], row["kickoff_returns"]) == (4.0, 3.0, 0.0)
     # Not in this frame at all -> NULL, never 0. `_col` supplies a null literal.
     assert row["pat_att"] is None
+
+
+def test_two_absent_core_columns_normalize_to_null():
+    """a-16: a release missing two core columns must still normalize. Before the
+    fix both became `literal` and the select raised DuplicateError."""
+    gone = ("receptions", "target_share")
+    schema = {k: v for k, v in WEEKLY_SCHEMA.items() if k not in gone}
+    row = {k: v for k, v in weekly(player_id="00-W", position="WR").items() if k not in gone}
+    _t, cols, out = I.normalize_weekly_stats(parquet([row], schema), "v1")
+    (r,) = [dict(zip(cols, x)) for x in out]
+    assert (r["receptions"], r["target_share"]) == (None, None)
+    # The other answer: a present column still carries its value, not null.
+    assert r["targets"] == 0.0
+
+
+def test_an_absent_column_with_a_default_takes_the_default_under_its_own_name():
+    frame = pl.DataFrame({"x": [1]})
+    out = frame.select(I._col(frame, "a"), I._col(frame, "b", 0))
+    assert out.columns == ["a", "b"] and out.row(0) == (None, 0)
 
 
 # ------------------------------------------------------------- the jersey

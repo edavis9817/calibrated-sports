@@ -960,6 +960,29 @@ def contract_validators():
     return _VALIDATORS
 
 
+def board_index_problems(key, index, files):
+    """a-35: the partition a Board index states, ENFORCED rather than documented.
+    JSON Schema can say each count is a non-negative integer; it cannot say the
+    four add up to the rows of another file. So an index is valid only in a batch
+    that also holds the read it names as `latest`, and only if its counts are that
+    read's lean-carrying rows partitioned by status (`core.board.index_reconciles`).
+    An index validated alone is REFUSED, not waved through: a check that cannot
+    run is not a check that passed."""
+    from core import board as B
+    rkey = key.rsplit("/", 1)[0] + "/" + B.read_file_name(index["latest"])
+    read = files.get(rkey)
+    if read is None:
+        return [f"{key}: its latest read {rkey} is not in this batch, so its lean counts cannot "
+                "be reconciled - validate an index together with the read it indexes"]
+    if kind_for_key(rkey)[0] != "board_read" or read.get("kind") != "board_read":
+        return [f"{key}: {rkey} is not a board_read"]
+    try:
+        B.index_reconciles(index, read)
+    except (AssertionError, KeyError, TypeError) as e:
+        return [f"{key}: {e}"]
+    return []
+
+
 def validate_contract(files, limit=12):
     """Every file must match the contract for the kind its key implies.
 
@@ -980,9 +1003,12 @@ def validate_contract(files, limit=12):
         if obj.get("kind") != kind:
             problems.append(f"{key}: the key implies kind {kind!r}, the file says {obj.get('kind')!r}")
             continue
-        for e in vs[kind].iter_errors(obj):
+        errs = list(vs[kind].iter_errors(obj))
+        for e in errs:
             loc = "/".join(str(p) for p in e.absolute_path) or "(root)"
             problems.append(f"{key}: {loc}: {e.message}")
+        if kind == "board_index" and not errs:
+            problems.extend(board_index_problems(key, obj, files))
     if problems:
         shown = "\n  ".join(problems[:limit])
         more = f"\n  ... and {len(problems) - limit} more" if len(problems) > limit else ""
@@ -3458,6 +3484,47 @@ def check_append_only(client, bucket, key, data):
     return f"{key}: {len(old)} -> {len(new)} rows, every existing row unchanged"
 
 
+class TablePairError(RuntimeError):
+    """One contract table written in two formats (the ledger's parquet and CSV)
+    holds a different number of rows in each. Nothing was uploaded."""
+
+
+def check_table_pairs(local):
+    """-> one statement per multi-format table; raises TablePairError otherwise.
+
+    a-35 (f-21's crash plant): `write_ledger` replaces the parquet and the CSV as
+    two atomic steps, so a crash between them leaves parquet N+1 beside CSV N -
+    and the append-only check compares each file only with ITS OWN bucket copy,
+    so both pass and the bucket ends up split, persistently. This compares the
+    two formats WITH EACH OTHER, over every local copy (not only the changed
+    ones: in the crash case the CSV is unchanged and would never be looked at).
+    Row counts only - a count is what a reader checking one against the other
+    sees first, and CSV text vs typed parquet cannot be compared value for value
+    without re-deciding how each float prints."""
+    import polars as pl
+    groups = defaultdict(dict)
+    for key, path in local.items():
+        kind, _ = table_for_key(key)
+        if kind is not None:
+            groups[(kind, key.rsplit(".", 1)[0])][key] = path
+    out = []
+    for (kind, stem), keys in sorted(groups.items()):
+        if len(keys) < 2:
+            continue
+        n = {}
+        for key, path in sorted(keys.items()):
+            n[key] = (pl.read_parquet(path) if key.endswith(".parquet")
+                      else pl.read_csv(path, infer_schema_length=0)).height
+        if len(set(n.values())) > 1:
+            raise TablePairError(
+                f"{kind} {stem}: " + ", ".join(f"{k.rsplit('/', 1)[1]} {v} rows" for k, v in n.items())
+                + " - the formats must hold the same rows; refusing to upload a split pair. "
+                  "The next Board read heals a CSV that trails its parquet "
+                  "(jobs.board_read.pair_ledger)")
+        out.append(f"{stem}: {len(keys)} formats, {next(iter(n.values()))} rows each")
+    return out
+
+
 def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORKERS,
            refreshed=None, tree="web"):
     """Upload keys whose sha256 differs from the local upload record, and delete
@@ -3582,7 +3649,10 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
               "withheld_prefixes": sorted({k.split("/")[0] + "/" for k in withheld}),
               "declared_prefixes": declared, "state_source": state_source,
               "live_skipped": len(live_skipped), "board_skipped": len(board_skipped),
-              "tree": tree, "append_only": []}
+              "tree": tree, "append_only": [], "table_pairs": []}
+    # a-35: a table shipped in two formats must hold the same rows in both,
+    # checked over the whole local tree before anything is put, dry run included.
+    result["table_pairs"] = check_table_pairs(local)
     # Every append-only table is checked against the bucket BEFORE anything is
     # put, dry run included: a refusal must stop the whole upload, not the half
     # of it after the reads were already published.
