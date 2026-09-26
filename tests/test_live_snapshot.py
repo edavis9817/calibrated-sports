@@ -60,7 +60,9 @@ def game(gid, season, week, kick, home, away, hs=None, as_=None, gt="REG", sprea
     return {"game_id": gid, "season": season, "week": week, "game_type": gt,
             "kickoff_ts": kick, "home": home, "away": away, "home_score": hs,
             "away_score": as_, "spread_line": spread, "total_line": 44.5,
-            "home_moneyline": -150.0, "away_moneyline": 130.0, "ingested_ts": NOW - 3600}
+            "home_moneyline": -150.0, "away_moneyline": 130.0, "ingested_ts": NOW - 3600,
+            "line_provenance": {"line_source": "nflverse.schedule", "line_read_at": S.iso(NOW - 3600),
+                                "line_previous": None}}
 
 
 W2 = [game("2026_02_DET_BUF", 2026, 2, ts("2026-09-21T00:20:00"), "BUF", "DET", 41, 31),
@@ -443,6 +445,10 @@ def test_the_schedule_is_read_only_and_an_absent_store_is_not_created(tmp_path):
     con.close()
     got = S.load_schedule(str(db), NOW)
     assert len(got) == 1 and got[0]["kickoff_ts"] == NOW + 200     # the newest version only
+    # a-37: the older version survives as the line this one moved from, with its read time.
+    assert got[0]["line_provenance"] == {
+        "line_source": "nflverse.schedule", "line_read_at": S.iso(2),
+        "line_previous": {"spread": 1.0, "total": 40.0, "read_at": S.iso(1)}}
     with pytest.raises(sqlite3.OperationalError):
         S._ro(str(db)).execute("DELETE FROM nfl_games")
 

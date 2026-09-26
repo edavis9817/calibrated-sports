@@ -376,6 +376,7 @@ _PLAYER_KINDS = ("player_summary", "player_season", "player_index")
 LOADERS = {
     "nfl": {
         "load_games": ("market", *_PLAYER_KINDS, "team", "components", "sport_manifest"),
+        "load_line_history": ("sport_manifest",),             # fixtures stage only (a-37)
         "load_player_weeks": ("market", *_PLAYER_KINDS, "team", "components", "sport_manifest"),
         "load_xwalk": ("market", *_PLAYER_KINDS, "team", "sport_manifest"),
         "load_snaps": (*_PLAYER_KINDS, "team", "sport_manifest"),

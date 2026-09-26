@@ -31,6 +31,7 @@ from jsonschema import Draft202012Validator
 import config
 import store
 from jobs import export_web as E
+from jobs import game_lines
 from jobs import ingest_nflverse as I
 
 
@@ -68,9 +69,16 @@ def favourite(fixture):
     return fixture["home"] if fixture["spread"] > 0 else fixture["away"]
 
 
+def one_read(games):
+    """Provenance for games read exactly once (a-37): no previous line."""
+    return game_lines.provenance([(x["game_id"], "2026-09-23", x["spread_line"],
+                                   x["total_line"], 1.0) for x in games.values()])
+
+
 def fixtures_of(game):
     current = {"season": game["season"], "period": {"index": game["week"]}}
-    return E.current_fixtures({game["game_id"]: game}, current)
+    games = {game["game_id"]: game}
+    return E.current_fixtures(games, current, one_read(games))
 
 
 def test_the_chiefs_are_the_favourite_at_home_against_detroit():
@@ -144,15 +152,16 @@ def test_fixtures_are_the_current_period_only_in_kickoff_order():
         g("a", 2026, 3, "LV", "DEN", 100.0, -2.0, 40.0),
         g("c", 2026, 4, "KC", "BUF", 50.0),            # next week
         g("d", 2025, 3, "KC", "BUF", 50.0))}           # last season, same index
-    out = E.current_fixtures(games, {"season": 2026, "period": {"index": 3}})
+    out = E.current_fixtures(games, {"season": 2026, "period": {"index": 3}}, one_read(games))
     assert [f["game_id"] for f in out] == ["a", "b"]
     assert out[0] == {"game_id": "a", "kickoff_ts": 100.0, "home": "lv", "away": "den",
-                      "spread": -2.0, "total": 40.0}
+                      "spread": -2.0, "total": 40.0, "line_source": "nflverse.schedule",
+                      "line_read_at": "1970-01-01T00:00:01Z", "line_previous": None}
 
 
 def test_a_game_with_no_line_publishes_null_not_zero():
-    (f,) = E.current_fixtures({"x": g("x", 2026, 3, "GB", "ATL", 1.0)},
-                              {"season": 2026, "period": {"index": 3}})
+    games = {"x": g("x", 2026, 3, "GB", "ATL", 1.0)}
+    (f,) = E.current_fixtures(games, {"season": 2026, "period": {"index": 3}}, one_read(games))
     assert f["spread"] is None and f["total"] is None
 
 
@@ -163,7 +172,7 @@ def test_the_manifest_carries_fixtures_only_when_built_and_the_contract_accepts_
     games = {"a": g("a", 2026, 3, "GB", "ATL", 1.0, 5.5, 42.5)}
     args = (games, current, [], {}, [], "2026-09-23", "note", "2026-09-23T00:00:00Z", 0, {}, {}, {})
     plain = E.build_manifest(*args)
-    staged = E.build_manifest(*args, fixtures=E.current_fixtures(games, current))
+    staged = E.build_manifest(*args, fixtures=E.current_fixtures(games, current, one_read(games)))
     assert "fixtures" not in plain["current"]
     assert staged["current"]["fixtures"][0]["home"] == "gb"
     assert not list(v.iter_errors(plain))

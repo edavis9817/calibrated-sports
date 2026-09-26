@@ -134,6 +134,84 @@ def _finite(*xs):
     return all(isinstance(x, (int, float)) and math.isfinite(x) for x in xs)
 
 
+# ---------------------------------------------------------------------------
+# the method block: what built each interval, in words, and at what level
+# ---------------------------------------------------------------------------
+#
+# Unit a-37 (audit N-21). The detail pages printed "Built by hist2000. The
+# interval's coverage level is not stated in the file, so it is not stated
+# here." Both halves were the FILE's fault: `values[].method` is an internal
+# builder tag, and nothing in the file said what level the interval was built at.
+#
+# So every metric file (and every index entry) carries `methods`: one entry per
+# tag its values use, with the plain meaning and the NOMINAL coverage level -
+# the level the construction targets, which is not a measured coverage.
+# (`research/a25_small_n_coverage.py` measured the difference for one of these
+# constructions: a percentile block bootstrap over two games covered about half
+# the time while built at 95%. "Nominal" is the word that keeps that honest.)
+#
+# WHAT IS RESAMPLED IS THE METRIC'S OWN `block`, NOT ALWAYS GAMES. The audit's
+# suggested wording was "interval from resampling games"; that is right for
+# game-blocked metrics and false for the 72 stability metrics, which are blocked
+# on PLAYERS (measured 2026-09-26 on analytics.db: hist2000 is game-blocked in 11
+# metrics and player-blocked in 72). The sentence is built from `block`.
+#
+# WHERE THE TAG CARRIES ITS LEVEL (`cluster_t95`, `wilson95`, `t95`) it is read
+# from the tag. WHERE IT DOES NOT (`hist2000`, `block2000`, `bayes2000`,
+# `bayes2000t`) the level is the constructors' default, 0.95, and no caller in
+# `analytics/` overrides it - asserted by AST in tests/test_analytics_methods.py,
+# so a caller that passes another level fails that test rather than publishing a
+# wrong one. An unknown tag REFUSES the export: a level is never guessed.
+
+IMPLICIT_LEVEL = 0.95
+
+_METHOD_RULES = (
+    (re.compile(r"^hist(\d+)$"), None,
+     "Interval from resampling {blocks} with replacement, {draws} times."),
+    (re.compile(r"^block(\d+)$"), None,
+     "Interval from resampling {blocks} with replacement, {draws} times."),
+    (re.compile(r"^bayes(\d+)$"), None,
+     "Interval from randomly reweighting {blocks}, {draws} times."),
+    (re.compile(r"^bayes(\d+)t$"), None,
+     "Interval from randomly reweighting {blocks}, {draws} times, widened for how "
+     "few {blocks} each estimate rests on."),
+    (re.compile(r"^cluster_t(\d+)$"), "level",
+     "Interval from how much the ratio varies between {blocks} (a t interval that "
+     "treats each {block} as one observation)."),
+    (re.compile(r"^wilson(\d+)$"), "level",
+     "Interval for a proportion (Wilson)."),
+    (re.compile(r"^t(\d+)$"), "level",
+     "Interval from the spread of independent {blocks} (a t interval)."),
+)
+
+
+class MethodError(ContractError):
+    """A value's method tag has no stated meaning or level. Refused, not guessed."""
+
+
+def describe_method(code, block):
+    """{code, interval, coverage_level} for one tag on a metric blocked on `block`."""
+    block = block or "unit"
+    for pattern, number, text in _METHOD_RULES:
+        m = pattern.match(code or "")
+        if not m:
+            continue
+        if number == "level":
+            level, draws = int(m.group(1)) / 100.0, None
+        else:
+            level, draws = IMPLICIT_LEVEL, int(m.group(1))
+        sentence = text.format(block=block, blocks=block + "s",
+                               draws="{:,}".format(draws) if draws else "")
+        return {"code": code, "interval": sentence, "coverage_level": level}
+    raise MethodError("interval method %r has no stated meaning or coverage level; add it "
+                      "to analytics.export._METHOD_RULES before publishing it" % (code,))
+
+
+def methods_block(values, block):
+    """The file's `methods`: one entry per tag its values use, sorted by tag."""
+    return [describe_method(c, block) for c in sorted({v["method"] for v in values})]
+
+
 def metric_payload(con, metric):
     """(payload, dropped) for one metric. `dropped` counts unbounded intervals."""
     row = con.execute(
@@ -167,8 +245,19 @@ def metric_payload(con, metric):
         "season_from": int(lo), "season_to": int(hi), "range_note": note,
         "availability": availability,
         "requires": [r for r in (requires or "").split(";") if r and r != "-"],
+        "methods": methods_block(values, block),
         "values": values}
     return payload, dropped
+
+
+def coverage_of(payload):
+    """The distinct nominal levels a file states, as text - 'none' when it states none."""
+    if payload["kind"] == "analytics.metric":
+        blocks = [payload["methods"]]
+    else:
+        blocks = [e["methods"] for e in payload["metrics"]]
+    levels = sorted({m["coverage_level"] for b in blocks for m in b})
+    return ",".join("%g" % x for x in levels) if levels else "none"
 
 
 def build(con):
@@ -194,6 +283,7 @@ def build(con):
             "season_to": payload["season_to"],
             "range_note": payload["range_note"],
             "availability": payload["availability"],
+            "methods": payload["methods"],
             "value_count": len(payload["values"]),
             "subject_count": len({v["subject"] for v in payload["values"]})})
     index_key = "%s/index.json" % PREFIX
@@ -296,9 +386,15 @@ def main(argv=None):
                        if p["kind"] == "analytics.metric")
     if a.keys:
         for key in sorted(out):
-            print("  %-64s %d bytes" % (key, len(json.dumps(out[key]))))
+            print("  %-64s %8d bytes  coverage %s" % (key, len(json.dumps(out[key])),
+                                                     coverage_of(out[key])))
     print("%d keys, %d values, all validated against %s"
           % (len(out), total_values, CONTRACT_PATH))
+    # Printed every run: how many files state a coverage level, against how many
+    # there are. A metric file with values and no level is refused in build();
+    # this line is what shows it was checked rather than assumed.
+    stated = sum(1 for p in out.values() if coverage_of(p) != "none")
+    print("coverage level stated on %d of %d keys" % (stated, len(out)))
     # Printed every run, zero included: a number that reads 0 most runs is what
     # makes the run it reads 12 visible.
     print("unbounded intervals dropped: %d across %d metrics%s"

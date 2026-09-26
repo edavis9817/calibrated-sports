@@ -81,6 +81,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import httpx  # noqa: E402
 
 import config  # noqa: E402
+from jobs import game_lines  # noqa: E402
 from jobs.publish_live_prices import LIVE_PREFIX, ContractError, _contract  # noqa: E402
 
 KIND = "live.snapshot"
@@ -308,7 +309,8 @@ def _ro(path):
 
 
 def load_schedule(db_path=None, now=None) -> list[dict]:
-    """The newest version of every game near now, READ-ONLY and in one short query.
+    """The newest version of every game near now, READ-ONLY, in two short queries on one
+    connection: the games, and every stored version of their lines for provenance.
 
     The window reaches back far enough to find last week's finals and forward far enough
     to find the next season's first week from the depth of an offseason."""
@@ -326,6 +328,12 @@ def load_schedule(db_path=None, now=None) -> list[dict]:
             "  WHERE sport = 'nfl' AND kickoff_ts BETWEEN ? AND ? GROUP BY game_id) m "
             "ON m.game_id = g.game_id AND m.dv = g.data_version ORDER BY g.kickoff_ts",
             (now - 150 * 86400, now + 300 * 86400)).fetchall()
+        # Every stored version of the same games' lines, for their provenance (a-37):
+        # the same three fields, from the same function, as the manifest's fixtures.
+        history = con.execute(
+            "SELECT game_id, data_version, spread_line, total_line, ingested_ts FROM nfl_games "
+            "WHERE sport = 'nfl' AND kickoff_ts BETWEEN ? AND ?",
+            (now - 150 * 86400, now + 300 * 86400)).fetchall()
     except sqlite3.Error as e:
         raise Failure("store_unavailable", type(e).__name__) from None
     finally:
@@ -333,7 +341,8 @@ def load_schedule(db_path=None, now=None) -> list[dict]:
     cols = ("game_id", "season", "week", "game_type", "kickoff_ts", "home", "away",
             "home_score", "away_score", "spread_line", "total_line", "home_moneyline",
             "away_moneyline", "ingested_ts")
-    return [dict(zip(cols, r)) for r in rows]
+    lines = game_lines.provenance(history)
+    return [dict(zip(cols, r), line_provenance=lines[r[0]]) for r in rows]
 
 
 def load_injuries(season, week, season_type="REG", db_path=None):
@@ -532,7 +541,8 @@ def game_doc(g, ev, markets, now, live_window_s, scoreboard_ok):
     line = None
     if any(g[k] is not None for k in ("spread_line", "total_line", "home_moneyline")):
         line = {"spread_line": g["spread_line"], "total_line": g["total_line"],
-                "home_moneyline": g["home_moneyline"], "away_moneyline": g["away_moneyline"]}
+                "home_moneyline": g["home_moneyline"], "away_moneyline": g["away_moneyline"],
+                **g["line_provenance"]}
     return {
         "game_id": g["game_id"],
         "scoreboard_id": ev["espn_id"] if ev is not None else None,

@@ -48,6 +48,7 @@ import store  # noqa: E402
 from core import settlement as ST  # noqa: E402
 from core import stats as core_stats  # noqa: E402
 from jobs import source_registry  # noqa: E402
+from jobs import game_lines  # noqa: E402
 from jobs import metric_registry  # noqa: E402
 from jobs.publish_live_prices import LIVE_PREFIX  # noqa: E402
 
@@ -1721,17 +1722,43 @@ def fixture_spread(spread_line):
     return None if spread_line is None else float(spread_line)
 
 
-def current_fixtures(games, current):
-    """current.fixtures[] (A-B5, staged): every game of `current.period`, in
-    kickoff order. Teams are slugs, as ScheduleGame.opponent is."""
+def fixture_games(games, current):
+    """Every game of `current.period`, in kickoff order - what current.fixtures lists."""
     season, index = current["season"], current["period"]["index"]
     gs = [g for g in games.values() if g["season"] == season and g["week"] == index]
     gs.sort(key=lambda g: (g["kickoff_ts"] is None, g["kickoff_ts"] or 0, g["game_id"]))
+    return gs
+
+
+def load_line_history(con, game_ids):
+    """Every stored version of these games' lines, for `game_lines.provenance` (a-37).
+    nfl_games keeps one row per data_version; load_games keeps only the newest, which
+    is the CURRENT line, and this reads the rest so a page can say what it moved from."""
+    ids = sorted(set(game_ids))
+    rows = []
+    for i in range(0, len(ids), 500):
+        chunk = ids[i:i + 500]
+        rows += con.execute(
+            "SELECT game_id, data_version, spread_line, total_line, ingested_ts FROM nfl_games "
+            f"WHERE game_id IN ({','.join('?' * len(chunk))})", chunk).fetchall()
+    return rows
+
+
+def current_fixtures(games, current, lines):
+    """current.fixtures[] (A-B5, staged): every game of `current.period`, in
+    kickoff order. Teams are slugs, as ScheduleGame.opponent is.
+
+    `lines` is `game_lines.provenance(...)` over these games (a-37, audit N-03): every
+    fixture carries line_source, line_read_at and line_previous, the SAME three fields
+    the live snapshot carries, so a page can print one line from whichever read is
+    newer. A game missing from `lines` raises: a line without its read time is what
+    N-03 was."""
     return [{"game_id": g["game_id"], "kickoff_ts": g["kickoff_ts"],
              "home": team_slug(g["home_team"]), "away": team_slug(g["away_team"]),
              "spread": fixture_spread(g.get("spread_line")),
-             "total": None if g.get("total_line") is None else float(g["total_line"])}
-            for g in gs]
+             "total": None if g.get("total_line") is None else float(g["total_line"]),
+             **lines[g["game_id"]]}
+            for g in fixture_games(games, current)]
 
 
 def player_scope(weeks, extended=False):
@@ -3363,14 +3390,18 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
     if "manifest" in parts:
         src = con.execute("SELECT MAX(data_version) FROM nflverse_versions "
                           "WHERE dataset = 'weekly_stats'").fetchone()[0]
+        fixtures = None
+        if "fixtures" in stages:
+            ids = [g["game_id"] for g in fixture_games(games, current)]
+            fixtures = current_fixtures(games, current,
+                                        game_lines.provenance(load_line_history(con, ids)))
         manifest = build_manifest(games, current, index, market_keys, unresolved, src, note,
                                   generated_at, rungs, load_team_colors(con),
                                   load_team_groupings(con),
                                   team_season_summaries(games, current["season"],
                                                         count_markets_by_team(market_files)),
                                   stat_definitions=defs, market_definitions=mdefs,
-                                  fixtures=(current_fixtures(games, current)
-                                            if "fixtures" in stages else None))
+                                  fixtures=fixtures)
         assert_stats_defined({f"{SPORT}/manifest.json": manifest}, defs)
         # Sources rides the manifest part and, like it, owns no prefix. Generated
         # from jobs/source_registry.py, never written (a-22, audit S-04).
