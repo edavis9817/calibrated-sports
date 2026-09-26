@@ -90,8 +90,16 @@ sports.json
 {sport}/market/{id}/{period_key}.json
 research/hypotheses.json
 research/calibration.json
+research/market_calibration.json
 research/execution.json
 ```
+
+- **One number per metric (a-36).** `{sport}/manifest.json` carries `metrics`: each
+  registered figure's owning file and JSON path, plus every other served copy.
+  `jobs/metric_registry.py` is the registry and the gate; the export refuses when a copy
+  disagrees with its owner unless the copy carries a written `declared` reason.
+  `research/market_calibration.json` is the closing-market over bias (R18), read from the
+  committed `research/results/market_calibration.json`.
 
 - `id` is the sport's source id: nflverse `gsis_id` for NFL, e.g. `00-0036355`.
 - `slug` is for URLs only. Keys use ids, and indexes map slug to id.

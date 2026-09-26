@@ -48,6 +48,7 @@ import store  # noqa: E402
 from core import settlement as ST  # noqa: E402
 from core import stats as core_stats  # noqa: E402
 from jobs import source_registry  # noqa: E402
+from jobs import metric_registry  # noqa: E402
 from jobs.publish_live_prices import LIVE_PREFIX  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -2437,6 +2438,55 @@ def build_market(con, games, weeks, xwalk, slugs, current, now_ts, generated_at,
     return files, keys, dict(census), published
 
 
+MARKET_CALIBRATION = os.path.join(ROOT, "research", "results", "market_calibration.json")
+
+
+def build_market_calibration(generated_at, path=MARKET_CALIBRATION):
+    """research/market_calibration.json: the closing-market over bias (R18), a-36.
+
+    Read from the COMMITTED output of `python -m research.calibration --publish`,
+    never recomputed from the store here: the figure is a function of a commit,
+    and the register row R18 is emitted from the same file by
+    jobs/build_hypotheses.py, so the two cannot be restated separately. The site
+    carried a hand-copied 2026-09-10 version of this (-1.40pp on 43,209, ECE
+    0.0043) for two weeks after the register restated it; that copy was the
+    bug this file retires.
+
+    `generated_at` is when the export ran; `computed_at` is when the measurement
+    was taken. Rounding here is display only: pp to 2dp (the register's
+    precision), rates and scores to 4dp.
+    """
+    with open(path, encoding="utf-8") as f:
+        src = json.load(f)
+    pp = lambda x: rnd(x, 2)  # noqa: E731
+
+    def sl(s, key):
+        return {key: s[key], "n": s["n"], "games": s["games"], "priced": rnd(s["priced"]),
+                "realized": rnd(s["realized"]), "estimate_pp": pp(s["estimate_pp"]),
+                "interval_pp": [pp(s["interval_pp"][0]), pp(s["interval_pp"][1])]}
+
+    ob, sc, pop = src["over_bias"], src["score"], src["population"]
+    return {
+        **envelope("research.market_calibration", generated_at, None),
+        "source": src["generated_by"],
+        "computed_at": src["generated_at"],
+        "benchmark": src["benchmark"],
+        "population": {"description": pop["description"], "seasons": pop["seasons"],
+                       "n": pop["n"], "games": pop["games"],
+                       "excluded_postseason": pop["excluded_postseason"]},
+        "over_bias": {"priced": rnd(ob["priced"]), "realized": rnd(ob["realized"]),
+                      "estimate_pp": pp(ob["estimate_pp"]),
+                      "interval_pp": [pp(ob["interval_pp"][0]), pp(ob["interval_pp"][1])],
+                      "boot_se_pp": pp(ob["boot_se_pp"]), "z_null": rnd(ob["z_null"], 1),
+                      "draws": ob["draws"], "seed": ob["seed"]},
+        "score": {"ece": rnd(sc["ece"]), "brier": rnd(sc["brier"]),
+                  "log_loss": rnd(sc["log_loss"])},
+        "buckets": [sl(b, "bucket") for b in src["buckets"]],
+        "by_stat": [sl(s, "stat") for s in src["by_stat"]],
+        "by_season": [sl(s, "season") for s in src["by_season"]],
+    }
+
+
 def build_research(generated_at):
     out = {}
     with open(os.path.join(ROOT, "docs", "hypotheses.json"), encoding="utf-8") as f:
@@ -2446,37 +2496,35 @@ def build_research(generated_at):
 
     from research import score as SC
     rows, *_ = SC.load(2026, 1)
-    common = [r for r in rows if r["market_p"] is not None]
-    series = []
-    for name, field in (("model", "model"), ("market", "market_p")):
-        table, ece = SC.reliability([r[field] for r in common], [r["y"] for r in common])
-        series.append({"name": name, "ece": rnd(ece), "bins": [
-            {"lo": t["lo"], "hi": t["hi"], "n": t["n"],
-             "mean_forecast": rnd(t.get("mean_p")), "realized": rnd(t.get("rate")),
-             "wilson": [rnd(t["wilson"][0]), rnd(t["wilson"][1])] if t["n"] else None}
-            for t in table]})
-    brier = {f: rnd(statistics.fmean(SC.brier(r[k], r["y"]) for r in common))
-             for f, k in (("model", "model"), ("market", "market_p"), ("naive", "naive"))}
-    head = SC.boot_mean(common, lambda r: SC.brier(r["model"], r["y"]) - SC.brier(r["market_p"], r["y"]))
-    brier["model_minus_market"] = {"estimate": rnd(head["est"]),
-                                   "interval": [rnd(head["lo"]), rnd(head["hi"])]}
-    # ON `common`, NOT on the full settled set. score.py also computes a
+    # ON the common set, NOT on the full settled set. score.py also computes a
     # model-naive difference over every settled row (its "secondary"), and that
     # is a DIFFERENT population - one-sided books included. Publishing it beside
     # Brier scores computed on `common` would put an interval and the numbers it
     # describes on different denominators, and the site gates "identical to
     # naive" on model == naive at four places. Same rows, or the page can show
     # 0.1916 = 0.1916 next to an interval that never saw those outcomes.
-    nv = SC.boot_mean(common, lambda r: SC.brier(r["model"], r["y"]) - SC.brier(r["naive"], r["y"]))
-    brier["model_minus_naive"] = {"estimate": rnd(nv["est"]),
-                                  "interval": [rnd(nv["lo"]), rnd(nv["hi"])]}
+    # score.published() computes every figure below on that one set (a-36).
+    pub = SC.published(rows)
+    series = [{"name": s["name"], "ece": rnd(s["ece"]), "bins": [
+        {"lo": t["lo"], "hi": t["hi"], "n": t["n"],
+         "mean_forecast": rnd(t.get("mean_p")), "realized": rnd(t.get("rate")),
+         "wilson": [rnd(t["wilson"][0]), rnd(t["wilson"][1])] if t["n"] else None}
+        for t in s["bins"]]} for s in pub["series"]]
+    brier = {f: rnd(v) for f, v in pub["brier"].items()}
+    for name in ("model_minus_market", "model_minus_naive"):
+        b = pub[name]
+        brier[name] = {"estimate": rnd(b["est"]), "interval": [rnd(b["lo"]), rnd(b["hi"])]}
     out["research/calibration.json"] = {
         **envelope("research.calibration", generated_at, None),
         "source": "research/score.py (brief 021)",
-        "population": (f"NFL week 1 2026, KXNFLREC + KXNFLRSHATT, common set n={len(common)}, "
-                       f"{len({r['game'] for r in common})} games. Every figure in `brier` - the "
-                       f"three scores and both intervals - is computed on this one set."),
-        "series": series, "brier": brier}
+        "population": (f"NFL week 1 2026, KXNFLREC + KXNFLRSHATT, common set n={pub['n']}, "
+                       f"{pub['games']} games. Every figure in `brier` and `ece` - the "
+                       f"three scores, both intervals and both calibration errors - is "
+                       f"computed on this one set."),
+        "n": pub["n"], "games": pub["games"],
+        "series": series, "brier": brier,
+        "ece": {name: rnd(v) for name, v in pub["ece"].items()}}
+    out["research/market_calibration.json"] = build_market_calibration(generated_at)
 
     reg = os.path.join(ROOT, "research", "sweep", "results", "h3.jsonl")
     med = {}
@@ -2826,6 +2874,9 @@ def build_manifest(games, current, index, market_keys, unresolved, source_versio
         "counts": {"players": len(index), "teams": len(TEAM_NAMES), "market": len(market_keys),
                    "games": played(games), "rungs": rungs},
         "unresolved_ids": unresolved,
+        # a-36: metric id -> the served file and JSON path that owns the figure,
+        # so the site renders a registered number by reading it, never by typing it.
+        "metrics": metric_registry.manifest_block(),
     }
 
 
@@ -3136,6 +3187,16 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
     now_ts = time.time() if now_ts is None else now_ts
     generated_at = iso(now_ts)
     t0 = time.time()
+    # THE METRIC GATE, BEFORE THE FIRST WRITE (a-36). Research is built here
+    # rather than in its turn below so that two files disagreeing on a
+    # registered metric refuses the whole run: a refusal after market, players
+    # and teams have been written leaves a partial publish that looks, on disk,
+    # exactly like a clean one (CLAUDE.md, the truncated-export incident).
+    research = gate = None
+    if "research" in parts:
+        research = build_research(generated_at)
+        gate = metric_registry.require(research)
+        log(gate.statement)
     con = ro()
     # Every table this run reads, as SQLite reports it; sync_keys refuses a write
     # after an unmapped read, however the SQL was spelled or wherever it lives (a-30).
@@ -3249,7 +3310,7 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
         summary["teams"] = sync_keys(dest, teams, [f"{SPORT}/teams/"], dry_run)
         refreshed.append(f"{SPORT}/teams/")
     if "research" in parts:
-        research = build_research(generated_at)
+        summary["metric_gate"] = {"statement": gate.statement, "declared": gate.declared}
         summary["research"] = sync_keys(dest, research, ["research/"], dry_run)
         refreshed.append("research/")
     # THE MARKET OBJECTS, RESOLVED ONCE for every count derived from them.

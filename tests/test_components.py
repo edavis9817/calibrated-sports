@@ -53,6 +53,12 @@ def test_a_default_export_builds_it(db, tmp_path, monkeypatch):
     The research part reads committed research outputs and model predictions this
     fixture does not have; it is stubbed so `only=None` - the real default - runs."""
     monkeypatch.setattr(E, "build_research", lambda generated_at: {})
+    # a-36: the metric gate refuses a research build that produced no registered
+    # file (a gate that cannot find a value has checked nothing). The stub above
+    # produces none by design, so the gate is stubbed with it; the gate itself is
+    # tested in tests/test_metric_registry.py.
+    monkeypatch.setattr(E.metric_registry, "require",
+                        lambda files: type("G", (), {"statement": "stubbed", "declared": []})())
     assert "components" in E.PARTS and "components" not in E.OPTIONAL_PARTS
     default = _export(tmp_path / "a", None)
     assert sorted(k for k in default if "/components/" in k) == [

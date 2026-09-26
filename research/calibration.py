@@ -6,6 +6,7 @@
     python -m research.calibration --trust       # the data-trust checks
     python -m research.calibration --export      # CSVs
     python -m research.calibration --register    # the register figure, read-only
+    python -m research.calibration --publish     # research/results/market_calibration.json
 
 This is the scoreboard the whole repo exists to keep honest. Every number below
 is measured on SETTLED outcomes only: a claim whose truth is known from
@@ -913,7 +914,24 @@ def register_figure(price="bench", draws=REGISTER_DRAWS, seed=REGISTER_SEED):
     curve prints (z = diff / se) treats 40,000+ outcomes as independent. Both
     are returned; the register quotes the bootstrap.
     """
-    import random
+    k = _key(price)
+    rows, game, post = _register_population(price)
+    if not rows:
+        raise RuntimeError("register_figure: empty population - refusing to print a figure")
+    b = _block_gap(rows, game, k, draws, seed)
+    se_null = _se(rows, price)
+    return {"n": b["n"], "games": b["games"], "seasons": sorted({r.season for r in rows}),
+            "priced_over": sum(getattr(r, k) for r in rows) / b["n"],
+            "realized_over": sum(r.hit for r in rows) / b["n"],
+            "est_pp": b["est_pp"], "lo_pp": b["lo_pp"], "hi_pp": b["hi_pp"],
+            "boot_se_pp": b["boot_se_pp"],
+            "z_null": (b["est_pp"] / 100) / se_null if se_null else None,
+            "excluded_postseason": post, "draws": draws, "seed": seed}
+
+
+def _register_population(price="bench"):
+    """(rows, outcome -> game, postseason overs excluded) for the register's set:
+    over side, regular season, carrying a `price` close."""
     k = _key(price)
     rows = [r for r in population(price)
             if r.side == "over" and r.week is not None and r.week <= LAST_REG_WEEK]
@@ -925,6 +943,17 @@ def register_figure(price="bench", draws=REGISTER_DRAWS, seed=REGISTER_SEED):
         "AND s.result IN ('over','under') AND c.%s IS NOT NULL" % k,
         (LAST_REG_WEEK,)).fetchone()[0]
     con.close()
+    return rows, game, post
+
+
+def _block_gap(rows, game, k, draws=REGISTER_DRAWS, seed=REGISTER_SEED):
+    """realized - priced over `rows`, in pp, with a GAME block bootstrap interval.
+
+    Extracted from register_figure unchanged - same block order, same RNG
+    sequence - so the register figure reproduces to the digit. Blocks are
+    iterated in first-seen order of `rows`, which is what makes a seed a seed.
+    """
+    import random
     by = {}
     for r in rows:
         g = game.get(r.oid)
@@ -933,8 +962,6 @@ def register_figure(price="bench", draws=REGISTER_DRAWS, seed=REGISTER_SEED):
         s = by.setdefault(g, [0.0, 0])
         s[0] += r.hit - getattr(r, k)
         s[1] += 1
-    if not rows:
-        raise RuntimeError("register_figure: empty population - refusing to print a figure")
     n = len(rows)
     est = sum(v[0] for v in by.values()) / n
     blocks = list(by.values())
@@ -948,16 +975,101 @@ def register_figure(price="bench", draws=REGISTER_DRAWS, seed=REGISTER_SEED):
             cnt += b[1]
         out.append(tot / cnt)
     out.sort()
-    se_null = _se(rows, price)
-    return {"n": n, "games": len(blocks), "seasons": sorted({r.season for r in rows}),
-            "priced_over": sum(getattr(r, k) for r in rows) / n,
-            "realized_over": sum(r.hit for r in rows) / n,
-            "est_pp": 100 * est,
+    return {"n": n, "games": len(blocks), "est_pp": 100 * est,
             "lo_pp": 100 * out[int(0.025 * draws)],
             "hi_pp": 100 * out[int(0.975 * draws) - 1],
-            "boot_se_pp": 100 * statistics.pstdev(out),
-            "z_null": est / se_null if se_null else None,
-            "excluded_postseason": post, "draws": draws, "seed": seed}
+            "boot_se_pp": 100 * statistics.pstdev(out)}
+
+
+# --------------------------------------------------------------------------
+# the published file (unit a-36)
+# --------------------------------------------------------------------------
+
+# Committed, like research/results/board_bands.json: the export reads THIS file,
+# never the store, so the site's over-bias figure is a function of a commit and
+# not of whatever the store holds on the night the export runs. The register
+# (R18, jobs/build_hypotheses.py) reads the same file, so the two cannot be
+# restated separately.
+PUBLISHED = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results",
+                         "market_calibration.json")
+
+
+def _slice(rows, game, k, draws, seed):
+    b = _block_gap(rows, game, k, draws, seed)
+    return {"n": b["n"], "games": b["games"],
+            "priced": sum(getattr(r, k) for r in rows) / b["n"],
+            "realized": sum(r.hit for r in rows) / b["n"],
+            "estimate_pp": b["est_pp"], "interval_pp": [b["lo_pp"], b["hi_pp"]]}
+
+
+def published(price="bench", draws=REGISTER_DRAWS, seed=REGISTER_SEED):
+    """Everything the site prints about the closing market, on ONE population.
+
+    The 2026-09-10 figures the site still carried (-1.40pp on 43,209, ECE 0.0043)
+    mixed populations: the n was the over side, the ECE and Brier were both
+    sides, and all of it predated the settlement fix. Here every figure - the
+    headline gap, ECE, Brier, log loss, the bucket curve and the slices - is
+    computed on the register's population and nothing else, and every interval
+    is a game-block bootstrap (the effective sample is games, not outcomes).
+    """
+    k = _key(price)
+    rows, game, post = _register_population(price)
+    if not rows:
+        raise RuntimeError("published: empty population - refusing to write a figure")
+    head = register_figure(price, draws, seed)
+    sc = score(rows, price)
+    if sc["n"] != head["n"]:
+        raise RuntimeError("score and register figure disagree on n: %d vs %d"
+                           % (sc["n"], head["n"]))
+
+    def group(keyfn):
+        g = {}
+        for r in rows:
+            g.setdefault(keyfn(r), []).append(r)
+        return g
+
+    buckets = [dict(bucket=b, **_slice(v, game, k, draws, seed))
+               for b, v in sorted(group(lambda r: _bin(getattr(r, k))).items())]
+    by_stat = [dict(stat=s, **_slice(v, game, k, draws, seed))
+               for s, v in sorted(group(lambda r: r.stat).items(),
+                                  key=lambda kv: -len(kv[1]))]
+    by_season = [dict(season=s, **_slice(v, game, k, draws, seed))
+                 for s, v in sorted(group(lambda r: r.season).items())]
+    if sum(b["n"] for b in buckets) != head["n"]:
+        raise RuntimeError("buckets do not partition the population")
+    return {
+        "generated_by": "research/calibration.py --publish",
+        "generated_at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "price": price,
+        "benchmark": ("median de-vigged close across draftkings / fanduel / betmgm"
+                      if price == "bench" else "median de-vigged close across every book"),
+        "population": {
+            "description": ("settled NFL player props, over side, regular season "
+                            "(weeks 1-%d), carrying a benchmark close" % LAST_REG_WEEK),
+            "seasons": head["seasons"], "n": head["n"], "games": head["games"],
+            "excluded_postseason": head["excluded_postseason"]},
+        "over_bias": {
+            "priced": head["priced_over"], "realized": head["realized_over"],
+            "estimate_pp": head["est_pp"], "interval_pp": [head["lo_pp"], head["hi_pp"]],
+            "boot_se_pp": head["boot_se_pp"], "z_null": head["z_null"],
+            "draws": draws, "seed": seed},
+        "score": {"ece": sc["ece"], "brier": sc["brier"], "log_loss": sc["log_loss"],
+                  "ece_bins": "0.05 on the close"},
+        "buckets": buckets, "by_stat": by_stat, "by_season": by_season,
+    }
+
+
+def write_published(path=PUBLISHED, price="bench"):
+    import json
+    f = published(price)
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(f, fh, indent=1)
+        fh.write("\n")
+    print("wrote %s: n %s, %s games, %+.2fpp [%+.2f, %+.2f], ECE %.4f"
+          % (path, format(f["population"]["n"], ","), f["population"]["games"],
+             f["over_bias"]["estimate_pp"], *f["over_bias"]["interval_pp"],
+             f["score"]["ece"]))
+    return f
 
 
 def print_register(price="bench"):
@@ -1042,12 +1154,17 @@ def main():
     ap.add_argument("--all", action="store_true", help="everything")
     ap.add_argument("--register", action="store_true",
                     help="print the figure docs/hypotheses.json carries (read-only)")
+    ap.add_argument("--publish", action="store_true",
+                    help="write research/results/market_calibration.json (read-only on the store)")
     args = ap.parse_args()
 
     # Before init_db, which opens the store read-write. The register figure
     # only reads, so it must be runnable against the live store.
     if args.register:
         print_register(args.price)
+        return
+    if args.publish:
+        write_published(price=args.price)
         return
 
     store.init_db()
