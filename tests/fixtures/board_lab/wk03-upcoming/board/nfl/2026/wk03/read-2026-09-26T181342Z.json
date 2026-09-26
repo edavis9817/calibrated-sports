@@ -1,0 +1,5572 @@
+{
+ "schema_version": 2,
+ "generated_at": "2026-09-26T18:16:52Z",
+ "kind": "board_read",
+ "sport": "nfl",
+ "read_at": "2026-09-26T18:13:42Z",
+ "season": 2026,
+ "week": 3,
+ "rows": [
+  {
+   "row_id": "2026-03-ARI-SF:00-0033280:rush_attempts:13.5",
+   "claim_id": "2026_03_ARI_SF:00-0033280:rush_attempts",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0033280",
+   "slug": "christian-mccaffrey",
+   "name": "Christian McCaffrey",
+   "pos": "RB",
+   "team": "SF",
+   "opp": "ARI",
+   "game_id": "2026_03_ARI_SF",
+   "kickoff": "2026-09-27T20:05:00Z",
+   "kickoff_ts": 1790539500.0,
+   "market": "rush_attempts",
+   "line": 13.5,
+   "is_main": true,
+   "ladder": [
+    13.5
+   ],
+   "mkt_p_over": 0.5176,
+   "mkt_books": 1,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": -122.0,
+     "under": -105.0,
+     "read_at": "2026-09-24T20:04:27Z",
+     "p_over_devig": 0.5176,
+     "hold": 0.0617
+    }
+   ],
+   "kalshi_mid": 0.515,
+   "model_p_over": 0.6605,
+   "gap_pp": 14.29,
+   "lean": "over",
+   "lean_price": -122.0,
+   "band": {
+    "lo_pp": 8.0,
+    "hi_pp": null,
+    "n": 3602,
+    "games": 841,
+    "cleared": 0.5464,
+    "ci": [
+     0.5301,
+     0.5626
+    ],
+    "ci_method": "wilson_95",
+    "roi": 0.0311,
+    "roi_ci": [
+     -0.0044,
+     0.0651
+    ],
+    "roi_ci_method": "game_block_bootstrap_2000",
+    "source": "research/board_bands.py"
+   },
+   "last10": [
+    {
+     "game_id": "2025_10_LA_SF",
+     "value": 12.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_11_SF_ARI",
+     "value": 13.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_12_CAR_SF",
+     "value": 24.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_13_SF_CLE",
+     "value": 20.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_15_TEN_SF",
+     "value": 22.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_16_SF_IND",
+     "value": 21.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_17_CHI_SF",
+     "value": 23.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_18_SEA_SF",
+     "value": 8.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_SF_LA",
+     "value": 10.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_MIA_SF",
+     "value": 10.0,
+     "cleared": false
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 5,
+     "n": 10,
+     "ci": [
+      0.2366,
+      0.7634
+     ]
+    },
+    "season": {
+     "k": 0,
+     "n": 2,
+     "ci": [
+      0.0,
+      0.6576
+     ]
+    },
+    "career": {
+     "k": 66,
+     "n": 114,
+     "ci": [
+      0.4872,
+      0.6656
+     ]
+    },
+    "career_posted": {
+     "k": 20,
+     "n": 42,
+     "ci": [
+      0.3336,
+      0.6228
+     ],
+     "basis": {
+      "p_bench": 42,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:05:20Z",
+     "p_over": 0.5176,
+     "books": 1
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 13.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-ARI-SF:00-0037744:receiving_yards:67.5",
+   "claim_id": "2026_03_ARI_SF:00-0037744:receiving_yards",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0037744",
+   "slug": "trey-mcbride",
+   "name": "Trey McBride",
+   "pos": "TE",
+   "team": "ARI",
+   "opp": "SF",
+   "game_id": "2026_03_ARI_SF",
+   "kickoff": "2026-09-27T20:05:00Z",
+   "kickoff_ts": 1790539500.0,
+   "market": "receiving_yards",
+   "line": 67.5,
+   "is_main": true,
+   "ladder": [
+    67.5,
+    68.5
+   ],
+   "mkt_p_over": 0.5,
+   "mkt_books": 1,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "fanduel",
+     "over": -114.0,
+     "under": -114.0,
+     "read_at": "2026-09-24T20:04:58Z",
+     "p_over_devig": 0.5,
+     "hold": 0.0654
+    }
+   ],
+   "kalshi_mid": null,
+   "model_p_over": null,
+   "gap_pp": null,
+   "lean": null,
+   "lean_price": null,
+   "band": null,
+   "last10": [
+    {
+     "game_id": "2025_11_SF_ARI",
+     "value": 115.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_12_JAX_ARI",
+     "value": 79.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_13_ARI_TB",
+     "value": 82.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_14_LA_ARI",
+     "value": 58.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_15_ARI_HOU",
+     "value": 134.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_16_ATL_ARI",
+     "value": 27.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_ARI_CIN",
+     "value": 76.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_18_ARI_LA",
+     "value": 65.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_ARI_LAC",
+     "value": 95.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2026_02_SEA_ARI",
+     "value": 41.0,
+     "cleared": false
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 6,
+     "n": 10,
+     "ci": [
+      0.3127,
+      0.8318
+     ]
+    },
+    "season": {
+     "k": 1,
+     "n": 2,
+     "ci": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "career": {
+     "k": 23,
+     "n": 64,
+     "ci": [
+      0.2529,
+      0.4818
+     ]
+    },
+    "career_posted": {
+     "k": 28,
+     "n": 46,
+     "ci": [
+      0.4646,
+      0.7361
+     ],
+     "basis": {
+      "p_bench": 46,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:05:20Z",
+     "p_over": 0.5,
+     "books": 1
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 67.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-ARI-SF:00-0037744:receptions:7.5",
+   "claim_id": "2026_03_ARI_SF:00-0037744:receptions",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0037744",
+   "slug": "trey-mcbride",
+   "name": "Trey McBride",
+   "pos": "TE",
+   "team": "ARI",
+   "opp": "SF",
+   "game_id": "2026_03_ARI_SF",
+   "kickoff": "2026-09-27T20:05:00Z",
+   "kickoff_ts": 1790539500.0,
+   "market": "receptions",
+   "line": 7.5,
+   "is_main": true,
+   "ladder": [
+    7.5
+   ],
+   "mkt_p_over": 0.4392,
+   "mkt_books": 2,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": 116.0,
+     "under": -148.0,
+     "read_at": "2026-09-24T20:04:27Z",
+     "p_over_devig": 0.4369,
+     "hold": 0.0597
+    },
+    {
+     "book": "fanduel",
+     "over": 112.0,
+     "under": -148.0,
+     "read_at": "2026-09-24T20:04:58Z",
+     "p_over_devig": 0.4415,
+     "hold": 0.0685
+    }
+   ],
+   "kalshi_mid": 0.405,
+   "model_p_over": 0.3516,
+   "gap_pp": -8.75,
+   "lean": "under",
+   "lean_price": -148.0,
+   "band": {
+    "lo_pp": 8.0,
+    "hi_pp": null,
+    "n": 6862,
+    "games": 852,
+    "cleared": 0.5254,
+    "ci": [
+     0.5135,
+     0.5372
+    ],
+    "ci_method": "wilson_95",
+    "roi": -0.0063,
+    "roi_ci": [
+     -0.0297,
+     0.0165
+    ],
+    "roi_ci_method": "game_block_bootstrap_2000",
+    "source": "research/board_bands.py"
+   },
+   "last10": [
+    {
+     "game_id": "2025_11_SF_ARI",
+     "value": 10.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_12_JAX_ARI",
+     "value": 9.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_13_ARI_TB",
+     "value": 8.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_14_LA_ARI",
+     "value": 5.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_15_ARI_HOU",
+     "value": 12.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_16_ATL_ARI",
+     "value": 4.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_ARI_CIN",
+     "value": 10.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_18_ARI_LA",
+     "value": 7.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_ARI_LAC",
+     "value": 9.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2026_02_SEA_ARI",
+     "value": 8.0,
+     "cleared": true
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 7,
+     "n": 10,
+     "ci": [
+      0.3968,
+      0.8922
+     ]
+    },
+    "season": {
+     "k": 2,
+     "n": 2,
+     "ci": [
+      0.3424,
+      1.0
+     ]
+    },
+    "career": {
+     "k": 20,
+     "n": 64,
+     "ci": [
+      0.2123,
+      0.4339
+     ]
+    },
+    "career_posted": {
+     "k": 27,
+     "n": 46,
+     "ci": [
+      0.4434,
+      0.7171
+     ],
+     "basis": {
+      "p_bench": 46,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:05:20Z",
+     "p_over": 0.4392,
+     "books": 2
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 7.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-ARI-SF:00-0038559:receiving_yards:44.5",
+   "claim_id": "2026_03_ARI_SF:00-0038559:receiving_yards",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0038559",
+   "slug": "michael-wilson",
+   "name": "Michael Wilson",
+   "pos": "WR",
+   "team": "ARI",
+   "opp": "SF",
+   "game_id": "2026_03_ARI_SF",
+   "kickoff": "2026-09-27T20:05:00Z",
+   "kickoff_ts": 1790539500.0,
+   "market": "receiving_yards",
+   "line": 44.5,
+   "is_main": true,
+   "ladder": [
+    44.5
+   ],
+   "mkt_p_over": 0.5021,
+   "mkt_books": 2,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": -114.0,
+     "under": -110.0,
+     "read_at": "2026-09-24T20:04:27Z",
+     "p_over_devig": 0.5042,
+     "hold": 0.0565
+    },
+    {
+     "book": "fanduel",
+     "over": -114.0,
+     "under": -114.0,
+     "read_at": "2026-09-24T20:04:58Z",
+     "p_over_devig": 0.5,
+     "hold": 0.0654
+    }
+   ],
+   "kalshi_mid": null,
+   "model_p_over": null,
+   "gap_pp": null,
+   "lean": null,
+   "lean_price": null,
+   "band": null,
+   "last10": [
+    {
+     "game_id": "2025_11_SF_ARI",
+     "value": 185.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_12_JAX_ARI",
+     "value": 118.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_13_ARI_TB",
+     "value": 36.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_14_LA_ARI",
+     "value": 142.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_15_ARI_HOU",
+     "value": 54.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_16_ATL_ARI",
+     "value": 52.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_17_ARI_CIN",
+     "value": 89.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_18_ARI_LA",
+     "value": 99.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2026_01_ARI_LAC",
+     "value": 56.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2026_02_SEA_ARI",
+     "value": 18.0,
+     "cleared": false
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 8,
+     "n": 10,
+     "ci": [
+      0.4902,
+      0.9433
+     ]
+    },
+    "season": {
+     "k": 1,
+     "n": 2,
+     "ci": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "career": {
+     "k": 20,
+     "n": 48,
+     "ci": [
+      0.2885,
+      0.5572
+     ]
+    },
+    "career_posted": {
+     "k": 25,
+     "n": 46,
+     "ci": [
+      0.4018,
+      0.6785
+     ],
+     "basis": {
+      "p_bench": 46,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": {
+    "rule": "L7",
+    "k": 6,
+    "n": 7,
+    "display_rate": 0.8571428571428571,
+    "next_rate": 0.5340075658148692,
+    "next_ci": [
+     0.5248854132321595,
+     0.543479598278559
+    ],
+    "next_n": 12953,
+    "source": "F11",
+    "line_basis": "posted line (F11 measured a constructed median line)"
+   },
+   "line_path": [
+    {
+     "t": "2026-09-24T20:05:20Z",
+     "p_over": 0.5021,
+     "books": 2
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 44.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-ARI-SF:00-0038559:receptions:3.5",
+   "claim_id": "2026_03_ARI_SF:00-0038559:receptions",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0038559",
+   "slug": "michael-wilson",
+   "name": "Michael Wilson",
+   "pos": "WR",
+   "team": "ARI",
+   "opp": "SF",
+   "game_id": "2026_03_ARI_SF",
+   "kickoff": "2026-09-27T20:05:00Z",
+   "kickoff_ts": 1790539500.0,
+   "market": "receptions",
+   "line": 3.5,
+   "is_main": true,
+   "ladder": [
+    3.5
+   ],
+   "mkt_p_over": 0.5621,
+   "mkt_books": 2,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": -150.0,
+     "under": 117.0,
+     "read_at": "2026-09-24T20:04:27Z",
+     "p_over_devig": 0.5656,
+     "hold": 0.0608
+    },
+    {
+     "book": "fanduel",
+     "over": -148.0,
+     "under": 112.0,
+     "read_at": "2026-09-24T20:04:58Z",
+     "p_over_devig": 0.5585,
+     "hold": 0.0685
+    }
+   ],
+   "kalshi_mid": 0.565,
+   "model_p_over": 0.5494,
+   "gap_pp": -1.27,
+   "lean": null,
+   "lean_price": null,
+   "band": null,
+   "last10": [
+    {
+     "game_id": "2025_11_SF_ARI",
+     "value": 15.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_12_JAX_ARI",
+     "value": 10.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_13_ARI_TB",
+     "value": 3.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_14_LA_ARI",
+     "value": 11.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_15_ARI_HOU",
+     "value": 5.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_16_ATL_ARI",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_ARI_CIN",
+     "value": 5.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_18_ARI_LA",
+     "value": 5.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2026_01_ARI_LAC",
+     "value": 5.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2026_02_SEA_ARI",
+     "value": 2.0,
+     "cleared": false
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 7,
+     "n": 10,
+     "ci": [
+      0.3968,
+      0.8922
+     ]
+    },
+    "season": {
+     "k": 1,
+     "n": 2,
+     "ci": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "career": {
+     "k": 18,
+     "n": 48,
+     "ci": [
+      0.2522,
+      0.5164
+     ]
+    },
+    "career_posted": {
+     "k": 22,
+     "n": 45,
+     "ci": [
+      0.3496,
+      0.63
+     ],
+     "basis": {
+      "p_bench": 45,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:05:20Z",
+     "p_over": 0.5621,
+     "books": 2
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 3.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-ARI-SF:00-0039849:receiving_yards:30.5",
+   "claim_id": "2026_03_ARI_SF:00-0039849:receiving_yards",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0039849",
+   "slug": "marvin-harrison-jr",
+   "name": "Marvin Harrison Jr.",
+   "pos": "WR",
+   "team": "ARI",
+   "opp": "SF",
+   "game_id": "2026_03_ARI_SF",
+   "kickoff": "2026-09-27T20:05:00Z",
+   "kickoff_ts": 1790539500.0,
+   "market": "receiving_yards",
+   "line": 30.5,
+   "is_main": true,
+   "ladder": [
+    29.5,
+    30.5
+   ],
+   "mkt_p_over": 0.5,
+   "mkt_books": 1,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "fanduel",
+     "over": -114.0,
+     "under": -114.0,
+     "read_at": "2026-09-24T20:04:58Z",
+     "p_over_devig": 0.5,
+     "hold": 0.0654
+    }
+   ],
+   "kalshi_mid": null,
+   "model_p_over": null,
+   "gap_pp": null,
+   "lean": null,
+   "lean_price": null,
+   "band": null,
+   "last10": [
+    {
+     "game_id": "2025_05_TEN_ARI",
+     "value": 98.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_06_ARI_IND",
+     "value": 32.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_07_GB_ARI",
+     "value": 58.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_09_ARI_DAL",
+     "value": 96.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_10_ARI_SEA",
+     "value": 33.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_13_ARI_TB",
+     "value": 69.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_16_ATL_ARI",
+     "value": 14.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_ARI_CIN",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_ARI_LAC",
+     "value": 33.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2026_02_SEA_ARI",
+     "value": 0.0,
+     "cleared": false
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 7,
+     "n": 10,
+     "ci": [
+      0.3968,
+      0.8922
+     ]
+    },
+    "season": {
+     "k": 1,
+     "n": 2,
+     "ci": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "career": {
+     "k": 24,
+     "n": 31,
+     "ci": [
+      0.6019,
+      0.8861
+     ]
+    },
+    "career_posted": {
+     "k": 13,
+     "n": 29,
+     "ci": [
+      0.2841,
+      0.6245
+     ],
+     "basis": {
+      "p_bench": 29,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:05:20Z",
+     "p_over": 0.5,
+     "books": 1
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 30.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-ARI-SF:00-0039849:receptions:2.5",
+   "claim_id": "2026_03_ARI_SF:00-0039849:receptions",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0039849",
+   "slug": "marvin-harrison-jr",
+   "name": "Marvin Harrison Jr.",
+   "pos": "WR",
+   "team": "ARI",
+   "opp": "SF",
+   "game_id": "2026_03_ARI_SF",
+   "kickoff": "2026-09-27T20:05:00Z",
+   "kickoff_ts": 1790539500.0,
+   "market": "receptions",
+   "line": 2.5,
+   "is_main": true,
+   "ladder": [
+    2.5
+   ],
+   "mkt_p_over": 0.4253,
+   "mkt_books": 2,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": 126.0,
+     "under": -161.0,
+     "read_at": "2026-09-24T20:04:27Z",
+     "p_over_devig": 0.4177,
+     "hold": 0.0593
+    },
+    {
+     "book": "fanduel",
+     "over": 116.0,
+     "under": -154.0,
+     "read_at": "2026-09-24T20:04:58Z",
+     "p_over_devig": 0.433,
+     "hold": 0.0693
+    }
+   ],
+   "kalshi_mid": 0.435,
+   "model_p_over": 0.5308,
+   "gap_pp": 10.55,
+   "lean": "over",
+   "lean_price": 121.0,
+   "band": {
+    "lo_pp": 8.0,
+    "hi_pp": null,
+    "n": 6862,
+    "games": 852,
+    "cleared": 0.5254,
+    "ci": [
+     0.5135,
+     0.5372
+    ],
+    "ci_method": "wilson_95",
+    "roi": -0.0063,
+    "roi_ci": [
+     -0.0297,
+     0.0165
+    ],
+    "roi_ci_method": "game_block_bootstrap_2000",
+    "source": "research/board_bands.py"
+   },
+   "last10": [
+    {
+     "game_id": "2025_05_TEN_ARI",
+     "value": 4.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_06_ARI_IND",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_07_GB_ARI",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_09_ARI_DAL",
+     "value": 7.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_10_ARI_SEA",
+     "value": 3.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_13_ARI_TB",
+     "value": 6.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_16_ATL_ARI",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_ARI_CIN",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_ARI_LAC",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_SEA_ARI",
+     "value": 0.0,
+     "cleared": false
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 4,
+     "n": 10,
+     "ci": [
+      0.1682,
+      0.6873
+     ]
+    },
+    "season": {
+     "k": 0,
+     "n": 2,
+     "ci": [
+      0.0,
+      0.6576
+     ]
+    },
+    "career": {
+     "k": 19,
+     "n": 31,
+     "ci": [
+      0.4382,
+      0.7627
+     ]
+    },
+    "career_posted": {
+     "k": 10,
+     "n": 29,
+     "ci": [
+      0.1994,
+      0.5266
+     ],
+     "basis": {
+      "p_bench": 29,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:05:20Z",
+     "p_over": 0.4253,
+     "books": 2
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 2.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-ARI-SF:00-0041027:rush_attempts:11.5",
+   "claim_id": "2026_03_ARI_SF:00-0041027:rush_attempts",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0041027",
+   "slug": "jeremiyah-love",
+   "name": "Jeremiyah Love",
+   "pos": "RB",
+   "team": "ARI",
+   "opp": "SF",
+   "game_id": "2026_03_ARI_SF",
+   "kickoff": "2026-09-27T20:05:00Z",
+   "kickoff_ts": 1790539500.0,
+   "market": "rush_attempts",
+   "line": 11.5,
+   "is_main": true,
+   "ladder": [
+    11.5
+   ],
+   "mkt_p_over": 0.4628,
+   "mkt_books": 1,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": 104.0,
+     "under": -132.0,
+     "read_at": "2026-09-24T20:04:27Z",
+     "p_over_devig": 0.4628,
+     "hold": 0.0592
+    }
+   ],
+   "kalshi_mid": 0.425,
+   "model_p_over": 0.0627,
+   "gap_pp": -40.01,
+   "lean": "under",
+   "lean_price": -132.0,
+   "band": {
+    "lo_pp": 8.0,
+    "hi_pp": null,
+    "n": 3602,
+    "games": 841,
+    "cleared": 0.5464,
+    "ci": [
+     0.5301,
+     0.5626
+    ],
+    "ci_method": "wilson_95",
+    "roi": 0.0311,
+    "roi_ci": [
+     -0.0044,
+     0.0651
+    ],
+    "roi_ci_method": "game_block_bootstrap_2000",
+    "source": "research/board_bands.py"
+   },
+   "last10": [
+    {
+     "game_id": "2026_01_ARI_LAC",
+     "value": 11.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_SEA_ARI",
+     "value": 9.0,
+     "cleared": false
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 0,
+     "n": 2,
+     "ci": [
+      0.0,
+      0.6576
+     ]
+    },
+    "season": {
+     "k": 0,
+     "n": 2,
+     "ci": [
+      0.0,
+      0.6576
+     ]
+    },
+    "career": {
+     "k": 0,
+     "n": 2,
+     "ci": [
+      0.0,
+      0.6576
+     ]
+    },
+    "career_posted": null
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:05:20Z",
+     "p_over": 0.4628,
+     "books": 1
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 11.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0032398:receiving_yards:21.5",
+   "claim_id": "2026_03_BAL_DAL:00-0032398:receiving_yards",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0032398",
+   "slug": "chris-moore",
+   "name": "Chris Moore",
+   "pos": "WR",
+   "team": "BAL",
+   "opp": "DAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receiving_yards",
+   "line": 21.5,
+   "is_main": true,
+   "ladder": [
+    21.5
+   ],
+   "mkt_p_over": 0.5,
+   "mkt_books": 1,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "fanduel",
+     "over": -114.0,
+     "under": -114.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.5,
+     "hold": 0.0654
+    }
+   ],
+   "kalshi_mid": null,
+   "model_p_over": null,
+   "gap_pp": null,
+   "lean": null,
+   "lean_price": null,
+   "band": null,
+   "last10": [
+    {
+     "game_id": "2025_04_WAS_ATL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_05_WAS_LAC",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_06_CHI_WAS",
+     "value": 46.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_07_WAS_DAL",
+     "value": 59.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_10_DET_WAS",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_11_WAS_MIA",
+     "value": 28.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_16_PHI_WAS",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_DAL_WAS",
+     "value": 15.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_BAL_IND",
+     "value": 53.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2026_02_NO_BAL",
+     "value": 6.0,
+     "cleared": false
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 4,
+     "n": 10,
+     "ci": [
+      0.1682,
+      0.6873
+     ]
+    },
+    "season": {
+     "k": 1,
+     "n": 2,
+     "ci": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "career": {
+     "k": 35,
+     "n": 103,
+     "ci": [
+      0.2556,
+      0.4356
+     ]
+    },
+    "career_posted": {
+     "k": 10,
+     "n": 21,
+     "ci": [
+      0.2834,
+      0.6763
+     ],
+     "basis": {
+      "p_bench": 21,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.5,
+     "books": 1
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 21.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0032398:receptions:1.5",
+   "claim_id": "2026_03_BAL_DAL:00-0032398:receptions",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0032398",
+   "slug": "chris-moore",
+   "name": "Chris Moore",
+   "pos": "WR",
+   "team": "BAL",
+   "opp": "DAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receptions",
+   "line": 1.5,
+   "is_main": true,
+   "ladder": [
+    1.5
+   ],
+   "mkt_p_over": 0.4677,
+   "mkt_books": 1,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "fanduel",
+     "over": 100.0,
+     "under": -132.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.4677,
+     "hold": 0.069
+    }
+   ],
+   "kalshi_mid": null,
+   "model_p_over": 0.2699,
+   "gap_pp": -19.78,
+   "lean": "under",
+   "lean_price": -132.0,
+   "band": {
+    "lo_pp": 8.0,
+    "hi_pp": null,
+    "n": 6862,
+    "games": 852,
+    "cleared": 0.5254,
+    "ci": [
+     0.5135,
+     0.5372
+    ],
+    "ci_method": "wilson_95",
+    "roi": -0.0063,
+    "roi_ci": [
+     -0.0297,
+     0.0165
+    ],
+    "roi_ci_method": "game_block_bootstrap_2000",
+    "source": "research/board_bands.py"
+   },
+   "last10": [
+    {
+     "game_id": "2025_04_WAS_ATL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_05_WAS_LAC",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_06_CHI_WAS",
+     "value": 3.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_07_WAS_DAL",
+     "value": 2.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_10_DET_WAS",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_11_WAS_MIA",
+     "value": 2.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_16_PHI_WAS",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_DAL_WAS",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_BAL_IND",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_NO_BAL",
+     "value": 1.0,
+     "cleared": false
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 3,
+     "n": 10,
+     "ci": [
+      0.1078,
+      0.6032
+     ]
+    },
+    "season": {
+     "k": 0,
+     "n": 2,
+     "ci": [
+      0.0,
+      0.6576
+     ]
+    },
+    "career": {
+     "k": 40,
+     "n": 103,
+     "ci": [
+      0.2999,
+      0.4849
+     ]
+    },
+    "career_posted": {
+     "k": 4,
+     "n": 18,
+     "ci": [
+      0.09,
+      0.4522
+     ],
+     "basis": {
+      "p_bench": 18,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.4677,
+     "books": 1
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 1.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0032764:receiving_yards:10.5",
+   "claim_id": "2026_03_BAL_DAL:00-0032764:receiving_yards",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0032764",
+   "slug": "derrick-henry",
+   "name": "Derrick Henry",
+   "pos": "RB",
+   "team": "BAL",
+   "opp": "DAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receiving_yards",
+   "line": 10.5,
+   "is_main": true,
+   "ladder": [
+    9.5,
+    10.5
+   ],
+   "mkt_p_over": 0.5,
+   "mkt_books": 1,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "fanduel",
+     "over": -114.0,
+     "under": -114.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.5,
+     "hold": 0.0654
+    }
+   ],
+   "kalshi_mid": null,
+   "model_p_over": null,
+   "gap_pp": null,
+   "lean": null,
+   "lean_price": null,
+   "band": null,
+   "last10": [
+    {
+     "game_id": "2025_11_BAL_CLE",
+     "value": 19.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_12_NYJ_BAL",
+     "value": 24.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_13_CIN_BAL",
+     "value": 44.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_14_PIT_BAL",
+     "value": 8.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_15_BAL_CIN",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_16_NE_BAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_BAL_GB",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_18_BAL_PIT",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_BAL_IND",
+     "value": 19.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2026_02_NO_BAL",
+     "value": 19.0,
+     "cleared": true
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 5,
+     "n": 10,
+     "ci": [
+      0.2366,
+      0.7634
+     ]
+    },
+    "season": {
+     "k": 2,
+     "n": 2,
+     "ci": [
+      0.3424,
+      1.0
+     ]
+    },
+    "career": {
+     "k": 59,
+     "n": 154,
+     "ci": [
+      0.3101,
+      0.4619
+     ]
+    },
+    "career_posted": {
+     "k": 27,
+     "n": 52,
+     "ci": [
+      0.3869,
+      0.649
+     ],
+     "basis": {
+      "p_bench": 52,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.5,
+     "books": 1
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 10.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0032764:receptions:1.5",
+   "claim_id": "2026_03_BAL_DAL:00-0032764:receptions",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0032764",
+   "slug": "derrick-henry",
+   "name": "Derrick Henry",
+   "pos": "RB",
+   "team": "BAL",
+   "opp": "DAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receptions",
+   "line": 1.5,
+   "is_main": true,
+   "ladder": [
+    1.5
+   ],
+   "mkt_p_over": 0.429,
+   "mkt_books": 2,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": 122.0,
+     "under": -156.0,
+     "read_at": "2026-09-24T20:24:45Z",
+     "p_over_devig": 0.425,
+     "hold": 0.0598
+    },
+    {
+     "book": "fanduel",
+     "over": 116.0,
+     "under": -154.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.433,
+     "hold": 0.0693
+    }
+   ],
+   "kalshi_mid": 0.435,
+   "model_p_over": 0.2813,
+   "gap_pp": -14.77,
+   "lean": "under",
+   "lean_price": -155.0,
+   "band": {
+    "lo_pp": 8.0,
+    "hi_pp": null,
+    "n": 6862,
+    "games": 852,
+    "cleared": 0.5254,
+    "ci": [
+     0.5135,
+     0.5372
+    ],
+    "ci_method": "wilson_95",
+    "roi": -0.0063,
+    "roi_ci": [
+     -0.0297,
+     0.0165
+    ],
+    "roi_ci_method": "game_block_bootstrap_2000",
+    "source": "research/board_bands.py"
+   },
+   "last10": [
+    {
+     "game_id": "2025_11_BAL_CLE",
+     "value": 2.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_12_NYJ_BAL",
+     "value": 2.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_13_CIN_BAL",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_14_PIT_BAL",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_15_BAL_CIN",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_16_NE_BAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_BAL_GB",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_18_BAL_PIT",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_BAL_IND",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_NO_BAL",
+     "value": 3.0,
+     "cleared": true
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 3,
+     "n": 10,
+     "ci": [
+      0.1078,
+      0.6032
+     ]
+    },
+    "season": {
+     "k": 1,
+     "n": 2,
+     "ci": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "career": {
+     "k": 57,
+     "n": 154,
+     "ci": [
+      0.2979,
+      0.4487
+     ]
+    },
+    "career_posted": {
+     "k": 18,
+     "n": 49,
+     "ci": [
+      0.2466,
+      0.5073
+     ],
+     "basis": {
+      "p_bench": 49,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.429,
+     "books": 2
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 1.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0032764:rush_attempts:18.5",
+   "claim_id": "2026_03_BAL_DAL:00-0032764:rush_attempts",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0032764",
+   "slug": "derrick-henry",
+   "name": "Derrick Henry",
+   "pos": "RB",
+   "team": "BAL",
+   "opp": "DAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "rush_attempts",
+   "line": 18.5,
+   "is_main": true,
+   "ladder": [
+    18.5
+   ],
+   "mkt_p_over": 0.4833,
+   "mkt_books": 1,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": -105.0,
+     "under": -121.0,
+     "read_at": "2026-09-24T20:24:45Z",
+     "p_over_devig": 0.4833,
+     "hold": 0.0597
+    }
+   ],
+   "kalshi_mid": 0.48,
+   "model_p_over": 0.3372,
+   "gap_pp": -14.62,
+   "lean": "under",
+   "lean_price": -121.0,
+   "band": {
+    "lo_pp": 8.0,
+    "hi_pp": null,
+    "n": 3602,
+    "games": 841,
+    "cleared": 0.5464,
+    "ci": [
+     0.5301,
+     0.5626
+    ],
+    "ci_method": "wilson_95",
+    "roi": 0.0311,
+    "roi_ci": [
+     -0.0044,
+     0.0651
+    ],
+    "roi_ci_method": "game_block_bootstrap_2000",
+    "source": "research/board_bands.py"
+   },
+   "last10": [
+    {
+     "game_id": "2025_11_BAL_CLE",
+     "value": 18.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_12_NYJ_BAL",
+     "value": 21.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_13_CIN_BAL",
+     "value": 10.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_14_PIT_BAL",
+     "value": 25.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_15_BAL_CIN",
+     "value": 11.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_16_NE_BAL",
+     "value": 18.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_BAL_GB",
+     "value": 36.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_18_BAL_PIT",
+     "value": 20.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2026_01_BAL_IND",
+     "value": 24.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2026_02_NO_BAL",
+     "value": 16.0,
+     "cleared": false
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 5,
+     "n": 10,
+     "ci": [
+      0.2366,
+      0.7634
+     ]
+    },
+    "season": {
+     "k": 1,
+     "n": 2,
+     "ci": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "career": {
+     "k": 69,
+     "n": 154,
+     "ci": [
+      0.3717,
+      0.5269
+     ]
+    },
+    "career_posted": {
+     "k": 27,
+     "n": 51,
+     "ci": [
+      0.3952,
+      0.6595
+     ],
+     "basis": {
+      "p_bench": 51,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.4833,
+     "books": 1
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 18.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0033077:rush_attempts:3.5",
+   "claim_id": "2026_03_BAL_DAL:00-0033077:rush_attempts",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0033077",
+   "slug": "dak-prescott",
+   "name": "Dak Prescott",
+   "pos": "QB",
+   "team": "DAL",
+   "opp": "BAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "rush_attempts",
+   "line": 3.5,
+   "is_main": true,
+   "ladder": [
+    3.5
+   ],
+   "mkt_p_over": 0.4514,
+   "mkt_books": 1,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": 109.0,
+     "under": -139.0,
+     "read_at": "2026-09-24T20:24:45Z",
+     "p_over_devig": 0.4514,
+     "hold": 0.0601
+    }
+   ],
+   "kalshi_mid": 0.46,
+   "model_p_over": 0.3556,
+   "gap_pp": -9.58,
+   "lean": "under",
+   "lean_price": -139.0,
+   "band": {
+    "lo_pp": 8.0,
+    "hi_pp": null,
+    "n": 3602,
+    "games": 841,
+    "cleared": 0.5464,
+    "ci": [
+     0.5301,
+     0.5626
+    ],
+    "ci_method": "wilson_95",
+    "roi": 0.0311,
+    "roi_ci": [
+     -0.0044,
+     0.0651
+    ],
+    "roi_ci_method": "game_block_bootstrap_2000",
+    "source": "research/board_bands.py"
+   },
+   "last10": [
+    {
+     "game_id": "2025_11_DAL_LV",
+     "value": 4.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_12_PHI_DAL",
+     "value": 5.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_13_KC_DAL",
+     "value": 3.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_14_DAL_DET",
+     "value": 3.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_15_MIN_DAL",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_16_LAC_DAL",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_DAL_WAS",
+     "value": 4.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_18_DAL_NYG",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_DAL_NYG",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_WAS_DAL",
+     "value": 4.0,
+     "cleared": true
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 4,
+     "n": 10,
+     "ci": [
+      0.1682,
+      0.6873
+     ]
+    },
+    "season": {
+     "k": 1,
+     "n": 2,
+     "ci": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "career": {
+     "k": 64,
+     "n": 141,
+     "ci": [
+      0.374,
+      0.5362
+     ]
+    },
+    "career_posted": {
+     "k": 16,
+     "n": 39,
+     "ci": [
+      0.2708,
+      0.5658
+     ],
+     "basis": {
+      "p_bench": 39,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.4514,
+     "books": 1
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 3.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0034753:receiving_yards:43.5",
+   "claim_id": "2026_03_BAL_DAL:00-0034753:receiving_yards",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0034753",
+   "slug": "mark-andrews",
+   "name": "Mark Andrews",
+   "pos": "TE",
+   "team": "BAL",
+   "opp": "DAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receiving_yards",
+   "line": 43.5,
+   "is_main": true,
+   "ladder": [
+    43.5
+   ],
+   "mkt_p_over": 0.5,
+   "mkt_books": 1,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "fanduel",
+     "over": -114.0,
+     "under": -114.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.5,
+     "hold": 0.0654
+    }
+   ],
+   "kalshi_mid": null,
+   "model_p_over": null,
+   "gap_pp": null,
+   "lean": null,
+   "lean_price": null,
+   "band": null,
+   "last10": [
+    {
+     "game_id": "2025_11_BAL_CLE",
+     "value": 32.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_12_NYJ_BAL",
+     "value": 9.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_13_CIN_BAL",
+     "value": 47.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_14_PIT_BAL",
+     "value": 9.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_15_BAL_CIN",
+     "value": 18.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_16_NE_BAL",
+     "value": 21.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_BAL_GB",
+     "value": 28.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_18_BAL_PIT",
+     "value": 14.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_BAL_IND",
+     "value": 49.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2026_02_NO_BAL",
+     "value": 49.0,
+     "cleared": true
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 3,
+     "n": 10,
+     "ci": [
+      0.1078,
+      0.6032
+     ]
+    },
+    "season": {
+     "k": 2,
+     "n": 2,
+     "ci": [
+      0.3424,
+      1.0
+     ]
+    },
+    "career": {
+     "k": 69,
+     "n": 123,
+     "ci": [
+      0.4727,
+      0.6455
+     ]
+    },
+    "career_posted": {
+     "k": 21,
+     "n": 47,
+     "ci": [
+      0.3141,
+      0.5875
+     ],
+     "basis": {
+      "p_bench": 47,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.5,
+     "books": 1
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 43.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0034753:receptions:4.5",
+   "claim_id": "2026_03_BAL_DAL:00-0034753:receptions",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0034753",
+   "slug": "mark-andrews",
+   "name": "Mark Andrews",
+   "pos": "TE",
+   "team": "BAL",
+   "opp": "DAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receptions",
+   "line": 4.5,
+   "is_main": true,
+   "ladder": [
+    4.5
+   ],
+   "mkt_p_over": 0.4681,
+   "mkt_books": 2,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": -101.0,
+     "under": -126.0,
+     "read_at": "2026-09-24T20:24:45Z",
+     "p_over_devig": 0.474,
+     "hold": 0.06
+    },
+    {
+     "book": "fanduel",
+     "over": 102.0,
+     "under": -136.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.4621,
+     "hold": 0.0713
+    }
+   ],
+   "kalshi_mid": 0.415,
+   "model_p_over": 0.2714,
+   "gap_pp": -19.66,
+   "lean": "under",
+   "lean_price": -131.0,
+   "band": {
+    "lo_pp": 8.0,
+    "hi_pp": null,
+    "n": 6862,
+    "games": 852,
+    "cleared": 0.5254,
+    "ci": [
+     0.5135,
+     0.5372
+    ],
+    "ci_method": "wilson_95",
+    "roi": -0.0063,
+    "roi_ci": [
+     -0.0297,
+     0.0165
+    ],
+    "roi_ci_method": "game_block_bootstrap_2000",
+    "source": "research/board_bands.py"
+   },
+   "last10": [
+    {
+     "game_id": "2025_11_BAL_CLE",
+     "value": 3.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_12_NYJ_BAL",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_13_CIN_BAL",
+     "value": 4.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_14_PIT_BAL",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_15_BAL_CIN",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_16_NE_BAL",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_BAL_GB",
+     "value": 4.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_18_BAL_PIT",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_BAL_IND",
+     "value": 4.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_NO_BAL",
+     "value": 6.0,
+     "cleared": true
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 1,
+     "n": 10,
+     "ci": [
+      0.0179,
+      0.4042
+     ]
+    },
+    "season": {
+     "k": 1,
+     "n": 2,
+     "ci": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "career": {
+     "k": 44,
+     "n": 123,
+     "ci": [
+      0.2785,
+      0.4456
+     ]
+    },
+    "career_posted": {
+     "k": 20,
+     "n": 47,
+     "ci": [
+      0.2951,
+      0.5672
+     ],
+     "basis": {
+      "p_bench": 47,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.4681,
+     "books": 2
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 4.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0034796:rush_attempts:6.5",
+   "claim_id": "2026_03_BAL_DAL:00-0034796:rush_attempts",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0034796",
+   "slug": "lamar-jackson",
+   "name": "Lamar Jackson",
+   "pos": "QB",
+   "team": "BAL",
+   "opp": "DAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "rush_attempts",
+   "line": 6.5,
+   "is_main": true,
+   "ladder": [
+    6.5
+   ],
+   "mkt_p_over": 0.4369,
+   "mkt_books": 1,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": 116.0,
+     "under": -148.0,
+     "read_at": "2026-09-24T20:24:45Z",
+     "p_over_devig": 0.4369,
+     "hold": 0.0597
+    }
+   ],
+   "kalshi_mid": 0.43,
+   "model_p_over": 0.2413,
+   "gap_pp": -19.56,
+   "lean": "under",
+   "lean_price": -148.0,
+   "band": {
+    "lo_pp": 8.0,
+    "hi_pp": null,
+    "n": 3602,
+    "games": 841,
+    "cleared": 0.5464,
+    "ci": [
+     0.5301,
+     0.5626
+    ],
+    "ci_method": "wilson_95",
+    "roi": 0.0311,
+    "roi_ci": [
+     -0.0044,
+     0.0651
+    ],
+    "roi_ci_method": "game_block_bootstrap_2000",
+    "source": "research/board_bands.py"
+   },
+   "last10": [
+    {
+     "game_id": "2025_10_BAL_MIN",
+     "value": 9.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_11_BAL_CLE",
+     "value": 4.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_12_NYJ_BAL",
+     "value": 7.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_13_CIN_BAL",
+     "value": 6.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_14_PIT_BAL",
+     "value": 7.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_15_BAL_CIN",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_16_NE_BAL",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_18_BAL_PIT",
+     "value": 4.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_BAL_IND",
+     "value": 7.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2026_02_NO_BAL",
+     "value": 4.0,
+     "cleared": false
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 4,
+     "n": 10,
+     "ci": [
+      0.1682,
+      0.6873
+     ]
+    },
+    "season": {
+     "k": 1,
+     "n": 2,
+     "ci": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "career": {
+     "k": 85,
+     "n": 118,
+     "ci": [
+      0.6334,
+      0.7934
+     ]
+    },
+    "career_posted": {
+     "k": 18,
+     "n": 48,
+     "ci": [
+      0.2522,
+      0.5164
+     ],
+     "basis": {
+      "p_bench": 48,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.4369,
+     "books": 1
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 6.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0034975:receiving_yards:13.5",
+   "claim_id": "2026_03_BAL_DAL:00-0034975:receiving_yards",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0034975",
+   "slug": "justice-hill",
+   "name": "Justice Hill",
+   "pos": "RB",
+   "team": "BAL",
+   "opp": "DAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receiving_yards",
+   "line": 13.5,
+   "is_main": true,
+   "ladder": [
+    13.5
+   ],
+   "mkt_p_over": 0.5042,
+   "mkt_books": 2,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": -116.0,
+     "under": -108.0,
+     "read_at": "2026-09-24T20:24:45Z",
+     "p_over_devig": 0.5084,
+     "hold": 0.0563
+    },
+    {
+     "book": "fanduel",
+     "over": -114.0,
+     "under": -114.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.5,
+     "hold": 0.0654
+    }
+   ],
+   "kalshi_mid": null,
+   "model_p_over": null,
+   "gap_pp": null,
+   "lean": null,
+   "lean_price": null,
+   "band": null,
+   "last10": [
+    {
+     "game_id": "2025_03_DET_BAL",
+     "value": 45.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_04_BAL_KC",
+     "value": 41.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_05_HOU_BAL",
+     "value": 9.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_06_LA_BAL",
+     "value": 28.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_08_CHI_BAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_09_BAL_MIA",
+     "value": 13.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_10_BAL_MIN",
+     "value": 12.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_12_NYJ_BAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_BAL_IND",
+     "value": 10.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_NO_BAL",
+     "value": 12.0,
+     "cleared": false
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 3,
+     "n": 10,
+     "ci": [
+      0.1078,
+      0.6032
+     ]
+    },
+    "season": {
+     "k": 0,
+     "n": 2,
+     "ci": [
+      0.0,
+      0.6576
+     ]
+    },
+    "career": {
+     "k": 19,
+     "n": 85,
+     "ci": [
+      0.148,
+      0.3229
+     ]
+    },
+    "career_posted": {
+     "k": 16,
+     "n": 36,
+     "ci": [
+      0.2954,
+      0.6042
+     ],
+     "basis": {
+      "p_bench": 36,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.5042,
+     "books": 2
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 13.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0034975:receptions:2.5",
+   "claim_id": "2026_03_BAL_DAL:00-0034975:receptions",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0034975",
+   "slug": "justice-hill",
+   "name": "Justice Hill",
+   "pos": "RB",
+   "team": "BAL",
+   "opp": "DAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receptions",
+   "line": 2.5,
+   "is_main": true,
+   "ladder": [
+    2.5
+   ],
+   "mkt_p_over": 0.399,
+   "mkt_books": 2,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": 131.0,
+     "under": -168.0,
+     "read_at": "2026-09-24T20:24:45Z",
+     "p_over_devig": 0.4085,
+     "hold": 0.0598
+    },
+    {
+     "book": "fanduel",
+     "over": 140.0,
+     "under": -188.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.3896,
+     "hold": 0.0694
+    }
+   ],
+   "kalshi_mid": 0.38,
+   "model_p_over": 0.4005,
+   "gap_pp": 0.15,
+   "lean": null,
+   "lean_price": null,
+   "band": null,
+   "last10": [
+    {
+     "game_id": "2025_03_DET_BAL",
+     "value": 3.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_04_BAL_KC",
+     "value": 5.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_05_HOU_BAL",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_06_LA_BAL",
+     "value": 5.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_08_CHI_BAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_09_BAL_MIA",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_10_BAL_MIN",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_12_NYJ_BAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_BAL_IND",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_NO_BAL",
+     "value": 2.0,
+     "cleared": false
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 3,
+     "n": 10,
+     "ci": [
+      0.1078,
+      0.6032
+     ]
+    },
+    "season": {
+     "k": 0,
+     "n": 2,
+     "ci": [
+      0.0,
+      0.6576
+     ]
+    },
+    "career": {
+     "k": 20,
+     "n": 85,
+     "ci": [
+      0.1578,
+      0.3357
+     ]
+    },
+    "career_posted": {
+     "k": 18,
+     "n": 36,
+     "ci": [
+      0.3447,
+      0.6553
+     ],
+     "basis": {
+      "p_bench": 36,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.399,
+     "books": 2
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 2.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0036358:receiving_yards:82.5",
+   "claim_id": "2026_03_BAL_DAL:00-0036358:receiving_yards",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0036358",
+   "slug": "ceedee-lamb",
+   "name": "CeeDee Lamb",
+   "pos": "WR",
+   "team": "DAL",
+   "opp": "BAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receiving_yards",
+   "line": 82.5,
+   "is_main": true,
+   "ladder": [
+    81.5,
+    82.5
+   ],
+   "mkt_p_over": 0.5,
+   "mkt_books": 2,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "fanduel",
+     "over": -114.0,
+     "under": -114.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.5,
+     "hold": 0.0654
+    },
+    {
+     "book": "betmgm",
+     "over": -115.0,
+     "under": -115.0,
+     "read_at": "2026-09-24T20:24:29Z",
+     "p_over_devig": 0.5,
+     "hold": 0.0698
+    }
+   ],
+   "kalshi_mid": null,
+   "model_p_over": null,
+   "gap_pp": null,
+   "lean": null,
+   "lean_price": null,
+   "band": null,
+   "last10": [
+    {
+     "game_id": "2025_11_DAL_LV",
+     "value": 66.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_12_PHI_DAL",
+     "value": 75.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_13_KC_DAL",
+     "value": 112.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_14_DAL_DET",
+     "value": 121.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_15_MIN_DAL",
+     "value": 111.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_16_LAC_DAL",
+     "value": 51.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_DAL_WAS",
+     "value": 46.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_18_DAL_NYG",
+     "value": 4.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_DAL_NYG",
+     "value": 44.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_WAS_DAL",
+     "value": 153.0,
+     "cleared": true
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 4,
+     "n": 10,
+     "ci": [
+      0.1682,
+      0.6873
+     ]
+    },
+    "season": {
+     "k": 1,
+     "n": 2,
+     "ci": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "career": {
+     "k": 41,
+     "n": 96,
+     "ci": [
+      0.3328,
+      0.527
+     ]
+    },
+    "career_posted": {
+     "k": 26,
+     "n": 47,
+     "ci": [
+      0.4125,
+      0.6859
+     ],
+     "basis": {
+      "p_bench": 47,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.5,
+     "books": 2
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 82.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0036358:receptions:6.5",
+   "claim_id": "2026_03_BAL_DAL:00-0036358:receptions",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0036358",
+   "slug": "ceedee-lamb",
+   "name": "CeeDee Lamb",
+   "pos": "WR",
+   "team": "DAL",
+   "opp": "BAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receptions",
+   "line": 6.5,
+   "is_main": true,
+   "ladder": [
+    6.5
+   ],
+   "mkt_p_over": 0.5101,
+   "mkt_books": 3,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": -112.0,
+     "under": -114.0,
+     "read_at": "2026-09-24T20:24:45Z",
+     "p_over_devig": 0.4979,
+     "hold": 0.061
+    },
+    {
+     "book": "fanduel",
+     "over": -128.0,
+     "under": -104.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.5241,
+     "hold": 0.0712
+    },
+    {
+     "book": "betmgm",
+     "over": -120.0,
+     "under": -110.0,
+     "read_at": "2026-09-24T20:24:29Z",
+     "p_over_devig": 0.5101,
+     "hold": 0.0693
+    }
+   ],
+   "kalshi_mid": 0.475,
+   "model_p_over": 0.2718,
+   "gap_pp": -23.84,
+   "lean": "under",
+   "lean_price": -110.0,
+   "band": {
+    "lo_pp": 8.0,
+    "hi_pp": null,
+    "n": 6862,
+    "games": 852,
+    "cleared": 0.5254,
+    "ci": [
+     0.5135,
+     0.5372
+    ],
+    "ci_method": "wilson_95",
+    "roi": -0.0063,
+    "roi_ci": [
+     -0.0297,
+     0.0165
+    ],
+    "roi_ci_method": "game_block_bootstrap_2000",
+    "source": "research/board_bands.py"
+   },
+   "last10": [
+    {
+     "game_id": "2025_11_DAL_LV",
+     "value": 5.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_12_PHI_DAL",
+     "value": 4.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_13_KC_DAL",
+     "value": 7.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_14_DAL_DET",
+     "value": 6.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_15_MIN_DAL",
+     "value": 6.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_16_LAC_DAL",
+     "value": 6.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_DAL_WAS",
+     "value": 5.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_18_DAL_NYG",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_DAL_NYG",
+     "value": 5.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_WAS_DAL",
+     "value": 8.0,
+     "cleared": true
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 2,
+     "n": 10,
+     "ci": [
+      0.0567,
+      0.5098
+     ]
+    },
+    "season": {
+     "k": 1,
+     "n": 2,
+     "ci": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "career": {
+     "k": 36,
+     "n": 96,
+     "ci": [
+      0.2847,
+      0.4749
+     ]
+    },
+    "career_posted": {
+     "k": 23,
+     "n": 46,
+     "ci": [
+      0.3612,
+      0.6388
+     ],
+     "basis": {
+      "p_bench": 46,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.5101,
+     "books": 3
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 6.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0036550:receiving_yards:47.5",
+   "claim_id": "2026_03_BAL_DAL:00-0036550:receiving_yards",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0036550",
+   "slug": "rashod-bateman",
+   "name": "Rashod Bateman",
+   "pos": "WR",
+   "team": "BAL",
+   "opp": "DAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receiving_yards",
+   "line": 47.5,
+   "is_main": true,
+   "ladder": [
+    47.5,
+    48.5
+   ],
+   "mkt_p_over": 0.5,
+   "mkt_books": 1,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "fanduel",
+     "over": -114.0,
+     "under": -114.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.5,
+     "hold": 0.0654
+    }
+   ],
+   "kalshi_mid": null,
+   "model_p_over": null,
+   "gap_pp": null,
+   "lean": null,
+   "lean_price": null,
+   "band": null,
+   "last10": [
+    {
+     "game_id": "2025_06_LA_BAL",
+     "value": 8.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_08_CHI_BAL",
+     "value": 51.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_09_BAL_MIA",
+     "value": 13.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_10_BAL_MIN",
+     "value": 10.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_13_CIN_BAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_14_PIT_BAL",
+     "value": 23.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_16_NE_BAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_BAL_GB",
+     "value": 7.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_BAL_IND",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_NO_BAL",
+     "value": 88.0,
+     "cleared": true
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 2,
+     "n": 10,
+     "ci": [
+      0.0567,
+      0.5098
+     ]
+    },
+    "season": {
+     "k": 1,
+     "n": 2,
+     "ci": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "career": {
+     "k": 19,
+     "n": 64,
+     "ci": [
+      0.199,
+      0.4177
+     ]
+    },
+    "career_posted": {
+     "k": 20,
+     "n": 48,
+     "ci": [
+      0.2885,
+      0.5572
+     ],
+     "basis": {
+      "p_bench": 48,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.5,
+     "books": 1
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 47.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0036550:receptions:3.5",
+   "claim_id": "2026_03_BAL_DAL:00-0036550:receptions",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0036550",
+   "slug": "rashod-bateman",
+   "name": "Rashod Bateman",
+   "pos": "WR",
+   "team": "BAL",
+   "opp": "DAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receptions",
+   "line": 3.5,
+   "is_main": true,
+   "ladder": [
+    3.5
+   ],
+   "mkt_p_over": 0.474,
+   "mkt_books": 2,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": -102.0,
+     "under": -125.0,
+     "read_at": "2026-09-24T20:24:45Z",
+     "p_over_devig": 0.4761,
+     "hold": 0.0605
+    },
+    {
+     "book": "fanduel",
+     "over": -102.0,
+     "under": -130.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.4718,
+     "hold": 0.0702
+    }
+   ],
+   "kalshi_mid": 0.45,
+   "model_p_over": 0.2657,
+   "gap_pp": -20.83,
+   "lean": "under",
+   "lean_price": -127.5,
+   "band": {
+    "lo_pp": 8.0,
+    "hi_pp": null,
+    "n": 6862,
+    "games": 852,
+    "cleared": 0.5254,
+    "ci": [
+     0.5135,
+     0.5372
+    ],
+    "ci_method": "wilson_95",
+    "roi": -0.0063,
+    "roi_ci": [
+     -0.0297,
+     0.0165
+    ],
+    "roi_ci_method": "game_block_bootstrap_2000",
+    "source": "research/board_bands.py"
+   },
+   "last10": [
+    {
+     "game_id": "2025_06_LA_BAL",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_08_CHI_BAL",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_09_BAL_MIA",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_10_BAL_MIN",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_13_CIN_BAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_14_PIT_BAL",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_16_NE_BAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_BAL_GB",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_BAL_IND",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_NO_BAL",
+     "value": 7.0,
+     "cleared": true
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 1,
+     "n": 10,
+     "ci": [
+      0.0179,
+      0.4042
+     ]
+    },
+    "season": {
+     "k": 1,
+     "n": 2,
+     "ci": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "career": {
+     "k": 17,
+     "n": 64,
+     "ci": [
+      0.173,
+      0.3848
+     ]
+    },
+    "career_posted": {
+     "k": 18,
+     "n": 44,
+     "ci": [
+      0.2769,
+      0.5559
+     ],
+     "basis": {
+      "p_bench": 44,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.474,
+     "books": 2
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 3.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0036997:receiving_yards:16.5",
+   "claim_id": "2026_03_BAL_DAL:00-0036997:receiving_yards",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0036997",
+   "slug": "javonte-williams",
+   "name": "Javonte Williams",
+   "pos": "RB",
+   "team": "DAL",
+   "opp": "BAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receiving_yards",
+   "line": 16.5,
+   "is_main": true,
+   "ladder": [
+    16.5
+   ],
+   "mkt_p_over": 0.5,
+   "mkt_books": 3,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": -109.0,
+     "under": -115.0,
+     "read_at": "2026-09-24T20:24:45Z",
+     "p_over_devig": 0.4937,
+     "hold": 0.0564
+    },
+    {
+     "book": "fanduel",
+     "over": -114.0,
+     "under": -114.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.5,
+     "hold": 0.0654
+    },
+    {
+     "book": "betmgm",
+     "over": -120.0,
+     "under": -110.0,
+     "read_at": "2026-09-24T20:24:29Z",
+     "p_over_devig": 0.5101,
+     "hold": 0.0693
+    }
+   ],
+   "kalshi_mid": null,
+   "model_p_over": null,
+   "gap_pp": null,
+   "lean": null,
+   "lean_price": null,
+   "band": null,
+   "last10": [
+    {
+     "game_id": "2025_09_ARI_DAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_11_DAL_LV",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_12_PHI_DAL",
+     "value": 14.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_13_KC_DAL",
+     "value": 21.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_14_DAL_DET",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_15_MIN_DAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_16_LAC_DAL",
+     "value": 9.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_DAL_WAS",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_DAL_NYG",
+     "value": 31.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2026_02_WAS_DAL",
+     "value": 20.0,
+     "cleared": true
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 3,
+     "n": 10,
+     "ci": [
+      0.1078,
+      0.6032
+     ]
+    },
+    "season": {
+     "k": 2,
+     "n": 2,
+     "ci": [
+      0.3424,
+      1.0
+     ]
+    },
+    "career": {
+     "k": 25,
+     "n": 72,
+     "ci": [
+      0.2475,
+      0.4624
+     ]
+    },
+    "career_posted": {
+     "k": 21,
+     "n": 50,
+     "ci": [
+      0.2937,
+      0.5577
+     ],
+     "basis": {
+      "p_bench": 50,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.5,
+     "books": 3
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 16.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0036997:receptions:2.5",
+   "claim_id": "2026_03_BAL_DAL:00-0036997:receptions",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0036997",
+   "slug": "javonte-williams",
+   "name": "Javonte Williams",
+   "pos": "RB",
+   "team": "DAL",
+   "opp": "BAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receptions",
+   "line": 2.5,
+   "is_main": true,
+   "ladder": [
+    2.5
+   ],
+   "mkt_p_over": 0.567,
+   "mkt_books": 3,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": -154.0,
+     "under": 120.0,
+     "read_at": "2026-09-24T20:24:45Z",
+     "p_over_devig": 0.5715,
+     "hold": 0.0608
+    },
+    {
+     "book": "fanduel",
+     "over": -154.0,
+     "under": 116.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.567,
+     "hold": 0.0693
+    },
+    {
+     "book": "betmgm",
+     "over": -150.0,
+     "under": 110.0,
+     "read_at": "2026-09-24T20:24:29Z",
+     "p_over_devig": 0.5575,
+     "hold": 0.0762
+    }
+   ],
+   "kalshi_mid": 0.555,
+   "model_p_over": 0.4154,
+   "gap_pp": -15.16,
+   "lean": "under",
+   "lean_price": 116.0,
+   "band": {
+    "lo_pp": 8.0,
+    "hi_pp": null,
+    "n": 6862,
+    "games": 852,
+    "cleared": 0.5254,
+    "ci": [
+     0.5135,
+     0.5372
+    ],
+    "ci_method": "wilson_95",
+    "roi": -0.0063,
+    "roi_ci": [
+     -0.0297,
+     0.0165
+    ],
+    "roi_ci_method": "game_block_bootstrap_2000",
+    "source": "research/board_bands.py"
+   },
+   "last10": [
+    {
+     "game_id": "2025_09_ARI_DAL",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_11_DAL_LV",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_12_PHI_DAL",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_13_KC_DAL",
+     "value": 3.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_14_DAL_DET",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_15_MIN_DAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_16_LAC_DAL",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_DAL_WAS",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_DAL_NYG",
+     "value": 5.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2026_02_WAS_DAL",
+     "value": 3.0,
+     "cleared": true
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 3,
+     "n": 10,
+     "ci": [
+      0.1078,
+      0.6032
+     ]
+    },
+    "season": {
+     "k": 2,
+     "n": 2,
+     "ci": [
+      0.3424,
+      1.0
+     ]
+    },
+    "career": {
+     "k": 37,
+     "n": 72,
+     "ci": [
+      0.4007,
+      0.6257
+     ]
+    },
+    "career_posted": {
+     "k": 24,
+     "n": 47,
+     "ci": [
+      0.3724,
+      0.6472
+     ],
+     "basis": {
+      "p_bench": 47,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.567,
+     "books": 3
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 2.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0036997:rush_attempts:14.5",
+   "claim_id": "2026_03_BAL_DAL:00-0036997:rush_attempts",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0036997",
+   "slug": "javonte-williams",
+   "name": "Javonte Williams",
+   "pos": "RB",
+   "team": "DAL",
+   "opp": "BAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "rush_attempts",
+   "line": 14.5,
+   "is_main": true,
+   "ladder": [
+    14.5
+   ],
+   "mkt_p_over": 0.499,
+   "mkt_books": 1,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": -112.0,
+     "under": -113.0,
+     "read_at": "2026-09-24T20:24:45Z",
+     "p_over_devig": 0.499,
+     "hold": 0.0588
+    }
+   ],
+   "kalshi_mid": 0.505,
+   "model_p_over": 0.511,
+   "gap_pp": 1.2,
+   "lean": null,
+   "lean_price": null,
+   "band": null,
+   "last10": [
+    {
+     "game_id": "2025_09_ARI_DAL",
+     "value": 15.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_11_DAL_LV",
+     "value": 22.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_12_PHI_DAL",
+     "value": 20.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_13_KC_DAL",
+     "value": 17.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_14_DAL_DET",
+     "value": 17.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_15_MIN_DAL",
+     "value": 15.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_16_LAC_DAL",
+     "value": 9.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_DAL_WAS",
+     "value": 13.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_DAL_NYG",
+     "value": 12.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_WAS_DAL",
+     "value": 12.0,
+     "cleared": false
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 6,
+     "n": 10,
+     "ci": [
+      0.3127,
+      0.8318
+     ]
+    },
+    "season": {
+     "k": 0,
+     "n": 2,
+     "ci": [
+      0.0,
+      0.6576
+     ]
+    },
+    "career": {
+     "k": 25,
+     "n": 72,
+     "ci": [
+      0.2475,
+      0.4624
+     ]
+    },
+    "career_posted": {
+     "k": 21,
+     "n": 47,
+     "ci": [
+      0.3141,
+      0.5875
+     ],
+     "basis": {
+      "p_bench": 47,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.499,
+     "books": 1
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 14.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0037247:receiving_yards:59.5",
+   "claim_id": "2026_03_BAL_DAL:00-0037247:receiving_yards",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0037247",
+   "slug": "george-pickens",
+   "name": "George Pickens",
+   "pos": "WR",
+   "team": "DAL",
+   "opp": "BAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receiving_yards",
+   "line": 59.5,
+   "is_main": true,
+   "ladder": [
+    59.5,
+    60.5
+   ],
+   "mkt_p_over": 0.5,
+   "mkt_books": 2,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "fanduel",
+     "over": -114.0,
+     "under": -114.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.5,
+     "hold": 0.0654
+    },
+    {
+     "book": "betmgm",
+     "over": -115.0,
+     "under": -115.0,
+     "read_at": "2026-09-24T20:24:29Z",
+     "p_over_devig": 0.5,
+     "hold": 0.0698
+    }
+   ],
+   "kalshi_mid": null,
+   "model_p_over": null,
+   "gap_pp": null,
+   "lean": null,
+   "lean_price": null,
+   "band": null,
+   "last10": [
+    {
+     "game_id": "2025_11_DAL_LV",
+     "value": 144.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_12_PHI_DAL",
+     "value": 146.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_13_KC_DAL",
+     "value": 88.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_14_DAL_DET",
+     "value": 37.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_15_MIN_DAL",
+     "value": 33.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_16_LAC_DAL",
+     "value": 130.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_17_DAL_WAS",
+     "value": 78.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_18_DAL_NYG",
+     "value": 9.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_DAL_NYG",
+     "value": 28.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_WAS_DAL",
+     "value": 40.0,
+     "cleared": false
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 5,
+     "n": 10,
+     "ci": [
+      0.2366,
+      0.7634
+     ]
+    },
+    "season": {
+     "k": 0,
+     "n": 2,
+     "ci": [
+      0.0,
+      0.6576
+     ]
+    },
+    "career": {
+     "k": 32,
+     "n": 67,
+     "ci": [
+      0.3625,
+      0.5952
+     ]
+    },
+    "career_posted": {
+     "k": 31,
+     "n": 50,
+     "ci": [
+      0.4815,
+      0.7414
+     ],
+     "basis": {
+      "p_bench": 50,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.5,
+     "books": 2
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 59.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0037247:receptions:5.5",
+   "claim_id": "2026_03_BAL_DAL:00-0037247:receptions",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0037247",
+   "slug": "george-pickens",
+   "name": "George Pickens",
+   "pos": "WR",
+   "team": "DAL",
+   "opp": "BAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receptions",
+   "line": 5.5,
+   "is_main": true,
+   "ladder": [
+    5.5
+   ],
+   "mkt_p_over": 0.4324,
+   "mkt_books": 2,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": 123.0,
+     "under": -157.0,
+     "read_at": "2026-09-24T20:24:45Z",
+     "p_over_devig": 0.4233,
+     "hold": 0.0593
+    },
+    {
+     "book": "fanduel",
+     "over": 112.0,
+     "under": -148.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.4415,
+     "hold": 0.0685
+    }
+   ],
+   "kalshi_mid": 0.43,
+   "model_p_over": 0.4198,
+   "gap_pp": -1.26,
+   "lean": null,
+   "lean_price": null,
+   "band": null,
+   "last10": [
+    {
+     "game_id": "2025_11_DAL_LV",
+     "value": 9.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_12_PHI_DAL",
+     "value": 9.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_13_KC_DAL",
+     "value": 6.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_14_DAL_DET",
+     "value": 5.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_15_MIN_DAL",
+     "value": 3.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_16_LAC_DAL",
+     "value": 7.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_17_DAL_WAS",
+     "value": 4.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_18_DAL_NYG",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_DAL_NYG",
+     "value": 3.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_WAS_DAL",
+     "value": 6.0,
+     "cleared": true
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 5,
+     "n": 10,
+     "ci": [
+      0.2366,
+      0.7634
+     ]
+    },
+    "season": {
+     "k": 1,
+     "n": 2,
+     "ci": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "career": {
+     "k": 17,
+     "n": 67,
+     "ci": [
+      0.1649,
+      0.3693
+     ]
+    },
+    "career_posted": {
+     "k": 25,
+     "n": 49,
+     "ci": [
+      0.3747,
+      0.6443
+     ],
+     "basis": {
+      "p_bench": 49,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.4324,
+     "books": 2
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 5.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0038041:receiving_yards:27.5",
+   "claim_id": "2026_03_BAL_DAL:00-0038041:receiving_yards",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0038041",
+   "slug": "jake-ferguson",
+   "name": "Jake Ferguson",
+   "pos": "TE",
+   "team": "DAL",
+   "opp": "BAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receiving_yards",
+   "line": 27.5,
+   "is_main": true,
+   "ladder": [
+    27.5,
+    28.5
+   ],
+   "mkt_p_over": 0.5,
+   "mkt_books": 1,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "betmgm",
+     "over": -115.0,
+     "under": -115.0,
+     "read_at": "2026-09-24T20:24:29Z",
+     "p_over_devig": 0.5,
+     "hold": 0.0698
+    }
+   ],
+   "kalshi_mid": null,
+   "model_p_over": null,
+   "gap_pp": null,
+   "lean": null,
+   "lean_price": null,
+   "band": null,
+   "last10": [
+    {
+     "game_id": "2025_11_DAL_LV",
+     "value": 16.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_12_PHI_DAL",
+     "value": 60.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_13_KC_DAL",
+     "value": 36.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_14_DAL_DET",
+     "value": 58.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_15_MIN_DAL",
+     "value": 16.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_16_LAC_DAL",
+     "value": 19.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_DAL_WAS",
+     "value": 6.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_18_DAL_NYG",
+     "value": 5.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_DAL_NYG",
+     "value": 6.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_WAS_DAL",
+     "value": 43.0,
+     "cleared": true
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 4,
+     "n": 10,
+     "ci": [
+      0.1682,
+      0.6873
+     ]
+    },
+    "season": {
+     "k": 1,
+     "n": 2,
+     "ci": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "career": {
+     "k": 32,
+     "n": 61,
+     "ci": [
+      0.4016,
+      0.6447
+     ]
+    },
+    "career_posted": {
+     "k": 19,
+     "n": 49,
+     "ci": [
+      0.2643,
+      0.5275
+     ],
+     "basis": {
+      "p_bench": 49,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": {
+    "rule": "H2H1",
+    "k": 1,
+    "n": 1,
+    "display_rate": 1.0,
+    "next_rate": 0.45064883995281163,
+    "next_ci": [
+     0.4425591290173431,
+     0.4588840076948325
+    ],
+    "next_n": 22887,
+    "source": "F11",
+    "line_basis": "posted line (F11 measured a constructed median line)"
+   },
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.5,
+     "books": 1
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 27.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0038041:receptions:3.5",
+   "claim_id": "2026_03_BAL_DAL:00-0038041:receptions",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0038041",
+   "slug": "jake-ferguson",
+   "name": "Jake Ferguson",
+   "pos": "TE",
+   "team": "DAL",
+   "opp": "BAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receptions",
+   "line": 3.5,
+   "is_main": true,
+   "ladder": [
+    3.5
+   ],
+   "mkt_p_over": 0.5142,
+   "mkt_books": 3,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": -124.0,
+     "under": -102.0,
+     "read_at": "2026-09-24T20:24:45Z",
+     "p_over_devig": 0.523,
+     "hold": 0.0585
+    },
+    {
+     "book": "fanduel",
+     "over": -122.0,
+     "under": -108.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.5142,
+     "hold": 0.0688
+    },
+    {
+     "book": "betmgm",
+     "over": -115.0,
+     "under": -115.0,
+     "read_at": "2026-09-24T20:24:29Z",
+     "p_over_devig": 0.5,
+     "hold": 0.0698
+    }
+   ],
+   "kalshi_mid": 0.5,
+   "model_p_over": 0.5662,
+   "gap_pp": 5.2,
+   "lean": "over",
+   "lean_price": -122.0,
+   "band": {
+    "lo_pp": 4.0,
+    "hi_pp": 6.0,
+    "n": 1084,
+    "games": 630,
+    "cleared": 0.5037,
+    "ci": [
+     0.474,
+     0.5334
+    ],
+    "ci_method": "wilson_95",
+    "roi": -0.0517,
+    "roi_ci": [
+     -0.1121,
+     0.0111
+    ],
+    "roi_ci_method": "game_block_bootstrap_2000",
+    "source": "research/board_bands.py"
+   },
+   "last10": [
+    {
+     "game_id": "2025_11_DAL_LV",
+     "value": 4.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_12_PHI_DAL",
+     "value": 5.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_13_KC_DAL",
+     "value": 5.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_14_DAL_DET",
+     "value": 5.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_15_MIN_DAL",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_16_LAC_DAL",
+     "value": 3.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_DAL_WAS",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_18_DAL_NYG",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_DAL_NYG",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_WAS_DAL",
+     "value": 4.0,
+     "cleared": true
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 5,
+     "n": 10,
+     "ci": [
+      0.2366,
+      0.7634
+     ]
+    },
+    "season": {
+     "k": 1,
+     "n": 2,
+     "ci": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "career": {
+     "k": 31,
+     "n": 61,
+     "ci": [
+      0.386,
+      0.6294
+     ]
+    },
+    "career_posted": {
+     "k": 26,
+     "n": 48,
+     "ci": [
+      0.4029,
+      0.6742
+     ],
+     "basis": {
+      "p_bench": 48,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": {
+    "rule": "H2H1",
+    "k": 1,
+    "n": 1,
+    "display_rate": 1.0,
+    "next_rate": 0.45064883995281163,
+    "next_ci": [
+     0.4425591290173431,
+     0.4588840076948325
+    ],
+    "next_n": 22887,
+    "source": "F11",
+    "line_basis": "posted line (F11 measured a constructed median line)"
+   },
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.5142,
+     "books": 3
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 3.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0039410:receiving_yards:29.5",
+   "claim_id": "2026_03_BAL_DAL:00-0039410:receiving_yards",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0039410",
+   "slug": "ryan-flournoy",
+   "name": "Ryan Flournoy",
+   "pos": "WR",
+   "team": "DAL",
+   "opp": "BAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receiving_yards",
+   "line": 29.5,
+   "is_main": true,
+   "ladder": [
+    29.5,
+    30.5
+   ],
+   "mkt_p_over": 0.5,
+   "mkt_books": 1,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "fanduel",
+     "over": -114.0,
+     "under": -114.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.5,
+     "hold": 0.0654
+    }
+   ],
+   "kalshi_mid": null,
+   "model_p_over": null,
+   "gap_pp": null,
+   "lean": null,
+   "lean_price": null,
+   "band": null,
+   "last10": [
+    {
+     "game_id": "2025_09_ARI_DAL",
+     "value": 12.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_11_DAL_LV",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_12_PHI_DAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_13_KC_DAL",
+     "value": 34.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_14_DAL_DET",
+     "value": 115.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_15_MIN_DAL",
+     "value": 40.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_16_LAC_DAL",
+     "value": 18.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_18_DAL_NYG",
+     "value": 68.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2026_01_DAL_NYG",
+     "value": 22.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_WAS_DAL",
+     "value": 23.0,
+     "cleared": false
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 4,
+     "n": 10,
+     "ci": [
+      0.1682,
+      0.6873
+     ]
+    },
+    "season": {
+     "k": 0,
+     "n": 2,
+     "ci": [
+      0.0,
+      0.6576
+     ]
+    },
+    "career": {
+     "k": 7,
+     "n": 26,
+     "ci": [
+      0.137,
+      0.4608
+     ]
+    },
+    "career_posted": {
+     "k": 8,
+     "n": 14,
+     "ci": [
+      0.3259,
+      0.7862
+     ],
+     "basis": {
+      "p_bench": 14,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.5,
+     "books": 1
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 29.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0039410:receptions:3.5",
+   "claim_id": "2026_03_BAL_DAL:00-0039410:receptions",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0039410",
+   "slug": "ryan-flournoy",
+   "name": "Ryan Flournoy",
+   "pos": "WR",
+   "team": "DAL",
+   "opp": "BAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receptions",
+   "line": 3.5,
+   "is_main": true,
+   "ladder": [
+    3.5
+   ],
+   "mkt_p_over": 0.4528,
+   "mkt_books": 2,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "draftkings",
+     "over": 111.0,
+     "under": -141.0,
+     "read_at": "2026-09-24T20:24:45Z",
+     "p_over_devig": 0.4475,
+     "hold": 0.059
+    },
+    {
+     "book": "fanduel",
+     "over": 104.0,
+     "under": -138.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.4581,
+     "hold": 0.07
+    }
+   ],
+   "kalshi_mid": 0.4,
+   "model_p_over": 0.292,
+   "gap_pp": -16.08,
+   "lean": "under",
+   "lean_price": -139.5,
+   "band": {
+    "lo_pp": 8.0,
+    "hi_pp": null,
+    "n": 6862,
+    "games": 852,
+    "cleared": 0.5254,
+    "ci": [
+     0.5135,
+     0.5372
+    ],
+    "ci_method": "wilson_95",
+    "roi": -0.0063,
+    "roi_ci": [
+     -0.0297,
+     0.0165
+    ],
+    "roi_ci_method": "game_block_bootstrap_2000",
+    "source": "research/board_bands.py"
+   },
+   "last10": [
+    {
+     "game_id": "2025_09_ARI_DAL",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_11_DAL_LV",
+     "value": 1.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_12_PHI_DAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_13_KC_DAL",
+     "value": 3.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_14_DAL_DET",
+     "value": 9.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_15_MIN_DAL",
+     "value": 4.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2025_16_LAC_DAL",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_18_DAL_NYG",
+     "value": 5.0,
+     "cleared": true
+    },
+    {
+     "game_id": "2026_01_DAL_NYG",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_WAS_DAL",
+     "value": 5.0,
+     "cleared": true
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 4,
+     "n": 10,
+     "ci": [
+      0.1682,
+      0.6873
+     ]
+    },
+    "season": {
+     "k": 1,
+     "n": 2,
+     "ci": [
+      0.0945,
+      0.9055
+     ]
+    },
+    "career": {
+     "k": 5,
+     "n": 26,
+     "ci": [
+      0.0851,
+      0.3788
+     ]
+    },
+    "career_posted": {
+     "k": 5,
+     "n": 10,
+     "ci": [
+      0.2366,
+      0.7634
+     ],
+     "basis": {
+      "p_bench": 10,
+      "p_all": 0
+     },
+     "seasons": "2023-2025 sportsbook closes"
+    }
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.4528,
+     "books": 2
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 3.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0040075:receiving_yards:20.5",
+   "claim_id": "2026_03_BAL_DAL:00-0040075:receiving_yards",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0040075",
+   "slug": "lajohntay-wester",
+   "name": "LaJohntay Wester",
+   "pos": "WR",
+   "team": "BAL",
+   "opp": "DAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receiving_yards",
+   "line": 20.5,
+   "is_main": true,
+   "ladder": [
+    20.5
+   ],
+   "mkt_p_over": 0.5,
+   "mkt_books": 1,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "fanduel",
+     "over": -114.0,
+     "under": -114.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.5,
+     "hold": 0.0654
+    }
+   ],
+   "kalshi_mid": null,
+   "model_p_over": null,
+   "gap_pp": null,
+   "lean": null,
+   "lean_price": null,
+   "band": null,
+   "last10": [
+    {
+     "game_id": "2025_10_BAL_MIN",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_11_BAL_CLE",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_12_NYJ_BAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_14_PIT_BAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_15_BAL_CIN",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_16_NE_BAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_BAL_GB",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_18_BAL_PIT",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_BAL_IND",
+     "value": 15.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_NO_BAL",
+     "value": 14.0,
+     "cleared": false
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 0,
+     "n": 10,
+     "ci": [
+      0.0,
+      0.2775
+     ]
+    },
+    "season": {
+     "k": 0,
+     "n": 2,
+     "ci": [
+      0.0,
+      0.6576
+     ]
+    },
+    "career": {
+     "k": 0,
+     "n": 16,
+     "ci": [
+      0.0,
+      0.1936
+     ]
+    },
+    "career_posted": null
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.5,
+     "books": 1
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 20.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  },
+  {
+   "row_id": "2026-03-BAL-DAL:00-0040075:receptions:2.5",
+   "claim_id": "2026_03_BAL_DAL:00-0040075:receptions",
+   "season": 2026,
+   "week": 3,
+   "gsis_id": "00-0040075",
+   "slug": "lajohntay-wester",
+   "name": "LaJohntay Wester",
+   "pos": "WR",
+   "team": "BAL",
+   "opp": "DAL",
+   "game_id": "2026_03_BAL_DAL",
+   "kickoff": "2026-09-27T20:25:00Z",
+   "kickoff_ts": 1790540700.0,
+   "market": "receptions",
+   "line": 2.5,
+   "is_main": true,
+   "ladder": [
+    2.5
+   ],
+   "mkt_p_over": 0.3993,
+   "mkt_books": 1,
+   "mkt_method": "median_devig_mult",
+   "longshot": false,
+   "books": [
+    {
+     "book": "fanduel",
+     "over": 134.0,
+     "under": -180.0,
+     "read_at": "2026-09-24T20:24:39Z",
+     "p_over_devig": 0.3993,
+     "hold": 0.0702
+    }
+   ],
+   "kalshi_mid": 0.325,
+   "model_p_over": 0.0789,
+   "gap_pp": -32.04,
+   "lean": "under",
+   "lean_price": -180.0,
+   "band": {
+    "lo_pp": 8.0,
+    "hi_pp": null,
+    "n": 6862,
+    "games": 852,
+    "cleared": 0.5254,
+    "ci": [
+     0.5135,
+     0.5372
+    ],
+    "ci_method": "wilson_95",
+    "roi": -0.0063,
+    "roi_ci": [
+     -0.0297,
+     0.0165
+    ],
+    "roi_ci_method": "game_block_bootstrap_2000",
+    "source": "research/board_bands.py"
+   },
+   "last10": [
+    {
+     "game_id": "2025_10_BAL_MIN",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_11_BAL_CLE",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_12_NYJ_BAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_14_PIT_BAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_15_BAL_CIN",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_16_NE_BAL",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_17_BAL_GB",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2025_18_BAL_PIT",
+     "value": 0.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_01_BAL_IND",
+     "value": 2.0,
+     "cleared": false
+    },
+    {
+     "game_id": "2026_02_NO_BAL",
+     "value": 1.0,
+     "cleared": false
+    }
+   ],
+   "rates": {
+    "last10": {
+     "k": 0,
+     "n": 10,
+     "ci": [
+      0.0,
+      0.2775
+     ]
+    },
+    "season": {
+     "k": 0,
+     "n": 2,
+     "ci": [
+      0.0,
+      0.6576
+     ]
+    },
+    "career": {
+     "k": 0,
+     "n": 16,
+     "ci": [
+      0.0,
+      0.1936
+     ]
+    },
+    "career_posted": null
+   },
+   "streak": null,
+   "line_path": [
+    {
+     "t": "2026-09-24T20:25:23Z",
+     "p_over": 0.3993,
+     "books": 1
+    }
+   ],
+   "news": [],
+   "status": "upcoming",
+   "result": null,
+   "lean_result": null,
+   "void_reason": null,
+   "pulled_at": null,
+   "priced_at": "2026-09-26T18:13:42Z",
+   "opened_line": 2.5,
+   "main_line_changed_since_open": false,
+   "line_moved_after_publication": false,
+   "lean_changed_after_publication": false
+  }
+ ]
+}

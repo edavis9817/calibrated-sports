@@ -1,0 +1,44 @@
+{
+ "schema_version": 2,
+ "generated_at": "2026-09-26T18:16:52Z",
+ "kind": "board_index",
+ "sport": "nfl",
+ "season": 2026,
+ "week": 3,
+ "reads": [
+  "2026-09-26T18:13:42Z"
+ ],
+ "latest": "2026-09-26T18:13:42Z",
+ "lean_threshold_pp": 4.0,
+ "lean_threshold_log": [
+  [
+   "2026-09-01T00:00:00Z",
+   4.0,
+   "decided 2026-09-24 (audit 5.3, unit a-26) before the first board; effective from season start because no board read predates it"
+  ]
+ ],
+ "model_version": "baseline-usage-0.4+03571d4710af",
+ "verdict": {
+  "id": "R15",
+  "season": 2025,
+  "brier_gap": 0.0195,
+  "lo": 0.0144,
+  "hi": 0.0253,
+  "games": 284,
+  "source": "research/walkforward.py (brief 023 Part 1, restated 2026-09-17)"
+ },
+ "leans": {
+  "graded": 0,
+  "upcoming": 16,
+  "live": 0,
+  "void": 0
+ },
+ "definitions": {
+  "line": "the main line AT THIS READ: the listed threshold whose median de-vigged over probability across DraftKings, FanDuel and BetMGM is closest to 0.5. is_main is a property of the read, not of the market; it is false only on a row kept for a published lean whose line the main line moved off.",
+  "gap_pp": "model minus market, probability points, signed",
+  "lean": "over at gap >= +T, under at gap <= -T",
+  "longshot": "market P(over) outside [0.15, 0.85]; multiplicative de-vig is biased there - to revisit with Shin or power de-vig once settled data exists",
+  "void": "market_pulled | inactive | no_snap - a voided lean stays on the ledger",
+  "published_lean": "a lean is published at the first read that carries it and graded on the line it was published at, forever. It never leaves the board: if the main line moves off it, or the current read stops leaning that way at it, the row stays, frozen as priced at priced_at, flagged line_moved_after_publication or lean_changed_after_publication. So every published lean is on every later read, as exactly one row."
+ }
+}
