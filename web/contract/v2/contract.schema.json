@@ -30,7 +30,8 @@
       "board_index": "BoardIndexFile",
       "board_read": "BoardReadFile",
       "lab_index": "LabIndexFile",
-      "lab_preset": "LabPresetFile"
+      "lab_preset": "LabPresetFile",
+      "season_model": "SeasonModelFile"
     },
     "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.market_calibration", "research.execution", "coverage"],
     "keys": [
@@ -56,7 +57,8 @@
       {"pattern": "^board/[a-z0-9]+/\\d{4}/wk\\d{2}/index\\.json$", "kind": "board_index"},
       {"pattern": "^board/[a-z0-9]+/\\d{4}/wk\\d{2}/read-\\d{4}-\\d{2}-\\d{2}T\\d{6}Z\\.json$", "kind": "board_read"},
       {"pattern": "^lab/[a-z0-9]+/index\\.json$", "kind": "lab_index"},
-      {"pattern": "^lab/[a-z0-9]+/presets/[a-z0-9_]+\\.json$", "kind": "lab_preset"}
+      {"pattern": "^lab/[a-z0-9]+/presets/[a-z0-9_]+\\.json$", "kind": "lab_preset"},
+      {"pattern": "^season/[a-z0-9]+/[a-z0-9_]+\\.json$", "kind": "season_model"}
     ],
     "tables": {
       "comment": "Keys that are NOT JSON and are not validated by a $def: columnar files a producer appends to. Each entry names its pattern, its format and its columns with their types, and the producer asserts its own column list and types against this entry before it writes, so the two cannot drift. The uploader ships a non-JSON key only when it matches a pattern here, and NEVER deletes one by absence: an append-only file that vanished because one run did not re-declare it would destroy the only record of what was published.",
@@ -3751,6 +3753,899 @@
         "min_cleared",
         "restriction",
         "presets"
+      ],
+      "additionalProperties": false
+    },
+    "SeasonModelFile": {
+      "description": "A season model's forecast WITH ITS SCORING RECORD in the same file (a-41). Per-team probabilities carry their Monte Carlo error; `record` is the walk-forward score against the standings carried forward, and `display` names which of the two a page should print. Every verdict and sentence is computed from the figures.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "season_model"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+$"
+        },
+        "label": {
+          "type": "string"
+        },
+        "season": {
+          "type": "integer"
+        },
+        "as_of": {
+          "type": "object",
+          "properties": {
+            "games_played": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "games_total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "last_complete_week": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "last_game_ts": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "games_played",
+            "games_total",
+            "last_complete_week",
+            "last_game_ts"
+          ],
+          "additionalProperties": false
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "method": {
+          "type": "object",
+          "properties": {
+            "rating": {
+              "type": "string"
+            },
+            "game_distribution": {
+              "type": "string"
+            },
+            "constants": {
+              "type": "object",
+              "properties": {
+                "k": {
+                  "type": "number"
+                },
+                "hfa": {
+                  "type": "number"
+                },
+                "regress": {
+                  "type": "number"
+                },
+                "fitted_on": {
+                  "$ref": "#/$defs/Interval"
+                },
+                "fit_games": {
+                  "type": "integer"
+                },
+                "fit_log_loss": {
+                  "type": "number"
+                },
+                "grid": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "k",
+                "hfa",
+                "regress",
+                "fitted_on",
+                "fit_games",
+                "fit_log_loss",
+                "grid"
+              ],
+              "additionalProperties": false
+            },
+            "simulations": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "mc_se_max": {
+              "type": "number"
+            },
+            "limitations": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "rating",
+            "game_distribution",
+            "constants",
+            "simulations",
+            "mc_se_max",
+            "limitations"
+          ],
+          "additionalProperties": false
+        },
+        "tiebreakers": {
+          "description": "Which of the league's division tiebreakers the simulator implements, which it does not, and how a tie surviving the implemented steps is settled. `checked` runs the implemented steps on FINAL results and compares with the real winners.",
+          "type": "object",
+          "properties": {
+            "format": {
+              "type": "string"
+            },
+            "implemented": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "not_implemented": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "residual": {
+              "type": "string"
+            },
+            "restart_rule": {
+              "type": "string"
+            },
+            "checked": {
+              "type": "object",
+              "properties": {
+                "seasons": {
+                  "$ref": "#/$defs/Interval"
+                },
+                "division_seasons": {
+                  "type": "integer"
+                },
+                "agree": {
+                  "type": "integer"
+                },
+                "tied_at_top": {
+                  "type": "integer"
+                },
+                "tied_agree": {
+                  "type": "integer"
+                },
+                "residual_draws": {
+                  "type": "integer"
+                },
+                "against": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "seasons",
+                "division_seasons",
+                "agree",
+                "tied_at_top",
+                "tied_agree",
+                "residual_draws",
+                "against"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "format",
+            "implemented",
+            "not_implemented",
+            "residual",
+            "restart_rule",
+            "checked"
+          ],
+          "additionalProperties": false
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AnalyticMethod"
+          },
+          "minItems": 1
+        },
+        "divisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "division": {
+                "type": "string"
+              },
+              "conference": {
+                "type": "string"
+              },
+              "teams": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "team": {
+                      "type": "string"
+                    },
+                    "wins": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "losses": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "ties": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "rating": {
+                      "type": "number"
+                    },
+                    "p": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "The model's probability of winning the division."
+                    },
+                    "mc_se": {
+                      "type": "number",
+                      "description": "Monte Carlo standard error of `p`: simulation error only."
+                    },
+                    "p_interval": {
+                      "$ref": "#/$defs/Interval",
+                      "description": "`p` +/- 1.96 `mc_se`, clipped to [0, 1]."
+                    },
+                    "p_standings": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "The standings baseline: the same simulator and tiebreakers with every remaining game a coin flip. What a page prints when `display.show` is `standings_coin_flip`."
+                    },
+                    "mc_se_standings": {
+                      "type": "number"
+                    },
+                    "leader_share": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "1 / (number of co-leaders on win percentage) for a current leader, else 0."
+                    }
+                  },
+                  "required": [
+                    "team",
+                    "wins",
+                    "losses",
+                    "ties",
+                    "rating",
+                    "p",
+                    "mc_se",
+                    "p_interval",
+                    "p_standings",
+                    "mc_se_standings",
+                    "leader_share"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 2
+              }
+            },
+            "required": [
+              "division",
+              "conference",
+              "teams"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "record": {
+          "description": "THE SCORING RECORD: the same procedure, walk-forward, on every season it could not see. Constants refit each season on earlier seasons only; realised winners read from postseason hosting.",
+          "type": "object",
+          "properties": {
+            "seasons": {
+              "$ref": "#/$defs/Interval"
+            },
+            "division_seasons": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "n_states": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "simulations_per_state": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "block": {
+              "type": "string"
+            },
+            "states": {
+              "type": "string"
+            },
+            "brier": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "number"
+                },
+                "standings_coin_flip": {
+                  "type": "number"
+                },
+                "standings_leader": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "model",
+                "standings_coin_flip",
+                "standings_leader"
+              ],
+              "additionalProperties": false
+            },
+            "baselines": {
+              "type": "object",
+              "properties": {
+                "standings_leader": {
+                  "type": "string"
+                },
+                "standings_coin_flip": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "standings_leader",
+                "standings_coin_flip"
+              ],
+              "additionalProperties": false
+            },
+            "vs": {
+              "type": "object",
+              "properties": {
+                "standings_leader": {
+                  "description": "Model Brier minus a baseline's, over every scored forecast. Negative is better for the model.",
+                  "type": "object",
+                  "properties": {
+                    "estimate": {
+                      "type": "number"
+                    },
+                    "interval": {
+                      "$ref": "#/$defs/Interval"
+                    },
+                    "n_blocks": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "n_states": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "method": {
+                      "type": "string"
+                    },
+                    "verdict": {
+                      "type": "string",
+                      "enum": [
+                        "better_than",
+                        "no_better_than",
+                        "worse_than",
+                        "not_readable"
+                      ],
+                      "description": "Computed from the interval of model minus baseline: `better_than` lies below 0, `worse_than` above, `no_better_than` covers 0; `not_readable` under five blocks, whatever it excludes."
+                    },
+                    "by_season": {
+                      "type": "object",
+                      "properties": {
+                        "estimate": {
+                          "type": "number"
+                        },
+                        "interval": {
+                          "$ref": "#/$defs/Interval"
+                        },
+                        "n_blocks": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "method": {
+                          "type": "string"
+                        },
+                        "verdict": {
+                          "type": "string",
+                          "enum": [
+                            "better_than",
+                            "no_better_than",
+                            "worse_than",
+                            "not_readable"
+                          ],
+                          "description": "Computed from the interval of model minus baseline: `better_than` lies below 0, `worse_than` above, `no_better_than` covers 0; `not_readable` under five blocks, whatever it excludes."
+                        }
+                      },
+                      "required": [
+                        "estimate",
+                        "interval",
+                        "n_blocks",
+                        "method",
+                        "verdict"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "estimate",
+                    "interval",
+                    "n_blocks",
+                    "n_states",
+                    "method",
+                    "verdict",
+                    "by_season"
+                  ],
+                  "additionalProperties": false
+                },
+                "standings_coin_flip": {
+                  "description": "Model Brier minus a baseline's, over every scored forecast. Negative is better for the model.",
+                  "type": "object",
+                  "properties": {
+                    "estimate": {
+                      "type": "number"
+                    },
+                    "interval": {
+                      "$ref": "#/$defs/Interval"
+                    },
+                    "n_blocks": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "n_states": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "method": {
+                      "type": "string"
+                    },
+                    "verdict": {
+                      "type": "string",
+                      "enum": [
+                        "better_than",
+                        "no_better_than",
+                        "worse_than",
+                        "not_readable"
+                      ],
+                      "description": "Computed from the interval of model minus baseline: `better_than` lies below 0, `worse_than` above, `no_better_than` covers 0; `not_readable` under five blocks, whatever it excludes."
+                    },
+                    "by_season": {
+                      "type": "object",
+                      "properties": {
+                        "estimate": {
+                          "type": "number"
+                        },
+                        "interval": {
+                          "$ref": "#/$defs/Interval"
+                        },
+                        "n_blocks": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "method": {
+                          "type": "string"
+                        },
+                        "verdict": {
+                          "type": "string",
+                          "enum": [
+                            "better_than",
+                            "no_better_than",
+                            "worse_than",
+                            "not_readable"
+                          ],
+                          "description": "Computed from the interval of model minus baseline: `better_than` lies below 0, `worse_than` above, `no_better_than` covers 0; `not_readable` under five blocks, whatever it excludes."
+                        }
+                      },
+                      "required": [
+                        "estimate",
+                        "interval",
+                        "n_blocks",
+                        "method",
+                        "verdict"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "estimate",
+                    "interval",
+                    "n_blocks",
+                    "n_states",
+                    "method",
+                    "verdict",
+                    "by_season"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "standings_leader",
+                "standings_coin_flip"
+              ],
+              "additionalProperties": false
+            },
+            "verdict": {
+              "type": "string",
+              "enum": [
+                "beats_standings",
+                "no_better_than_standings",
+                "worse_than_standings",
+                "not_readable"
+              ],
+              "description": "`beats_standings` only when the model is `better_than` BOTH baselines; `worse_than_standings` when it is `worse_than` either; `no_better_than_standings` otherwise."
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Generated from the figures at export time."
+            },
+            "by_week": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "after_week": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "n": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "model": {
+                    "type": "number"
+                  },
+                  "standings_coin_flip": {
+                    "type": "number"
+                  },
+                  "standings_leader": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "after_week",
+                  "n",
+                  "model",
+                  "standings_coin_flip",
+                  "standings_leader"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "races": {
+              "description": "How many races were genuinely uncertain - the honest size of the sample.",
+              "type": "object",
+              "properties": {
+                "division_seasons": {
+                  "type": "integer"
+                },
+                "tied_at_top_final": {
+                  "type": "integer"
+                },
+                "margin_le_1_game": {
+                  "type": "integer"
+                },
+                "open_after_week": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer"
+                  }
+                },
+                "open_definition": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "division_seasons",
+                "tied_at_top_final",
+                "margin_le_1_game",
+                "open_after_week",
+                "open_definition"
+              ],
+              "additionalProperties": false
+            },
+            "open_states": {
+              "type": "object",
+              "properties": {
+                "note": {
+                  "type": "string"
+                },
+                "n_states": {
+                  "type": "integer"
+                },
+                "n_blocks": {
+                  "type": "integer"
+                },
+                "brier": {
+                  "type": "object",
+                  "properties": {
+                    "model": {
+                      "type": "number"
+                    },
+                    "standings_coin_flip": {
+                      "type": "number"
+                    },
+                    "standings_leader": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "model",
+                    "standings_coin_flip",
+                    "standings_leader"
+                  ],
+                  "additionalProperties": false
+                },
+                "vs": {
+                  "type": "object",
+                  "properties": {
+                    "standings_leader": {
+                      "type": "object",
+                      "properties": {
+                        "estimate": {
+                          "type": "number"
+                        },
+                        "interval": {
+                          "$ref": "#/$defs/Interval"
+                        },
+                        "n_blocks": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "verdict": {
+                          "type": "string",
+                          "enum": [
+                            "better_than",
+                            "no_better_than",
+                            "worse_than",
+                            "not_readable"
+                          ],
+                          "description": "Computed from the interval of model minus baseline: `better_than` lies below 0, `worse_than` above, `no_better_than` covers 0; `not_readable` under five blocks, whatever it excludes."
+                        }
+                      },
+                      "required": [
+                        "estimate",
+                        "interval",
+                        "n_blocks",
+                        "verdict"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "standings_coin_flip": {
+                      "type": "object",
+                      "properties": {
+                        "estimate": {
+                          "type": "number"
+                        },
+                        "interval": {
+                          "$ref": "#/$defs/Interval"
+                        },
+                        "n_blocks": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "verdict": {
+                          "type": "string",
+                          "enum": [
+                            "better_than",
+                            "no_better_than",
+                            "worse_than",
+                            "not_readable"
+                          ],
+                          "description": "Computed from the interval of model minus baseline: `better_than` lies below 0, `worse_than` above, `no_better_than` covers 0; `not_readable` under five blocks, whatever it excludes."
+                        }
+                      },
+                      "required": [
+                        "estimate",
+                        "interval",
+                        "n_blocks",
+                        "verdict"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "standings_leader",
+                    "standings_coin_flip"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "note",
+                "n_states",
+                "n_blocks",
+                "brier",
+                "vs"
+              ],
+              "additionalProperties": false
+            },
+            "constants_by_season": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "season": {
+                    "type": "integer"
+                  },
+                  "k": {
+                    "type": "number"
+                  },
+                  "hfa": {
+                    "type": "number"
+                  },
+                  "regress": {
+                    "type": "number"
+                  },
+                  "fit_seasons": {
+                    "$ref": "#/$defs/Interval"
+                  },
+                  "fit_games": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "season",
+                  "k",
+                  "hfa",
+                  "regress",
+                  "fit_seasons",
+                  "fit_games"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "calibration": {
+              "type": "array",
+              "items": {
+                "description": "One reliability bin of team-level probabilities. `n` is team-forecasts and is NOT the effective sample - forecasts of one race from week to week are one observation; `n_blocks` is division-seasons, and the interval resamples those.",
+                "type": "object",
+                "properties": {
+                  "bin": {
+                    "$ref": "#/$defs/Interval"
+                  },
+                  "n": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "n_blocks": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "forecast": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "realised": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "interval": {
+                    "anyOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "$ref": "#/$defs/Interval"
+                      }
+                    ]
+                  },
+                  "verdict": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "within",
+                      "realised_above",
+                      "realised_below",
+                      null
+                    ]
+                  }
+                },
+                "required": [
+                  "bin",
+                  "n",
+                  "n_blocks",
+                  "forecast",
+                  "realised",
+                  "interval",
+                  "verdict"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "calibration_statement": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "seasons",
+            "division_seasons",
+            "n_states",
+            "simulations_per_state",
+            "block",
+            "states",
+            "brier",
+            "baselines",
+            "vs",
+            "verdict",
+            "statement",
+            "by_week",
+            "races",
+            "open_states",
+            "constants_by_season",
+            "calibration",
+            "calibration_statement"
+          ],
+          "additionalProperties": false
+        },
+        "display": {
+          "description": "Computed from `record.verdict`: the model only when it beats the standings; otherwise the standings baseline, labelled.",
+          "type": "object",
+          "properties": {
+            "show": {
+              "type": "string",
+              "enum": [
+                "model",
+                "standings_coin_flip"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "show",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "model",
+        "label",
+        "season",
+        "as_of",
+        "sources",
+        "method",
+        "tiebreakers",
+        "methods",
+        "divisions",
+        "record",
+        "display"
       ],
       "additionalProperties": false
     }

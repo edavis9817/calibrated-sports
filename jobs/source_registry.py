@@ -523,6 +523,9 @@ KIND_EXTRA = {
         "live.snapshot": ("nflverse.schedule", "espn.scoreboard", "kalshi.ladders",
                           "nflverse.injuries"),
         "predictor": ("nflverse.draft_picks",),
+        # a-41: jobs/season_model.py reads nfl_games (scores, schedule) and
+        # nfl_teams (conference and division), mode=ro, outside sync_keys.
+        "season_model": ("nflverse.schedule", "nflverse.teams"),
         "coverage": ("nflverse.stats", "nflverse.schedule", "nflverse.snap_counts",
                      "kalshi.ladders", "kalshi.price_history", "kalshi.trades", "polymarket",
                      "oddsapi", "nflverse.injuries", "sportsdataverse.cfb", "cfbd",

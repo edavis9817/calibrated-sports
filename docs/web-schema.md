@@ -666,6 +666,25 @@ retired predictor could never be deleted from R2.
 `tests/test_contract_coverage_predictor.py` fails if a scheduled job runs
 either producer before that exists.
 
+## season/{sport}/{model}.json — kind `season_model` (a-41)
+
+A season model's forecast and its walk-forward scoring record in one file.
+Phase 1 is `season/nfl/division.json`: chance to win the division, per team,
+with `mc_se` (Monte Carlo standard error, simulation error only) and
+`p_interval` (p +/- 1.96 mc_se). Every team also carries `p_standings`, the
+same simulator with every remaining game a coin flip, and `leader_share`.
+`record` scores the procedure walk-forward over 2002-2025 against both
+standings baselines; `record.verdict` is `beats_standings` only when the model
+is `better_than` both, and `display.show` is computed from it: `model`, or
+`standings_coin_flip` when the record does not beat the standings. A page prints
+`p` or `p_standings` as `display.show` says, and never picks for itself.
+`tiebreakers` names the implemented steps, the unimplemented ones and the
+residual rule; `tiebreakers.checked` is the implemented steps run on final
+results against the real winners. Producer: `jobs/season_model.py` (model in
+`models/season.py`, shape in `jobs/season_export.py`), writing to its own
+`season/` prefix under `storage_path("season_model")`. **In the contract, not
+published:** nothing uploads `season/` and no scheduled job runs the producer.
+
 ## {sport}/sources.json — kind `sources` (a-22, audit S-04)
 
 GENERATED from `jobs/source_registry.py`, never written. `sources[]` lists every
