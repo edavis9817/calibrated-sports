@@ -11,7 +11,7 @@ WHAT IT RUNS, in the order a real publish would:
   1. snapshot   WEB_EXPORT_DIR (with its .upload_state.json) -> <scratch>/web
                 analytics.db (sqlite backup API over mode=ro) -> <scratch>/store
                 web/slugs/nfl.json -> <scratch>/slugs
-  2. analytics  the metric publishers (spine, team_units, pace, schedule,
+  2. analytics  the metric publishers (spine, role, team_units, pace, schedule,
                 residual, vacancy, deltas) into the SCRATCH analytics.db
   3. site       jobs.export_web.export() - every PART - into <scratch>/web
   4. analytics  analytics.export build + sync into <scratch>/web/analytics/
@@ -70,6 +70,10 @@ ANALYTICS_STEPS = (
     # exist before team_units and pace publish (a-25), and deltas reads the
     # 2026 spine (a-19).
     ("analytics.spine", ["--build"]),
+    # a-40: the down-and-distance family reads the spine's f_play_usage (touch)
+    # and the participation tables `role --build-onfield` built once (on-field;
+    # offseason-tier, so there is nothing new to explode in-season).
+    ("analytics.role", ["--publish"]),
     ("analytics.team_units", ["--publish"]),
     ("analytics.pace", ["--publish"]),
     ("analytics.schedule", ["--publish", "--season", "{season}"]),
@@ -456,7 +460,7 @@ def main(argv=None):
     ap.add_argument("--no-analytics-publish", action="store_true",
                     help="export the analytics store as it is, without re-running the publishers")
     ap.add_argument("--analytics-only", action="append",
-                    help="run only these publishers (spine, team_units, pace, schedule, "
+                    help="run only these publishers (spine, role, team_units, pace, schedule, "
                          "residual, vacancy, deltas)")
     ap.add_argument("--no-asof", action="store_true",
                     help="run analytics.residual with --no-asof (the five as-of keys stay out)")
