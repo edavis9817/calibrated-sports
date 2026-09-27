@@ -44,6 +44,12 @@ CONF_POSITION = {"histogram_bootstrap": 3, "block_bootstrap": 3, "share_bootstra
     ("cluster_t90", "team", 0.90, "between teams"),
     ("wilson95", "game", 0.95, "proportion"),
     ("t99", "game", 0.99, "independent games"),
+    # a-39: the four shapes that refused the export once deltas and residual published
+    ("wilson95/phi=10.267", "game", 0.95, "multiplied by 10.267"),
+    ("wilson90/phi=1.000", "game", 0.90, "multiplied by 1.000"),
+    ("newcombe95/phi=2.132", "game", 0.95, "change between two proportions"),
+    ("norm95/c2=230.793", "game", 0.95, "230.793 divided by the plays"),
+    ("boot2000-players", "player", 0.95, "resampling players"),
 ])
 def test_every_known_tag_states_a_level_and_names_what_was_resampled(code, block, level, words):
     m = X.describe_method(code, block)
@@ -57,7 +63,9 @@ def test_the_block_decides_the_word_so_players_are_never_called_games():
     assert "games" not in X.describe_method("hist2000", "player")["interval"]
 
 
-@pytest.mark.parametrize("code", ["classblock2000", "hist", "bootstrap", "", None])
+@pytest.mark.parametrize("code", ["classblock2000", "hist", "bootstrap", "", None,
+                                  "wilson95/phi=", "newcombe95", "norm95/phi=1.0",
+                                  "boot2000-games", "boot2000"])
 def test_an_unknown_tag_refuses_rather_than_guessing_a_level(code):
     with pytest.raises(X.MethodError):
         X.describe_method(code, "game")
@@ -123,6 +131,54 @@ def test_the_defaults_and_the_schedule_level_are_the_stated_level():
         assert list(params).index("conf") == CONF_POSITION[name]
         assert params["conf"].default == X.IMPLICIT_LEVEL
     assert schedule.CONF == X.IMPLICIT_LEVEL        # bayes2000 / bayes2000t
+
+
+# ------------------------------------ a-39: the tags the publishers actually emit
+
+def test_every_tag_deltas_and_residual_can_emit_is_stateable():
+    """The guard that would have caught a-39's refusal: build the tags the way the
+    modules build them, not the way a test author remembers them."""
+    from analytics import deltas, residual
+    tags = [deltas._method(kind, d) for kind in ("wilson", "newcombe", "norm")
+            for d in (1.0, 1.215, 10.267, 230.793)]
+    tags.append("boot%d-players" % residual.DRAWS)
+    for t in tags:
+        assert X.describe_method(t, "game")["coverage_level"] == X.IMPLICIT_LEVEL, t
+
+
+def test_the_deltas_tag_states_the_level_deltas_computes_at():
+    """`_method` writes a literal 95; `CONF` is what sets the z. If they ever part,
+    the file would state a level the interval was not built at."""
+    from analytics import deltas
+    for kind in ("wilson", "newcombe", "norm"):
+        stated = X.describe_method(deltas._method(kind, 2.0), "game")["coverage_level"]
+        assert stated == deltas.CONF
+
+
+def band_percentiles(source):
+    """Every literal list passed as the 2nd argument to a `percentile` call inside
+    `band_values` - the interval bounds of the `boot2000-players` tag."""
+    tree = ast.parse(source)
+    fn = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
+          and n.name == "band_values"]
+    assert len(fn) == 1, "band_values not found - the guard is not looking at it"
+    out = []
+    for node in ast.walk(fn[0]):
+        if (isinstance(node, ast.Call) and getattr(node.func, "attr", None) == "percentile"
+                and len(node.args) > 1 and isinstance(node.args[1], ast.List)):
+            out.append([ast.literal_eval(e) for e in node.args[1].elts])
+    return out
+
+
+def test_the_residual_band_interval_is_the_implicit_095():
+    src = open(os.path.join(ROOT, "analytics", "residual.py"), encoding="utf-8").read()
+    assert band_percentiles(src) == [[2.5, 97.5]]
+
+
+def test_the_band_guard_sees_a_planted_90():
+    planted = ("def band_values(a, boot):\n"
+               "    lo, hi = np.percentile(boot[0], [5.0, 95.0])\n")
+    assert band_percentiles(planted) == [[5.0, 95.0]]
 
 
 # ---------------------------------------------------------------- the contract

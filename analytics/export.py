@@ -165,7 +165,34 @@ def _finite(*xs):
 
 IMPLICIT_LEVEL = 0.95
 
+# a-39: FOUR TAG SHAPES THE FIRST TABLE COULD NOT STATE, and each one refused the
+# whole export the moment its module published (measured on a scratch copy of the
+# real store, research/a39_module_judgement.py): `analytics.deltas` writes
+# `wilson95/phi=10.267`, `newcombe95/phi=2.132` and `norm95/c2=230.793` - analytic
+# intervals whose level is in the tag and whose dispersion constant is too - and
+# `analytics.residual`'s bands write `boot2000-players`, a percentile bootstrap over
+# players at a hardcoded [2.5, 97.5] (0.95, pinned by AST in
+# tests/test_analytics_methods.py). The dispersion is stated because it is what
+# widens the band: on held-out 2025, a pure binomial band excluded zero on 31.1% of
+# week-to-week snap-share changes and the dispersed band on 2.1% (a-19's
+# `deltas --calibrate`).
+_PARAM = r"(?P<param>[0-9]+(?:\.[0-9]+)?)"
+
 _METHOD_RULES = (
+    (re.compile(r"^wilson(\d+)/phi=%s$" % _PARAM), "level",
+     "Interval for a proportion (Wilson), widened because plays inside one game are "
+     "not independent: the binomial variance is multiplied by {param}, the "
+     "game-to-game dispersion measured over completed seasons."),
+    (re.compile(r"^newcombe(\d+)/phi=%s$" % _PARAM), "level",
+     "Interval for a change between two proportions (Newcombe's method, from two "
+     "Wilson intervals), each widened because plays inside one game are not "
+     "independent: the binomial variance is multiplied by {param}, the game-to-game "
+     "dispersion measured over completed seasons."),
+    (re.compile(r"^norm(\d+)/c2=%s$" % _PARAM), "level",
+     "Normal interval whose variance is {param} divided by the plays it was measured "
+     "on, that constant measured game to game over completed seasons."),
+    (re.compile(r"^boot(\d+)-players$"), None,
+     "Interval from resampling players with replacement, {draws} times."),
     (re.compile(r"^hist(\d+)$"), None,
      "Interval from resampling {blocks} with replacement, {draws} times."),
     (re.compile(r"^block(\d+)$"), None,
@@ -201,7 +228,8 @@ def describe_method(code, block):
         else:
             level, draws = IMPLICIT_LEVEL, int(m.group(1))
         sentence = text.format(block=block, blocks=block + "s",
-                               draws="{:,}".format(draws) if draws else "")
+                               draws="{:,}".format(draws) if draws else "",
+                               param=m.groupdict().get("param") or "")
         return {"code": code, "interval": sentence, "coverage_level": level}
     raise MethodError("interval method %r has no stated meaning or coverage level; add it "
                       "to analytics.export._METHOD_RULES before publishing it" % (code,))
