@@ -429,10 +429,15 @@ def _drawdown(bets, profit, unit):
             best = max(best, run)
         elif o == CLEARED:
             run = 0
+    # peak_index / trough_index are bet positions (peak_index None = the origin,
+    # before the first bet). They stay on the server: jobs.lab_publish uses them
+    # to check what max_units would difference back to before publishing it.
     return {"max_units": _f(worst),
             "peak_date": _date(ts[w_peak]) if w_peak is not None else
             (_date(ts[0]) if w_trough is not None else None),
             "trough_date": _date(ts[w_trough]) if w_trough is not None else None,
+            "peak_index": None if w_peak is None else int(w_peak),
+            "trough_index": None if w_trough is None else int(w_trough),
             "longest_losing_run": int(best),
             "note": "pushes and voids neither extend nor break a losing run"}
 
@@ -474,9 +479,14 @@ def _segments(bets, stake, profit, draws, seed):
     return seg
 
 
-def _luck(pool, rule_bets, draws, seed):
+def _luck(pool, rule_bets, draws, seed, at=None):
     """Same number of bets, drawn at random from the same universe and side,
-    `draws` times. Flat stakes on both sides of the comparison."""
+    `draws` times. Flat stakes on both sides of the comparison.
+
+    `at` (a-44): extra positions, 0-based over the rule's NON-VOID bets, at which
+    the draws' 5th/95th percentile cumulative units are also reported, as
+    `band_at`. Taken from the SAME draws - the rng is consumed identically with
+    or without it, so nothing else in the result moves."""
     n = int((rule_bets.get_column("outcome") != VOID).sum()) if len(rule_bets) else 0
     pool = pool.filter(pl.col("outcome") != VOID)
     m = len(pool)
@@ -491,13 +501,19 @@ def _luck(pool, rule_bets, draws, seed):
     pr, _st = _flat(pool)
     rng = np.random.default_rng(seed + 1)
     checkpoints = np.unique(np.linspace(0, n - 1, min(CHART_POINTS, n)).astype(int))
+    at = np.asarray([] if at is None else list(at), dtype=int)
+    if len(at) and (at.min() < 0 or at.max() > n - 1):
+        raise ValueError("band position outside the rule's %d non-void bets" % n)
     rois = np.empty(draws)
     paths = np.empty((draws, len(checkpoints)))
+    extra = np.empty((draws, len(at)))
     for d in range(draws):
         idx = np.sort(rng.choice(m, size=n, replace=False))
         x = pr[idx]
         rois[d] = x.sum() / n
-        paths[d] = np.cumsum(x)[checkpoints]
+        c = np.cumsum(x)
+        paths[d] = c[checkpoints]
+        extra[d] = c[at]
     pct = 100.0 * ((rois < rule_roi).sum() + 0.5 * (rois == rule_roi).sum()) / draws
     lo5, hi95 = np.percentile(rois, [5, 95])
     return {"percentile": _f(pct, 2), "draws": int(draws), "pool": m, "n": n,
@@ -505,7 +521,87 @@ def _luck(pool, rule_bets, draws, seed):
             "null_roi_p5": _f(lo5), "null_roi_p95": _f(hi95),
             "band": {"index": checkpoints.tolist(),
                      "p5": [_f(v, 3) for v in np.percentile(paths, 5, axis=0)],
-                     "p95": [_f(v, 3) for v in np.percentile(paths, 95, axis=0)]}}
+                     "p95": [_f(v, 3) for v in np.percentile(paths, 95, axis=0)]},
+            "band_at": ({"index": at.tolist(),
+                         "p5": [_f(v, 3) for v in np.percentile(extra, 5, axis=0)],
+                         "p95": [_f(v, 3) for v in np.percentile(extra, 95, axis=0)]}
+                        if len(at) else None)}
+
+
+def block_series(bets, profit, unit, min_cleared):
+    """Cumulative units by WEEK BLOCK (a-44) - the (season, week) unit the
+    bootstrap resamples - with every step holding at least `min_cleared` cleared
+    bets, so no two consecutive points (the origin included) difference back to
+    fewer than that many prices.
+
+    Merging is WITHIN a season, never across one. A season's cell is published
+    separately, so a step straddling a season boundary would let `season cell
+    less its whole steps` isolate the straddling fragment. Weeks accumulate in
+    order until the step holds `min_cleared` cleared bets; a thin remainder at
+    the end of a season joins that season's last step. A season whose whole
+    total is below the floor cannot be merged anywhere without being recoverable
+    (any point after it, less the point before it and less its neighbour's
+    published season cell, IS that season), so the series is withheld and
+    `withheld` names the season.
+
+    -> {"steps": [...], "week_blocks": int, "merged": int, "withheld": str|None}.
+    Each step: season, week_from, week_to, weeks (blocks in it), bets, cleared,
+    missed, push, void, units (CUMULATIVE through the step), index (0-based
+    position of the step's last non-void bet among the rule's non-void bets -
+    the luck band's axis), and `members` (bet positions; server-side only)."""
+    empty = {"steps": [], "week_blocks": 0, "merged": 0, "withheld": None}
+    if not len(bets):
+        return dict(empty, withheld="no bets")
+    season = bets.get_column("season").to_list()
+    week = bets.get_column("week").to_list()
+    out = bets.get_column("outcome").to_numpy()
+    u = unit or 1
+    blocks = {}
+    for i, (y, w) in enumerate(zip(season, week)):
+        blocks.setdefault((int(y), int(w)), []).append(i)
+    keys = sorted(blocks)
+
+    def cleared(ks):
+        return sum(int(out[i] == CLEARED) for k in ks for i in blocks[k])
+
+    n_c = int((out == CLEARED).sum())
+    if n_c < min_cleared:
+        return dict(empty, week_blocks=len(keys),
+                    withheld="the rule has %d cleared bet%s in all, fewer than %d, so no "
+                             "step could hold %d" % (n_c, "" if n_c == 1 else "s",
+                                                    min_cleared, min_cleared))
+    groups = []
+    for y in sorted({k[0] for k in keys}):
+        cur, mine = [], []
+        for k in (k for k in keys if k[0] == y):
+            cur.append(k)
+            if cleared(cur) >= min_cleared:
+                mine.append(cur)
+                cur = []
+        if cur:
+            if not mine:
+                c = cleared(cur)
+                return dict(empty, week_blocks=len(keys),
+                            withheld="season %d has %d cleared bet%s, fewer than %d: any "
+                                     "point after it, less the point before it and its "
+                                     "neighbour's season cell, would be that season's profit"
+                                     % (y, c, "" if c == 1 else "s", min_cleared))
+            mine[-1] = mine[-1] + cur
+        groups += mine
+    nonvoid = np.cumsum(out != VOID)
+    steps, cum = [], 0.0
+    for g in groups:
+        m = np.asarray(sorted(i for k in g for i in blocks[k]))
+        o = out[m]
+        cum += float(profit[m].sum()) / u
+        steps.append({"season": g[0][0], "week_from": g[0][1], "week_to": g[-1][1],
+                      "weeks": len(g), "bets": int(len(m)),
+                      "cleared": int((o == CLEARED).sum()), "missed": int((o == MISSED).sum()),
+                      "push": int((o == PUSH).sum()), "void": int((o == VOID).sum()),
+                      "units": _f(cum, 3), "index": int(nonvoid[m.max()]) - 1,
+                      "members": m.tolist()})
+    return {"steps": steps, "week_blocks": len(keys), "merged": len(keys) - len(groups),
+            "withheld": None}
 
 
 def _chart(bets, profit, unit):
@@ -551,8 +647,13 @@ def _evaluate(bets, s, seed, draws):
 # the entry point
 # =============================================================================
 
-def run(strategy, data, variants_tried=1):
-    """-> a `lab.result/1` dict. Raises strategy.Invalid / Unsupported."""
+def run(strategy, data, variants_tried=1, series_min_cleared=None):
+    """-> a `lab.result/1` dict. Raises strategy.Invalid / Unsupported.
+
+    `series_min_cleared` (a-44): when given, the result also carries `series`,
+    the week-block cumulative units (`block_series`), and the luck band at each
+    of its steps (`luck.band_at`). Absent, `series` is None and nothing else in
+    the result differs."""
     rows, meta = _unpack(data)
     approved = S.check(strategy, meta.get("features", {}),
                        meta.get("price_coverage"),
@@ -576,7 +677,11 @@ def run(strategy, data, variants_tried=1):
     bets = _limits(_conditions(in_rows, s), s["limits"])
     summ, stake, profit, unit = _evaluate(bets, s, seed, draws)
     pool = _limits(in_rows, {"per_player_week": s["limits"].get("per_player_week")})
-    luck = _luck(_order(pool), bets, null_draws, seed)
+    series = (block_series(bets, profit, unit, series_min_cleared)
+              if series_min_cleared is not None else None)
+    at = ([st["index"] for st in series["steps"] if st["index"] >= 0]
+          if series and not series["withheld"] else None)
+    luck = _luck(_order(pool), bets, null_draws, seed, at=at)
 
     by_season = _by(bets, stake, profit, "season", draws, seed)
     ho = None
@@ -629,6 +734,7 @@ def run(strategy, data, variants_tried=1):
                              "%d season" % hold["season"])},
         "all_seasons": all_seasons,
         "chart": _chart(bets, profit, unit),
+        "series": series,
         "provenance": provenance,
         "universe": {"claims_priced": int(len(priced)),
                      "after_side_and_line": int(len(lined)),

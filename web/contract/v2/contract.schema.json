@@ -3182,7 +3182,7 @@
     },
 
     "LabLuck": {
-      "description": "The luck check: the same number of bets drawn at random from the same universe and side, `draws` times, flat stakes. `percentile` is where the rule's flat ROI falls among them; `band` reads it against 5 and 95. Null percentile, with `note` saying why, when the rule takes every bet the universe offers (a random draw of the same size IS the rule). `paths` is the 5th-95th percentile band of the random draws' cumulative units at `index` bets - the draws', never the rule's own curve.",
+      "description": "The luck check: the same number of bets drawn at random from the same universe and side, `draws` times, flat stakes. `percentile` is where the rule's flat ROI falls among them; `band` reads it against 5 and 95. Null percentile, with `note` saying why, when the rule takes every bet the universe offers (a random draw of the same size IS the rule). `paths` is the 5th-95th percentile band of the random draws' cumulative units at `index` (0-based over the rule's non-void bets), published ONLY at the steps of `returns` - the draws', never the rule's own curve. Never at bet granularity: there the first point is a percentile of one random bet's profit, which is a book price minus one. Null, with `note` saying why, when there is no series or no draw.",
       "type": "object",
       "properties": {
         "percentile": {
@@ -3301,6 +3301,193 @@
       "additionalProperties": false
     },
 
+    "LabReturnsStep": {
+      "description": "One step of the returns series: whole week blocks of ONE season, holding at least `min_cleared` cleared bets. `units` is CUMULATIVE through the step (flat units at the rule's own stake); the step's own profit is `units` less the previous step's (0 before the first). `index` is the 0-based position of the step's last non-void bet among the rule's non-void bets - the axis `luck.paths` uses - and `null_p5`/`null_p95` are the random rules' 5th and 95th percentile cumulative units at that position, null when there is no band (see the series' `band_note`).",
+      "type": "object",
+      "properties": {
+        "season": {
+          "type": "integer"
+        },
+        "week_from": {
+          "type": "integer"
+        },
+        "week_to": {
+          "type": "integer"
+        },
+        "weeks": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "bets": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "cleared": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "push": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "void": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "units": {
+          "type": "number"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "null_p5": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "null_p95": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "season",
+        "week_from",
+        "week_to",
+        "weeks",
+        "bets",
+        "cleared",
+        "missed",
+        "push",
+        "void",
+        "units",
+        "index",
+        "null_p5",
+        "null_p95"
+      ],
+      "additionalProperties": false
+    },
+
+    "LabReturns": {
+      "description": "The rule's cumulative units by week block - the unit the bootstrap resamples - never bet by bet. Each step holds at least `min_cleared` cleared bets and none crosses a season, so no two consecutive points (the origin included), and no season cell less its steps, difference back to fewer than `min_cleared` book prices; jobs/lab_publish.verify_series re-derives that from the server-side bet list on every run and refuses otherwise, and `check` is the statement it approved. A week that alone holds fewer is merged into its neighbour within the season (`merged` counts them). `withheld` is non-null, with `steps` empty, when a season or the whole rule holds fewer than `min_cleared` cleared bets, because any point after it would read that season back.",
+      "type": "object",
+      "properties": {
+        "granularity": {
+          "const": "week_block"
+        },
+        "min_cleared": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "week_blocks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "merged": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "withheld": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LabReturnsStep"
+          }
+        },
+        "band_note": {
+          "description": "Why the steps carry no band, or null when they do.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "check": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "granularity",
+        "min_cleared",
+        "week_blocks",
+        "merged",
+        "withheld",
+        "steps",
+        "band_note",
+        "check"
+      ],
+      "additionalProperties": false
+    },
+
+    "LabDrawdown": {
+      "description": "The worst fall from a previous high in the rule's bet-by-bet cumulative units, in flat units. `max_units` is published only when the bets between the peak and the trough, and every fragment they isolate against the published steps and cells, hold at least the series' `min_cleared` cleared bets or none (`check` states it); otherwise it is null and `withheld` says which fragment stopped it. The dates and the longest losing run are counts and dates, carrying no price, and are always published. There is no CLV: every Lab bet is taken at the close, so it has none.",
+      "type": "object",
+      "properties": {
+        "max_units": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "peak_date": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trough_date": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "longest_losing_run": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "withheld": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "check": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "max_units",
+        "peak_date",
+        "trough_date",
+        "longest_losing_run",
+        "note",
+        "withheld",
+        "check"
+      ],
+      "additionalProperties": false
+    },
+
     "LabProvenance": {
       "type": "object",
       "properties": {
@@ -3327,7 +3514,7 @@
     },
 
     "LabPresetFile": {
-      "description": "One Lab library preset, run by lab.run over the universe table (the same code a user's rule runs) and published as AGGREGATES ONLY - no service. The holdout is the Lab's default: the latest complete season held out and NOT revealed, so no figure here includes it. `bet_list` deliberately carries no book price, book, stake or profit, and there is no equity curve: see `bet_list.restriction`, which is the reason in the file itself.",
+      "description": "One Lab library preset, run by lab.run over the universe table (the same code a user's rule runs) and published as AGGREGATES ONLY - no service. The holdout is the Lab's default: the latest complete season held out and NOT revealed, so no figure here includes it. `bet_list` deliberately carries no book price, book, stake or profit, and there is no bet-by-bet equity curve: see `bet_list.restriction`, which is the reason in the file itself. `returns` is the curve at week-block granularity, which that restriction allows and says why.",
       "type": "object",
       "properties": {
         "schema_version": {
@@ -3505,6 +3692,12 @@
         },
         "luck": {
           "$ref": "#/$defs/LabLuck"
+        },
+        "returns": {
+          "$ref": "#/$defs/LabReturns"
+        },
+        "drawdown": {
+          "$ref": "#/$defs/LabDrawdown"
         },
         "holdout": {
           "type": "object",
@@ -3694,6 +3887,8 @@
         "by_season",
         "segments",
         "luck",
+        "returns",
+        "drawdown",
         "holdout",
         "provenance",
         "universe_built",

@@ -33,8 +33,13 @@ MARKETS = {"prop": ["receptions", "receiving_yards", "rush_attempts", "tackles_a
            "spread": ["spread"], "total": ["total"]}
 # `books` is deliberately NOT here: strategy.price.books names the three books the
 # consensus is taken over, which is the rule, not a per-bet price or book.
+# `drawdown` left this set in a-44: its size is now published, but only under
+# `verify_drawdown` (tested below). What stays banned is anything bet-level:
+# the engine's bet positions (`members`, `peak_index`, `trough_index`) and its
+# bet-granularity band (`band_at` is published only as `luck.paths`).
 PRICE_FIELDS = {"price_american", "price_decimal", "decimal", "american", "book",
-                "books_quoting", "stake", "profit", "chart", "drawdown"}
+                "books_quoting", "stake", "profit", "chart", "members", "peak_index",
+                "trough_index", "band_at"}
 
 
 def _prop(season, week, subject, outcome, market="receptions", side="under", streak=0,
@@ -529,3 +534,250 @@ def test_the_catalogue_sources_add_the_survey_to_the_universes(files):
     approved = R.require_declared(files)
     cat, preset = set(approved[("nfl", "lab_catalogue")]), set(approved[("nfl", "lab_preset")])
     assert preset <= cat and {"oddsapi", "nflverse.stats", "nflverse.snap_counts"} <= cat
+
+
+# ------------------------------------------------------------------ the returns series (a-44)
+
+def _engine(key, universe=None):
+    from lab import run
+    u = universe or _universe(_rows(np.random.default_rng(7)))
+    preset = next(p for p in L.PRESETS if p["key"] == key)
+    return run(preset["strategy"], u, series_min_cleared=L.MIN_CLEARED)
+
+
+def _published_steps_against_bets(f, bet_list):
+    """Map each published step to the server-side bets it covers, using ONLY the
+    published fields (season, week_from, week_to) - not the engine's members."""
+    return [[b for b in bet_list if b["season"] == st["season"]
+             and st["week_from"] <= b["week"] <= st["week_to"]]
+            for st in f["returns"]["steps"]]
+
+
+def test_no_consecutive_published_points_difference_back_to_fewer_than_min_cleared(files, big):
+    """THE property the series exists under: between any two consecutive published
+    points - the origin included - sit at least MIN_CLEARED cleared bets, so the
+    difference averages that many prices. Re-derived from the engine's own bet
+    list (which carries the prices and profits) against the published steps."""
+    checked = 0
+    small = _universe(_rows(np.random.default_rng(7)))
+    large = _universe(_rows(np.random.default_rng(11), per_week=30))
+    for tree, u, key in [(t, u, k) for t, u in ((files, small), (big, large))
+                         for k in ("fade_every_over", "rush_attempts_unders",
+                                   "chase_the_streak", "home_underdogs_3_to_7")]:
+        f = tree["lab/nfl/presets/%s.json" % key]
+        bl = _engine(key, u)["bet_list"]
+        steps = f["returns"]["steps"]
+        if f["returns"]["withheld"]:
+            assert steps == []
+            continue
+        covered = _published_steps_against_bets(f, bl)
+        assert sum(len(c) for c in covered) == len(bl)        # every bet, exactly once
+        prev = 0.0
+        for st, bets in zip(steps, covered):
+            cleared = sum(1 for b in bets if b["outcome"] == "cleared")
+            assert cleared >= L.MIN_CLEARED, (key, st)
+            assert cleared == st["cleared"] and len(bets) == st["bets"]
+            # the difference IS the step's profit - so it averages `cleared` prices
+            assert st["units"] - prev == pytest.approx(sum(b["profit"] for b in bets),
+                                                       abs=1e-3 + 5e-5 * len(bets))
+            prev = st["units"]
+            checked += 1
+        assert prev == pytest.approx(f["summary"]["units"]["value"], abs=2e-3)
+    assert checked > 0
+
+
+def test_steps_never_cross_a_season_and_thin_weeks_are_merged_not_dropped(files):
+    f = files["lab/nfl/presets/fade_every_over.json"]
+    r = f["returns"]
+    assert r["granularity"] == "week_block" and r["min_cleared"] == L.MIN_CLEARED
+    # ~3 cleared a week in the fixture, so weeks MUST merge - the rule is seen firing
+    assert r["merged"] > 0 and r["withheld"] is None
+    assert sum(s["weeks"] for s in r["steps"]) == r["week_blocks"]
+    by_season = {}
+    for s in r["steps"]:
+        by_season.setdefault(s["season"], []).append(s)
+    for y, ss in by_season.items():
+        assert ss[0]["week_from"] == 1
+        for a, b in zip(ss, ss[1:]):
+            assert b["week_from"] == a["week_to"] + 1       # contiguous, within the season
+    # each season's steps add up to its season cell: nothing straddles
+    for cell in f["by_season"]:
+        assert sum(s["bets"] for s in by_season[int(cell["key"])]) == cell["bets"]
+    assert "none crosses a season" in r["check"]
+
+
+def test_a_season_below_the_floor_withholds_the_whole_series_and_the_band():
+    """A thin season cannot be merged anywhere: any point after it, less the one
+    before it and the neighbouring season cell, is that season's profit."""
+    rng = np.random.default_rng(3)
+    rows = []
+    for w in range(1, 11):                         # 2023: plenty
+        for i in range(8):
+            rows.append(_prop(2023, w, "P%02d" % i,
+                              "cleared" if rng.random() < .5 else "missed"))
+            rows.append(_prop(2023, w, "P%02d" % i, "missed", side="over"))
+    for w in range(1, 4):                          # 2024: 3 cleared in all
+        rows.append(_prop(2024, w, "Q", "cleared"))
+        rows.append(_prop(2024, w, "R", "missed"))
+        rows.append(_prop(2024, w, "Q", "missed", side="over"))
+    rows.append(_spread(2023, 1, "TTT", 4.5, "missed"))
+    out = L.build(_universe(rows), GEN, log=lambda *_: None)
+    f = out["lab/nfl/presets/fade_every_over.json"]
+    assert f["returns"]["steps"] == []
+    assert "season 2024 has 3 cleared" in f["returns"]["withheld"]
+    assert f["luck"]["paths"] is None
+    E.validate_contract({"lab/nfl/presets/fade_every_over.json": f})
+
+
+def test_verify_series_refuses_a_thin_step_a_split_week_and_a_wrong_point():
+    """The runtime guard is shown refusing, on each of its failure shapes."""
+    r = _engine("fade_every_over")
+    assert "steps over" in L.verify_series(r).statement
+    with pytest.raises(TypeError):
+        bool(L.verify_series(r))
+    # 1. a thin step: step 0 keeps only its last week, the rest moves to step 1
+    bad = copy.deepcopy(r)
+    s0, s1 = bad["series"]["steps"][0], bad["series"]["steps"][1]
+    last = max(bad["bet_list"][i]["week"] for i in s0["members"])
+    keep = [i for i in s0["members"] if bad["bet_list"][i]["week"] == last]
+    moved = [i for i in s0["members"] if i not in keep]
+    assert sum(bad["bet_list"][i]["outcome"] == "cleared" for i in keep) < L.MIN_CLEARED
+    s0["members"], s1["members"] = keep, sorted(moved + s1["members"])
+    with pytest.raises(SystemExit, match="fewer than 10"):
+        L.verify_series(bad)
+    # 2. a week block split across two steps
+    bad = copy.deepcopy(r)
+    s0, s1 = bad["series"]["steps"][0], bad["series"]["steps"][1]
+    s1["members"] = sorted(s1["members"] + [s0["members"].pop()])
+    with pytest.raises(SystemExit, match="split"):
+        L.verify_series(bad)
+    # 3. a point that does not re-derive from the bet list
+    bad = copy.deepcopy(r)
+    bad["series"]["steps"][0]["units"] += 0.5
+    with pytest.raises(SystemExit, match="units"):
+        L.verify_series(bad)
+
+
+@pytest.fixture(scope="module")
+def big():
+    """Enough bets that chase_the_streak clears the floor in every season and
+    draws from a pool larger than itself, so it has a band to publish."""
+    return L.build(_universe(_rows(np.random.default_rng(11), per_week=30)), GEN,
+                   log=lambda *_: None)
+
+
+def test_the_band_is_published_at_the_steps_only_and_matches_them(big):
+    seen = 0
+    for f in big.values():
+        if f.get("kind") != "lab_preset" or f["luck"]["paths"] is None:
+            continue
+        p, steps = f["luck"]["paths"], f["returns"]["steps"]
+        assert p["index"] == [s["index"] for s in steps]
+        assert p["p5"] == [s["null_p5"] for s in steps]
+        assert p["p95"] == [s["null_p95"] for s in steps]
+        assert all(s["cleared"] >= L.MIN_CLEARED for s in steps)
+        assert f["returns"]["band_note"] is None
+        seen += 1
+    assert seen > 0
+
+
+def test_the_bet_level_band_the_file_used_to_carry_leaks_a_price():
+    """Discriminates the test above: at bet granularity the band's first p95 is
+    ONE random bet's profit - with every fixture price at -110, exactly 10/11."""
+    band = _engine("chase_the_streak")["luck"]["band"]
+    assert band["index"][0] == 0
+    assert band["p95"][0] == pytest.approx(100 / 110, abs=1e-3)
+
+
+def test_asking_for_the_series_moves_nothing_else_in_the_result():
+    from lab import run
+    u = _universe(_rows(np.random.default_rng(11), per_week=30))
+    s = next(p for p in L.PRESETS if p["key"] == "chase_the_streak")["strategy"]
+    a, b = run(s, u), run(s, u, series_min_cleared=L.MIN_CLEARED)
+    assert a["series"] is None and b["series"] is not None
+    assert a["luck"]["band_at"] is None and b["luck"]["band_at"] is not None
+    la, lb = dict(a["luck"]), dict(b["luck"])
+    la.pop("band_at"), lb.pop("band_at")
+    assert la == lb
+    for k in ("summary", "by_season", "segments", "drawdown", "bet_list", "verdict"):
+        assert a[k] == b[k], k
+
+
+def test_the_contract_refuses_a_bet_level_field_on_a_step_or_the_drawdown(files):
+    key = "lab/nfl/presets/fade_every_over.json"
+    bad = copy.deepcopy(files[key])
+    bad["returns"]["steps"][0]["members"] = [0, 1, 2]
+    with pytest.raises(E.ContractError, match="members"):
+        E.validate_contract({key: bad})
+    bad = copy.deepcopy(files[key])
+    bad["drawdown"]["peak_index"] = 3
+    with pytest.raises(E.ContractError, match="peak_index"):
+        E.validate_contract({key: bad})
+
+
+# ------------------------------------------------------------------ the drawdown (a-44)
+
+class _Members:
+    def __init__(self, members):
+        self.members = members
+
+
+def _dd_result(outcomes, peak, trough):
+    """A result carrying only what verify_drawdown reads. Every cleared bet pays 1.0."""
+    bl = [{"season": 2023, "week": i + 1, "market": "receptions", "outcome": o,
+           "profit": 1.0 if o == "cleared" else -1.0} for i, o in enumerate(outcomes)]
+    cum = np.concatenate([[0.0], np.cumsum([b["profit"] for b in bl])])
+    p = -1 if peak is None else peak
+    return {"drawdown": {"max_units": float(cum[p + 1] - cum[trough + 1]),
+                         "peak_index": peak, "trough_index": trough},
+            "bet_list": bl, "strategy": {"staking": {"method": "flat", "unit": 1}},
+            "summary": {"cleared": sum(o == "cleared" for o in outcomes)},
+            "by_season": [], "segments": {}}
+
+
+def test_a_drawdown_over_misses_only_is_published_it_reads_back_to_no_price():
+    outs = ["cleared"] * 12 + ["missed"] * 5 + ["cleared"] * 12
+    r = _dd_result(outs, peak=11, trough=16)
+    ok, why = L.verify_drawdown(r, _Members([set(range(0, 12)), set(range(12, 29))]))
+    assert ok, why
+
+
+def test_a_drawdown_whose_window_holds_a_few_prices_is_withheld():
+    outs = (["cleared"] * 12
+            + ["missed", "cleared", "missed", "cleared", "missed", "cleared", "missed", "missed"]
+            + ["cleared"] * 12)
+    r = _dd_result(outs, peak=11, trough=19)
+    ok, why = L.verify_drawdown(r, _Members([set(range(0, 12)), set(range(12, 32))]))
+    assert not ok and "the window itself holds 3 cleared" in why
+
+
+def test_a_drawdown_is_withheld_when_the_steps_isolate_a_thin_fragment():
+    """The window holds 14 cleared - fine alone - but a published step lies wholly
+    inside it, and the window less that step leaves 2 cleared bets."""
+    outs = (["cleared"] * 10 + ["missed"] * 3 + ["cleared", "missed"] * 12
+            + ["missed", "cleared", "missed", "cleared", "missed"] + ["cleared"] * 10)
+    r = _dd_result(outs, peak=9, trough=41)
+    D = set(range(10, 42))
+    atoms = [set(range(0, 10)), set(range(10, 37)), set(range(37, len(outs)))]
+    assert sum(outs[i] == "cleared" for i in D) >= L.MIN_CLEARED
+    ok, why = L.verify_drawdown(r, _Members(atoms))
+    assert not ok and "less the steps inside it holds 2 cleared" in why
+    # with no step boundary inside the window, the verdict turns on G alone - the
+    # one step it touches, less the window - so it is decided by that count
+    ok, why = L.verify_drawdown(r, _Members([set(range(0, 10)), set(range(10, len(outs)))]))
+    G = set(range(10, len(outs))) - D
+    assert (sum(outs[i] == "cleared" for i in G) >= L.MIN_CLEARED) == ok
+
+
+def test_the_published_drawdowns_pass_their_own_check(files):
+    seen = 0
+    for f in files.values():
+        if f.get("kind") != "lab_preset":
+            continue
+        d = f["drawdown"]
+        if d["max_units"] is not None:
+            assert d["check"] and d["withheld"] is None
+            seen += 1
+        else:
+            assert d["withheld"] and d["check"] is None
+    assert seen > 0
