@@ -12,11 +12,14 @@ THIS IS TWO METRICS, NOT ONE, AND THEY ARE NOT INTERCHANGEABLE. The
 play-by-play names the player who TOUCHED the ball and nobody else; only
 `pbp_participation` names the other twenty-one. So:
 
-    role.touch_share      1999-2026, availability CURRENT
+    role.touch_share      2009-2026, availability CURRENT
                           share of his team's touches in the bucket
     role.onfield_share    2016-2025, availability HISTORICAL
                           share of his team's plays in the bucket he was on
                           the field for
+
+(each also `.by_season` - see TWO GRAINS below; ranges are derived by the
+survey, these are what it returned on 2026-09-27.)
 
 They answer different questions and the second one is the one people mean.
 **The on-field metric HAS NO CURRENT SEASON AND NEVER WILL IN-SEASON**:
@@ -34,15 +37,46 @@ the covered play count per game so a share is always over the plays that could
 carry it, and `rows` on every estimate says how many that was.
 
 `n` IS GAMES.
+
+THE GAMES A SHARE IS OVER DO NOT DEPEND ON THE BUCKET (a-40). The first
+version built each (player, bucket) from the games in which he had a row IN
+THAT BUCKET, so a game where he played forty snaps and none of them on 3rd and
+short simply was not in his 3rd-and-short share. That is selection on the
+numerator: every game with a zero was dropped and the share read high. Measured
+on 2025, players with 8+ games (`research/a40_role_zero_games.py`): on-field
+dropped 15.6% of player-game-bucket cells and read the median player +7.5pp high
+on 3rd and short, +12.7pp on 4th; touch dropped 52.7% of cells and read +21.9pp
+high on 3rd and short, +29.2pp on 4th. Now a player's games are fixed first - on-field:
+any participation snap in the game; touch: any carry or target in the game - and
+every bucket the team ran a play in counts, at zero when he was not in it.
+
+TOUCH SHARE STARTS WHEN TARGETS DO. A touch is a carry or a target, and
+2003-2008 name the receiver on completions only, so a touch share there is
+carries plus RECEPTIONS - a different quantity under the same name. The touch
+kind now requires the target columns the way `script_elasticity.targets` does,
+and the survey bounds the range.
+
+TWO GRAINS. `role.<kind>_share` pools the whole range into one number per
+player per bucket. `role.<kind>_share.by_season` is the same share per player
+per SEASON - what a player card means by "his 3rd-and-short role" - with slice
+`<season>|<bucket>`. A season is at most ~20 games, and a percentile bootstrap
+over that few blocks under-covers (research/a25_small_n_coverage.py: ~0.5 at two
+games while built at 0.95), so the by-season grain uses the cluster-robust t
+interval clipped to [0, 1], which that study measured at 0.94-0.97 from two
+games up.
 """
 import argparse
 import sys
 import time
 
 from analytics import metrics, paths
-from analytics.intervals import share_bootstrap
+from analytics.intervals import ratio_t, share_bootstrap
 
 MIN_GAMES = 8
+# A player-season needs two games for the cluster t to have a spread at all;
+# one game is an unbounded interval, which the export would drop and count.
+MIN_GAMES_SEASON = 2
+SEASON_SLICE_KIND = "season|down_bucket"
 BUCKETS = ("3rd_short", "3rd_med", "3rd_long", "1st", "2nd", "4th")
 
 SCHEMA = """
@@ -163,7 +197,12 @@ KINDS = {
         unit=("share of his team's touches in the bucket - the player who "
               "carried or was targeted, which is all the play-by-play knows"),
         basis="pbp", availability="current",
-        requires=(("pbp", "down", ""), ("pbp", "ydstogo", ""))),
+        # The target requirements are `script_elasticity.targets`' own: a
+        # touch counts targets, and the survey measures where they exist.
+        requires=(("pbp", "down", ""), ("pbp", "ydstogo", ""),
+                  ("pbp", "rusher_player_id", "rush_attempt"),
+                  ("pbp", "receiver_player_id", "incomplete_pass"),
+                  ("pbp", "receiver_player_id", "pass_attempt"))),
     "onfield": dict(
         label="Down-and-distance on-field share",
         unit=("share of his team's plays in the bucket he was on the field "
@@ -174,8 +213,17 @@ KINDS = {
 }
 
 
-def metric_for(kind):
+def metric_for(kind, by_season=False):
     spec = KINDS[kind]
+    if by_season:
+        return metrics.Metric(
+            key="role.%s_share.by_season" % kind,
+            label="%s, by season" % spec["label"],
+            unit=("%s; one value per player per season, slice "
+                  "'<season>|<bucket>'" % spec["unit"]),
+            subject_type="player", block="game", basis=spec["basis"],
+            availability=spec["availability"], slice_kind=SEASON_SLICE_KIND,
+            shares_denominator="team", requires=spec["requires"])
     return metrics.Metric(
         key="role.%s_share" % kind, label=spec["label"], unit=spec["unit"],
         subject_type="player", block="game", basis=spec["basis"],
@@ -184,42 +232,65 @@ def metric_for(kind):
         requires=spec["requires"])
 
 
-def _touch_blocks(con, season_from, season_to):
-    team = {}
-    for game, tm, bucket, n in con.execute(
-            "SELECT game_id, team, down_bucket, "
-            "SUM(is_carry) + SUM(is_target) FROM f_play_usage "
-            "WHERE season BETWEEN ? AND ? AND role IN ('rusher','receiver') "
-            "GROUP BY game_id, team, down_bucket", (season_from, season_to)):
-        team[(game, tm, bucket)] = n or 0
+def _team_plays(con, kind, season_from, season_to):
+    """{(game, team, bucket): the team's denominator in that bucket}."""
+    if kind == "touch":
+        sql = ("SELECT game_id, team, down_bucket, "
+               "SUM(is_carry) + SUM(is_target) FROM f_play_usage "
+               "WHERE season BETWEEN ? AND ? AND role IN ('rusher','receiver') "
+               "GROUP BY game_id, team, down_bucket")
+    else:
+        sql = ("SELECT game_id, team, down_bucket, plays FROM f_onfield_team_game "
+               "WHERE season BETWEEN ? AND ?")
+    return {(g, t, b): n or 0
+            for g, t, b, n in con.execute(sql, (season_from, season_to))}
+
+
+def _player_counts(con, kind, season_from, season_to):
+    """{(player, game, team): (season, {bucket: his count})} over EVERY game he
+    played - a row in any bucket, 'other' included - so a bucket he was absent
+    from reads as a zero rather than as a game that did not happen."""
+    if kind == "touch":
+        sql = ("SELECT player_id, game_id, team, season, down_bucket, "
+               "SUM(is_carry) + SUM(is_target) FROM f_play_usage "
+               "WHERE season BETWEEN ? AND ? AND role IN ('rusher','receiver') "
+               "GROUP BY player_id, game_id, team, season, down_bucket")
+    else:
+        sql = ("SELECT player_id, game_id, team, season, down_bucket, snaps "
+               "FROM f_onfield_game WHERE season BETWEEN ? AND ?")
     out = {}
-    for player, game, tm, bucket, n in con.execute(
-            "SELECT player_id, game_id, team, down_bucket, "
-            "SUM(is_carry) + SUM(is_target) FROM f_play_usage "
-            "WHERE season BETWEEN ? AND ? AND role IN ('rusher','receiver') "
-            "GROUP BY player_id, game_id, team, down_bucket",
-            (season_from, season_to)):
-        d = team.get((game, tm, bucket), 0)
-        if d:
-            out.setdefault((player, bucket), {})[game] = (n or 0, d)
+    for player, game, tm, season, bucket, n in con.execute(
+            sql, (season_from, season_to)):
+        out.setdefault((player, game, tm), (season, {}))[1][bucket] = n or 0
     return out
+
+
+def _blocks(con, kind, season_from, season_to):
+    """{(player, bucket): {game: (season, his count, team count)}}.
+
+    Every game the player played contributes to every bucket his team ran a
+    play in, at zero where he had none. See the module docstring for the
+    defect this replaces."""
+    team = _team_plays(con, kind, season_from, season_to)
+    out = {}
+    for (player, game, tm), (season, by_bucket) in _player_counts(
+            con, kind, season_from, season_to).items():
+        for bucket in BUCKETS:
+            d = team.get((game, tm, bucket), 0)
+            if d:
+                out.setdefault((player, bucket), {})[game] = (
+                    season, by_bucket.get(bucket, 0), d)
+    return out
+
+
+def _touch_blocks(con, season_from, season_to):
+    return {k: {g: (a, b) for g, (_s, a, b) in v.items()}
+            for k, v in _blocks(con, "touch", season_from, season_to).items()}
 
 
 def _onfield_blocks(con, season_from, season_to):
-    team = {}
-    for game, tm, bucket, n in con.execute(
-            "SELECT game_id, team, down_bucket, plays FROM f_onfield_team_game "
-            "WHERE season BETWEEN ? AND ?", (season_from, season_to)):
-        team[(game, tm, bucket)] = n or 0
-    out = {}
-    for player, game, tm, bucket, n in con.execute(
-            "SELECT player_id, game_id, team, down_bucket, snaps "
-            "FROM f_onfield_game WHERE season BETWEEN ? AND ?",
-            (season_from, season_to)):
-        d = team.get((game, tm, bucket), 0)
-        if d:
-            out.setdefault((player, bucket), {})[game] = (n or 0, d)
-    return out
+    return {k: {g: (a, b) for g, (_s, a, b) in v.items()}
+            for k, v in _blocks(con, "onfield", season_from, season_to).items()}
 
 
 def compute(con, kind, season_from, season_to, min_games=MIN_GAMES):
@@ -235,18 +306,44 @@ def compute(con, kind, season_from, season_to, min_games=MIN_GAMES):
     return out
 
 
+def season_slice(season, bucket):
+    return "%d|%s" % (season, bucket)
+
+
+def compute_by_season(con, kind, season_from, season_to,
+                      min_games=MIN_GAMES_SEASON):
+    """[(player, '<season>|<bucket>', Estimate)], one per player-season-bucket
+    with at least `min_games` games: cluster t over games, clipped to [0, 1]."""
+    out = []
+    for (player, bucket), by_game in _blocks(
+            con, kind, season_from, season_to).items():
+        seasons = {}
+        for game, (season, a, b) in by_game.items():
+            seasons.setdefault(season, {})[game] = (a, b)
+        for season, games in seasons.items():
+            if len(games) < min_games:
+                continue
+            e = ratio_t(games, bounds=(0.0, 1.0))
+            if e.est is not None:
+                out.append((player, season_slice(season, bucket), e))
+    return out
+
+
 def publish(con, kinds=None, verbose=True):
     written = {}
     for kind in (kinds or KINDS):
-        m = metric_for(kind)
-        lo, hi, note = metrics.derive_range(con, m)
-        rows = compute(con, kind, lo, hi)
-        written[m.key] = metrics.publish(con, m, rows, lo, hi)
-        if verbose:
-            print("  %-22s %d-%d  %-11s %d players, %d values"
-                  % (m.key, lo, hi, m.availability,
-                     len({p for p, _s, _e in rows}), written[m.key]), flush=True)
-            print("   %s" % note, flush=True)
+        for by_season in (False, True):
+            m = metric_for(kind, by_season=by_season)
+            lo, hi, note = metrics.derive_range(con, m)
+            rows = (compute_by_season if by_season else compute)(
+                con, kind, lo, hi)
+            written[m.key] = metrics.publish(con, m, rows, lo, hi)
+            if verbose:
+                print("  %-32s %d-%d  %-11s %d players, %d values"
+                      % (m.key, lo, hi, m.availability,
+                         len({p for p, _s, _e in rows}), written[m.key]),
+                      flush=True)
+                print("   %s" % note, flush=True)
     return written
 
 
@@ -274,7 +371,7 @@ def main(argv=None):
         if not rows:
             raise SystemExit("nothing published for %r" % a.show)
         for metric, sl, est, lo, hi, n, av, s0, s1 in rows:
-            print("%-20s %-10s %.3f [%.3f, %.3f]  n=%d  %s %d-%d"
+            print("%-32s %-15s %.3f [%.3f, %.3f]  n=%d  %s %d-%d"
                   % (metric, sl, est, lo, hi, n, av, s0, s1))
     if not (a.build_onfield or a.publish or a.show):
         ap.print_help()
