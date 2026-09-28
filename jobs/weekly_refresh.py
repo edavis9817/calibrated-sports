@@ -13,6 +13,8 @@ config.storage_path("logs", "weekly_refresh.log"):
                        failure: WARN)
   2. market mapping    jobs.map_markets --venue kalshi       (failure: WARN)
   3. export            jobs.export_web                       (failure: ERROR, stop)
+  3a. analytics        analytics.export --write --dest web  (failure: WARN)
+  3a'. season model    jobs.season_model --write --dest web (failure: WARN; a-42)
   3b. slug registry    if the export appended to web/slugs/, commit ONLY that path
                        in THIS repo (failure: WARN). URLs are only stable once
                        the registry is in git; nothing else is ever committed.
@@ -216,7 +218,21 @@ def _run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fet
                     "removed from R2. A retired metric stays served indefinitely and a climbing "
                     "removed_withheld is the only evidence it is still there")
 
-    refreshed = concat_declarations(site_declared, analytics_declared)
+    # THE SEASON MODEL (a-42) IS A THIRD PRODUCER INTO THE SAME TREE, owning
+    # `season/` wholly - chance to win the division, with its walk-forward
+    # record in the same file. Same shape as analytics: `--dest web` writes into
+    # WEB_EXPORT_DIR and prints the sentinel only on a real write, and a failure
+    # DEGRADES (the site's own export already succeeded) and declares nothing,
+    # so the previous file stays served rather than being deleted. It reads the
+    # store mode=ro and runs the full walk-forward every time (~4 min).
+    season = step("season", [py, "-m", "jobs.season_model", "--write", "--dest", "web"],
+                  fatal=False)
+    season_declared = parse_refreshed(season.stdout) if season.returncode == 0 else None
+    if season_declared is None:
+        log("WARN", "the season model declared nothing - season/ keys will NOT be removed from "
+                    "R2 this run, and the division file served is the previous one")
+
+    refreshed = concat_declarations(site_declared, analytics_declared, season_declared)
     commit_slug_registry(runner, log)
 
     local = None

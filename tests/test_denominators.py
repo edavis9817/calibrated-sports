@@ -200,7 +200,9 @@ def test_a_null_share_passes_the_gate_only_because_it_is_declared_nullable():
 
 
 def test_every_metric_has_exactly_one_gate():
-    r, m = M.RESEARCH_METRICS, M.MANIFEST_METRICS
-    assert len(r) + len(m) == len(M.METRICS)
-    assert not ({x["id"] for x in r} & {x["id"] for x in m})
+    # a-42 added the season gate, checked by jobs.season_export before it writes.
+    r, m, s = M.RESEARCH_METRICS, M.MANIFEST_METRICS, M.SEASON_METRICS
+    assert len(r) + len(m) + len(s) == len(M.METRICS)
+    ids = [{x["id"] for x in g} for g in (r, m, s)]
+    assert not (ids[0] & ids[1] or ids[0] & ids[2] or ids[1] & ids[2])
     assert m, "the manifest gate checks nothing"

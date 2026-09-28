@@ -43,6 +43,7 @@ MARKET = "research/market_calibration.json"
 SCORE = "research/calibration.json"
 REGISTER = "research/hypotheses.json"
 MANIFEST = "nfl/manifest.json"
+SEASON = "season/nfl/division.json"
 
 # R10 was restated 2026-09-17 on the n=706 common set, when 229 week-1 Kalshi
 # books were one-sided at the prediction instant. The Kalshi candle backfill
@@ -157,6 +158,42 @@ METRICS = [
        (MANIFEST, "denominators.week.games.final")),
     _m("coverage.games.week.open", "Games not yet kicked off, current period", "games", 0,
        (MANIFEST, "denominators.week.games.open")),
+    # --- chance to win the division (a-41 built it, a-42 publishes it) -------
+    # The walk-forward RECORD, not the 32 current probabilities: those are the
+    # file's subject and change weekly; these are the figures a page quotes about
+    # whether to believe it. Numbers only - the site's resolver reads a number or
+    # an interval, so `record.verdict` and `display.show` are not registered.
+    # The first calibration bin is registered on purpose: a-41's overconfidence
+    # at the tails (0-10% forecast 1.9%, realised 3.2%) is the figure the Teams
+    # page is instructed to print beside the bars.
+    _m("season.division.record.division_seasons", "Division races scored walk-forward",
+       "races", 0, (SEASON, "record.division_seasons")),
+    _m("season.division.record.brier.model", "Brier score, division model, walk-forward",
+       "Brier", 4, (SEASON, "record.brier.model")),
+    _m("season.division.record.brier.standings_coin_flip",
+       "Brier score, standings with coin-flip games, walk-forward", "Brier", 4,
+       (SEASON, "record.brier.standings_coin_flip")),
+    _m("season.division.record.brier.standings_leader",
+       "Brier score, standings leader carried forward, walk-forward", "Brier", 4,
+       (SEASON, "record.brier.standings_leader")),
+    _m("season.division.record.vs_coin_flip", "Brier(model) - Brier(coin-flip standings)",
+       "Brier", 4, (SEASON, "record.vs.standings_coin_flip.estimate")),
+    _m("season.division.record.vs_coin_flip.interval",
+       "Brier(model) - Brier(coin-flip standings), division-race block 95% interval",
+       "Brier", 4, (SEASON, "record.vs.standings_coin_flip.interval")),
+    _m("season.division.record.vs_leader", "Brier(model) - Brier(standings leader)",
+       "Brier", 4, (SEASON, "record.vs.standings_leader.estimate")),
+    _m("season.division.record.vs_leader.interval",
+       "Brier(model) - Brier(standings leader), division-race block 95% interval",
+       "Brier", 4, (SEASON, "record.vs.standings_leader.interval")),
+    _m("season.division.calibration.low_tail.forecast",
+       "Average forecast in the lowest probability bin", "probability", 4,
+       (SEASON, "record.calibration[0].forecast")),
+    _m("season.division.calibration.low_tail.realised",
+       "Realised rate in the lowest probability bin", "probability", 4,
+       (SEASON, "record.calibration[0].realised")),
+    _m("season.division.as_of.games_played", "Regular-season games the forecast has seen",
+       "games", 0, (SEASON, "as_of.games_played")),
 ]
 
 
@@ -164,14 +201,18 @@ def _files_of(m):
     return {m["source"]["file"]} | {c["file"] for c in m["copies"]}
 
 
-# The two gates. The research gate runs before the first write; the manifest gate
-# runs on the built manifest before it is written. A metric whose locations span
-# both groups belongs to neither and is refused at import - it could never be
-# checked by either gate.
+# The three gates. The research gate runs before the first write; the manifest
+# gate runs on the built manifest before it is written; the season gate runs in
+# `jobs.season_export` on the built file before it is written (a-42) - a
+# different producer, so a different gate. A metric whose locations span two
+# groups belongs to none and is refused at import - it could never be checked
+# by any gate.
 RESEARCH_FILES = frozenset({MARKET, SCORE, REGISTER})
 RESEARCH_METRICS = [m for m in METRICS if _files_of(m) <= RESEARCH_FILES]
 MANIFEST_METRICS = [m for m in METRICS if _files_of(m) <= {MANIFEST}]
-_ungated = [m["id"] for m in METRICS if m not in RESEARCH_METRICS and m not in MANIFEST_METRICS]
+SEASON_METRICS = [m for m in METRICS if _files_of(m) <= {SEASON}]
+_ungated = [m["id"] for m in METRICS if m not in RESEARCH_METRICS
+            and m not in MANIFEST_METRICS and m not in SEASON_METRICS]
 if _ungated:
     raise ImportError(f"metrics no gate can check (files span both groups): {_ungated}")
 

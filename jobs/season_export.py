@@ -8,10 +8,18 @@ when the walk-forward record does not beat the standings carried forward, the
 file says so and names the standings baseline as what a page should print, and
 that switch is computed here, not decided by whoever runs the export.
 
-WHERE IT WRITES. Its own top-level prefix `season/`, under
-`config.storage_path("season_model")`. Never WEB_EXPORT_DIR - `sync_keys`
-there deletes what its builder did not produce - and it imports nothing that
-uploads. Publishing is a separate decision (see the a-41 report).
+WHERE IT WRITES. Its own top-level prefix `season/`, which this builder owns
+WHOLLY and fills wholly (CLAUDE.md, one builder per prefix).
+  * `write()` - `config.storage_path("season_model")`, reaching nothing. The
+    a-41 default, and still the default of `jobs.season_model --write`.
+  * `publish()` - WEB_EXPORT_DIR, through `export_web.sync_keys(dest, files,
+    ["season/"])` (a-42). That is the tree the uploader walks, so this is the
+    publishing path, and it is reached only by `--dest web`. `sync_keys` gives
+    the contract check and the source gate; `publish()` adds the season metric
+    gate before it. `season/` is new and top-level, so no other builder's prefix
+    contains it or is contained by it (asserted in tests/test_season_model.py).
+It never uploads. The uploader does, when `weekly_refresh` hands it the
+`REFRESHED season/` declaration this job prints on a real `--dest web` write.
 """
 from __future__ import annotations
 
@@ -350,6 +358,24 @@ def build(res, generated_at=None):
 
 def export_dir():
     return config.storage_path("season_model")
+
+
+OWNED_PREFIX = "season/"
+
+
+def publish(payload, dest, key=KEY, dry_run=False):
+    """Write into a publishing tree (WEB_EXPORT_DIR) and own `season/` there.
+
+    Order matters: the file is validated against the contract and against the
+    metric registry's season gate BEFORE `sync_keys` touches disk, so a refusal
+    leaves the served tree as it was. -> (written, deleted, gate statement)."""
+    from jobs import export_web as E
+    from jobs import metric_registry as MR
+    assert key.startswith(OWNED_PREFIX), key
+    validated(payload, key)
+    gate = MR.require({key: payload}, MR.SEASON_METRICS)
+    written, deleted = E.sync_keys(dest, {key: payload}, ["season/"], dry_run=dry_run)
+    return written, deleted, gate.statement
 
 
 def write(payload, root=None, key=KEY):

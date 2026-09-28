@@ -2,7 +2,13 @@
 
     python -m jobs.season_model --check            # measure, build, validate; write nothing
     python -m jobs.season_model --write            # ... and write the file locally
+    python -m jobs.season_model --write --dest web # ... into WEB_EXPORT_DIR, and declare it
     python -m jobs.season_model --record-json r.json   # also save the raw record
+
+`--dest web` (a-42) is the publishing path: it writes `season/` into the tree
+the uploader walks and prints `REFRESHED season/` as its LAST line, which
+`weekly_refresh` hands to the uploader so a retired key can leave the bucket.
+The default, `own`, reaches nothing and declares nothing.
 
 A PREDICTOR SHIPS WITH ITS RECORD, IN THE SAME FILE, KEYED TO THE SAME SLICE -
 the rule `analytics/predictor_export.py` states for drafting, applied to the
@@ -23,8 +29,8 @@ That is independent of `models.season`'s tiebreak code, which is what lets the
 tiebreak code be CHECKED against it (`tiebreak_check`).
 
 READS `market_log.db` READ-ONLY (`mode=ro`) and nothing else. Writes only its
-own prefix, `season/`, under `config.storage_path("season_model")`; never
-WEB_EXPORT_DIR, never an upload. It does not publish.
+own prefix, `season/` - under `config.storage_path("season_model")` by default,
+or under WEB_EXPORT_DIR with `--dest web`. It never uploads.
 """
 from __future__ import annotations
 
@@ -415,7 +421,16 @@ def main(argv=None):
     ap.add_argument("--record-json")
     ap.add_argument("--seasons", help="e.g. 2002-2004, for a quick run")
     ap.add_argument("--n-walk", type=int, default=N_WALK)
+    ap.add_argument("--dest", choices=("own", "web"), default="own",
+                    help="`own` (default) writes under storage_path('season_model') and "
+                         "reaches nothing; `web` writes into WEB_EXPORT_DIR, where the "
+                         "uploader looks, and prints the REFRESHED sentinel")
     a = ap.parse_args(argv)
+    if a.dest == "web" and a.seasons:
+        # A partial walk-forward is a different record; it may never be published.
+        ap.error("--seasons is a quick-run option and cannot publish (--dest web)")
+    if a.dest == "web" and a.n_walk != N_WALK:
+        ap.error("--n-walk changes the record; only the default may publish (--dest web)")
     seasons = None
     if a.seasons:
         lo, hi = (int(x) for x in a.seasons.split("-"))
@@ -442,7 +457,16 @@ def main(argv=None):
         from jobs import season_export
         payload = season_export.validated(season_export.build(res))
         print(season_export.summary(payload))
-        if a.write:
+        if a.write and a.dest == "web":
+            from jobs import export_web as E
+            dest = E.require_setting("WEB_EXPORT_DIR")
+            written, deleted, gate = season_export.publish(payload, dest)
+            print(gate)
+            print("wrote %d, deleted %d, under %s/%s"
+                  % (written, deleted, dest, season_export.OWNED_PREFIX))
+            # LAST LINE, and only on a real write into the published tree.
+            print(E.REFRESHED_SENTINEL + " " + season_export.OWNED_PREFIX)
+        elif a.write:
             print("wrote", season_export.write(payload))
     return 0
 

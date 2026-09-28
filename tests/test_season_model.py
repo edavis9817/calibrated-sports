@@ -292,17 +292,125 @@ def test_write_stays_inside_its_prefix(tmp_path):
         X.write(p, root=str(tmp_path), key="nfl/teams/x.json")
 
 
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# a-42: `season_export.publish` writes through `export_web.sync_keys`, so the
+# a-41 rule "imports nothing from export_web" became unsatisfiable by design.
+# What it protected was "cannot upload", and that is asserted directly now: the
+# ONLY export_web names these modules touch are the three below, none of which
+# reaches the bucket. Checked by AST, so a docstring naming `upload` passes and
+# a call to it fails.
+EXPORT_WEB_ALLOWED = {"sync_keys", "require_setting", "REFRESHED_SENTINEL"}
+
+
+def export_web_uses(src):
+    """(attribute names used on an `export_web` alias, forbidden imports)."""
+    tree = ast.parse(src)
+    aliases, bad = set(), set()
+    for n in ast.walk(tree):
+        if isinstance(n, (ast.Import, ast.ImportFrom)):
+            module = getattr(n, "module", None) or ""
+            for a in n.names:
+                if a.name.split(".")[-1] in ("r2", "boto3", "store") or                         module.split(".")[-1] in ("r2", "boto3", "store"):
+                    bad.add(a.name)
+                if a.name.split(".")[-1] == "export_web":
+                    aliases.add(a.asname or a.name)
+                elif module.endswith("export_web"):
+                    bad.add(a.name)            # `from jobs.export_web import upload` etc.
+    used = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)
+            and isinstance(n.value, ast.Name) and n.value.id in aliases}
+    return used, bad
+
+
 def test_neither_module_can_upload_or_write_the_logger_store():
     for mod in ("jobs/season_model.py", "jobs/season_export.py", "models/season.py"):
-        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), mod)
-        tree = ast.parse(open(path, encoding="utf-8").read())
-        names = {a.name for n in ast.walk(tree) if isinstance(n, (ast.Import, ast.ImportFrom))
-                 for a in n.names}
-        mods = {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)}
-        assert not ({"r2", "boto3", "export_web", "store"} & (names | mods)), mod
-    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                            "jobs", "season_model.py"), encoding="utf-8").read()
+        used, bad = export_web_uses(open(os.path.join(ROOT, mod), encoding="utf-8").read())
+        assert not bad, (mod, bad)
+        assert used <= EXPORT_WEB_ALLOWED, (mod, used - EXPORT_WEB_ALLOWED)
+    src = open(os.path.join(ROOT, "jobs", "season_model.py"), encoding="utf-8").read()
     assert src.count("sqlite3.connect(") == 1 and "?mode=ro" in src
+
+
+def test_the_upload_guard_fires_on_a_planted_upload():
+    """The other answer on the other input: the guard is known to discriminate."""
+    used, bad = export_web_uses("from jobs import export_web as E\nE.upload(dry_run=False)\n")
+    assert "upload" in used - EXPORT_WEB_ALLOWED
+    used, bad = export_web_uses("from jobs.export_web import upload\n")
+    assert bad == {"upload"}
+    used, bad = export_web_uses("import boto3\n")
+    assert bad == {"boto3"}
+    assert export_web_uses('"""E.upload is never called"""'+'\n') == (set(), set())
+
+
+# ------------------------------------------------------------------ publishing (a-42)
+
+@pytest.fixture
+def web_tree(tmp_path, monkeypatch):
+    import config
+    monkeypatch.setattr(config, "WEB_EXPORT_DIR", str(tmp_path / "web"))
+    return tmp_path / "web"
+
+
+def test_publish_writes_season_into_the_web_tree_and_passes_the_metric_gate(web_tree):
+    p = X.build(_fake_result(), generated_at="2026-09-27T00:00:00Z")
+    written, deleted, gate = X.publish(p, str(web_tree))
+    assert (written, deleted) == (1, 0)
+    assert (web_tree / "season" / "nfl" / "division.json").is_file()
+    from jobs import metric_registry as MR
+    assert gate.startswith("metric gate: %d metrics" % len(MR.SEASON_METRICS))
+    assert len(MR.SEASON_METRICS) >= 10
+    # an unchanged file is not rewritten: generated_at alone does not count
+    p2 = X.build(_fake_result(), generated_at="2026-09-28T00:00:00Z")
+    assert X.publish(p2, str(web_tree))[:2] == (0, 0)
+
+
+def test_publish_owns_season_and_nothing_else(web_tree):
+    stale = web_tree / "season" / "nfl" / "retired.json"
+    other = web_tree / "nfl" / "teams" / "x.json"
+    for f in (stale, other):
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("{}")
+    written, deleted, _ = X.publish(X.build(_fake_result(), generated_at="2026-09-27T00:00:00Z"),
+                                    str(web_tree))
+    assert deleted == 1 and not stale.exists()
+    assert other.exists(), "publish deleted a key outside season/"
+
+
+def test_publish_refuses_before_writing_when_a_registered_figure_is_missing(web_tree):
+    """The low-tail bin is a registered metric; a file whose lowest bin is empty
+    has no figure there, and the gate refuses BEFORE sync_keys touches disk."""
+    res = _fake_result()
+    res["summary"]["calibration"]["model"][0] = dict(res["summary"]["calibration"]["model"][1])
+    p = X.build(res, generated_at="2026-09-27T00:00:00Z")
+    from jobs import metric_registry as MR
+    with pytest.raises(MR.MetricDisagreement, match="low_tail"):
+        X.publish(p, str(web_tree))
+    assert not web_tree.exists() or not any(web_tree.rglob("*.json"))
+
+
+def test_season_prefix_reaches_no_other_builder():
+    """`season/` is top-level: no owned prefix of the site export, and neither
+    `analytics/` nor `lab/`, contains it or is contained by it."""
+    from tests import test_prefix_ownership as P
+    owned, dynamic = P.owned_prefixes()
+    assert owned and dynamic == 0
+    others = owned + ["analytics/", "lab/", "board/", "live/"]
+    for o in others:
+        assert not (o.startswith(X.OWNED_PREFIX) or X.OWNED_PREFIX.startswith(o)), o
+
+
+def test_the_published_file_carries_both_honesty_requirements():
+    """a-41's two, which the Teams page is instructed to show: the tail
+    overconfidence (the calibration statement names the off bins) and the
+    display switch (driven both ways above)."""
+    res = _fake_result()
+    res["summary"]["calibration"]["model"][0].update(
+        forecast=0.019, realised=0.032, interval=[0.022, 0.044])
+    p = X.validated(X.build(res, generated_at="2026-09-27T00:00:00Z"))
+    st = p["record"]["calibration_statement"]
+    assert "0.0%-10.0% forecast 1.9%, realised 3.2%" in st and "overconfident" in st
+    assert p["record"]["calibration"][0]["verdict"] == "realised_above"
+    assert p["display"]["show"] == "model" and p["display"]["reason"]
 
 
 # ------------------------------------------------------------------ against the real schedule

@@ -38,7 +38,16 @@ def files():
     return {M.MARKET: E.build_market_calibration("2026-09-26T00:00:00Z"),
             M.REGISTER: {"kind": "research.hypotheses", "hypotheses": hyp["hypotheses"]},
             M.SCORE: _calibration_fixture(),
-            M.MANIFEST: _manifest_fixture()}
+            M.MANIFEST: _manifest_fixture(),
+            M.SEASON: _season_fixture()}
+
+
+def _season_fixture():
+    """The division file built by the real `season_export.build` over the
+    season tests' synthetic record (a-42)."""
+    from jobs import season_export as X
+    from tests.test_season_model import _fake_result
+    return X.validated(X.build(_fake_result(), generated_at="2026-09-27T00:00:00Z"))
 
 
 def _manifest_fixture():
@@ -198,3 +207,29 @@ def test_export_refuses_before_writing_anything(files, tmp_path, monkeypatch):
 
 def test_the_market_file_validates_against_the_contract(files):
     E.validate_contract({M.MARKET: files[M.MARKET]})
+
+
+# ------------------------------------------------------------------ the season gate (a-42)
+
+def test_every_season_metric_is_in_the_season_gate_and_nowhere_else():
+    ids = {m["id"] for m in M.SEASON_METRICS}
+    assert ids and all(i.startswith("season.division.") for i in ids)
+    assert not ids & {m["id"] for m in M.MANIFEST_METRICS + M.RESEARCH_METRICS}
+    assert ids <= {m["id"] for m in M.manifest_block()}, "the manifest must carry them"
+
+
+def test_the_season_gate_resolves_its_file_and_refuses_a_missing_one(files):
+    rep = M.check({M.SEASON: files[M.SEASON]}, M.SEASON_METRICS)
+    assert rep.clean, rep.statement
+    assert rep.checked == len(M.SEASON_METRICS)
+    rep = M.check({}, M.SEASON_METRICS)
+    assert not rep.clean and "was not produced" in rep.statement
+
+
+def test_the_low_tail_metric_reads_the_lowest_bin(files):
+    """The figure a-41 asked the page to print beside the bars."""
+    cal = files[M.SEASON]["record"]["calibration"][0]
+    assert cal["bin"][0] == 0.0
+    got = {m["id"]: M.resolve(files[M.SEASON], m["source"]["path"]) for m in M.SEASON_METRICS}
+    assert got["season.division.calibration.low_tail.forecast"] == cal["forecast"]
+    assert got["season.division.calibration.low_tail.realised"] == cal["realised"]
