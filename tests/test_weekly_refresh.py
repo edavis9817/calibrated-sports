@@ -99,6 +99,8 @@ class Runner:
             return "analytics"
         if "jobs.season_model" in s:
             return "season"
+        if "jobs.landing_export" in s:
+            return "landing"
         return s
 
     def names(self):
@@ -157,7 +159,7 @@ def test_steps_run_in_order_and_touch_git_only_for_the_slug_registry(env):
     # one uploader runs.
     assert py_steps == ["jobs.ingest_nflverse", "jobs.ingest_headshots", "jobs.map_markets",
                         "jobs.export_web", "analytics.export", "jobs.season_model",
-                        "jobs.export_web"]
+                        "jobs.landing_export", "jobs.export_web"]
     git_calls = [c for c in r.calls if c and c[0] == "git"]
     assert git_calls, "the refresh should check the slug registry"
     assert all(c[-1] == W.SLUG_PATH and c[-2] == "--" for c in git_calls)
@@ -551,3 +553,34 @@ def test_a_failing_season_model_degrades_and_declares_nothing(env):
     assert "season/" not in (_refreshed_arg(r) or "")
     assert "upload" in r.names()
     assert "season model declared nothing" in read_log(tmp)
+
+
+# ------------------------------- the landing file, built last (a-47)
+
+def test_the_landing_runs_after_every_producer_and_before_the_upload(env):
+    """It reads the files the other steps wrote, so its place in the order is the
+    point: before them it would count last week's tree."""
+    tmp, _ = env
+    r = Runner()
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    names = r.names()
+    assert names.index("landing") > max(names.index(s) for s in ("export", "analytics", "season"))
+    assert names.index("landing") < names.index("upload")
+    cmd = r.cmd_for("landing")
+    assert "--write" in cmd and cmd[cmd.index("--dest") + 1] == "web"
+
+
+def test_the_landing_declares_nothing(env):
+    """It owns no prefix, so the uploader's declaration is exactly the others'."""
+    tmp, _ = env
+    r = Runner(refreshed=("nfl/players/",), season_refreshed=("season/",))
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    assert _refreshed_arg(r) == "nfl/players/ season/"
+
+
+def test_a_failing_landing_degrades(env):
+    tmp, _ = env
+    r = Runner(fail={"landing"})
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    assert "upload" in r.names()
+    assert "landing file was not rebuilt" in read_log(tmp)

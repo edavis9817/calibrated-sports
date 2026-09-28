@@ -494,6 +494,13 @@ KIND_INPUTS = {
         "board_index": ("board_read",),
         # a-32: the Lab index lists the presets and their verdicts.
         "lab_index": ("lab_preset",),
+        # a-47: jobs/landing_export.py reads SERVED FILES only, never the store -
+        # the manifest's counts, this period's market files, the three research
+        # files, the Lab index (and the universe meta behind it, whose reads the
+        # preset files already declare) and the Board's latest read and index.
+        "landing": ("sport_manifest", "market", "research.calibration",
+                    "research.hypotheses", "research.market_calibration", "lab_index",
+                    "board_read", "board_index"),
     },
     "cfb": {},
     "mlb": {},

@@ -15,6 +15,8 @@ config.storage_path("logs", "weekly_refresh.log"):
   3. export            jobs.export_web                       (failure: ERROR, stop)
   3a. analytics        analytics.export --write --dest web  (failure: WARN)
   3a'. season model    jobs.season_model --write --dest web (failure: WARN; a-42)
+  3a''. landing        jobs.landing_export --write --dest web (failure: WARN; a-47).
+                       Last, because it reads the files the steps above wrote.
   3b. slug registry    if the export appended to web/slugs/, commit ONLY that path
                        in THIS repo (failure: WARN). URLs are only stable once
                        the registry is in git; nothing else is ever committed.
@@ -231,6 +233,17 @@ def _run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fet
     if season_declared is None:
         log("WARN", "the season model declared nothing - season/ keys will NOT be removed from "
                     "R2 this run, and the division file served is the previous one")
+
+    # THE LANDING (a-47) IS BUILT LAST, FROM THE FILES THE STEPS ABOVE JUST WROTE
+    # (and the Board's own tree). It reads no store and owns no prefix - one key,
+    # `landing.json`, written through sync_keys with prefixes [] - so it prints no
+    # declaration and can delete nothing. Non-fatal like the others: a failure
+    # leaves the previous landing.json served, which says what it was built from.
+    landing = step("landing", [py, "-m", "jobs.landing_export", "--write", "--dest", "web"],
+                   fatal=False)
+    if landing.returncode != 0:
+        log("WARN", "the landing file was not rebuilt - the landing.json served is the "
+                    "previous one, and its counters describe that run")
 
     refreshed = concat_declarations(site_declared, analytics_declared, season_declared)
     commit_slug_registry(runner, log)

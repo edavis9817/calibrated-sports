@@ -759,6 +759,31 @@ most one `graded` or `void`). The uploader ships it only after reading the bucke
 copy back and showing the new file is that copy plus rows at the end, and **no uploader
 ever deletes a key under `board/`**.
 
+## landing.json — kind `landing` (a-47)
+
+The one file the landing page reads, sportless at the root. Built LAST in
+`weekly_refresh` by `jobs/landing_export.py` from served files only — the sport
+manifest, the current period's market files, the three research files, the Lab
+index — plus the Board's own tree and the Lab universe meta; never the store.
+
+- `counters[]`: each names its `sport`, its `tier` (`archive`, `season`, `week`,
+  as in the manifest's `denominators`), the `span` it covers, and `source`
+  `{key, path, reduce, served}`. The job re-resolves every source before the
+  write and refuses on a disagreement. A counter whose input was absent is
+  `value: null` with a `reason`, never 0.
+- `featured_ladder`, `distributions`, `fantasy`: chosen by the `rule` string each
+  carries. `distributions.published` may be below `requested` when fewer
+  players are priced.
+- `devig.basis` is `book` (a sportsbook's two-sided price from the Board's read,
+  checked against the Board's own de-vig) or `exchange` (no book price was
+  available; the note says an exchange rung carries no margin).
+- `register.rows[]` carry `null` and `excludes_null`, so a page draws each row
+  against its own null rather than inferring one.
+- `unavailable[]` lists every part that is null or short, with the reason.
+
+It owns no prefix: written through `sync_keys(dest, {"landing.json": ...}, [])`,
+so it deletes nothing and declares nothing to the uploader.
+
 ## Refresh
 
 `python -m jobs.weekly_refresh` logs to
