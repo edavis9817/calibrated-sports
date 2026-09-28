@@ -1328,6 +1328,7 @@
         "label": {"type": "string"},
         "unit": {"type": "string"},
         "decimals": {"description": "The published precision; agreement is tested after rounding both sides to it.", "type": "integer", "minimum": 0},
+        "nullable": {"description": "Present and true when null is a legitimate published value of this metric (a share whose denominator is empty), which a page renders as 'no figure' rather than as a missing file. Absent means a null owner fails the gate.", "const": true},
         "source": {"$ref": "#/$defs/MetricLocation"},
         "copies": {"type": "array", "items": {"$ref": "#/$defs/MetricLocation"}}
       },

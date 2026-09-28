@@ -180,6 +180,25 @@ def test_the_export_refuses_when_the_tiers_disagree_with_counts(db, monkeypatch)
     assert not (dest / "nfl" / "manifest.json").exists()
 
 
+def test_a_null_share_passes_the_gate_only_because_it_is_declared_nullable():
+    """Off-season / every game kicked off: share_priced is null by design. The
+    gate must pass it - and must still refuse a null on a metric not so declared."""
+    t = compute(now=T + 2e4)
+    m = {"counts": {"players": t["archive"]["players"], "teams": 0,
+                    "market": t["week"]["players"]["priced"],
+                    "games": t["archive"]["games"]["final"], "rungs": 0},
+         "denominators": t}
+    assert t["week"]["share_priced"] is None
+    assert M.check({M.MANIFEST: m}, M.MANIFEST_METRICS).clean
+    strict = [dict(x) for x in M.MANIFEST_METRICS]
+    for x in strict:
+        x.pop("nullable", None)
+    rep = M.check({M.MANIFEST: m}, strict)
+    assert not rep.clean and "share_priced" in rep.statement and "is null" in rep.statement
+    assert [x["id"] for x in M.METRICS if x.get("nullable")] == [
+        "coverage.players.week.share_priced"]
+
+
 def test_every_metric_has_exactly_one_gate():
     r, m = M.RESEARCH_METRICS, M.MANIFEST_METRICS
     assert len(r) + len(m) == len(M.METRICS)

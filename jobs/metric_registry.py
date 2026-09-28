@@ -57,8 +57,11 @@ R10_DECLARED = ("R10 is the 2026-09-17 restatement on n=706 (229 books one-sided
                 "quote is correct (a-36).")
 
 
-def _m(id, label, unit, decimals, source, copies=()):
+def _m(id, label, unit, decimals, source, copies=(), nullable=False):
+    # `nullable`: null is a legitimate published state (a share with an empty
+    # denominator), not a lost value. Everywhere else a null owner fails.
     return {"id": id, "label": label, "unit": unit, "decimals": decimals,
+            **({"nullable": True} if nullable else {}),
             "source": {"file": source[0], "path": source[1]},
             "copies": [dict(file=c[0], path=c[1], **({"declared": c[2]} if len(c) > 2 else {}))
                        for c in copies]}
@@ -145,7 +148,7 @@ METRICS = [
     _m("coverage.players.week.priced_expected", "Priced players among those expected",
        "players", 0, (MANIFEST, "denominators.week.players.priced_expected")),
     _m("coverage.players.week.share_priced", "Share of expected players with a posted market",
-       "proportion", 4, (MANIFEST, "denominators.week.share_priced")),
+       "proportion", 4, (MANIFEST, "denominators.week.share_priced"), nullable=True),
     _m("coverage.games.archive", "Games with a final score, whole archive", "games", 0,
        (MANIFEST, "denominators.archive.games.final"), [(MANIFEST, "counts.games")]),
     _m("coverage.games.season", "Games with a final score, current season", "games", 0,
@@ -271,7 +274,7 @@ def check(files, metrics=None):
         except (Unresolved, ValueError) as e:
             problems.append(f"{m['id']}: owner {m['source']['file']}:{e}")
             continue
-        if owner is None:
+        if owner is None and not m.get("nullable"):
             problems.append(f"{m['id']}: owner {m['source']['file']}:{m['source']['path']} is null")
         for c in m["copies"]:
             where = f"{c['file']}:{c['path']}"
