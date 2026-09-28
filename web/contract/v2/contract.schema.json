@@ -31,6 +31,7 @@
       "board_read": "BoardReadFile",
       "lab_index": "LabIndexFile",
       "lab_preset": "LabPresetFile",
+      "lab_catalogue": "LabCatalogueFile",
       "season_model": "SeasonModelFile"
     },
     "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.market_calibration", "research.execution", "coverage"],
@@ -58,6 +59,7 @@
       {"pattern": "^board/[a-z0-9]+/\\d{4}/wk\\d{2}/read-\\d{4}-\\d{2}-\\d{2}T\\d{6}Z\\.json$", "kind": "board_read"},
       {"pattern": "^lab/[a-z0-9]+/index\\.json$", "kind": "lab_index"},
       {"pattern": "^lab/[a-z0-9]+/presets/[a-z0-9_]+\\.json$", "kind": "lab_preset"},
+      {"pattern": "^lab/[a-z0-9]+/catalogue\\.json$", "kind": "lab_catalogue"},
       {"pattern": "^season/[a-z0-9]+/[a-z0-9_]+\\.json$", "kind": "season_model"}
     ],
     "tables": {
@@ -3754,6 +3756,313 @@
         "min_cleared",
         "restriction",
         "presets"
+      ],
+      "additionalProperties": false
+    },
+    "LabFeatureBound": {
+      "description": "What set one end of a derived range. `prices`: the range ends where the price coverage does (an input may end there too; the prices bind either way). `inputs`: a survey column is not usable past that season, and `columns` names it - never empty in that case.",
+      "type": "object",
+      "properties": {
+        "by": {
+          "enum": [
+            "prices",
+            "inputs"
+          ]
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "by",
+        "columns"
+      ],
+      "additionalProperties": false
+    },
+    "LabFeatureMarket": {
+      "description": "A stat-derived feature's range on ONE prop market. A rule betting several markets needs every one of them to support the condition, so the builder greys it per market.",
+      "type": "object",
+      "properties": {
+        "market": {
+          "type": "string"
+        },
+        "availability": {
+          "description": "`historical`: usable over season_from..season_to. `none`: cannot run at all, and `reason` says why - the builder greys the condition out WITH that sentence rather than letting a rule silently return nothing.",
+          "enum": [
+            "historical",
+            "none"
+          ]
+        },
+        "reason": {
+          "description": "Why the condition cannot run. Non-empty exactly when availability is `none`, null otherwise.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "note": {
+          "description": "The note that produced the range, verbatim from lab.catalogue.ranges: the price seasons, and the column survey's own sentence naming any binding column.",
+          "type": "string"
+        },
+        "season_from": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "season_to": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "bound_from": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LabFeatureBound"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bound_to": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LabFeatureBound"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inputs": {
+          "description": "The survey columns (`dataset.column`) the range was derived from. Empty for a feature computed from the prices and the game row alone.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "market",
+        "availability",
+        "reason",
+        "note",
+        "season_from",
+        "season_to",
+        "bound_from",
+        "bound_to",
+        "inputs"
+      ],
+      "additionalProperties": false
+    },
+    "LabFeature": {
+      "description": "One condition a Lab rule can use. Taken from the universe's own feature table - the one lab.strategy.check approves a rule against - so the builder offers exactly what the engine accepts. The range is DERIVED (column survey intersected with price coverage), never typed.",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        },
+        "value_type": {
+          "enum": [
+            "number",
+            "text",
+            "bool"
+          ]
+        },
+        "bet_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "price_seasons": {
+          "description": "The price seasons the range was intersected with, over this feature's bet types. Null when the universe has no prices for any of them.",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "from": {
+                  "type": "integer"
+                },
+                "to": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "from",
+                "to"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "availability": {
+          "description": "`historical`: usable over season_from..season_to. `none`: cannot run at all, and `reason` says why - the builder greys the condition out WITH that sentence rather than letting a rule silently return nothing.",
+          "enum": [
+            "historical",
+            "none"
+          ]
+        },
+        "reason": {
+          "description": "Why the condition cannot run. Non-empty exactly when availability is `none`, null otherwise.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "note": {
+          "description": "The note that produced the range, verbatim from lab.catalogue.ranges: the price seasons, and the column survey's own sentence naming any binding column.",
+          "type": "string"
+        },
+        "season_from": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "season_to": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "bound_from": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LabFeatureBound"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bound_to": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LabFeatureBound"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inputs": {
+          "description": "The survey columns (`dataset.column`) the range was derived from. Empty for a feature computed from the prices and the game row alone.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "by_market": {
+          "description": "Per prop market, for features computed from the market's own stat. Null for every other feature. The feature-level season_from/season_to are the widest over the markets that support it.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/LabFeatureMarket"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "group",
+        "value_type",
+        "bet_types",
+        "price_seasons",
+        "availability",
+        "reason",
+        "note",
+        "season_from",
+        "season_to",
+        "bound_from",
+        "bound_to",
+        "inputs",
+        "by_market"
+      ],
+      "additionalProperties": false
+    },
+    "LabCatalogueFile": {
+      "description": "The Lab builder's condition picker: every feature in lab.catalogue, including the ones that cannot run, each with its derived season range and what bound it. Written on every run of jobs/lab_publish.py.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "lab_catalogue"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "universe_built": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "price_coverage": {
+          "description": "The seasons the universe carries prices for, per bet type, measured from the universe rows.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "bet_type": {
+                "type": "string"
+              },
+              "from": {
+                "type": "integer"
+              },
+              "to": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "bet_type",
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LabFeature"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "universe_built",
+        "price_coverage",
+        "features"
       ],
       "additionalProperties": false
     },

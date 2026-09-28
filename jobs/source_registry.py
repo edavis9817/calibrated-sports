@@ -410,7 +410,10 @@ LOADERS = {
         # a-32: the Lab library. `lab.universe` builds the table every preset runs
         # over (jobs/lab_publish.py writes the files from it); every table it reads
         # reaches the preset files, and the index inherits them through KIND_INPUTS.
-        **{f"lab.universe.{fn}": ("lab_preset",) for fn in (
+        # a-45: the catalogue's ranges are intersected with the universe's price
+        # coverage and its markets, measured from those same rows, so every table
+        # the universe reads reaches the catalogue too.
+        **{f"lab.universe.{fn}": ("lab_preset", "lab_catalogue") for fn in (
             "load_games", "load_divisions", "load_history", "load_props", "load_game_quotes")},
         # the settlement-fix gate: it refuses a pre-fix store and its counts stay
         # in the universe's meta; no row of it reaches a published file.
@@ -526,6 +529,12 @@ KIND_EXTRA = {
         # a-41: jobs/season_model.py reads nfl_games (scores, schedule) and
         # nfl_teams (conference and division), mode=ro, outside sync_keys.
         "season_model": ("nflverse.schedule", "nflverse.teams"),
+        # a-45: jobs/lab_publish.py's catalogue. Its ranges also come from the
+        # analytics column survey (analytics.metrics.derive_range, run by
+        # lab.catalogue.ranges when the universe is built), which measures the
+        # weekly_stats and snap_counts columns - read through analytics.db, a
+        # connection the gate does not watch, so declared here by hand.
+        "lab_catalogue": ("nflverse.stats", "nflverse.snap_counts"),
         "coverage": ("nflverse.stats", "nflverse.schedule", "nflverse.snap_counts",
                      "kalshi.ladders", "kalshi.price_history", "kalshi.trades", "polymarket",
                      "oddsapi", "nflverse.injuries", "sportsdataverse.cfb", "cfbd",

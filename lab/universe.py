@@ -586,8 +586,14 @@ def build(db=None, dest=None, analytics_con=None, verbose=True, allow_unfixed=Fa
     return {"rows": df, "meta": meta}
 
 
+# Named so jobs/lab_publish.py can refuse a catalogue built without the survey:
+# every survey-ranged feature then reads "unavailable", which is a statement
+# about this machine, not about the feature.
+NO_SURVEY = "analytics.db (the column survey) is not available"
+
+
 def _no_survey(_con, metric):
-    raise SystemExit("analytics.db (the column survey) is not available")
+    raise SystemExit(NO_SURVEY)
 
 
 def load(dest=None):

@@ -108,7 +108,8 @@ def test_every_launch_preset_is_listed_in_order_published_or_refused_with_a_reas
     assert "walk-forward" in " ".join(status["model_leans"]["reasons"])
     assert "forecast weather" in " ".join(status["unders_in_the_wind"]["reasons"])
     assert "R16" in status["buy_the_middle"]["register"]
-    assert set(files) - {L.INDEX_KEY} == {p["file"] for p in idx["presets"] if p["file"]}
+    assert (set(files) - {L.INDEX_KEY, L.CATALOGUE_KEY}
+            == {p["file"] for p in idx["presets"] if p["file"]})
 
 
 def test_the_files_satisfy_the_contract_and_the_source_gate(files):
@@ -321,7 +322,7 @@ def test_publish_deletes_a_stale_lab_key_and_nothing_outside_lab(tmp_path, files
     again = L.publish(u, str(tmp_path), generated_at="2026-09-25T00:00:00Z", log=lambda *_: None)
     assert again["written"] == 0            # generated_at alone is not a change
     chk = L.check_tree(str(tmp_path), log=lambda *_: None)
-    assert chk["keys"] == 5 and chk["bytes"] > 0
+    assert chk["keys"] == 6 and chk["bytes"] > 0
 
 
 def test_check_tree_refuses_an_empty_tree_and_an_index_that_disagrees(tmp_path):
@@ -378,3 +379,153 @@ def test_units_interval_and_per_cell_wilson_come_from_the_engine():
         assert c["cleared"] + c["missed"] + c["push"] + c["void"] == c["bets"]
         assert c["weeks"] >= 1
     assert {"team", "opp"} <= set(r["bet_list"][0])
+
+
+
+# ------------------------------------------------------------------ the catalogue (a-45)
+
+def test_the_catalogue_lists_every_feature_in_the_catalogue_once_in_order(files):
+    cat = files[L.CATALOGUE_KEY]
+    assert cat["kind"] == "lab_catalogue"
+    keys = [f["key"] for f in cat["features"]]
+    assert keys == [f.key for f in catalogue.FEATURES]
+    assert set(keys) == set(catalogue.BY_KEY) and len(keys) == len(set(keys))
+    by = {f["key"]: f for f in cat["features"]}
+    for k, f in catalogue.BY_KEY.items():
+        assert (by[k]["label"], by[k]["group"], by[k]["value_type"], by[k]["bet_types"]) == \
+            (f.label, f.group, f.dtype, list(f.bet_types))
+
+
+def test_every_unavailable_feature_carries_a_reason_and_no_available_one_does(files):
+    feats = files[L.CATALOGUE_KEY]["features"]
+    rows = feats + [m for f in feats for m in (f["by_market"] or [])]
+    declared = {f.key for f in catalogue.FEATURES if f.availability == "none"}
+    assert len(declared) == 6
+    assert declared <= {r["key"] for r in feats if r["availability"] == "none"}
+    none = [r for r in rows if r["availability"] == "none"]
+    assert len(none) >= 6
+    for r in none:
+        assert isinstance(r["reason"], str) and r["reason"].strip(), r
+        assert r["season_from"] is None and r["season_to"] is None and r["bound_from"] is None
+    for r in rows:
+        if r["availability"] == "historical":
+            assert r["reason"] is None and r["season_from"] <= r["season_to"]
+            assert r["bound_from"] and r["bound_to"]
+
+
+def test_the_contract_refuses_an_unavailable_feature_with_an_empty_reason(files):
+    E.validate_contract(files)
+    bad = copy.deepcopy(files[L.CATALOGUE_KEY])
+    next(x for x in bad["features"] if x["availability"] == "none")["reason"] = ""
+    with pytest.raises(E.ContractError):
+        E.validate_contract({L.CATALOGUE_KEY: bad})
+
+
+def test_the_published_ranges_are_the_universes_own_and_name_the_price_bound(files):
+    u = _universe(_rows(np.random.default_rng(7)))
+    by = {f["key"]: f for f in files[L.CATALOGUE_KEY]["features"]}
+    for k, d in u["meta"]["features"].items():
+        if d["availability"] != "none":
+            assert (by[k]["season_from"], by[k]["season_to"]) == (d["season_from"], d["season_to"])
+            assert by[k]["note"] == d["note"]
+    s = by["player.streak"]
+    assert (s["season_from"], s["season_to"]) == (2023, 2025)
+    assert s["price_seasons"] == {"from": 2023, "to": 2025}
+    assert s["bound_from"] == s["bound_to"] == {"by": "prices", "columns": []}
+    assert {m["market"]: m["availability"] for m in s["by_market"]}["receptions"] == "historical"
+    assert by["game.home"]["price_seasons"] == {"from": 1999, "to": 2025}
+    assert by["game.home"]["by_market"] is None and by["game.home"]["inputs"] == []
+
+
+def _survey(monkeypatch, starts):
+    """Drive the REAL derive_range: `starts` is {column: first usable season}."""
+    from analytics import metrics
+    monkeypatch.setattr(metrics, "live_season", lambda con: 2026)
+    monkeypatch.setattr(metrics.survey, "coverage",
+                        lambda con, column, dataset="", condition="":
+                        [(y,) for y in range(starts.get(column, 1999), 2027)])
+    monkeypatch.setattr(metrics.survey, "anomalies", lambda con, **kw: {})
+    monkeypatch.setattr(metrics.survey, "silent_zeros", lambda con, **kw: [])
+    return metrics.derive_range
+
+
+def _meta(monkeypatch, starts, cov):
+    feats = catalogue.ranges(object(), cov, MARKETS, derive=_survey(monkeypatch, starts))
+    return {"features": feats, "price_coverage": cov, "built": "2026-09-24T17:23:59+00:00"}
+
+
+EARLY = {"prop": (2005, 2025), "spread": (1999, 2025), "total": (1999, 2025)}
+
+
+def test_an_input_bound_range_names_its_binding_column_from_the_real_derive_range(monkeypatch):
+    # prices from 2005: snap counts (2013) and the target share (2009) now bind
+    cat = L.catalogue_file(_meta(monkeypatch, {"offense_pct": 2013, "target_share": 2009,
+                                               "def_tackles_with_assist": 2011}, EARLY))
+    by = {f["key"]: f for f in cat["features"]}
+    snap = by["player.snap_share_l3"]
+    assert snap["season_from"] == 2013
+    assert snap["bound_from"] == {"by": "inputs", "columns": ["snap_counts.offense_pct"]}
+    assert snap["bound_to"] == {"by": "prices", "columns": []}
+    assert by["player.target_share_l3"]["bound_from"] == {
+        "by": "inputs", "columns": ["weekly_stats.target_share"]}
+    # per market: tackles is bound by one of its three columns, receptions by the
+    # prices; the feature-level start is the widest (2005), so the prices bind it
+    streak = by["player.streak"]
+    per = {m["market"]: m for m in streak["by_market"]}
+    assert per["tackles_assists"]["bound_from"] == {
+        "by": "inputs", "columns": ["weekly_stats.def_tackles_with_assist"]}
+    assert per["receptions"]["bound_from"]["by"] == "prices"
+    assert streak["season_from"] == 2005 and streak["bound_from"]["by"] == "prices"
+
+
+def test_a_feature_level_input_bound_is_carried_from_the_markets_that_set_it(monkeypatch):
+    late = {c: 2010 for c in ("receptions", "receiving_yards", "carries", "def_sacks")}
+    cat = L.catalogue_file(_meta(monkeypatch, {**late, "def_tackles_with_assist": 2012}, EARLY))
+    streak = next(f for f in cat["features"] if f["key"] == "player.streak")
+    assert streak["season_from"] == 2010
+    assert streak["bound_from"] == {"by": "inputs", "columns": [
+        "weekly_stats.carries", "weekly_stats.def_sacks", "weekly_stats.receiving_yards",
+        "weekly_stats.receptions"]}
+
+
+def test_an_input_bound_end_whose_note_names_no_input_is_refused(monkeypatch):
+    meta = _meta(monkeypatch, {"offense_pct": 2013}, EARLY)
+    meta["features"]["player.snap_share_l3"]["note"] = "prices 2005-2025; survey: reworded"
+    with pytest.raises(SystemExit, match="unexplained range"):
+        L.catalogue_file(meta)
+
+
+def test_a_universe_built_by_another_catalogue_or_without_the_survey_is_refused():
+    from lab.universe import NO_SURVEY, _no_survey
+    u = _universe(_rows(np.random.default_rng(7)))
+    stale = copy.deepcopy(u["meta"])
+    del stale["features"]["game.week"]
+    with pytest.raises(SystemExit, match="game.week"):
+        L.catalogue_file(stale)
+    relabel = copy.deepcopy(u["meta"])
+    relabel["features"]["game.week"]["bet_types"] = ["spread"]
+    with pytest.raises(SystemExit, match="rebuild the universe"):
+        L.catalogue_file(relabel)
+    nosurvey = dict(u["meta"], features=catalogue.ranges(
+        None, u["meta"]["price_coverage"], MARKETS, derive=_no_survey))
+    assert NO_SURVEY in nosurvey["features"]["player.snap_share_l3"]["note"]
+    with pytest.raises(SystemExit, match="column survey"):
+        L.catalogue_file(nosurvey)
+
+
+def test_the_catalogue_is_written_every_run_and_check_tree_requires_it(tmp_path):
+    u = _universe(_rows(np.random.default_rng(7)))
+    L.publish(u, str(tmp_path), generated_at=GEN, log=lambda *_: None)
+    path = tmp_path / "lab" / "nfl" / "catalogue.json"
+    assert path.exists()
+    os.remove(path)
+    with pytest.raises(E.ContractError, match="catalogue"):
+        L.check_tree(str(tmp_path), log=lambda *_: None)
+    out = L.publish(u, str(tmp_path), generated_at=GEN, log=lambda *_: None)
+    assert out["written"] == 1 and path.exists()
+
+
+def test_the_catalogue_sources_add_the_survey_to_the_universes(files):
+    approved = R.require_declared(files)
+    cat, preset = set(approved[("nfl", "lab_catalogue")]), set(approved[("nfl", "lab_preset")])
+    assert preset <= cat and {"oddsapi", "nflverse.stats", "nflverse.snap_counts"} <= cat

@@ -9,6 +9,8 @@ that can publish must be told where):
 
     lab/nfl/index.json               kind lab_index    - every launch preset, run or not
     lab/nfl/presets/{key}.json       kind lab_preset   - one per preset that runs
+    lab/nfl/catalogue.json           kind lab_catalogue - every condition a rule can
+                                     use, with its derived range (a-45)
 
 WHY STATIC. a-27 built `lab.run(strategy, universe)` as a pure function and stood
 up no service, because serving it (audit option B) turned on The Odds API's
@@ -45,6 +47,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -55,6 +58,7 @@ from jobs import source_registry as R  # noqa: E402
 SPORT = "nfl"
 PREFIX = "lab/"
 INDEX_KEY = f"lab/{SPORT}/index.json"
+CATALOGUE_KEY = f"lab/{SPORT}/catalogue.json"
 MIN_CLEARED = 10
 
 PROPS = ["receptions", "receiving_yards", "rush_attempts", "tackles_assists", "sacks"]
@@ -270,6 +274,148 @@ def project(result, preset, universe_meta):
     }
 
 
+# ------------------------------------------------------------------ the catalogue (a-45)
+#
+# The builder's condition picker. It is the universe's OWN `meta["features"]` -
+# the dict `lab.strategy.check` approves or refuses a rule against - so what the
+# page offers and what the engine accepts are one object, not two lists that
+# agree today. Nothing here re-derives a range; it only says, structurally, what
+# bound it.
+
+_CLAUSE = {"from": re.compile(r"starts \d+: (.+?) is not usable before it"),
+           "to": re.compile(r"ENDS \d+: (.+?) has no data after it")}
+
+
+def _price_range(feature, coverage):
+    """The price seasons `lab.catalogue.ranges` intersected with - same rule."""
+    covered = [coverage[b] for b in feature["bet_types"] if b in coverage]
+    if not covered:
+        return None
+    return {"from": int(min(c[0] for c in covered)), "to": int(max(c[1] for c in covered))}
+
+
+def _inputs(req):
+    return ["%s.%s" % (r[0], r[1]) for r in req]
+
+
+def _bound(end, value, prices, inputs, note, where):
+    """What set one end of a derived range: the prices, or named input columns.
+
+    `prices` when the range ends where the price coverage does (an input may end
+    there too - the prices bind either way). Otherwise an input bound it, and the
+    columns are the ones `derive_range`'s note names in that end's clause, kept
+    only if they are among this feature's own inputs. An input-bound end with no
+    column recoverable REFUSES: publishing "bounded by the inputs" without naming
+    one is the bare pair of years this field exists to replace, and it means the
+    note's wording moved under this parser.
+    """
+    if value is None:
+        return None
+    if prices is not None and value == prices[end]:
+        return {"by": "prices", "columns": []}
+    m = _CLAUSE[end].search(note or "")
+    named = [c.strip() for c in m.group(1).split(",")] if m else []
+    cols = [c for c in inputs if c in named]
+    if not cols:
+        raise SystemExit("%s: season_%s %s is not the price bound %s, and the note names "
+                         "none of its inputs %s - refusing to publish an unexplained range "
+                         "(note: %r)" % (where, end, value, prices, inputs, note))
+    return {"by": "inputs", "columns": cols}
+
+
+def _range_fields(d, prices, inputs, where):
+    none = d.get("availability") == "none"
+    reason = (d.get("note") or "").strip() if none else None
+    if none and not reason:
+        raise SystemExit("%s: availability none with no reason - a builder cannot grey it "
+                         "out with an explanation" % where)
+    lo, hi = d.get("season_from"), d.get("season_to")
+    return {"availability": "none" if none else "historical", "reason": reason,
+            "note": d.get("note") or "",
+            "season_from": None if none else lo, "season_to": None if none else hi,
+            "bound_from": None if none else _bound("from", lo, prices, inputs,
+                                                   d.get("note"), where),
+            "bound_to": None if none else _bound("to", hi, prices, inputs,
+                                                 d.get("note"), where),
+            "inputs": inputs}
+
+
+def catalogue_file(meta):
+    """universe meta -> the lab_catalogue body, one entry per catalogue feature.
+
+    Refuses a universe whose features are not exactly `lab.catalogue.BY_KEY`
+    (built by an older catalogue: the page would offer what the engine no longer
+    knows, or miss what it does), and one built without the column survey (every
+    survey-ranged feature would publish as unavailable for a reason about this
+    machine rather than about the feature).
+    """
+    from lab import catalogue as C
+    from lab.universe import NO_SURVEY
+    feats = meta.get("features") or {}
+    if set(feats) != set(C.BY_KEY):
+        raise SystemExit("the universe's features differ from lab.catalogue by %s - "
+                         "rebuild the universe" % sorted(set(feats) ^ set(C.BY_KEY)))
+    coverage = meta.get("price_coverage") or {}
+    out = []
+    for f in C.FEATURES:                                   # the catalogue's own order
+        d = feats[f.key]
+        for name, want in (("label", f.label), ("group", f.group), ("dtype", f.dtype),
+                           ("bet_types", list(f.bet_types))):
+            if d.get(name) != want:
+                raise SystemExit("%s: universe %s %r, catalogue %r - rebuild the universe"
+                                 % (f.key, name, d.get(name), want))
+        per = d.get("by_market")
+        notes = [d.get("note") or ""] + [v.get("note") or "" for v in (per or {}).values()]
+        if any(NO_SURVEY in n for n in notes):
+            raise SystemExit("%s: the universe was built without the column survey (%s) - "
+                             "its range would publish as unavailable for that reason alone; "
+                             "rebuild where analytics.db exists" % (f.key, NO_SURVEY))
+        prices = _price_range(d, coverage)
+        entry = {"key": f.key, "label": f.label, "group": f.group, "value_type": f.dtype,
+                 "bet_types": list(f.bet_types), "price_seasons": prices}
+        if per:
+            by_market = [{"market": m, **_range_fields(v, prices,
+                                                       _inputs(C.STAT_REQUIRES.get(m, ())),
+                                                       "%s/%s" % (f.key, m))}
+                         for m, v in sorted(per.items())]
+            inputs = sorted({c for b in by_market for c in b["inputs"]})
+            # The feature-level ends are the widest over its markets, so an input
+            # bound there is carried by whichever markets set that end. Computed
+            # from the markets, never parsed from the "per market: ..." summary.
+            none = d.get("availability") == "none"
+            entry.update({"availability": "none" if none else "historical",
+                          "reason": (d.get("note") or "").strip() if none else None,
+                          "note": d.get("note") or "",
+                          "season_from": None if none else d.get("season_from"),
+                          "season_to": None if none else d.get("season_to"),
+                          "inputs": inputs})
+            if none and not entry["reason"]:
+                raise SystemExit("%s: availability none with no reason" % f.key)
+            for end in ("from", "to"):
+                v = entry["season_" + end]
+                if v is None:
+                    entry["bound_" + end] = None
+                    continue
+                setters = [m["bound_" + end] for m in by_market
+                           if m["availability"] != "none" and m["season_" + end] == v]
+                if any(b["by"] == "prices" for b in setters):
+                    entry["bound_" + end] = {"by": "prices", "columns": []}
+                else:
+                    entry["bound_" + end] = {"by": "inputs", "columns": sorted(
+                        {c for b in setters for c in b["columns"]})}
+            entry["by_market"] = by_market
+        else:
+            entry.update(_range_fields(d, prices, _inputs(C.requirements(f, ())), f.key))
+            entry["by_market"] = None
+        out.append(entry)
+    return {
+        "universe_built": iso_z(meta["built"]),
+        "price_coverage": [{"bet_type": b, "from": int(v[0]), "to": int(v[1])}
+                           for b, v in sorted(coverage.items())],
+        "features": out,
+    }
+
+
 def build(universe, generated_at, log=print):
     """-> {key: file}. Runs every launch preset through `lab.run`."""
     from lab import run
@@ -314,6 +460,13 @@ def build(universe, generated_at, log=print):
     if not files:
         raise NothingToPublish("no launch preset produced a result - refusing to write an "
                                "index that names nothing")
+    # Written on EVERY run: `lab/` is owned wholly, so a run that skipped it
+    # would delete the builder's picker.
+    files[CATALOGUE_KEY] = {**E.envelope("lab_catalogue", generated_at, SPORT),
+                            **catalogue_file(meta)}
+    cat = files[CATALOGUE_KEY]["features"]
+    log("  catalogue: %d features, %d unavailable" % (
+        len(cat), sum(1 for c in cat if c["availability"] == "none")))
     files[INDEX_KEY] = {
         **E.envelope("lab_index", generated_at, SPORT),
         "launch_set": LAUNCH_SOURCE,
@@ -353,8 +506,10 @@ def check_tree(dest, show_keys=False, log=print):
     R.require_declared(js)
     if INDEX_KEY not in js:
         raise E.ContractError(f"{INDEX_KEY} is missing")
+    if CATALOGUE_KEY not in js:
+        raise E.ContractError(f"{CATALOGUE_KEY} is missing")
     named = {e["file"] for e in js[INDEX_KEY]["presets"] if e["file"]}
-    on_disk = set(js) - {INDEX_KEY}
+    on_disk = set(js) - {INDEX_KEY, CATALOGUE_KEY}
     if named != on_disk:
         raise E.ContractError(f"index names {sorted(named - on_disk)} not on disk, and "
                               f"{sorted(on_disk - named)} on disk are not in the index")
