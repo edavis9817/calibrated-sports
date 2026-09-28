@@ -629,6 +629,12 @@ exchange, which were answering 403 and 429 on the audited page (2026-09-24).
   week (or the latest earlier week of the season), each row with `captured_at`,
   when this store first held it. The job runs `jobs.ingest_feeds --injuries`
   every `LIVE_SNAPSHOT_INJURIES_EVERY` (6 h) to capture it.
+- **`possession`** (a-43) is the team with the ball, in the schedule's code, set only
+  while `state == "in"` and null otherwise - between drives, when the scoreboard omits
+  it, and when its team id names neither side of the game. It is read from the
+  scoreboard's `situation.possession` team id, joined through that event's own
+  competitors. **`possessionText` is field position, not the team**: measured
+  2026-09-28 on LAR@DEN, `possession` named DEN while `possessionText` read "LAR 2".
 - **Team codes are the schedule's** (the site's team keys). The scoreboard's
   LAR/WSH and the exchange's LAR/JAC are folded in the producer; anything that
   joins no scheduled game is listed in `unmatched`, never dropped.

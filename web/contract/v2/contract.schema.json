@@ -1709,6 +1709,7 @@
         "score_source": {"description": "Null when no score is held (not started, or in progress with the scoreboard down).", "enum": ["scoreboard", "schedule", null]},
         "detail": {"description": "The scoreboard's own short status line. Null when the scoreboard is not the state source.", "type": ["string", "null"]},
         "situation": {"description": "Down and distance while in progress, when the scoreboard carries it.", "type": ["string", "null"]},
+        "possession": {"description": "The team with the ball, in the site's team code, while in progress. Null between drives, when the scoreboard omits it, when its team id names neither side of this game, and whenever state is not in. Read from the scoreboard's possession team id, never from its possessionText, which is field position.", "type": ["string", "null"]},
         "line": {
           "description": "The schedule's lines. spread_line is home-relative and POSITIVE when the home team is favoured, as the schedule source publishes it. line_source, line_read_at and line_previous are the same fields, from the same function, as on the manifest's current.fixtures[] (a-37).",
           "anyOf": [{
@@ -1741,7 +1742,7 @@
         },
         "markets": {"description": "Open game-winner markets on this game, read at sources.prices.read_at. Empty when none, or when the exchange was not read this cycle.", "type": "array", "items": {"$ref": "#/$defs/LiveGameMarket"}}
       },
-      "required": ["game_id", "scoreboard_id", "kickoff_at", "away", "home", "state", "state_source", "score_source", "detail", "situation", "line", "scoreboard_odds", "markets"],
+      "required": ["game_id", "scoreboard_id", "kickoff_at", "away", "home", "state", "state_source", "score_source", "detail", "situation", "possession", "line", "scoreboard_odds", "markets"],
       "additionalProperties": false
     },
 

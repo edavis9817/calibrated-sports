@@ -288,7 +288,7 @@ SOURCES = {
     # that kind is declared here, and the page read below should then be removed.
     "espn.scoreboard": dict(
         name="ESPN", sports=("nfl",), layer="FACTS",
-        provides="The public scoreboard: game state, clock and score",
+        provides="The public scoreboard: game state, clock, score and which team has the ball",
         used_for="The Live page's scores and game clock",
         last_read=("runtime", "the site's Live page")),
     "rss.headlines": dict(

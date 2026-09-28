@@ -503,3 +503,102 @@ def test_a_failing_source_in_a_cycle_reaches_the_loggers_log_endpoint():
     assert doc["slate"]["label"] == "Week 3"
     assert ("post", "https://hc/logger/log") in rec.calls
     assert ("get", "https://hc/logger") not in rec.calls
+
+
+# ============================================================ a-43. possession
+
+def raw_event(state="in", situation=None, eid="401872962", date="2026-09-28T00:20Z"):
+    """One scoreboard event in the shape measured on 2026-09-28 03:39Z (LAR@DEN, 4th
+    quarter): competitor team ids 14 (LAR, away) and 7 (DEN, home)."""
+    comp = {"competitors": [
+        {"id": "7", "homeAway": "home", "score": "20", "team": {"id": "7", "abbreviation": "DEN"}},
+        {"id": "14", "homeAway": "away", "score": "17", "team": {"id": "14", "abbreviation": "LAR"}}]}
+    if situation is not None:
+        comp["situation"] = situation
+    return {"id": eid, "date": date, "competitions": [comp],
+            "status": {"type": {"state": state, "shortDetail": "0:51 - 4th"}}}
+
+
+MEASURED_SITUATION = {"down": 2, "yardLine": 98, "distance": 2,
+                      "downDistanceText": "2nd & Goal at LAR 2", "shortDownDistanceText": "2nd & Goal",
+                      "possessionText": "LAR 2", "isRedZone": True, "possession": "7"}
+
+
+def _slate_game(events, now, gid="2026_03_LA_DEN"):
+    doc = build(events=events, now=now)
+    S.validate("live/nfl/snapshot.json", doc)
+    return next(g for g in doc["slate"]["games"] if g["game_id"] == gid)
+
+
+def test_possession_is_the_teams_own_code_joined_through_its_id_not_the_possession_text():
+    """The measured case: possession id 7 is DEN; possessionText 'LAR 2' is the yard
+    line and names the OTHER team. Reading the text would publish the wrong side."""
+    [e] = S.parse_scoreboard({"events": [raw_event(situation=MEASURED_SITUATION)]})
+    assert e["possession"] == "DEN"
+    # And the away side joins through the alias fold: ESPN's LAR is the site's LA.
+    [e2] = S.parse_scoreboard({"events": [raw_event(situation={**MEASURED_SITUATION, "possession": 14})]})
+    assert e2["possession"] == "LA"
+    kick = W3[3]["kickoff_ts"]
+    g = _slate_game([e], kick + 3 * 3600)
+    assert (g["state"], g["possession"]) == ("in", "DEN")
+    g2 = _slate_game([e2], kick + 3 * 3600)
+    assert g2["possession"] == "LA"
+    assert "7" not in (g["possession"], g2["possession"]) and "14" not in (g["possession"], g2["possession"])
+
+
+def test_possession_is_null_when_the_scoreboard_omits_it():
+    no_key = {k: v for k, v in MEASURED_SITUATION.items() if k != "possession"}
+    for raw in (raw_event(situation=no_key), raw_event(situation=None),
+                raw_event(situation={**MEASURED_SITUATION, "possession": None})):
+        [e] = S.parse_scoreboard({"events": [raw]})
+        assert e["possession"] is None
+        g = _slate_game([e], W3[3]["kickoff_ts"] + 3 * 3600)
+        assert (g["state"], g["possession"]) == ("in", None)
+
+
+def test_possession_whose_id_joins_no_team_on_the_slate_is_null_not_a_guess():
+    [e] = S.parse_scoreboard({"events": [raw_event(situation={**MEASURED_SITUATION, "possession": "99"})]})
+    assert e["possession"] is None
+    # A parsed code naming neither side of the joined game is refused by the game too.
+    stray = {**ev("LAR", "DEN", W3[3]["kickoff_ts"], "in", 17, 20), "possession": "KC"}
+    g = _slate_game([stray], W3[3]["kickoff_ts"] + 3 * 3600)
+    assert g["possession"] is None
+    ok = {**stray, "possession": "DEN"}
+    assert _slate_game([ok], W3[3]["kickoff_ts"] + 3 * 3600)["possession"] == "DEN"
+
+
+def test_possession_is_set_only_while_the_game_is_in_progress():
+    kick = W3[3]["kickoff_ts"]
+    for state, now in (("pre", kick - 600), ("post", kick + 4 * 3600)):
+        [e] = S.parse_scoreboard({"events": [raw_event(state=state, situation=MEASURED_SITUATION)]})
+        assert e["possession"] == "DEN"          # parsed, then withheld by the game
+        g = _slate_game([e], now) if state == "pre" else None
+        if g is not None:
+            assert (g["state"], g["possession"]) == ("pre", None)
+    # post: the game is final, so it sits on the slate until the week releases; read it
+    # from whichever section carries it.
+    [e] = S.parse_scoreboard({"events": [raw_event(state="post", situation=MEASURED_SITUATION)]})
+    doc = build(events=[e], now=kick + 4 * 3600)
+    S.validate("live/nfl/snapshot.json", doc)
+    games = [g for sec in ("slate", "last_week") if doc.get(sec) for g in doc[sec]["games"]]
+    g = next(g for g in games if g["game_id"] == "2026_03_LA_DEN")
+    assert (g["state"], g["possession"]) == ("post", None)
+    # With the scoreboard down the game has no state from it, and no possession.
+    doc = build(events=None, now=kick + 3 * 3600, st=states(scoreboard="refused"))
+    S.validate("live/nfl/snapshot.json", doc)
+    g = next(g for g in doc["slate"]["games"] if g["game_id"] == "2026_03_LA_DEN")
+    assert g["possession"] is None
+
+
+def test_the_contract_requires_possession_and_refuses_a_number():
+    kick = W3[3]["kickoff_ts"]
+    [e] = S.parse_scoreboard({"events": [raw_event(situation=MEASURED_SITUATION)]})
+    doc = build(events=[e], now=kick + 3 * 3600)
+    S.validate("live/nfl/snapshot.json", doc)
+    g = next(g for g in doc["slate"]["games"] if g["game_id"] == "2026_03_LA_DEN")
+    g["possession"] = 7
+    with pytest.raises(S.ContractError):
+        S.validate("live/nfl/snapshot.json", doc)
+    del g["possession"]
+    with pytest.raises(S.ContractError):
+        S.validate("live/nfl/snapshot.json", doc)

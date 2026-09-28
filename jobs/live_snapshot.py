@@ -207,6 +207,21 @@ def _num(v):
     return n if math.isfinite(n) else None
 
 
+def possession_team(situation: dict, by_id: dict):
+    """The team with the ball, in the schedule's code, or None (unit a-43).
+
+    Read from `situation.possession`, a TEAM ID, joined through this event's own
+    competitors - never ESPN's id published raw. An id that names neither competitor
+    is None, not a guess. `possessionText` is NOT read, and not as a fallback: it is
+    FIELD POSITION. Measured on the scoreboard 2026-09-28 03:39Z, LAR@DEN 4th quarter:
+    `possession` "7" (DEN, which had the ball) beside `possessionText` "LAR 2" - the
+    yard line, naming the OTHER team."""
+    pid = situation.get("possession")
+    if pid is None or isinstance(pid, (dict, list, bool)):
+        return None
+    return by_id.get(str(pid))
+
+
 def parse_scoreboard(raw) -> list[dict]:
     """The scoreboard's events. A body with no events array is a SHAPE failure, not an
     empty slate - an empty list here would read as 'no games' on a Sunday."""
@@ -217,12 +232,16 @@ def parse_scoreboard(raw) -> list[dict]:
     for ev in root["events"]:
         ev = _obj(ev)
         comp = _obj((ev.get("competitions") or [None])[0])
-        sides = {}
+        sides, by_id = {}, {}
         for c in comp.get("competitors") or []:
             c = _obj(c)
-            abbr = _obj(c.get("team")).get("abbreviation")
+            team = _obj(c.get("team"))
+            abbr = team.get("abbreviation")
             if c.get("homeAway") in ("home", "away") and abbr:
                 sides[c["homeAway"]] = {"team": canon(abbr), "score": _num(c.get("score"))}
+                tid = team.get("id") if team.get("id") is not None else c.get("id")
+                if tid is not None:
+                    by_id[str(tid)] = canon(abbr)
         st = _obj(_obj(ev.get("status") or comp.get("status")).get("type"))
         state = st.get("state")
         try:
@@ -243,6 +262,7 @@ def parse_scoreboard(raw) -> list[dict]:
             "state": state,
             "detail": st.get("shortDetail") or st.get("detail") or None,
             "situation": sit.get("downDistanceText") or sit.get("shortDownDistanceText") or None,
+            "possession": possession_team(sit, by_id),
             "away": sides["away"], "home": sides["home"],
             "odds": ({"provider": _obj(odds.get("provider")).get("name") or None,
                       "details": odds.get("details") or None,
@@ -555,6 +575,10 @@ def game_doc(g, ev, markets, now, live_window_s, scoreboard_ok):
         "detail": use_ev["detail"] if use_ev is not None else None,
         "situation": (use_ev["situation"] if use_ev is not None and use_ev["state"] == "in"
                       else None),
+        "possession": (use_ev.get("possession")
+                       if use_ev is not None and use_ev["state"] == "in"
+                       and use_ev.get("possession") in (canon(g["home"]), canon(g["away"]))
+                       else None),
         "line": line,
         "scoreboard_odds": use_ev["odds"] if use_ev is not None else None,
         "markets": markets,
