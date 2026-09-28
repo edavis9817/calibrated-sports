@@ -50,6 +50,7 @@ from core import stats as core_stats  # noqa: E402
 from jobs import source_registry  # noqa: E402
 from jobs import game_lines  # noqa: E402
 from jobs import metric_registry  # noqa: E402
+from jobs import denominators  # noqa: E402
 from jobs.publish_live_prices import LIVE_PREFIX  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -65,6 +66,16 @@ SCHEMA_VERSION = CONTRACT["x-contract"]["schema_version"]
 SPORT = "nfl"
 SPORT_NAME = "NFL"
 PERIOD_TYPE = "week"
+# THE SPORT CONFIG for "a player took part" (a-46). One object drives the player
+# index (`player_scope`) and all three published denominators, so the archive
+# count and the index cannot come to mean different things. "Offensive usage" is
+# an NFL notion; another sport supplies its own `Participation`.
+PARTICIPATION = denominators.Participation(
+    noun="offensive usage",
+    definition="a target, a carry or a pass attempt in the game",
+    columns=("targets", "carries", "attempts"),
+    scope_season_types=("REG",),
+    id_col="gsis_id", period_col="week", team_col="team")
 PARTS = ("players", "teams", "market", "research", "manifest", "components")
 # Empty. `components` moved into PARTS on 2026-09-24 - the publish decision a-11
 # left to Ethan, taken because /nfl/analytics renders 64 marked blanks without it
@@ -1769,8 +1780,8 @@ def player_scope(weeks, extended=False):
     player: an offensive lineman with snaps and no stat row has nothing to
     render, and a page of zeros is not a player page.
     """
-    base = {r["gsis_id"] for r in weeks if r["season_type"] == "REG"
-            and num(r["targets"]) + num(r["carries"]) + num(r["attempts"]) > 0}
+    base = {r["gsis_id"] for r in weeks
+            if r["season_type"] in PARTICIPATION.scope_season_types and PARTICIPATION.used(r)}
     if not extended:
         return base
     cols = [c for _, c in EXT_STAT_MAP]
@@ -2892,7 +2903,8 @@ def reconcile_path(abbr, summary):
 
 def build_manifest(games, current, index, market_keys, unresolved, source_version, scoring_note,
                    generated_at, rungs, team_colors, team_groupings, team_seasons,
-                   stat_definitions=None, market_definitions=None, fixtures=None):
+                   stat_definitions=None, market_definitions=None, fixtures=None,
+                   denominators=None):
     # `fixtures` is None unless the staged feature built it, and then the key is
     # ABSENT - not an empty list, which would read as a week with no games.
     return {
@@ -2930,7 +2942,38 @@ def build_manifest(games, current, index, market_keys, unresolved, source_versio
         # a-36: metric id -> the served file and JSON path that owns the figure,
         # so the site renders a registered number by reading it, never by typing it.
         "metrics": metric_registry.manifest_block(),
+        # a-46: the same counts at three named tiers, each with its span. Only
+        # `week` is divisible, and its one share is computed here.
+        **({"denominators": denominators} if denominators is not None else {}),
     }
+
+
+def build_denominators(games, weeks, current, index, market_keys, now_ts):
+    """The manifest's `denominators` block (a-46) from what this run holds.
+
+    archive_ids is the player INDEX - the same set `counts.players` counts - and
+    priced_ids is `market_keys`, the same set `counts.market` counts, so the
+    tiered figures and the legacy ones are one derivation; the metric gate
+    asserts it on the written manifest."""
+    gs = [{"season": g["season"], "period": g["week"], "final": g["home_score"] is not None,
+           "kickoff_ts": g["kickoff_ts"], "teams": (g["home_team"], g["away_team"])}
+          for g in games.values()]
+    return denominators.compute(
+        PARTICIPATION, weeks, gs, current, [p["id"] for p in index], market_keys, now_ts,
+        team_of=lambda r: FRANCHISE.get(r["team"], r["team"]))
+
+
+def denominators_statement(t):
+    a, s, w = t["archive"], t["season"], t["week"]
+    share = "no share (no expected players)" if w["share_priced"] is None         else f"share_priced {w['share_priced']:.4f}"
+    return (f"denominators: archive {a['players']:,} players / {a['games']['final']:,} games "
+            f"({a['span']['season_from']}-{a['span']['season_to']}); "
+            f"season {s['span']['season']} {s['players']:,} players / {s['games']['final']} of "
+            f"{s['games']['scheduled']} games; week {w['span']['period']['key']} "
+            f"{w['players']['priced']} priced, {w['players']['priced_expected']} of "
+            f"{w['players']['expected']} expected, {w['players']['played']} played, "
+            f"games {w['games']['open']} open / {w['games']['final']} final of "
+            f"{w['games']['scheduled']}; {share}")
 
 
 def air_rz_census(player_files, airz, log=print):
@@ -3248,7 +3291,7 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
     research = gate = None
     if "research" in parts:
         research = build_research(generated_at)
-        gate = metric_registry.require(research)
+        gate = metric_registry.require(research, metric_registry.RESEARCH_METRICS)
         log(gate.statement)
     con = ro()
     # Every table this run reads, as SQLite reports it; sync_keys refuses a write
@@ -3386,6 +3429,9 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
         market_files = {k: json.load(open(on_disk[k], encoding="utf-8"))
                         for k in market_keys.values() if k in on_disk}
     rungs = count_rungs(market_files)
+    tiers = build_denominators(games, weeks, current, index, market_keys, now_ts)
+    summary["denominators"] = tiers
+    log(denominators_statement(tiers))
 
     if "manifest" in parts:
         src = con.execute("SELECT MAX(data_version) FROM nflverse_versions "
@@ -3401,8 +3447,14 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
                                   team_season_summaries(games, current["season"],
                                                         count_markets_by_team(market_files)),
                                   stat_definitions=defs, market_definitions=mdefs,
-                                  fixtures=fixtures)
+                                  fixtures=fixtures, denominators=tiers)
         assert_stats_defined({f"{SPORT}/manifest.json": manifest}, defs)
+        # The unlabelled `counts` and their tiered owners must agree before the
+        # manifest is written (a-46). Market, players and teams are already on
+        # disk by now; every input to both sides is, too, so a refusal here is a
+        # code defect and raises loudly rather than publishing two numbers.
+        summary["manifest_metric_gate"] = metric_registry.require(
+            {metric_registry.MANIFEST: manifest}, metric_registry.MANIFEST_METRICS).statement
         # Sources rides the manifest part and, like it, owns no prefix. Generated
         # from jobs/source_registry.py, never written (a-22, audit S-04).
         summary["sources_check"] = source_registry.check_registry(

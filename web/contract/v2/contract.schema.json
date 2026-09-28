@@ -798,7 +798,8 @@
           "description": "THE METRIC REGISTRY (a-36, audit N-02). One entry per published figure: `source` is the ONE served file and JSON path that owns it, `copies` every other served location known to carry the same number. A page renders a registered figure by resolving `source`, never by typing it. The producer refuses to export when a copy disagrees with its owner at `decimals`, unless the copy carries `declared` - a written reason it is KNOWN to disagree, which the site should show rather than hide. Path grammar: dot-separated keys; `[N]` is an array index; `[key=value]` selects the ONE element whose `key`, as a string, equals `value` (zero or two matches is an error). Written by jobs/metric_registry.py; optional because not every sport's producer publishes registered figures.",
           "type": "array",
           "items": {"$ref": "#/$defs/MetricEntry"}
-        }
+        },
+        "denominators": {"$ref": "#/$defs/Denominators"}
       },
       "required": ["schema_version", "generated_at", "kind", "sport", "name", "period_type", "current", "seasons", "stat_definitions", "market_definitions", "scoring_presets", "scoring_note", "teams", "team_colors", "counts", "unresolved_ids"],
       "additionalProperties": false
@@ -1210,6 +1211,114 @@
         "declared": {"description": "Present only on a copy KNOWN to disagree with its owner: the reason, in words. The export fails if a declared copy agrees (the declaration is stale).", "type": "string"}
       },
       "required": ["file", "path"],
+      "additionalProperties": false
+    },
+    "Denominators": {
+      "description": "THREE DENOMINATORS, NEVER DIVIDED ACROSS TIERS (a-46, DECISIONS-2026-09-28 §P). The site printed '150 of 3,988 ... 3.8% PRICED', dividing one week by 28 seasons. Every player and game count is published here at a named tier with the span it covers, so a page cannot print one without naming it. ONLY `week` is divisible (`divisible: true`), and the one percentage it supports, `share_priced`, is computed by the producer - a page never divides. `counts.players`, `counts.games` and `counts.market` are the archive and week figures under their old unlabelled names; the metric registry refuses an export where they disagree with their tier. Written by jobs/denominators.py; optional because not every sport's producer publishes it.",
+      "type": "object",
+      "properties": {
+        "participation": {
+          "description": "What makes a player count as taking part, from the sport's own config (for example 'offensive usage'). Every player count in all three tiers uses it.",
+          "type": "object",
+          "properties": {"noun": {"type": "string"}, "definition": {"type": "string"}},
+          "required": ["noun", "definition"],
+          "additionalProperties": false
+        },
+        "archive": {
+          "description": "The whole archive. A depth-of-history claim; never a denominator.",
+          "type": "object",
+          "properties": {
+            "divisible": {"const": false},
+            "span": {
+              "type": "object",
+              "properties": {
+                "season_from": {"type": ["integer", "null"]},
+                "season_to": {"type": ["integer", "null"]},
+                "seasons": {"type": "integer", "minimum": 0}
+              },
+              "required": ["season_from", "season_to", "seasons"],
+              "additionalProperties": false
+            },
+            "players": {"description": "Players the archive publishes (the player index), with participation in a scoped season type in any season of the span.", "type": "integer", "minimum": 0},
+            "games": {
+              "type": "object",
+              "properties": {
+                "final": {"description": "Games with a final score, every season.", "type": "integer", "minimum": 0},
+                "season_from": {"type": ["integer", "null"]},
+                "season_to": {"type": ["integer", "null"]}
+              },
+              "required": ["final", "season_from", "season_to"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["divisible", "span", "players", "games"],
+          "additionalProperties": false
+        },
+        "season": {
+          "description": "The current season. Never a denominator.",
+          "type": "object",
+          "properties": {
+            "divisible": {"const": false},
+            "span": {
+              "type": "object",
+              "properties": {"season": {"type": "integer"}},
+              "required": ["season"],
+              "additionalProperties": false
+            },
+            "players": {"description": "Archive players with participation in a scoped season type this season.", "type": "integer", "minimum": 0},
+            "games": {
+              "type": "object",
+              "properties": {
+                "final": {"type": "integer", "minimum": 0},
+                "scheduled": {"type": "integer", "minimum": 0}
+              },
+              "required": ["final", "scheduled"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["divisible", "span", "players", "games"],
+          "additionalProperties": false
+        },
+        "week": {
+          "description": "The current period - the only divisible tier. A posted market exists only for a game not yet kicked off, so a priced player has not played this period by construction; the denominator is therefore `expected` (participation for their team in that team's most recent final game, for every team with an open game), and the numerator `priced_expected` is the priced players inside that set, so the share is a proportion of one set. `played` counts participation in the period's final games so far and is descriptive: it covers different games from `priced` and nothing divides by it.",
+          "type": "object",
+          "properties": {
+            "divisible": {"const": true},
+            "span": {
+              "type": "object",
+              "properties": {"season": {"type": "integer"}, "period": {"$ref": "#/$defs/Period"}},
+              "required": ["season", "period"],
+              "additionalProperties": false
+            },
+            "games": {
+              "type": "object",
+              "properties": {
+                "scheduled": {"type": "integer", "minimum": 0},
+                "final": {"type": "integer", "minimum": 0},
+                "open": {"description": "Not yet kicked off at export: the games a market can be posted on.", "type": "integer", "minimum": 0},
+                "awaiting_final": {"description": "Kicked off with no final score in the store: in play, OR finished and not yet ingested. NOT 'in progress' - on a Monday most of these are Sunday games whose result has not landed.", "type": "integer", "minimum": 0}
+              },
+              "required": ["scheduled", "final", "open", "awaiting_final"],
+              "additionalProperties": false
+            },
+            "players": {
+              "type": "object",
+              "properties": {
+                "played": {"type": "integer", "minimum": 0},
+                "expected": {"type": "integer", "minimum": 0},
+                "priced": {"type": "integer", "minimum": 0},
+                "priced_expected": {"type": "integer", "minimum": 0}
+              },
+              "required": ["played", "expected", "priced", "priced_expected"],
+              "additionalProperties": false
+            },
+            "share_priced": {"description": "priced_expected / expected, 4dp. Null when nobody is expected (no open game, or no prior game to read). The only published share of players.", "type": ["number", "null"], "minimum": 0, "maximum": 1}
+          },
+          "required": ["divisible", "span", "games", "players", "share_priced"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["participation", "archive", "season", "week"],
       "additionalProperties": false
     },
     "MetricEntry": {

@@ -42,6 +42,7 @@ import sys
 MARKET = "research/market_calibration.json"
 SCORE = "research/calibration.json"
 REGISTER = "research/hypotheses.json"
+MANIFEST = "nfl/manifest.json"
 
 # R10 was restated 2026-09-17 on the n=706 common set, when 229 week-1 Kalshi
 # books were one-sided at the prediction instant. The Kalshi candle backfill
@@ -127,7 +128,49 @@ METRICS = [
        (REGISTER, "hypotheses[id=R15].interval")),
     _m("model.walkforward.brier_minus_close.2025.n", "Walk-forward outcomes, 2025", "outcomes", 0,
        (REGISTER, "hypotheses[id=R15].n")),
+    # --- denominators (a-46, DECISIONS-2026-09-28 §P) ------------------------
+    # Every player and game count at a named tier. The legacy unlabelled
+    # `counts` fields are registered as COPIES of the tier they always were, so
+    # the gate refuses the day "3,988" and the archive tier stop being one number.
+    _m("coverage.players.archive", "Players with offensive usage, whole archive", "players", 0,
+       (MANIFEST, "denominators.archive.players"), [(MANIFEST, "counts.players")]),
+    _m("coverage.players.season", "Players with offensive usage, current season", "players", 0,
+       (MANIFEST, "denominators.season.players")),
+    _m("coverage.players.week.played", "Players with offensive usage in the current period's "
+       "final games", "players", 0, (MANIFEST, "denominators.week.players.played")),
+    _m("coverage.players.week.expected", "Players expected in the current period's open games",
+       "players", 0, (MANIFEST, "denominators.week.players.expected")),
+    _m("coverage.players.week.priced", "Players with a posted market, current period", "players",
+       0, (MANIFEST, "denominators.week.players.priced"), [(MANIFEST, "counts.market")]),
+    _m("coverage.players.week.priced_expected", "Priced players among those expected",
+       "players", 0, (MANIFEST, "denominators.week.players.priced_expected")),
+    _m("coverage.players.week.share_priced", "Share of expected players with a posted market",
+       "proportion", 4, (MANIFEST, "denominators.week.share_priced")),
+    _m("coverage.games.archive", "Games with a final score, whole archive", "games", 0,
+       (MANIFEST, "denominators.archive.games.final"), [(MANIFEST, "counts.games")]),
+    _m("coverage.games.season", "Games with a final score, current season", "games", 0,
+       (MANIFEST, "denominators.season.games.final")),
+    _m("coverage.games.week.final", "Games with a final score, current period", "games", 0,
+       (MANIFEST, "denominators.week.games.final")),
+    _m("coverage.games.week.open", "Games not yet kicked off, current period", "games", 0,
+       (MANIFEST, "denominators.week.games.open")),
 ]
+
+
+def _files_of(m):
+    return {m["source"]["file"]} | {c["file"] for c in m["copies"]}
+
+
+# The two gates. The research gate runs before the first write; the manifest gate
+# runs on the built manifest before it is written. A metric whose locations span
+# both groups belongs to neither and is refused at import - it could never be
+# checked by either gate.
+RESEARCH_FILES = frozenset({MARKET, SCORE, REGISTER})
+RESEARCH_METRICS = [m for m in METRICS if _files_of(m) <= RESEARCH_FILES]
+MANIFEST_METRICS = [m for m in METRICS if _files_of(m) <= {MANIFEST}]
+_ungated = [m["id"] for m in METRICS if m not in RESEARCH_METRICS and m not in MANIFEST_METRICS]
+if _ungated:
+    raise ImportError(f"metrics no gate can check (files span both groups): {_ungated}")
 
 FILES = sorted({m["source"]["file"] for m in METRICS}
                | {c["file"] for m in METRICS for c in m["copies"]})
@@ -195,11 +238,12 @@ def _norm(v, decimals):
 class GateReport:
     """What the metric gate approved. Refuses truth-testing: read .clean / .statement."""
 
-    def __init__(self, checked, problems, declared):
+    def __init__(self, checked, problems, declared, n_metrics=None):
         self.checked, self.problems, self.declared = checked, problems, declared
         self.clean = not problems
+        n_metrics = len(METRICS) if n_metrics is None else n_metrics
         self.statement = (
-            f"metric gate: {len(METRICS)} metrics, {checked} locations resolved, "
+            f"metric gate: {n_metrics} metrics, {checked} locations resolved, "
             f"{len(declared)} declared disagreement(s), "
             + ("0 undeclared disagreements" if self.clean
                else f"{len(problems)} PROBLEM(S):\n  " + "\n  ".join(problems)))
@@ -246,7 +290,7 @@ def check(files, metrics=None):
             elif copy != owner:
                 problems.append(f"{m['id']}: {where} = {copy!r} but "
                                 f"{m['source']['file']}:{m['source']['path']} = {owner!r}")
-    return GateReport(checked, problems, declared)
+    return GateReport(checked, problems, declared, len(metrics))
 
 
 class MetricDisagreement(RuntimeError):

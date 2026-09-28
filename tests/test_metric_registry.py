@@ -37,7 +37,22 @@ def files():
         hyp = json.load(f)
     return {M.MARKET: E.build_market_calibration("2026-09-26T00:00:00Z"),
             M.REGISTER: {"kind": "research.hypotheses", "hypotheses": hyp["hypotheses"]},
-            M.SCORE: _calibration_fixture()}
+            M.SCORE: _calibration_fixture(),
+            M.MANIFEST: _manifest_fixture()}
+
+
+def _manifest_fixture():
+    """The two manifest blocks the a-46 metrics join: `denominators` from the real
+    computation over a one-game slate, and the legacy `counts` beside it."""
+    from jobs import denominators as D
+    cfg = D.Participation("usage", "a target", ("targets",), ("REG",), "pid", "wk", "team")
+    rows = [{"pid": "p", "season": 2026, "wk": 1, "team": "A", "season_type": "REG", "targets": 3}]
+    games = [{"season": 2026, "period": 1, "final": True, "kickoff_ts": 1.0, "teams": ("A", "B")},
+             {"season": 2026, "period": 2, "final": False, "kickoff_ts": 9.0, "teams": ("A", "B")}]
+    cur = {"season": 2026, "period": {"index": 2, "label": "Week 2", "key": "2026-2"}}
+    d = D.compute(cfg, rows, games, cur, {"p"}, {"p"}, 5.0)
+    return {"counts": {"players": 1, "teams": 2, "market": 1, "games": 1, "rungs": 0},
+            "denominators": d}
 
 
 # ------------------------------------------------------------------ the registry

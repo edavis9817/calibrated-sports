@@ -100,6 +100,13 @@ research/execution.json
   disagrees with its owner unless the copy carries a written `declared` reason.
   `research/market_calibration.json` is the closing-market over bias (R18), read from the
   committed `research/results/market_calibration.json`.
+- **Three denominators (a-46).** `{sport}/manifest.json` carries `denominators`: every
+  player and game count at a named tier - `archive`, `season`, `week` - each with its
+  span. Only `week` is divisible, and its one share (`share_priced`) is computed by the
+  producer; a page never divides a weekly count by the archive. `counts.players`,
+  `counts.games` and `counts.market` are registered as copies of their tier, so the
+  manifest gate refuses when they disagree. `jobs/denominators.py` computes it from the
+  sport's `Participation` config.
 
 - `id` is the sport's source id: nflverse `gsis_id` for NFL, e.g. `00-0036355`.
 - `slug` is for URLs only. Keys use ids, and indexes map slug to id.
