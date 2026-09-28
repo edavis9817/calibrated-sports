@@ -1,0 +1,89 @@
+c-17 scorecard  2026 wk03
+  read: read-2026-09-28T224451Z.json (406 rows); ledger: 198 published, 176 graded, 6 void, 16 neither (upcoming)
+  graded leans scored: 176 over 14 games (133 receptions, 43 rush attempts)
+
+Q1  HIT RATE AGAINST THE BREAK-EVEN OF THE PUBLISHED PRICE
+  cleared 95 of 176 = 0.5398; Wilson (treats leans as independent) [0.4661, 0.6118]
+  hit rate, game block bootstrap:            +0.5398 [+0.4790, +0.6045]  n=176 games=14
+  mean break-even (vig-inclusive, published price): 0.5336  (n=170; 6 leans carry no price)
+  hit - break-even, ONE bootstrapped quantity: +0.7571pp [-5.9576, +7.3942]  n=170 games=14
+  -> interval SPANS zero
+
+Q2  BRIER(model) - BRIER(close), register method (see docstring for departures)
+  main-line rows with a model price, graded, not a push: 196 (of 221 rec/rush claims on the read); 168 of them lean
+  -- LEANS (selected on disagreement)
+     close found for 166 of 176; lead to kickoff (min) p10 4.4 median 19.7 max 19.8
+     lead <= 20 min: n=166 games=14  Brier model 0.2779  close 0.2511  market-at-publication 0.2514
+       model - close          +0.0269 [-0.0068, +0.0625]  n=166 games=14
+       model - mkt@publication +0.0265 [-0.0064, +0.0604]  n=166 games=14
+       model - close | receptions    +0.0092 [-0.0245, +0.0455]  n=127 games=14
+       model - close | rush_attempts +0.0842 [+0.0166, +0.1586]  n=39 games=14
+     lead <= 15 min: n=45 games=4  Brier model 0.2931  close 0.2513  market-at-publication 0.2507
+       model - close          +0.0417 [-0.0116, +0.0966]  n=45 games=4  (< 5 games: NOT READ)
+       model - mkt@publication +0.0424 [-0.0097, +0.0951]  n=45 games=4  (< 5 games: NOT READ)
+       model - close | receptions    +0.0417 [+0.0169, +0.0746]  n=33 games=4  (< 5 games: NOT READ)
+       model - close | rush_attempts +0.0416 [-0.0624, +0.1839]  n=12 games=4  (< 5 games: NOT READ)
+     model - mkt@publication, all 176: +0.0268 [-0.0037, +0.0568]  n=176 games=14
+  -- MAIN LINE, unselected (the register's analogue)
+     close found for 188 of 196; lead to kickoff (min) p10 4.4 median 19.7 max 19.8
+     lead <= 20 min: n=188 games=14  Brier model 0.2704  close 0.2514  market-at-publication 0.2517
+       model - close          +0.0189 [-0.0087, +0.0459]  n=188 games=14
+       model - mkt@publication +0.0186 [-0.0088, +0.0454]  n=188 games=14
+       model - close | receptions    +0.0046 [-0.0207, +0.0300]  n=146 games=14
+       model - close | rush_attempts +0.0688 [+0.0069, +0.1413]  n=42 games=14
+     lead <= 15 min: n=54 games=4  Brier model 0.2868  close 0.2519  market-at-publication 0.2517
+       model - close          +0.0349 [-0.0074, +0.0708]  n=54 games=4  (< 5 games: NOT READ)
+       model - mkt@publication +0.0351 [-0.0089, +0.0724]  n=54 games=4  (< 5 games: NOT READ)
+       model - close | receptions    +0.0329 [+0.0177, +0.0505]  n=41 games=4  (< 5 games: NOT READ)
+       model - close | rush_attempts +0.0411 [-0.0573, +0.1839]  n=13 games=4  (< 5 games: NOT READ)
+     model - mkt@publication, all 196: +0.0206 [-0.0058, +0.0462]  n=196 games=14
+  -- against the register (Brier(model) - Brier(book close), per season)
+     as quoted in the brief (PRE-fix, findings doc): 2023 +0.0272; 2024 +0.0265 [+0.0210, +0.0318]; 2025 +0.0218 [+0.0162, +0.0277]
+     restated after the 2026-09-17 settlement fix (CLAUDE.md): 2023 +0.0229 [+0.0170, +0.0290]; 2024 +0.0237 [+0.0188, +0.0288]; 2025 +0.0195 [+0.0144, +0.0253]
+     LEANS (selected on disagreement), lead <= 20: week-3 interval [-0.0068, +0.0625] CONTAINS every register point estimate (+0.0195..+0.0272); week-3 point +0.0269 lies inside 4 of 5 published season intervals; interval SPANS zero
+     LEANS (selected on disagreement), lead <= 15: week-3 interval [-0.0116, +0.0966] CONTAINS every register point estimate (+0.0195..+0.0272); week-3 point +0.0417 lies inside 0 of 5 published season intervals; interval SPANS zero
+     MAIN LINE, unselected (the register's analogue), lead <= 20: week-3 interval [-0.0087, +0.0459] CONTAINS every register point estimate (+0.0195..+0.0272); week-3 point +0.0189 lies inside 4 of 5 published season intervals; interval SPANS zero
+     MAIN LINE, unselected (the register's analogue), lead <= 15: week-3 interval [-0.0074, +0.0708] CONTAINS every register point estimate (+0.0195..+0.0272); week-3 point +0.0349 lies inside 0 of 5 published season intervals; interval SPANS zero
+
+Q3  CALIBRATION (Wilson intervals treat rows as independent; the effective n is lower)
+  -- model P(over), leans
+     [0.0, 0.1)  n=5    forecast 0.067  realised 0.600 [0.231, 0.882]  forecast OUTSIDE
+     [0.1, 0.2)  n=15   forecast 0.147  realised 0.467 [0.248, 0.699]  forecast OUTSIDE
+     [0.2, 0.3)  n=32   forecast 0.251  realised 0.438 [0.282, 0.607]  forecast OUTSIDE
+     [0.3, 0.4)  n=52   forecast 0.352  realised 0.462 [0.333, 0.595]  
+     [0.4, 0.5)  n=28   forecast 0.442  realised 0.321 [0.179, 0.507]  
+     [0.5, 0.6)  n=20   forecast 0.546  realised 0.400 [0.219, 0.613]  
+     [0.6, 0.7)  n=13   forecast 0.643  realised 0.769 [0.497, 0.918]  
+     [0.7, 0.8)  n=8    forecast 0.726  realised 0.500 [0.215, 0.785]  
+     [0.8, 0.9)  n=3    forecast 0.843  realised 0.333 [0.061, 0.792]  forecast OUTSIDE
+     [0.9, 1.0)  n=0   -
+  -- model P(over), main line, unselected
+     [0.0, 0.1)  n=5    forecast 0.067  realised 0.600 [0.231, 0.882]  forecast OUTSIDE
+     [0.1, 0.2)  n=13   forecast 0.147  realised 0.462 [0.232, 0.709]  forecast OUTSIDE
+     [0.2, 0.3)  n=30   forecast 0.250  realised 0.433 [0.274, 0.608]  forecast OUTSIDE
+     [0.3, 0.4)  n=53   forecast 0.354  realised 0.453 [0.327, 0.585]  
+     [0.4, 0.5)  n=43   forecast 0.443  realised 0.372 [0.244, 0.521]  
+     [0.5, 0.6)  n=29   forecast 0.546  realised 0.517 [0.344, 0.686]  
+     [0.6, 0.7)  n=12   forecast 0.639  realised 0.750 [0.468, 0.911]  
+     [0.7, 0.8)  n=8    forecast 0.726  realised 0.500 [0.215, 0.785]  
+     [0.8, 0.9)  n=3    forecast 0.843  realised 0.333 [0.061, 0.792]  forecast OUTSIDE
+     [0.9, 1.0)  n=0   -
+  -- leans, model probability of the LEAN side vs lean realised
+     [0.5, 0.6)  n=43   forecast 0.557  realised 0.535 [0.389, 0.675]  
+     [0.6, 0.7)  n=65   forecast 0.647  realised 0.585 [0.463, 0.696]  
+     [0.7, 0.8)  n=40   forecast 0.745  realised 0.550 [0.398, 0.693]  forecast OUTSIDE
+     [0.8, 0.9)  n=18   forecast 0.851  realised 0.500 [0.290, 0.710]  forecast OUTSIDE
+     [0.9, 1.0)  n=5    forecast 0.933  realised 0.400 [0.118, 0.769]  forecast OUTSIDE
+
+Q4  DID LEANS THAT MOVED AGAINST US DO WORSE?
+  flagged on the read: 8 line moved, 1 lean changed after publication (graded only; the read counts every published lean)
+  line moves: 4 against the lean, 4 toward it, 0 unknown
+    flagged      cleared 4 of 9 = 0.444 Wilson [0.189, 0.733]
+    not flagged  cleared 91 of 167 = 0.545 Wilson [0.469, 0.619]
+    flagged - not flagged, ONE bootstrapped contrast: -10.0466pp [-46.4004, +30.5385]  n=176 games=14
+  market drift publication -> close, at the lean's own line (lead <= 20): 166 of 176 leans have a close
+    mean drift toward the lean -0.03pp; drift toward the lean, bootstrapped: -0.0272pp [-0.2365, +0.1885]  n=166 games=14
+    |drift|: 1 exactly zero, median 1.12pp, p90 3.54pp, max 7.76pp
+    close moved AGAINST the lean   cleared 44 of 82 = 0.537 Wilson [0.429, 0.640]
+    close moved with it / flat     cleared 46 of 84 = 0.548 Wilson [0.441, 0.650]
+    against - with, ONE bootstrapped contrast: -1.1034pp [-10.6456, +9.2996]  n=166 games=14
