@@ -619,6 +619,36 @@ def previous_rows(dest, season, week):
     return doc["rows"], idx
 
 
+def legacy_repair(dest, season, week, prev, idx, ledger, log=print):
+    """-> (rows, note or None). A latest read written before a-34 lacks
+    `priced_at` on every row and may have lost leans the ledger published
+    (core.board.restore_legacy). Reads every earlier read of the week ONLY when
+    one of those is true; a tree written wholly by a-34 code never pays for it.
+    Loud when it fires (a-50): the prod tree deadlocked on exactly this for the
+    first tick after a-34 reached production."""
+    pubs = [e for e in ledger if e["event"] == "published"
+            and e["season"] == season and e["week"] == week]
+    on = {(r["row_id"], r.get("lean")) for r in prev}
+    if all(r.get("priced_at") for r in prev) and all((p["row_id"], p["side"]) in on for p in pubs):
+        return prev, None
+    wd = week_dir(dest, season, week)
+    reads = []
+    for iso_ in sorted(idx.get("reads") or [], reverse=True):
+        if iso_ > idx["latest"]:
+            continue
+        doc = load_json(os.path.join(wd, read_name(iso_)))
+        if doc is None:
+            raise SystemExit(f"{season} wk{week:02d}: index lists read {iso_}, which is not in the "
+                             "tree - cannot repair a pre-a-34 read without it")
+        reads.append((iso_, doc["rows"]))
+    rows, note = B.restore_legacy(reads, pubs)
+    log(f"LEGACY REPAIR {season} wk{week:02d}: the latest read ({idx['latest']}) predates a-34 - "
+        f"priced_at backfilled on {note['priced_at_backfilled']} row(s), "
+        f"{len(note['leans_restored'])} published lean(s) restored to the board: "
+        f"{note['leans_restored']}")
+    return rows, note
+
+
 def read_name(read_iso):
     return B.read_file_name(read_iso)
 
@@ -679,6 +709,10 @@ def run(season, week, dest, read_ts=None, db=None, log=print):
         prev, idx = previous_rows(dest, season, week)
         if idx and idx.get("latest") and idx["latest"] >= read_iso:
             raise SystemExit(f"read {read_iso} is not after the latest read {idx['latest']}")
+        old = read_ledger(dest)
+        legacy = None
+        if prev:
+            prev, legacy = legacy_repair(dest, season, week, prev, idx, old, log)
         with feature_cache():
             fresh = fresh_rows(con, season, week, read_ts, games, counts)
         rows = B.merge_read(prev, fresh, read_ts, read_iso)
@@ -687,7 +721,6 @@ def run(season, week, dest, read_ts=None, db=None, log=print):
         from models import baseline
         mv = baseline.model_version()
         T = B.lean_threshold_at(read_iso)
-        old = read_ledger(dest)
         pulled = {r["claim_id"]: r["pulled_at"] for r in rows
                   if r.get("void_reason") == B.VOID_MARKET_PULLED}
         new_ev = B.ledger_events(
@@ -756,7 +789,8 @@ def run(season, week, dest, read_ts=None, db=None, log=print):
         status[r["status"]] += 1
     summary = {"read_at": read_iso, "rows": len(rows), "status": dict(status),
                "fresh": dict(counts), "ledger_new": ledger_new, "written": written,
-               "leans": index["leans"], "leans_on_board": on_board, "tables_read": sorted(reads),
+               "leans": index["leans"], "leans_on_board": on_board, "legacy_repair": legacy,
+               "tables_read": sorted(reads),
                "sources": {f"{s}/{k}": list(v) for (s, k), v in sorted(approved.items())}}
     log(json.dumps(summary))
     return summary
@@ -891,13 +925,24 @@ def _tick(season, dest, upload, now_ts, db, client, log):
             out["tree"] = tree_intact(dest, client, bucket, log)
     due = due_reads(season, now_ts, dest, db)
     out["due"] = [f"wk{w:02d}:{why}" for w, why in due]
+    out["failed"] = []
     for w, _why in due:
+        # ONE WEEK'S FAILURE IS THAT WEEK'S (a-50). Before this, week 3 raising
+        # killed the whole tick: week 4 was never read and nothing uploaded, every
+        # five minutes. A week that refuses writes nothing (`run` refuses before
+        # its first write), so the others read and the upload ships what they
+        # wrote - and the tick still FAILS at the end, so the task records it.
         try:
             s = run(season, w, dest, now_ts, db=db, log=log)
             out["read"].append({"week": w, "rows": s["rows"], "ledger_new": s["ledger_new"]})
         except NoRows as e:
             log(str(e))
             out["no_rows"].append(w)
+        except (Exception, SystemExit) as e:  # noqa: BLE001 - recorded, logged, re-raised below
+            import traceback
+            log(f"!!! BOARD READ FAILED {season} wk{w:02d}: {type(e).__name__}: {e}\n"
+                + traceback.format_exc() + "!!! the other due weeks continue; this tick will exit 1")
+            out["failed"].append({"week": w, "error": f"{type(e).__name__}: {e}"})
     if upload:
         # a-35: re-pair the ledger before shipping it, so a tick with no read due
         # heals a CSV a crash left behind rather than being refused by the
@@ -905,7 +950,19 @@ def _tick(season, dest, upload, now_ts, db, client, log):
         out["ledger_pair"] = pair_ledger(dest, log)
         out["upload"] = E.upload(dest=dest, client=client, log=log, tree="board")
     log(json.dumps(out, default=str))
+    if out["failed"]:
+        raise TickFailed(f"{len(out['failed'])} of {len(due)} due week(s) failed: "
+                         + "; ".join(f"wk{f['week']:02d} {f['error']}" for f in out["failed"])
+                         + (" - the rest read and the tree uploaded" if upload else
+                            " - the rest read"))
     return out
+
+
+class TickFailed(RuntimeError):
+    """A tick in which at least one due week refused. Raised AFTER the other weeks
+    have read and the upload has run, so the task records a failure without one
+    week's failure stopping the rest (a-50). `.out` is not attached: the tick's
+    summary line, with `failed`, is already in the log above it."""
 
 
 def check_tree(dest, show_keys=False, log=print):

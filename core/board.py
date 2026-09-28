@@ -393,6 +393,79 @@ def merge_read(prev_rows, fresh_rows, read_at_ts, read_at_iso):
     return sorted(out, key=lambda r: (r["kickoff_ts"], r["claim_id"], r["line"]))
 
 
+def _find(rows, rid):
+    return next((r for r in rows if r["row_id"] == rid), None)
+
+
+def _priced_at(rid, reads, start):
+    """The read a row was priced at, for a row written before `priced_at` existed.
+    `reads` is [(read_iso, rows)] newest first. Before a-34 an UPCOMING row was
+    always the fresh row of its read, and a frozen (live / settled) row was copied
+    verbatim from the read before - so walk back to the newest read that has the
+    row upcoming. A row that cannot be followed back is refused, never guessed."""
+    for read_iso, rows in reads[start:]:
+        r = _find(rows, rid)
+        if r is None:
+            break
+        if r.get("priced_at"):
+            return r["priced_at"]
+        if r["status"] == UPCOMING:
+            return read_iso
+    raise AssertionError(f"row {rid} has no priced_at and no read of the week shows it upcoming")
+
+
+def restore_legacy(reads, published):
+    """A week whose latest read was written before a-34, made whole. Pure.
+
+    `reads` is [(read_iso, rows)] for the week, NEWEST FIRST, the latest read at
+    index 0; `published` is the ledger's published events for the week.
+    -> (rows, note). Two repairs, both derived from reads already on disk:
+
+      priced_at      a pre-a-34 row has none, and the contract requires it. It is
+                     the read the row was priced at (`_priced_at`), not a guess.
+      lost leans     the pre-a-34 merge replaced a claim's row when its main line
+                     moved, so a lean published at the old line vanished from
+                     every later read while the ledger kept it (b-36). It is put
+                     back as the NEWEST read that carried it, flagged exactly as
+                     `merge_read` would have flagged it had a-34 been in force.
+
+    A published lean that is on no read of the week is refused: there is no row
+    to restore, and inventing one - or voiding it - would be a claim nothing on
+    disk supports. `leans_on_board` is not relaxed; this puts the rows back so
+    that it holds as written (a-50)."""
+    rows = [dict(r) for r in reads[0][1]]
+    backfilled = 0
+    for r in rows:
+        if not r.get("priced_at"):
+            r["priced_at"] = _priced_at(r["row_id"], reads, 0)
+            backfilled += 1
+        r.setdefault("line_moved_after_publication", False)
+        r.setdefault("lean_changed_after_publication", False)
+    restored = []
+    for p in sorted(published, key=lambda e: (e["read_at"], e["row_id"])):
+        if any(r["row_id"] == p["row_id"] and r.get("lean") == p["side"] for r in rows):
+            continue
+        hit = next(((i, _find(rs, p["row_id"])) for i, (_iso, rs) in enumerate(reads)
+                    if (_find(rs, p["row_id"]) or {}).get("lean") == p["side"]), None)
+        if hit is None:
+            raise AssertionError(f"published lean {p['row_id']} {p['side']} is on no read of the "
+                                 "week - nothing on disk to restore it from")
+        i, src = hit
+        k = dict(src)
+        k["priced_at"] = k.get("priced_at") or _priced_at(k["row_id"], reads, i)
+        same = _find(rows, k["row_id"])
+        others = [r for r in rows if r["claim_id"] == k["claim_id"] and r["row_id"] != k["row_id"]]
+        moved = same is None and bool(others)
+        k.update(is_main=not moved, line_moved_after_publication=moved,
+                 lean_changed_after_publication=same is not None,
+                 main_line_changed_since_open=bool(k.get("main_line_changed_since_open")) or moved)
+        if same is not None:
+            rows = [r for r in rows if r["row_id"] != k["row_id"]]
+        rows.append(k)
+        restored.append(f"{k['row_id']} {p['side']}")
+    return rows, {"priced_at_backfilled": backfilled, "leans_restored": restored}
+
+
 def apply_grades(rows, settle_fn):
     """Grade every LIVE row whose settlement is available. `settle_fn(row)` ->
     (settle_result, actual, void_reason) from core.settlement. Settled rows are
