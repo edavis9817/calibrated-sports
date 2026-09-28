@@ -30,9 +30,12 @@
       "board_index": "BoardIndexFile",
       "board_read": "BoardReadFile",
       "lab_index": "LabIndexFile",
-      "lab_preset": "LabPresetFile"
+      "lab_preset": "LabPresetFile",
+      "lab_catalogue": "LabCatalogueFile",
+      "season_model": "SeasonModelFile",
+      "landing": "LandingFile"
     },
-    "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.market_calibration", "research.execution", "coverage"],
+    "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.market_calibration", "research.execution", "coverage", "landing"],
     "keys": [
       {"pattern": "^sports\\.json$", "kind": "sports"},
       {"pattern": "^[a-z0-9]+/manifest\\.json$", "kind": "sport_manifest"},
@@ -56,7 +59,10 @@
       {"pattern": "^board/[a-z0-9]+/\\d{4}/wk\\d{2}/index\\.json$", "kind": "board_index"},
       {"pattern": "^board/[a-z0-9]+/\\d{4}/wk\\d{2}/read-\\d{4}-\\d{2}-\\d{2}T\\d{6}Z\\.json$", "kind": "board_read"},
       {"pattern": "^lab/[a-z0-9]+/index\\.json$", "kind": "lab_index"},
-      {"pattern": "^lab/[a-z0-9]+/presets/[a-z0-9_]+\\.json$", "kind": "lab_preset"}
+      {"pattern": "^lab/[a-z0-9]+/presets/[a-z0-9_]+\\.json$", "kind": "lab_preset"},
+      {"pattern": "^lab/[a-z0-9]+/catalogue\\.json$", "kind": "lab_catalogue"},
+      {"pattern": "^season/[a-z0-9]+/[a-z0-9_]+\\.json$", "kind": "season_model"},
+      {"pattern": "^landing\\.json$", "kind": "landing"}
     ],
     "tables": {
       "comment": "Keys that are NOT JSON and are not validated by a $def: columnar files a producer appends to. Each entry names its pattern, its format and its columns with their types, and the producer asserts its own column list and types against this entry before it writes, so the two cannot drift. The uploader ships a non-JSON key only when it matches a pattern here, and NEVER deletes one by absence: an append-only file that vanished because one run did not re-declare it would destroy the only record of what was published.",
@@ -794,7 +800,8 @@
           "description": "THE METRIC REGISTRY (a-36, audit N-02). One entry per published figure: `source` is the ONE served file and JSON path that owns it, `copies` every other served location known to carry the same number. A page renders a registered figure by resolving `source`, never by typing it. The producer refuses to export when a copy disagrees with its owner at `decimals`, unless the copy carries `declared` - a written reason it is KNOWN to disagree, which the site should show rather than hide. Path grammar: dot-separated keys; `[N]` is an array index; `[key=value]` selects the ONE element whose `key`, as a string, equals `value` (zero or two matches is an error). Written by jobs/metric_registry.py; optional because not every sport's producer publishes registered figures.",
           "type": "array",
           "items": {"$ref": "#/$defs/MetricEntry"}
-        }
+        },
+        "denominators": {"$ref": "#/$defs/Denominators"}
       },
       "required": ["schema_version", "generated_at", "kind", "sport", "name", "period_type", "current", "seasons", "stat_definitions", "market_definitions", "scoring_presets", "scoring_note", "teams", "team_colors", "counts", "unresolved_ids"],
       "additionalProperties": false
@@ -1208,6 +1215,114 @@
       "required": ["file", "path"],
       "additionalProperties": false
     },
+    "Denominators": {
+      "description": "THREE DENOMINATORS, NEVER DIVIDED ACROSS TIERS (a-46, DECISIONS-2026-09-28 §P). The site printed '150 of 3,988 ... 3.8% PRICED', dividing one week by 28 seasons. Every player and game count is published here at a named tier with the span it covers, so a page cannot print one without naming it. ONLY `week` is divisible (`divisible: true`), and the one percentage it supports, `share_priced`, is computed by the producer - a page never divides. `counts.players`, `counts.games` and `counts.market` are the archive and week figures under their old unlabelled names; the metric registry refuses an export where they disagree with their tier. Written by jobs/denominators.py; optional because not every sport's producer publishes it.",
+      "type": "object",
+      "properties": {
+        "participation": {
+          "description": "What makes a player count as taking part, from the sport's own config (for example 'offensive usage'). Every player count in all three tiers uses it.",
+          "type": "object",
+          "properties": {"noun": {"type": "string"}, "definition": {"type": "string"}},
+          "required": ["noun", "definition"],
+          "additionalProperties": false
+        },
+        "archive": {
+          "description": "The whole archive. A depth-of-history claim; never a denominator.",
+          "type": "object",
+          "properties": {
+            "divisible": {"const": false},
+            "span": {
+              "type": "object",
+              "properties": {
+                "season_from": {"type": ["integer", "null"]},
+                "season_to": {"type": ["integer", "null"]},
+                "seasons": {"type": "integer", "minimum": 0}
+              },
+              "required": ["season_from", "season_to", "seasons"],
+              "additionalProperties": false
+            },
+            "players": {"description": "Players the archive publishes (the player index), with participation in a scoped season type in any season of the span.", "type": "integer", "minimum": 0},
+            "games": {
+              "type": "object",
+              "properties": {
+                "final": {"description": "Games with a final score, every season.", "type": "integer", "minimum": 0},
+                "season_from": {"type": ["integer", "null"]},
+                "season_to": {"type": ["integer", "null"]}
+              },
+              "required": ["final", "season_from", "season_to"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["divisible", "span", "players", "games"],
+          "additionalProperties": false
+        },
+        "season": {
+          "description": "The current season. Never a denominator.",
+          "type": "object",
+          "properties": {
+            "divisible": {"const": false},
+            "span": {
+              "type": "object",
+              "properties": {"season": {"type": "integer"}},
+              "required": ["season"],
+              "additionalProperties": false
+            },
+            "players": {"description": "Archive players with participation in a scoped season type this season.", "type": "integer", "minimum": 0},
+            "games": {
+              "type": "object",
+              "properties": {
+                "final": {"type": "integer", "minimum": 0},
+                "scheduled": {"type": "integer", "minimum": 0}
+              },
+              "required": ["final", "scheduled"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["divisible", "span", "players", "games"],
+          "additionalProperties": false
+        },
+        "week": {
+          "description": "The current period - the only divisible tier. A posted market exists only for a game not yet kicked off, so a priced player has not played this period by construction; the denominator is therefore `expected` (participation for their team in that team's most recent final game, for every team with an open game), and the numerator `priced_expected` is the priced players inside that set, so the share is a proportion of one set. `played` counts participation in the period's final games so far and is descriptive: it covers different games from `priced` and nothing divides by it.",
+          "type": "object",
+          "properties": {
+            "divisible": {"const": true},
+            "span": {
+              "type": "object",
+              "properties": {"season": {"type": "integer"}, "period": {"$ref": "#/$defs/Period"}},
+              "required": ["season", "period"],
+              "additionalProperties": false
+            },
+            "games": {
+              "type": "object",
+              "properties": {
+                "scheduled": {"type": "integer", "minimum": 0},
+                "final": {"type": "integer", "minimum": 0},
+                "open": {"description": "Not yet kicked off at export: the games a market can be posted on.", "type": "integer", "minimum": 0},
+                "awaiting_final": {"description": "Kicked off with no final score in the store: in play, OR finished and not yet ingested. NOT 'in progress' - on a Monday most of these are Sunday games whose result has not landed.", "type": "integer", "minimum": 0}
+              },
+              "required": ["scheduled", "final", "open", "awaiting_final"],
+              "additionalProperties": false
+            },
+            "players": {
+              "type": "object",
+              "properties": {
+                "played": {"type": "integer", "minimum": 0},
+                "expected": {"type": "integer", "minimum": 0},
+                "priced": {"type": "integer", "minimum": 0},
+                "priced_expected": {"type": "integer", "minimum": 0}
+              },
+              "required": ["played", "expected", "priced", "priced_expected"],
+              "additionalProperties": false
+            },
+            "share_priced": {"description": "priced_expected / expected, 4dp. Null when nobody is expected (no open game, or no prior game to read). The only published share of players.", "type": ["number", "null"], "minimum": 0, "maximum": 1}
+          },
+          "required": ["divisible", "span", "games", "players", "share_priced"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["participation", "archive", "season", "week"],
+      "additionalProperties": false
+    },
     "MetricEntry": {
       "type": "object",
       "properties": {
@@ -1215,6 +1330,7 @@
         "label": {"type": "string"},
         "unit": {"type": "string"},
         "decimals": {"description": "The published precision; agreement is tested after rounding both sides to it.", "type": "integer", "minimum": 0},
+        "nullable": {"description": "Present and true when null is a legitimate published value of this metric (a share whose denominator is empty), which a page renders as 'no figure' rather than as a missing file. Absent means a null owner fails the gate.", "const": true},
         "source": {"$ref": "#/$defs/MetricLocation"},
         "copies": {"type": "array", "items": {"$ref": "#/$defs/MetricLocation"}}
       },
@@ -1707,6 +1823,7 @@
         "score_source": {"description": "Null when no score is held (not started, or in progress with the scoreboard down).", "enum": ["scoreboard", "schedule", null]},
         "detail": {"description": "The scoreboard's own short status line. Null when the scoreboard is not the state source.", "type": ["string", "null"]},
         "situation": {"description": "Down and distance while in progress, when the scoreboard carries it.", "type": ["string", "null"]},
+        "possession": {"description": "The team with the ball, in the site's team code, while in progress. Null between drives, when the scoreboard omits it, when its team id names neither side of this game, and whenever state is not in. Read from the scoreboard's possession team id, never from its possessionText, which is field position.", "type": ["string", "null"]},
         "line": {
           "description": "The schedule's lines. spread_line is home-relative and POSITIVE when the home team is favoured, as the schedule source publishes it. line_source, line_read_at and line_previous are the same fields, from the same function, as on the manifest's current.fixtures[] (a-37).",
           "anyOf": [{
@@ -1739,7 +1856,7 @@
         },
         "markets": {"description": "Open game-winner markets on this game, read at sources.prices.read_at. Empty when none, or when the exchange was not read this cycle.", "type": "array", "items": {"$ref": "#/$defs/LiveGameMarket"}}
       },
-      "required": ["game_id", "scoreboard_id", "kickoff_at", "away", "home", "state", "state_source", "score_source", "detail", "situation", "line", "scoreboard_odds", "markets"],
+      "required": ["game_id", "scoreboard_id", "kickoff_at", "away", "home", "state", "state_source", "score_source", "detail", "situation", "possession", "line", "scoreboard_odds", "markets"],
       "additionalProperties": false
     },
 
@@ -3067,7 +3184,7 @@
     },
 
     "LabLuck": {
-      "description": "The luck check: the same number of bets drawn at random from the same universe and side, `draws` times, flat stakes. `percentile` is where the rule's flat ROI falls among them; `band` reads it against 5 and 95. Null percentile, with `note` saying why, when the rule takes every bet the universe offers (a random draw of the same size IS the rule). `paths` is the 5th-95th percentile band of the random draws' cumulative units at `index` bets - the draws', never the rule's own curve.",
+      "description": "The luck check: the same number of bets drawn at random from the same universe and side, `draws` times, flat stakes. `percentile` is where the rule's flat ROI falls among them; `band` reads it against 5 and 95. Null percentile, with `note` saying why, when the rule takes every bet the universe offers (a random draw of the same size IS the rule). `paths` is the 5th-95th percentile band of the random draws' cumulative units at `index` (0-based over the rule's non-void bets), published ONLY at the steps of `returns` - the draws', never the rule's own curve. Never at bet granularity: there the first point is a percentile of one random bet's profit, which is a book price minus one. Null, with `note` saying why, when there is no series or no draw.",
       "type": "object",
       "properties": {
         "percentile": {
@@ -3186,6 +3303,193 @@
       "additionalProperties": false
     },
 
+    "LabReturnsStep": {
+      "description": "One step of the returns series: whole week blocks of ONE season, holding at least `min_cleared` cleared bets. `units` is CUMULATIVE through the step (flat units at the rule's own stake); the step's own profit is `units` less the previous step's (0 before the first). `index` is the 0-based position of the step's last non-void bet among the rule's non-void bets - the axis `luck.paths` uses - and `null_p5`/`null_p95` are the random rules' 5th and 95th percentile cumulative units at that position, null when there is no band (see the series' `band_note`).",
+      "type": "object",
+      "properties": {
+        "season": {
+          "type": "integer"
+        },
+        "week_from": {
+          "type": "integer"
+        },
+        "week_to": {
+          "type": "integer"
+        },
+        "weeks": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "bets": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "cleared": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "push": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "void": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "units": {
+          "type": "number"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "null_p5": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "null_p95": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "season",
+        "week_from",
+        "week_to",
+        "weeks",
+        "bets",
+        "cleared",
+        "missed",
+        "push",
+        "void",
+        "units",
+        "index",
+        "null_p5",
+        "null_p95"
+      ],
+      "additionalProperties": false
+    },
+
+    "LabReturns": {
+      "description": "The rule's cumulative units by week block - the unit the bootstrap resamples - never bet by bet. Each step holds at least `min_cleared` cleared bets and none crosses a season, so no two consecutive points (the origin included), and no season cell less its steps, difference back to fewer than `min_cleared` book prices; jobs/lab_publish.verify_series re-derives that from the server-side bet list on every run and refuses otherwise, and `check` is the statement it approved. A week that alone holds fewer is merged into its neighbour within the season (`merged` counts them). `withheld` is non-null, with `steps` empty, when a season or the whole rule holds fewer than `min_cleared` cleared bets, because any point after it would read that season back.",
+      "type": "object",
+      "properties": {
+        "granularity": {
+          "const": "week_block"
+        },
+        "min_cleared": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "week_blocks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "merged": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "withheld": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LabReturnsStep"
+          }
+        },
+        "band_note": {
+          "description": "Why the steps carry no band, or null when they do.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "check": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "granularity",
+        "min_cleared",
+        "week_blocks",
+        "merged",
+        "withheld",
+        "steps",
+        "band_note",
+        "check"
+      ],
+      "additionalProperties": false
+    },
+
+    "LabDrawdown": {
+      "description": "The worst fall from a previous high in the rule's bet-by-bet cumulative units, in flat units. `max_units` is published only when the bets between the peak and the trough, and every fragment they isolate against the published steps and cells, hold at least the series' `min_cleared` cleared bets or none (`check` states it); otherwise it is null and `withheld` says which fragment stopped it. The dates and the longest losing run are counts and dates, carrying no price, and are always published. There is no CLV: every Lab bet is taken at the close, so it has none.",
+      "type": "object",
+      "properties": {
+        "max_units": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "peak_date": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trough_date": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "longest_losing_run": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "withheld": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "check": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "max_units",
+        "peak_date",
+        "trough_date",
+        "longest_losing_run",
+        "note",
+        "withheld",
+        "check"
+      ],
+      "additionalProperties": false
+    },
+
     "LabProvenance": {
       "type": "object",
       "properties": {
@@ -3212,7 +3516,7 @@
     },
 
     "LabPresetFile": {
-      "description": "One Lab library preset, run by lab.run over the universe table (the same code a user's rule runs) and published as AGGREGATES ONLY - no service. The holdout is the Lab's default: the latest complete season held out and NOT revealed, so no figure here includes it. `bet_list` deliberately carries no book price, book, stake or profit, and there is no equity curve: see `bet_list.restriction`, which is the reason in the file itself.",
+      "description": "One Lab library preset, run by lab.run over the universe table (the same code a user's rule runs) and published as AGGREGATES ONLY - no service. The holdout is the Lab's default: the latest complete season held out and NOT revealed, so no figure here includes it. `bet_list` deliberately carries no book price, book, stake or profit, and there is no bet-by-bet equity curve: see `bet_list.restriction`, which is the reason in the file itself. `returns` is the curve at week-block granularity, which that restriction allows and says why.",
       "type": "object",
       "properties": {
         "schema_version": {
@@ -3390,6 +3694,12 @@
         },
         "luck": {
           "$ref": "#/$defs/LabLuck"
+        },
+        "returns": {
+          "$ref": "#/$defs/LabReturns"
+        },
+        "drawdown": {
+          "$ref": "#/$defs/LabDrawdown"
         },
         "holdout": {
           "type": "object",
@@ -3579,6 +3889,8 @@
         "by_season",
         "segments",
         "luck",
+        "returns",
+        "drawdown",
         "holdout",
         "provenance",
         "universe_built",
@@ -3751,6 +4063,2324 @@
         "min_cleared",
         "restriction",
         "presets"
+      ],
+      "additionalProperties": false
+    },
+    "LabFeatureBound": {
+      "description": "What set one end of a derived range. `prices`: the range ends where the price coverage does (an input may end there too; the prices bind either way). `inputs`: a survey column is not usable past that season, and `columns` names it - never empty in that case.",
+      "type": "object",
+      "properties": {
+        "by": {
+          "enum": [
+            "prices",
+            "inputs"
+          ]
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "by",
+        "columns"
+      ],
+      "additionalProperties": false
+    },
+    "LabFeatureMarket": {
+      "description": "A stat-derived feature's range on ONE prop market. A rule betting several markets needs every one of them to support the condition, so the builder greys it per market.",
+      "type": "object",
+      "properties": {
+        "market": {
+          "type": "string"
+        },
+        "availability": {
+          "description": "`historical`: usable over season_from..season_to. `none`: cannot run at all, and `reason` says why - the builder greys the condition out WITH that sentence rather than letting a rule silently return nothing.",
+          "enum": [
+            "historical",
+            "none"
+          ]
+        },
+        "reason": {
+          "description": "Why the condition cannot run. Non-empty exactly when availability is `none`, null otherwise.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "note": {
+          "description": "The note that produced the range, verbatim from lab.catalogue.ranges: the price seasons, and the column survey's own sentence naming any binding column.",
+          "type": "string"
+        },
+        "season_from": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "season_to": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "bound_from": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LabFeatureBound"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bound_to": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LabFeatureBound"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inputs": {
+          "description": "The survey columns (`dataset.column`) the range was derived from. Empty for a feature computed from the prices and the game row alone.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "market",
+        "availability",
+        "reason",
+        "note",
+        "season_from",
+        "season_to",
+        "bound_from",
+        "bound_to",
+        "inputs"
+      ],
+      "additionalProperties": false
+    },
+    "LabFeature": {
+      "description": "One condition a Lab rule can use. Taken from the universe's own feature table - the one lab.strategy.check approves a rule against - so the builder offers exactly what the engine accepts. The range is DERIVED (column survey intersected with price coverage), never typed.",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        },
+        "value_type": {
+          "enum": [
+            "number",
+            "text",
+            "bool"
+          ]
+        },
+        "bet_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "price_seasons": {
+          "description": "The price seasons the range was intersected with, over this feature's bet types. Null when the universe has no prices for any of them.",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "from": {
+                  "type": "integer"
+                },
+                "to": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "from",
+                "to"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "availability": {
+          "description": "`historical`: usable over season_from..season_to. `none`: cannot run at all, and `reason` says why - the builder greys the condition out WITH that sentence rather than letting a rule silently return nothing.",
+          "enum": [
+            "historical",
+            "none"
+          ]
+        },
+        "reason": {
+          "description": "Why the condition cannot run. Non-empty exactly when availability is `none`, null otherwise.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "note": {
+          "description": "The note that produced the range, verbatim from lab.catalogue.ranges: the price seasons, and the column survey's own sentence naming any binding column.",
+          "type": "string"
+        },
+        "season_from": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "season_to": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "bound_from": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LabFeatureBound"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "bound_to": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LabFeatureBound"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inputs": {
+          "description": "The survey columns (`dataset.column`) the range was derived from. Empty for a feature computed from the prices and the game row alone.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "by_market": {
+          "description": "Per prop market, for features computed from the market's own stat. Null for every other feature. The feature-level season_from/season_to are the widest over the markets that support it.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/LabFeatureMarket"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "group",
+        "value_type",
+        "bet_types",
+        "price_seasons",
+        "availability",
+        "reason",
+        "note",
+        "season_from",
+        "season_to",
+        "bound_from",
+        "bound_to",
+        "inputs",
+        "by_market"
+      ],
+      "additionalProperties": false
+    },
+    "LabCatalogueFile": {
+      "description": "The Lab builder's condition picker: every feature in lab.catalogue, including the ones that cannot run, each with its derived season range and what bound it. Written on every run of jobs/lab_publish.py.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "lab_catalogue"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "universe_built": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "price_coverage": {
+          "description": "The seasons the universe carries prices for, per bet type, measured from the universe rows.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "bet_type": {
+                "type": "string"
+              },
+              "from": {
+                "type": "integer"
+              },
+              "to": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "bet_type",
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LabFeature"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "universe_built",
+        "price_coverage",
+        "features"
+      ],
+      "additionalProperties": false
+    },
+    "SeasonModelFile": {
+      "description": "A season model's forecast WITH ITS SCORING RECORD in the same file (a-41). Per-team probabilities carry their Monte Carlo error; `record` is the walk-forward score against the standings carried forward, and `display` names which of the two a page should print. Every verdict and sentence is computed from the figures.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "season_model"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+$"
+        },
+        "label": {
+          "type": "string"
+        },
+        "season": {
+          "type": "integer"
+        },
+        "as_of": {
+          "type": "object",
+          "properties": {
+            "games_played": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "games_total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "last_complete_week": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "last_game_ts": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "games_played",
+            "games_total",
+            "last_complete_week",
+            "last_game_ts"
+          ],
+          "additionalProperties": false
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "method": {
+          "type": "object",
+          "properties": {
+            "rating": {
+              "type": "string"
+            },
+            "game_distribution": {
+              "type": "string"
+            },
+            "constants": {
+              "type": "object",
+              "properties": {
+                "k": {
+                  "type": "number"
+                },
+                "hfa": {
+                  "type": "number"
+                },
+                "regress": {
+                  "type": "number"
+                },
+                "fitted_on": {
+                  "$ref": "#/$defs/Interval"
+                },
+                "fit_games": {
+                  "type": "integer"
+                },
+                "fit_log_loss": {
+                  "type": "number"
+                },
+                "grid": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "k",
+                "hfa",
+                "regress",
+                "fitted_on",
+                "fit_games",
+                "fit_log_loss",
+                "grid"
+              ],
+              "additionalProperties": false
+            },
+            "simulations": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "mc_se_max": {
+              "type": "number"
+            },
+            "limitations": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "rating",
+            "game_distribution",
+            "constants",
+            "simulations",
+            "mc_se_max",
+            "limitations"
+          ],
+          "additionalProperties": false
+        },
+        "tiebreakers": {
+          "description": "Which of the league's division tiebreakers the simulator implements, which it does not, and how a tie surviving the implemented steps is settled. `checked` runs the implemented steps on FINAL results and compares with the real winners.",
+          "type": "object",
+          "properties": {
+            "format": {
+              "type": "string"
+            },
+            "implemented": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "not_implemented": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "residual": {
+              "type": "string"
+            },
+            "restart_rule": {
+              "type": "string"
+            },
+            "checked": {
+              "type": "object",
+              "properties": {
+                "seasons": {
+                  "$ref": "#/$defs/Interval"
+                },
+                "division_seasons": {
+                  "type": "integer"
+                },
+                "agree": {
+                  "type": "integer"
+                },
+                "tied_at_top": {
+                  "type": "integer"
+                },
+                "tied_agree": {
+                  "type": "integer"
+                },
+                "residual_draws": {
+                  "type": "integer"
+                },
+                "against": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "seasons",
+                "division_seasons",
+                "agree",
+                "tied_at_top",
+                "tied_agree",
+                "residual_draws",
+                "against"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "format",
+            "implemented",
+            "not_implemented",
+            "residual",
+            "restart_rule",
+            "checked"
+          ],
+          "additionalProperties": false
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AnalyticMethod"
+          },
+          "minItems": 1
+        },
+        "divisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "division": {
+                "type": "string"
+              },
+              "conference": {
+                "type": "string"
+              },
+              "teams": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "team": {
+                      "type": "string"
+                    },
+                    "wins": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "losses": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "ties": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "rating": {
+                      "type": "number"
+                    },
+                    "p": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "The model's probability of winning the division."
+                    },
+                    "mc_se": {
+                      "type": "number",
+                      "description": "Monte Carlo standard error of `p`: simulation error only."
+                    },
+                    "p_interval": {
+                      "$ref": "#/$defs/Interval",
+                      "description": "`p` +/- 1.96 `mc_se`, clipped to [0, 1]."
+                    },
+                    "p_standings": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "The standings baseline: the same simulator and tiebreakers with every remaining game a coin flip. What a page prints when `display.show` is `standings_coin_flip`."
+                    },
+                    "mc_se_standings": {
+                      "type": "number"
+                    },
+                    "leader_share": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "1 / (number of co-leaders on win percentage) for a current leader, else 0."
+                    }
+                  },
+                  "required": [
+                    "team",
+                    "wins",
+                    "losses",
+                    "ties",
+                    "rating",
+                    "p",
+                    "mc_se",
+                    "p_interval",
+                    "p_standings",
+                    "mc_se_standings",
+                    "leader_share"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 2
+              }
+            },
+            "required": [
+              "division",
+              "conference",
+              "teams"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "record": {
+          "description": "THE SCORING RECORD: the same procedure, walk-forward, on every season it could not see. Constants refit each season on earlier seasons only; realised winners read from postseason hosting.",
+          "type": "object",
+          "properties": {
+            "seasons": {
+              "$ref": "#/$defs/Interval"
+            },
+            "division_seasons": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "n_states": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "simulations_per_state": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "block": {
+              "type": "string"
+            },
+            "states": {
+              "type": "string"
+            },
+            "brier": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "number"
+                },
+                "standings_coin_flip": {
+                  "type": "number"
+                },
+                "standings_leader": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "model",
+                "standings_coin_flip",
+                "standings_leader"
+              ],
+              "additionalProperties": false
+            },
+            "baselines": {
+              "type": "object",
+              "properties": {
+                "standings_leader": {
+                  "type": "string"
+                },
+                "standings_coin_flip": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "standings_leader",
+                "standings_coin_flip"
+              ],
+              "additionalProperties": false
+            },
+            "vs": {
+              "type": "object",
+              "properties": {
+                "standings_leader": {
+                  "description": "Model Brier minus a baseline's, over every scored forecast. Negative is better for the model.",
+                  "type": "object",
+                  "properties": {
+                    "estimate": {
+                      "type": "number"
+                    },
+                    "interval": {
+                      "$ref": "#/$defs/Interval"
+                    },
+                    "n_blocks": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "n_states": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "method": {
+                      "type": "string"
+                    },
+                    "verdict": {
+                      "type": "string",
+                      "enum": [
+                        "better_than",
+                        "no_better_than",
+                        "worse_than",
+                        "not_readable"
+                      ],
+                      "description": "Computed from the interval of model minus baseline: `better_than` lies below 0, `worse_than` above, `no_better_than` covers 0; `not_readable` under five blocks, whatever it excludes."
+                    },
+                    "by_season": {
+                      "type": "object",
+                      "properties": {
+                        "estimate": {
+                          "type": "number"
+                        },
+                        "interval": {
+                          "$ref": "#/$defs/Interval"
+                        },
+                        "n_blocks": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "method": {
+                          "type": "string"
+                        },
+                        "verdict": {
+                          "type": "string",
+                          "enum": [
+                            "better_than",
+                            "no_better_than",
+                            "worse_than",
+                            "not_readable"
+                          ],
+                          "description": "Computed from the interval of model minus baseline: `better_than` lies below 0, `worse_than` above, `no_better_than` covers 0; `not_readable` under five blocks, whatever it excludes."
+                        }
+                      },
+                      "required": [
+                        "estimate",
+                        "interval",
+                        "n_blocks",
+                        "method",
+                        "verdict"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "estimate",
+                    "interval",
+                    "n_blocks",
+                    "n_states",
+                    "method",
+                    "verdict",
+                    "by_season"
+                  ],
+                  "additionalProperties": false
+                },
+                "standings_coin_flip": {
+                  "description": "Model Brier minus a baseline's, over every scored forecast. Negative is better for the model.",
+                  "type": "object",
+                  "properties": {
+                    "estimate": {
+                      "type": "number"
+                    },
+                    "interval": {
+                      "$ref": "#/$defs/Interval"
+                    },
+                    "n_blocks": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "n_states": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "method": {
+                      "type": "string"
+                    },
+                    "verdict": {
+                      "type": "string",
+                      "enum": [
+                        "better_than",
+                        "no_better_than",
+                        "worse_than",
+                        "not_readable"
+                      ],
+                      "description": "Computed from the interval of model minus baseline: `better_than` lies below 0, `worse_than` above, `no_better_than` covers 0; `not_readable` under five blocks, whatever it excludes."
+                    },
+                    "by_season": {
+                      "type": "object",
+                      "properties": {
+                        "estimate": {
+                          "type": "number"
+                        },
+                        "interval": {
+                          "$ref": "#/$defs/Interval"
+                        },
+                        "n_blocks": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "method": {
+                          "type": "string"
+                        },
+                        "verdict": {
+                          "type": "string",
+                          "enum": [
+                            "better_than",
+                            "no_better_than",
+                            "worse_than",
+                            "not_readable"
+                          ],
+                          "description": "Computed from the interval of model minus baseline: `better_than` lies below 0, `worse_than` above, `no_better_than` covers 0; `not_readable` under five blocks, whatever it excludes."
+                        }
+                      },
+                      "required": [
+                        "estimate",
+                        "interval",
+                        "n_blocks",
+                        "method",
+                        "verdict"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "estimate",
+                    "interval",
+                    "n_blocks",
+                    "n_states",
+                    "method",
+                    "verdict",
+                    "by_season"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "standings_leader",
+                "standings_coin_flip"
+              ],
+              "additionalProperties": false
+            },
+            "verdict": {
+              "type": "string",
+              "enum": [
+                "beats_standings",
+                "no_better_than_standings",
+                "worse_than_standings",
+                "not_readable"
+              ],
+              "description": "`beats_standings` only when the model is `better_than` BOTH baselines; `worse_than_standings` when it is `worse_than` either; `no_better_than_standings` otherwise."
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Generated from the figures at export time."
+            },
+            "by_week": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "after_week": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "n": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "model": {
+                    "type": "number"
+                  },
+                  "standings_coin_flip": {
+                    "type": "number"
+                  },
+                  "standings_leader": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "after_week",
+                  "n",
+                  "model",
+                  "standings_coin_flip",
+                  "standings_leader"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "races": {
+              "description": "How many races were genuinely uncertain - the honest size of the sample.",
+              "type": "object",
+              "properties": {
+                "division_seasons": {
+                  "type": "integer"
+                },
+                "tied_at_top_final": {
+                  "type": "integer"
+                },
+                "margin_le_1_game": {
+                  "type": "integer"
+                },
+                "open_after_week": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer"
+                  }
+                },
+                "open_definition": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "division_seasons",
+                "tied_at_top_final",
+                "margin_le_1_game",
+                "open_after_week",
+                "open_definition"
+              ],
+              "additionalProperties": false
+            },
+            "open_states": {
+              "type": "object",
+              "properties": {
+                "note": {
+                  "type": "string"
+                },
+                "n_states": {
+                  "type": "integer"
+                },
+                "n_blocks": {
+                  "type": "integer"
+                },
+                "brier": {
+                  "type": "object",
+                  "properties": {
+                    "model": {
+                      "type": "number"
+                    },
+                    "standings_coin_flip": {
+                      "type": "number"
+                    },
+                    "standings_leader": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "model",
+                    "standings_coin_flip",
+                    "standings_leader"
+                  ],
+                  "additionalProperties": false
+                },
+                "vs": {
+                  "type": "object",
+                  "properties": {
+                    "standings_leader": {
+                      "type": "object",
+                      "properties": {
+                        "estimate": {
+                          "type": "number"
+                        },
+                        "interval": {
+                          "$ref": "#/$defs/Interval"
+                        },
+                        "n_blocks": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "verdict": {
+                          "type": "string",
+                          "enum": [
+                            "better_than",
+                            "no_better_than",
+                            "worse_than",
+                            "not_readable"
+                          ],
+                          "description": "Computed from the interval of model minus baseline: `better_than` lies below 0, `worse_than` above, `no_better_than` covers 0; `not_readable` under five blocks, whatever it excludes."
+                        }
+                      },
+                      "required": [
+                        "estimate",
+                        "interval",
+                        "n_blocks",
+                        "verdict"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "standings_coin_flip": {
+                      "type": "object",
+                      "properties": {
+                        "estimate": {
+                          "type": "number"
+                        },
+                        "interval": {
+                          "$ref": "#/$defs/Interval"
+                        },
+                        "n_blocks": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "verdict": {
+                          "type": "string",
+                          "enum": [
+                            "better_than",
+                            "no_better_than",
+                            "worse_than",
+                            "not_readable"
+                          ],
+                          "description": "Computed from the interval of model minus baseline: `better_than` lies below 0, `worse_than` above, `no_better_than` covers 0; `not_readable` under five blocks, whatever it excludes."
+                        }
+                      },
+                      "required": [
+                        "estimate",
+                        "interval",
+                        "n_blocks",
+                        "verdict"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "standings_leader",
+                    "standings_coin_flip"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "note",
+                "n_states",
+                "n_blocks",
+                "brier",
+                "vs"
+              ],
+              "additionalProperties": false
+            },
+            "constants_by_season": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "season": {
+                    "type": "integer"
+                  },
+                  "k": {
+                    "type": "number"
+                  },
+                  "hfa": {
+                    "type": "number"
+                  },
+                  "regress": {
+                    "type": "number"
+                  },
+                  "fit_seasons": {
+                    "$ref": "#/$defs/Interval"
+                  },
+                  "fit_games": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "season",
+                  "k",
+                  "hfa",
+                  "regress",
+                  "fit_seasons",
+                  "fit_games"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "calibration": {
+              "type": "array",
+              "items": {
+                "description": "One reliability bin of team-level probabilities. `n` is team-forecasts and is NOT the effective sample - forecasts of one race from week to week are one observation; `n_blocks` is division-seasons, and the interval resamples those.",
+                "type": "object",
+                "properties": {
+                  "bin": {
+                    "$ref": "#/$defs/Interval"
+                  },
+                  "n": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "n_blocks": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "forecast": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "realised": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "interval": {
+                    "anyOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "$ref": "#/$defs/Interval"
+                      }
+                    ]
+                  },
+                  "verdict": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "within",
+                      "realised_above",
+                      "realised_below",
+                      null
+                    ]
+                  }
+                },
+                "required": [
+                  "bin",
+                  "n",
+                  "n_blocks",
+                  "forecast",
+                  "realised",
+                  "interval",
+                  "verdict"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "calibration_statement": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "seasons",
+            "division_seasons",
+            "n_states",
+            "simulations_per_state",
+            "block",
+            "states",
+            "brier",
+            "baselines",
+            "vs",
+            "verdict",
+            "statement",
+            "by_week",
+            "races",
+            "open_states",
+            "constants_by_season",
+            "calibration",
+            "calibration_statement"
+          ],
+          "additionalProperties": false
+        },
+        "display": {
+          "description": "Computed from `record.verdict`: the model only when it beats the standings; otherwise the standings baseline, labelled.",
+          "type": "object",
+          "properties": {
+            "show": {
+              "type": "string",
+              "enum": [
+                "model",
+                "standings_coin_flip"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "show",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "model",
+        "label",
+        "season",
+        "as_of",
+        "sources",
+        "method",
+        "tiebreakers",
+        "methods",
+        "divisions",
+        "record",
+        "display"
+      ],
+      "additionalProperties": false
+    },
+    "LandingPeriod": {
+      "type": "object",
+      "properties": {
+        "season": {
+          "type": "integer"
+        },
+        "index": {
+          "type": "integer"
+        },
+        "label": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "season",
+        "index",
+        "label",
+        "key"
+      ],
+      "additionalProperties": false
+    },
+    "LandingSource": {
+      "description": "Where a figure was read from. jobs/landing_export.verify re-resolves every one against its input and refuses the write on any disagreement.",
+      "type": "object",
+      "properties": {
+        "key": {
+          "description": "The file the figure was read from: a served key, or `server:...` for a server-side file that is never served.",
+          "type": "string"
+        },
+        "path": {
+          "description": "The metric-registry path grammar (jobs/metric_registry.py): dot keys, [N] indexes, [key=value] selects exactly one element.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "LandingCounterSource": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "reduce": {
+          "description": "null: the value at `path`. count: its length. sum: the sum of its values.",
+          "enum": [
+            "count",
+            "sum",
+            null
+          ]
+        },
+        "served": {
+          "description": "false when `key` is a server-side file (the Lab universe meta), which a reader cannot fetch.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "key",
+        "path",
+        "reduce",
+        "served"
+      ],
+      "additionalProperties": false
+    },
+    "LandingSpan": {
+      "description": "What a counter covers. A week-tier counter names its period; an archive counter its seasons.",
+      "type": "object",
+      "properties": {
+        "season_from": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "season_to": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "period": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LandingPeriod"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "season_from",
+        "season_to",
+        "period"
+      ],
+      "additionalProperties": false
+    },
+    "LandingCounter": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "tier": {
+          "description": "DECISIONS-2026-09-28 section P. archive and season are never denominators for a week figure, and a page never divides one tier by another.",
+          "enum": [
+            "archive",
+            "season",
+            "week"
+          ]
+        },
+        "value": {
+          "description": "null when the input was not available to this run; `reason` then says why. Never a zero standing in for unknown.",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "span": {
+          "$ref": "#/$defs/LandingSpan"
+        },
+        "metric": {
+          "description": "The metric-registry id whose owner or registered copy this counter was read from, when there is one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/LandingCounterSource"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "sport",
+        "tier",
+        "value",
+        "span",
+        "metric",
+        "reason",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "LandingTeam": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "abbr": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "slug",
+        "abbr",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "LandingPlayer": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "slug": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "position": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "team": {
+          "$ref": "#/$defs/LandingTeam"
+        }
+      },
+      "required": [
+        "id",
+        "slug",
+        "name",
+        "position",
+        "team"
+      ],
+      "additionalProperties": false
+    },
+    "LandingMarket": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "stat": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "stat",
+        "label"
+      ],
+      "additionalProperties": false
+    },
+    "LandingRung": {
+      "type": "object",
+      "properties": {
+        "line": {
+          "type": "number"
+        },
+        "mid": {
+          "type": "number"
+        },
+        "bid": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ask": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "quote_ts": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "line",
+        "mid",
+        "bid",
+        "ask",
+        "quote_ts"
+      ],
+      "additionalProperties": false
+    },
+    "LandingFeatured": {
+      "description": "The one ladder for the 'one line becomes a curve' scene, chosen by the written `rule`.",
+      "type": "object",
+      "properties": {
+        "rule": {
+          "type": "string"
+        },
+        "player": {
+          "$ref": "#/$defs/LandingPlayer"
+        },
+        "market": {
+          "$ref": "#/$defs/LandingMarket"
+        },
+        "opponent": {
+          "$ref": "#/$defs/LandingTeam"
+        },
+        "game_id": {
+          "type": "string"
+        },
+        "kickoff_ts": {
+          "type": "number"
+        },
+        "kickoff": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "as_of": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "period": {
+          "$ref": "#/$defs/LandingPeriod"
+        },
+        "venue": {
+          "type": "string"
+        },
+        "mid_basis": {
+          "type": "string"
+        },
+        "rungs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LandingRung"
+          },
+          "minItems": 1
+        },
+        "candidates": {
+          "description": "How many ladders the rule chose among.",
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/LandingSource"
+        }
+      },
+      "required": [
+        "rule",
+        "player",
+        "market",
+        "opponent",
+        "game_id",
+        "kickoff_ts",
+        "kickoff",
+        "as_of",
+        "period",
+        "venue",
+        "mid_basis",
+        "rungs",
+        "candidates",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "LandingExchangeNote": {
+      "type": "object",
+      "properties": {
+        "mid": {
+          "type": "number"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "mid",
+        "note"
+      ],
+      "additionalProperties": false
+    },
+    "LandingDevig": {
+      "description": "The de-vig worked example: both prices, both implied probabilities, the overround, the de-vigged pair. Computed with core.board's own functions and refused if it disagrees with the Board's published figures.",
+      "type": "object",
+      "properties": {
+        "basis": {
+          "description": "book: a sportsbook's two-sided price, de-vigged. exchange: no two-sided book price was available, so an exchange rung is shown with the note that it carries no margin.",
+          "enum": [
+            "book",
+            "exchange"
+          ]
+        },
+        "rule": {
+          "type": "string"
+        },
+        "player": {
+          "$ref": "#/$defs/LandingPlayer"
+        },
+        "market": {
+          "$ref": "#/$defs/LandingMarket"
+        },
+        "line": {
+          "type": "number"
+        },
+        "book": {
+          "type": "string"
+        },
+        "read_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "over_american": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "under_american": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "implied_over": {
+          "type": "number"
+        },
+        "implied_under": {
+          "type": "number"
+        },
+        "overround": {
+          "description": "implied_over + implied_under; 1.0 on an exchange.",
+          "type": "number"
+        },
+        "hold": {
+          "description": "overround - 1.",
+          "type": "number"
+        },
+        "devig_over": {
+          "type": "number"
+        },
+        "devig_under": {
+          "type": "number"
+        },
+        "method": {
+          "type": "string"
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "exchange": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LandingExchangeNote"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/LandingSource"
+        }
+      },
+      "required": [
+        "basis",
+        "rule",
+        "player",
+        "market",
+        "line",
+        "book",
+        "read_at",
+        "over_american",
+        "under_american",
+        "implied_over",
+        "implied_under",
+        "overround",
+        "hold",
+        "devig_over",
+        "devig_under",
+        "method",
+        "note",
+        "exchange",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "LandingSurvivalPoint": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "p_over": {
+          "description": "P(points > x): 1 - the market file's p_at_most at the same x. Not resampled.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "p_over"
+      ],
+      "additionalProperties": false
+    },
+    "LandingQuantiles": {
+      "type": "object",
+      "properties": {
+        "q10": {
+          "type": "number"
+        },
+        "q25": {
+          "type": "number"
+        },
+        "q50": {
+          "type": "number"
+        },
+        "q75": {
+          "type": "number"
+        },
+        "q90": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "q10",
+        "q25",
+        "q50",
+        "q75",
+        "q90"
+      ],
+      "additionalProperties": false
+    },
+    "LandingDistribution": {
+      "type": "object",
+      "properties": {
+        "player": {
+          "$ref": "#/$defs/LandingPlayer"
+        },
+        "rungs": {
+          "type": "integer"
+        },
+        "as_of": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "quantiles": {
+          "$ref": "#/$defs/LandingQuantiles"
+        },
+        "survival": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LandingSurvivalPoint"
+          }
+        },
+        "source": {
+          "$ref": "#/$defs/LandingSource"
+        }
+      },
+      "required": [
+        "player",
+        "rungs",
+        "as_of",
+        "quantiles",
+        "survival",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "LandingDistributions": {
+      "type": "object",
+      "properties": {
+        "rule": {
+          "type": "string"
+        },
+        "scoring": {
+          "type": "string"
+        },
+        "scoring_label": {
+          "type": "string"
+        },
+        "requested": {
+          "type": "integer"
+        },
+        "published": {
+          "description": "Fewer than `requested` when fewer players are priced this period; `unavailable` says so.",
+          "type": "integer"
+        },
+        "players": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LandingDistribution"
+          }
+        }
+      },
+      "required": [
+        "rule",
+        "scoring",
+        "scoring_label",
+        "requested",
+        "published",
+        "players"
+      ],
+      "additionalProperties": false
+    },
+    "LandingCdfPoint": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "p_at_most": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "p_at_most"
+      ],
+      "additionalProperties": false
+    },
+    "LandingFantasyPreset": {
+      "type": "object",
+      "properties": {
+        "preset": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "weights": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "median": {
+          "type": "number"
+        },
+        "quantiles": {
+          "$ref": "#/$defs/LandingQuantiles"
+        },
+        "p_at_least": {
+          "type": "object",
+          "properties": {
+            "points": {
+              "type": "number"
+            },
+            "p": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "points",
+            "p"
+          ],
+          "additionalProperties": false
+        },
+        "cdf": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LandingCdfPoint"
+          }
+        },
+        "source": {
+          "$ref": "#/$defs/LandingSource"
+        }
+      },
+      "required": [
+        "preset",
+        "label",
+        "weights",
+        "median",
+        "quantiles",
+        "p_at_least",
+        "cdf",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "LandingFantasy": {
+      "type": "object",
+      "properties": {
+        "rule": {
+          "type": "string"
+        },
+        "player": {
+          "$ref": "#/$defs/LandingPlayer"
+        },
+        "as_of": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "presets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LandingFantasyPreset"
+          }
+        }
+      },
+      "required": [
+        "rule",
+        "player",
+        "as_of",
+        "presets"
+      ],
+      "additionalProperties": false
+    },
+    "LandingCalibrationSeries": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "ece": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "bins": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReliabilityBin"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "ece",
+        "bins"
+      ],
+      "additionalProperties": false
+    },
+    "LandingCalibration": {
+      "description": "research/calibration.json's reliability bins, both series, unchanged.",
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/LandingSource"
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "population": {
+          "type": "string"
+        },
+        "n": {
+          "type": "integer"
+        },
+        "games": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "series": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LandingCalibrationSeries"
+          }
+        }
+      },
+      "required": [
+        "source",
+        "generated_at",
+        "population",
+        "n",
+        "games",
+        "series"
+      ],
+      "additionalProperties": false
+    },
+    "LandingRegisterRow": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "question": {
+          "type": "string"
+        },
+        "verdict": {
+          "$ref": "#/$defs/Verdict"
+        },
+        "metric": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "estimate": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "interval": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Interval"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "n": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "games": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "null": {
+          "description": "The value the row is tested against, in the row's own unit: 0 for a difference in pp or Brier, the compared price for a realized probability, null for a count.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "null_basis": {
+          "type": "string"
+        },
+        "excludes_null": {
+          "description": "Whether the interval excludes `null`. null when the row has no interval or no null - the page draws each row against its own null and never infers it.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "question",
+        "verdict",
+        "metric",
+        "estimate",
+        "interval",
+        "unit",
+        "n",
+        "games",
+        "null",
+        "null_basis",
+        "excludes_null"
+      ],
+      "additionalProperties": false
+    },
+    "LandingRegister": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/LandingSource"
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LandingRegisterRow"
+          }
+        },
+        "counts": {
+          "type": "object",
+          "properties": {
+            "rows": {
+              "type": "integer"
+            },
+            "excludes_null": {
+              "type": "integer"
+            },
+            "includes_null": {
+              "type": "integer"
+            },
+            "no_interval_or_null": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "rows",
+            "excludes_null",
+            "includes_null",
+            "no_interval_or_null"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "source",
+        "generated_at",
+        "rows",
+        "counts"
+      ],
+      "additionalProperties": false
+    },
+    "LandingRead": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "description": "A source id from the source registry.",
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "key": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "label",
+        "at",
+        "key",
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "LandingFreshness": {
+      "type": "object",
+      "properties": {
+        "last_read": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reads": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LandingRead"
+          }
+        },
+        "data_through": {
+          "type": "object",
+          "properties": {
+            "season": {
+              "type": "integer"
+            },
+            "index": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "season",
+            "index"
+          ],
+          "additionalProperties": false
+        },
+        "source_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "last_read",
+        "source",
+        "reads",
+        "data_through",
+        "source_version"
+      ],
+      "additionalProperties": false
+    },
+    "LandingUnavailable": {
+      "type": "object",
+      "properties": {
+        "part": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "part",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "LandingFile": {
+      "description": "THE LANDING (a-47): one file, one fetch. Built by jobs/landing_export.py from served files (and the Board's tree), never from the store; every counter carries the file and path it was read from, and the job re-derives each before writing. Sport-agnostic key; the counters name their sport.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "landing"
+        },
+        "sport": {
+          "type": "null"
+        },
+        "sports": {
+          "description": "The sports whose figures this file carries. Each counter names its own.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "period": {
+          "$ref": "#/$defs/LandingPeriod"
+        },
+        "counters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LandingCounter"
+          }
+        },
+        "featured_ladder": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LandingFeatured"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "devig": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LandingDevig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "distributions": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LandingDistributions"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "calibration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LandingCalibration"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "register": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LandingRegister"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fantasy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LandingFantasy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "freshness": {
+          "$ref": "#/$defs/LandingFreshness"
+        },
+        "unavailable": {
+          "description": "Every part that is null or short, with the reason. A page draws a Pending line from this rather than guessing.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LandingUnavailable"
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "sports",
+        "period",
+        "counters",
+        "featured_ladder",
+        "devig",
+        "distributions",
+        "calibration",
+        "register",
+        "fantasy",
+        "freshness",
+        "unavailable"
       ],
       "additionalProperties": false
     }

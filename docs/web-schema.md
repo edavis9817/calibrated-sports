@@ -100,6 +100,13 @@ research/execution.json
   disagrees with its owner unless the copy carries a written `declared` reason.
   `research/market_calibration.json` is the closing-market over bias (R18), read from the
   committed `research/results/market_calibration.json`.
+- **Three denominators (a-46).** `{sport}/manifest.json` carries `denominators`: every
+  player and game count at a named tier - `archive`, `season`, `week` - each with its
+  span. Only `week` is divisible, and its one share (`share_priced`) is computed by the
+  producer; a page never divides a weekly count by the archive. `counts.players`,
+  `counts.games` and `counts.market` are registered as copies of their tier, so the
+  manifest gate refuses when they disagree. `jobs/denominators.py` computes it from the
+  sport's `Participation` config.
 
 - `id` is the sport's source id: nflverse `gsis_id` for NFL, e.g. `00-0036355`.
 - `slug` is for URLs only. Keys use ids, and indexes map slug to id.
@@ -629,6 +636,12 @@ exchange, which were answering 403 and 429 on the audited page (2026-09-24).
   week (or the latest earlier week of the season), each row with `captured_at`,
   when this store first held it. The job runs `jobs.ingest_feeds --injuries`
   every `LIVE_SNAPSHOT_INJURIES_EVERY` (6 h) to capture it.
+- **`possession`** (a-43) is the team with the ball, in the schedule's code, set only
+  while `state == "in"` and null otherwise - between drives, when the scoreboard omits
+  it, and when its team id names neither side of the game. It is read from the
+  scoreboard's `situation.possession` team id, joined through that event's own
+  competitors. **`possessionText` is field position, not the team**: measured
+  2026-09-28 on LAR@DEN, `possession` named DEN while `possessionText` read "LAR 2".
 - **Team codes are the schedule's** (the site's team keys). The scoreboard's
   LAR/WSH and the exchange's LAR/JAC are folded in the producer; anything that
   joins no scheduled game is listed in `unmatched`, never dropped.
@@ -665,6 +678,25 @@ and `values_policy` (`show`/`hide`, Ethan's editorial call). Producer:
 retired predictor could never be deleted from R2.
 `tests/test_contract_coverage_predictor.py` fails if a scheduled job runs
 either producer before that exists.
+
+## season/{sport}/{model}.json — kind `season_model` (a-41)
+
+A season model's forecast and its walk-forward scoring record in one file.
+Phase 1 is `season/nfl/division.json`: chance to win the division, per team,
+with `mc_se` (Monte Carlo standard error, simulation error only) and
+`p_interval` (p +/- 1.96 mc_se). Every team also carries `p_standings`, the
+same simulator with every remaining game a coin flip, and `leader_share`.
+`record` scores the procedure walk-forward over 2002-2025 against both
+standings baselines; `record.verdict` is `beats_standings` only when the model
+is `better_than` both, and `display.show` is computed from it: `model`, or
+`standings_coin_flip` when the record does not beat the standings. A page prints
+`p` or `p_standings` as `display.show` says, and never picks for itself.
+`tiebreakers` names the implemented steps, the unimplemented ones and the
+residual rule; `tiebreakers.checked` is the implemented steps run on final
+results against the real winners. Producer: `jobs/season_model.py` (model in
+`models/season.py`, shape in `jobs/season_export.py`), writing to its own
+`season/` prefix under `storage_path("season_model")`. **In the contract, not
+published:** nothing uploads `season/` and no scheduled job runs the producer.
 
 ## {sport}/sources.json — kind `sources` (a-22, audit S-04)
 
@@ -726,6 +758,31 @@ against that entry before every write. It is append-only EVENTS (`published`, th
 most one `graded` or `void`). The uploader ships it only after reading the bucket's
 copy back and showing the new file is that copy plus rows at the end, and **no uploader
 ever deletes a key under `board/`**.
+
+## landing.json — kind `landing` (a-47)
+
+The one file the landing page reads, sportless at the root. Built LAST in
+`weekly_refresh` by `jobs/landing_export.py` from served files only — the sport
+manifest, the current period's market files, the three research files, the Lab
+index — plus the Board's own tree and the Lab universe meta; never the store.
+
+- `counters[]`: each names its `sport`, its `tier` (`archive`, `season`, `week`,
+  as in the manifest's `denominators`), the `span` it covers, and `source`
+  `{key, path, reduce, served}`. The job re-resolves every source before the
+  write and refuses on a disagreement. A counter whose input was absent is
+  `value: null` with a `reason`, never 0.
+- `featured_ladder`, `distributions`, `fantasy`: chosen by the `rule` string each
+  carries. `distributions.published` may be below `requested` when fewer
+  players are priced.
+- `devig.basis` is `book` (a sportsbook's two-sided price from the Board's read,
+  checked against the Board's own de-vig) or `exchange` (no book price was
+  available; the note says an exchange rung carries no margin).
+- `register.rows[]` carry `null` and `excludes_null`, so a page draws each row
+  against its own null rather than inferring one.
+- `unavailable[]` lists every part that is null or short, with the reason.
+
+It owns no prefix: written through `sync_keys(dest, {"landing.json": ...}, [])`,
+so it deletes nothing and declares nothing to the uploader.
 
 ## Refresh
 

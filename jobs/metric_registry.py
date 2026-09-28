@@ -42,6 +42,8 @@ import sys
 MARKET = "research/market_calibration.json"
 SCORE = "research/calibration.json"
 REGISTER = "research/hypotheses.json"
+MANIFEST = "nfl/manifest.json"
+SEASON = "season/nfl/division.json"
 
 # R10 was restated 2026-09-17 on the n=706 common set, when 229 week-1 Kalshi
 # books were one-sided at the prediction instant. The Kalshi candle backfill
@@ -56,8 +58,11 @@ R10_DECLARED = ("R10 is the 2026-09-17 restatement on n=706 (229 books one-sided
                 "quote is correct (a-36).")
 
 
-def _m(id, label, unit, decimals, source, copies=()):
+def _m(id, label, unit, decimals, source, copies=(), nullable=False):
+    # `nullable`: null is a legitimate published state (a share with an empty
+    # denominator), not a lost value. Everywhere else a null owner fails.
     return {"id": id, "label": label, "unit": unit, "decimals": decimals,
+            **({"nullable": True} if nullable else {}),
             "source": {"file": source[0], "path": source[1]},
             "copies": [dict(file=c[0], path=c[1], **({"declared": c[2]} if len(c) > 2 else {}))
                        for c in copies]}
@@ -127,7 +132,89 @@ METRICS = [
        (REGISTER, "hypotheses[id=R15].interval")),
     _m("model.walkforward.brier_minus_close.2025.n", "Walk-forward outcomes, 2025", "outcomes", 0,
        (REGISTER, "hypotheses[id=R15].n")),
+    # --- denominators (a-46, DECISIONS-2026-09-28 §P) ------------------------
+    # Every player and game count at a named tier. The legacy unlabelled
+    # `counts` fields are registered as COPIES of the tier they always were, so
+    # the gate refuses the day "3,988" and the archive tier stop being one number.
+    _m("coverage.players.archive", "Players with offensive usage, whole archive", "players", 0,
+       (MANIFEST, "denominators.archive.players"), [(MANIFEST, "counts.players")]),
+    _m("coverage.players.season", "Players with offensive usage, current season", "players", 0,
+       (MANIFEST, "denominators.season.players")),
+    _m("coverage.players.week.played", "Players with offensive usage in the current period's "
+       "final games", "players", 0, (MANIFEST, "denominators.week.players.played")),
+    _m("coverage.players.week.expected", "Players expected in the current period's open games",
+       "players", 0, (MANIFEST, "denominators.week.players.expected")),
+    _m("coverage.players.week.priced", "Players with a posted market, current period", "players",
+       0, (MANIFEST, "denominators.week.players.priced"), [(MANIFEST, "counts.market")]),
+    _m("coverage.players.week.priced_expected", "Priced players among those expected",
+       "players", 0, (MANIFEST, "denominators.week.players.priced_expected")),
+    _m("coverage.players.week.share_priced", "Share of expected players with a posted market",
+       "proportion", 4, (MANIFEST, "denominators.week.share_priced"), nullable=True),
+    _m("coverage.games.archive", "Games with a final score, whole archive", "games", 0,
+       (MANIFEST, "denominators.archive.games.final"), [(MANIFEST, "counts.games")]),
+    _m("coverage.games.season", "Games with a final score, current season", "games", 0,
+       (MANIFEST, "denominators.season.games.final")),
+    _m("coverage.games.week.final", "Games with a final score, current period", "games", 0,
+       (MANIFEST, "denominators.week.games.final")),
+    _m("coverage.games.week.open", "Games not yet kicked off, current period", "games", 0,
+       (MANIFEST, "denominators.week.games.open")),
+    # --- chance to win the division (a-41 built it, a-42 publishes it) -------
+    # The walk-forward RECORD, not the 32 current probabilities: those are the
+    # file's subject and change weekly; these are the figures a page quotes about
+    # whether to believe it. Numbers only - the site's resolver reads a number or
+    # an interval, so `record.verdict` and `display.show` are not registered.
+    # The first calibration bin is registered on purpose: a-41's overconfidence
+    # at the tails (0-10% forecast 1.9%, realised 3.2%) is the figure the Teams
+    # page is instructed to print beside the bars.
+    _m("season.division.record.division_seasons", "Division races scored walk-forward",
+       "races", 0, (SEASON, "record.division_seasons")),
+    _m("season.division.record.brier.model", "Brier score, division model, walk-forward",
+       "Brier", 4, (SEASON, "record.brier.model")),
+    _m("season.division.record.brier.standings_coin_flip",
+       "Brier score, standings with coin-flip games, walk-forward", "Brier", 4,
+       (SEASON, "record.brier.standings_coin_flip")),
+    _m("season.division.record.brier.standings_leader",
+       "Brier score, standings leader carried forward, walk-forward", "Brier", 4,
+       (SEASON, "record.brier.standings_leader")),
+    _m("season.division.record.vs_coin_flip", "Brier(model) - Brier(coin-flip standings)",
+       "Brier", 4, (SEASON, "record.vs.standings_coin_flip.estimate")),
+    _m("season.division.record.vs_coin_flip.interval",
+       "Brier(model) - Brier(coin-flip standings), division-race block 95% interval",
+       "Brier", 4, (SEASON, "record.vs.standings_coin_flip.interval")),
+    _m("season.division.record.vs_leader", "Brier(model) - Brier(standings leader)",
+       "Brier", 4, (SEASON, "record.vs.standings_leader.estimate")),
+    _m("season.division.record.vs_leader.interval",
+       "Brier(model) - Brier(standings leader), division-race block 95% interval",
+       "Brier", 4, (SEASON, "record.vs.standings_leader.interval")),
+    _m("season.division.calibration.low_tail.forecast",
+       "Average forecast in the lowest probability bin", "probability", 4,
+       (SEASON, "record.calibration[0].forecast")),
+    _m("season.division.calibration.low_tail.realised",
+       "Realised rate in the lowest probability bin", "probability", 4,
+       (SEASON, "record.calibration[0].realised")),
+    _m("season.division.as_of.games_played", "Regular-season games the forecast has seen",
+       "games", 0, (SEASON, "as_of.games_played")),
 ]
+
+
+def _files_of(m):
+    return {m["source"]["file"]} | {c["file"] for c in m["copies"]}
+
+
+# The three gates. The research gate runs before the first write; the manifest
+# gate runs on the built manifest before it is written; the season gate runs in
+# `jobs.season_export` on the built file before it is written (a-42) - a
+# different producer, so a different gate. A metric whose locations span two
+# groups belongs to none and is refused at import - it could never be checked
+# by any gate.
+RESEARCH_FILES = frozenset({MARKET, SCORE, REGISTER})
+RESEARCH_METRICS = [m for m in METRICS if _files_of(m) <= RESEARCH_FILES]
+MANIFEST_METRICS = [m for m in METRICS if _files_of(m) <= {MANIFEST}]
+SEASON_METRICS = [m for m in METRICS if _files_of(m) <= {SEASON}]
+_ungated = [m["id"] for m in METRICS if m not in RESEARCH_METRICS
+            and m not in MANIFEST_METRICS and m not in SEASON_METRICS]
+if _ungated:
+    raise ImportError(f"metrics no gate can check (files span both groups): {_ungated}")
 
 FILES = sorted({m["source"]["file"] for m in METRICS}
                | {c["file"] for m in METRICS for c in m["copies"]})
@@ -195,11 +282,12 @@ def _norm(v, decimals):
 class GateReport:
     """What the metric gate approved. Refuses truth-testing: read .clean / .statement."""
 
-    def __init__(self, checked, problems, declared):
+    def __init__(self, checked, problems, declared, n_metrics=None):
         self.checked, self.problems, self.declared = checked, problems, declared
         self.clean = not problems
+        n_metrics = len(METRICS) if n_metrics is None else n_metrics
         self.statement = (
-            f"metric gate: {len(METRICS)} metrics, {checked} locations resolved, "
+            f"metric gate: {n_metrics} metrics, {checked} locations resolved, "
             f"{len(declared)} declared disagreement(s), "
             + ("0 undeclared disagreements" if self.clean
                else f"{len(problems)} PROBLEM(S):\n  " + "\n  ".join(problems)))
@@ -227,7 +315,7 @@ def check(files, metrics=None):
         except (Unresolved, ValueError) as e:
             problems.append(f"{m['id']}: owner {m['source']['file']}:{e}")
             continue
-        if owner is None:
+        if owner is None and not m.get("nullable"):
             problems.append(f"{m['id']}: owner {m['source']['file']}:{m['source']['path']} is null")
         for c in m["copies"]:
             where = f"{c['file']}:{c['path']}"
@@ -246,7 +334,7 @@ def check(files, metrics=None):
             elif copy != owner:
                 problems.append(f"{m['id']}: {where} = {copy!r} but "
                                 f"{m['source']['file']}:{m['source']['path']} = {owner!r}")
-    return GateReport(checked, problems, declared)
+    return GateReport(checked, problems, declared, len(metrics))
 
 
 class MetricDisagreement(RuntimeError):

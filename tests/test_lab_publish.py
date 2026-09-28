@@ -33,8 +33,13 @@ MARKETS = {"prop": ["receptions", "receiving_yards", "rush_attempts", "tackles_a
            "spread": ["spread"], "total": ["total"]}
 # `books` is deliberately NOT here: strategy.price.books names the three books the
 # consensus is taken over, which is the rule, not a per-bet price or book.
+# `drawdown` left this set in a-44: its size is now published, but only under
+# `verify_drawdown` (tested below). What stays banned is anything bet-level:
+# the engine's bet positions (`members`, `peak_index`, `trough_index`) and its
+# bet-granularity band (`band_at` is published only as `luck.paths`).
 PRICE_FIELDS = {"price_american", "price_decimal", "decimal", "american", "book",
-                "books_quoting", "stake", "profit", "chart", "drawdown"}
+                "books_quoting", "stake", "profit", "chart", "members", "peak_index",
+                "trough_index", "band_at"}
 
 
 def _prop(season, week, subject, outcome, market="receptions", side="under", streak=0,
@@ -108,7 +113,8 @@ def test_every_launch_preset_is_listed_in_order_published_or_refused_with_a_reas
     assert "walk-forward" in " ".join(status["model_leans"]["reasons"])
     assert "forecast weather" in " ".join(status["unders_in_the_wind"]["reasons"])
     assert "R16" in status["buy_the_middle"]["register"]
-    assert set(files) - {L.INDEX_KEY} == {p["file"] for p in idx["presets"] if p["file"]}
+    assert (set(files) - {L.INDEX_KEY, L.CATALOGUE_KEY}
+            == {p["file"] for p in idx["presets"] if p["file"]})
 
 
 def test_the_files_satisfy_the_contract_and_the_source_gate(files):
@@ -321,7 +327,7 @@ def test_publish_deletes_a_stale_lab_key_and_nothing_outside_lab(tmp_path, files
     again = L.publish(u, str(tmp_path), generated_at="2026-09-25T00:00:00Z", log=lambda *_: None)
     assert again["written"] == 0            # generated_at alone is not a change
     chk = L.check_tree(str(tmp_path), log=lambda *_: None)
-    assert chk["keys"] == 5 and chk["bytes"] > 0
+    assert chk["keys"] == 6 and chk["bytes"] > 0
 
 
 def test_check_tree_refuses_an_empty_tree_and_an_index_that_disagrees(tmp_path):
@@ -378,3 +384,400 @@ def test_units_interval_and_per_cell_wilson_come_from_the_engine():
         assert c["cleared"] + c["missed"] + c["push"] + c["void"] == c["bets"]
         assert c["weeks"] >= 1
     assert {"team", "opp"} <= set(r["bet_list"][0])
+
+
+
+# ------------------------------------------------------------------ the catalogue (a-45)
+
+def test_the_catalogue_lists_every_feature_in_the_catalogue_once_in_order(files):
+    cat = files[L.CATALOGUE_KEY]
+    assert cat["kind"] == "lab_catalogue"
+    keys = [f["key"] for f in cat["features"]]
+    assert keys == [f.key for f in catalogue.FEATURES]
+    assert set(keys) == set(catalogue.BY_KEY) and len(keys) == len(set(keys))
+    by = {f["key"]: f for f in cat["features"]}
+    for k, f in catalogue.BY_KEY.items():
+        assert (by[k]["label"], by[k]["group"], by[k]["value_type"], by[k]["bet_types"]) == \
+            (f.label, f.group, f.dtype, list(f.bet_types))
+
+
+def test_every_unavailable_feature_carries_a_reason_and_no_available_one_does(files):
+    feats = files[L.CATALOGUE_KEY]["features"]
+    rows = feats + [m for f in feats for m in (f["by_market"] or [])]
+    declared = {f.key for f in catalogue.FEATURES if f.availability == "none"}
+    assert len(declared) == 6
+    assert declared <= {r["key"] for r in feats if r["availability"] == "none"}
+    none = [r for r in rows if r["availability"] == "none"]
+    assert len(none) >= 6
+    for r in none:
+        assert isinstance(r["reason"], str) and r["reason"].strip(), r
+        assert r["season_from"] is None and r["season_to"] is None and r["bound_from"] is None
+    for r in rows:
+        if r["availability"] == "historical":
+            assert r["reason"] is None and r["season_from"] <= r["season_to"]
+            assert r["bound_from"] and r["bound_to"]
+
+
+def test_the_contract_refuses_an_unavailable_feature_with_an_empty_reason(files):
+    E.validate_contract(files)
+    bad = copy.deepcopy(files[L.CATALOGUE_KEY])
+    next(x for x in bad["features"] if x["availability"] == "none")["reason"] = ""
+    with pytest.raises(E.ContractError):
+        E.validate_contract({L.CATALOGUE_KEY: bad})
+
+
+def test_the_published_ranges_are_the_universes_own_and_name_the_price_bound(files):
+    u = _universe(_rows(np.random.default_rng(7)))
+    by = {f["key"]: f for f in files[L.CATALOGUE_KEY]["features"]}
+    for k, d in u["meta"]["features"].items():
+        if d["availability"] != "none":
+            assert (by[k]["season_from"], by[k]["season_to"]) == (d["season_from"], d["season_to"])
+            assert by[k]["note"] == d["note"]
+    s = by["player.streak"]
+    assert (s["season_from"], s["season_to"]) == (2023, 2025)
+    assert s["price_seasons"] == {"from": 2023, "to": 2025}
+    assert s["bound_from"] == s["bound_to"] == {"by": "prices", "columns": []}
+    assert {m["market"]: m["availability"] for m in s["by_market"]}["receptions"] == "historical"
+    assert by["game.home"]["price_seasons"] == {"from": 1999, "to": 2025}
+    assert by["game.home"]["by_market"] is None and by["game.home"]["inputs"] == []
+
+
+def _survey(monkeypatch, starts):
+    """Drive the REAL derive_range: `starts` is {column: first usable season}."""
+    from analytics import metrics
+    monkeypatch.setattr(metrics, "live_season", lambda con: 2026)
+    monkeypatch.setattr(metrics.survey, "coverage",
+                        lambda con, column, dataset="", condition="":
+                        [(y,) for y in range(starts.get(column, 1999), 2027)])
+    monkeypatch.setattr(metrics.survey, "anomalies", lambda con, **kw: {})
+    monkeypatch.setattr(metrics.survey, "silent_zeros", lambda con, **kw: [])
+    return metrics.derive_range
+
+
+def _meta(monkeypatch, starts, cov):
+    feats = catalogue.ranges(object(), cov, MARKETS, derive=_survey(monkeypatch, starts))
+    return {"features": feats, "price_coverage": cov, "built": "2026-09-24T17:23:59+00:00"}
+
+
+EARLY = {"prop": (2005, 2025), "spread": (1999, 2025), "total": (1999, 2025)}
+
+
+def test_an_input_bound_range_names_its_binding_column_from_the_real_derive_range(monkeypatch):
+    # prices from 2005: snap counts (2013) and the target share (2009) now bind
+    cat = L.catalogue_file(_meta(monkeypatch, {"offense_pct": 2013, "target_share": 2009,
+                                               "def_tackles_with_assist": 2011}, EARLY))
+    by = {f["key"]: f for f in cat["features"]}
+    snap = by["player.snap_share_l3"]
+    assert snap["season_from"] == 2013
+    assert snap["bound_from"] == {"by": "inputs", "columns": ["snap_counts.offense_pct"]}
+    assert snap["bound_to"] == {"by": "prices", "columns": []}
+    assert by["player.target_share_l3"]["bound_from"] == {
+        "by": "inputs", "columns": ["weekly_stats.target_share"]}
+    # per market: tackles is bound by one of its three columns, receptions by the
+    # prices; the feature-level start is the widest (2005), so the prices bind it
+    streak = by["player.streak"]
+    per = {m["market"]: m for m in streak["by_market"]}
+    assert per["tackles_assists"]["bound_from"] == {
+        "by": "inputs", "columns": ["weekly_stats.def_tackles_with_assist"]}
+    assert per["receptions"]["bound_from"]["by"] == "prices"
+    assert streak["season_from"] == 2005 and streak["bound_from"]["by"] == "prices"
+
+
+def test_a_feature_level_input_bound_is_carried_from_the_markets_that_set_it(monkeypatch):
+    late = {c: 2010 for c in ("receptions", "receiving_yards", "carries", "def_sacks")}
+    cat = L.catalogue_file(_meta(monkeypatch, {**late, "def_tackles_with_assist": 2012}, EARLY))
+    streak = next(f for f in cat["features"] if f["key"] == "player.streak")
+    assert streak["season_from"] == 2010
+    assert streak["bound_from"] == {"by": "inputs", "columns": [
+        "weekly_stats.carries", "weekly_stats.def_sacks", "weekly_stats.receiving_yards",
+        "weekly_stats.receptions"]}
+
+
+def test_an_input_bound_end_whose_note_names_no_input_is_refused(monkeypatch):
+    meta = _meta(monkeypatch, {"offense_pct": 2013}, EARLY)
+    meta["features"]["player.snap_share_l3"]["note"] = "prices 2005-2025; survey: reworded"
+    with pytest.raises(SystemExit, match="unexplained range"):
+        L.catalogue_file(meta)
+
+
+def test_a_universe_built_by_another_catalogue_or_without_the_survey_is_refused():
+    from lab.universe import NO_SURVEY, _no_survey
+    u = _universe(_rows(np.random.default_rng(7)))
+    stale = copy.deepcopy(u["meta"])
+    del stale["features"]["game.week"]
+    with pytest.raises(SystemExit, match="game.week"):
+        L.catalogue_file(stale)
+    relabel = copy.deepcopy(u["meta"])
+    relabel["features"]["game.week"]["bet_types"] = ["spread"]
+    with pytest.raises(SystemExit, match="rebuild the universe"):
+        L.catalogue_file(relabel)
+    nosurvey = dict(u["meta"], features=catalogue.ranges(
+        None, u["meta"]["price_coverage"], MARKETS, derive=_no_survey))
+    assert NO_SURVEY in nosurvey["features"]["player.snap_share_l3"]["note"]
+    with pytest.raises(SystemExit, match="column survey"):
+        L.catalogue_file(nosurvey)
+
+
+def test_the_catalogue_is_written_every_run_and_check_tree_requires_it(tmp_path):
+    u = _universe(_rows(np.random.default_rng(7)))
+    L.publish(u, str(tmp_path), generated_at=GEN, log=lambda *_: None)
+    path = tmp_path / "lab" / "nfl" / "catalogue.json"
+    assert path.exists()
+    os.remove(path)
+    with pytest.raises(E.ContractError, match="catalogue"):
+        L.check_tree(str(tmp_path), log=lambda *_: None)
+    out = L.publish(u, str(tmp_path), generated_at=GEN, log=lambda *_: None)
+    assert out["written"] == 1 and path.exists()
+
+
+def test_the_catalogue_sources_add_the_survey_to_the_universes(files):
+    approved = R.require_declared(files)
+    cat, preset = set(approved[("nfl", "lab_catalogue")]), set(approved[("nfl", "lab_preset")])
+    assert preset <= cat and {"oddsapi", "nflverse.stats", "nflverse.snap_counts"} <= cat
+
+
+# ------------------------------------------------------------------ the returns series (a-44)
+
+def _engine(key, universe=None):
+    from lab import run
+    u = universe or _universe(_rows(np.random.default_rng(7)))
+    preset = next(p for p in L.PRESETS if p["key"] == key)
+    return run(preset["strategy"], u, series_min_cleared=L.MIN_CLEARED)
+
+
+def _published_steps_against_bets(f, bet_list):
+    """Map each published step to the server-side bets it covers, using ONLY the
+    published fields (season, week_from, week_to) - not the engine's members."""
+    return [[b for b in bet_list if b["season"] == st["season"]
+             and st["week_from"] <= b["week"] <= st["week_to"]]
+            for st in f["returns"]["steps"]]
+
+
+def test_no_consecutive_published_points_difference_back_to_fewer_than_min_cleared(files, big):
+    """THE property the series exists under: between any two consecutive published
+    points - the origin included - sit at least MIN_CLEARED cleared bets, so the
+    difference averages that many prices. Re-derived from the engine's own bet
+    list (which carries the prices and profits) against the published steps."""
+    checked = 0
+    small = _universe(_rows(np.random.default_rng(7)))
+    large = _universe(_rows(np.random.default_rng(11), per_week=30))
+    for tree, u, key in [(t, u, k) for t, u in ((files, small), (big, large))
+                         for k in ("fade_every_over", "rush_attempts_unders",
+                                   "chase_the_streak", "home_underdogs_3_to_7")]:
+        f = tree["lab/nfl/presets/%s.json" % key]
+        bl = _engine(key, u)["bet_list"]
+        steps = f["returns"]["steps"]
+        if f["returns"]["withheld"]:
+            assert steps == []
+            continue
+        covered = _published_steps_against_bets(f, bl)
+        assert sum(len(c) for c in covered) == len(bl)        # every bet, exactly once
+        prev = 0.0
+        for st, bets in zip(steps, covered):
+            cleared = sum(1 for b in bets if b["outcome"] == "cleared")
+            assert cleared >= L.MIN_CLEARED, (key, st)
+            assert cleared == st["cleared"] and len(bets) == st["bets"]
+            # the difference IS the step's profit - so it averages `cleared` prices
+            assert st["units"] - prev == pytest.approx(sum(b["profit"] for b in bets),
+                                                       abs=1e-3 + 5e-5 * len(bets))
+            prev = st["units"]
+            checked += 1
+        assert prev == pytest.approx(f["summary"]["units"]["value"], abs=2e-3)
+    assert checked > 0
+
+
+def test_steps_never_cross_a_season_and_thin_weeks_are_merged_not_dropped(files):
+    f = files["lab/nfl/presets/fade_every_over.json"]
+    r = f["returns"]
+    assert r["granularity"] == "week_block" and r["min_cleared"] == L.MIN_CLEARED
+    # ~3 cleared a week in the fixture, so weeks MUST merge - the rule is seen firing
+    assert r["merged"] > 0 and r["withheld"] is None
+    assert sum(s["weeks"] for s in r["steps"]) == r["week_blocks"]
+    by_season = {}
+    for s in r["steps"]:
+        by_season.setdefault(s["season"], []).append(s)
+    for y, ss in by_season.items():
+        assert ss[0]["week_from"] == 1
+        for a, b in zip(ss, ss[1:]):
+            assert b["week_from"] == a["week_to"] + 1       # contiguous, within the season
+    # each season's steps add up to its season cell: nothing straddles
+    for cell in f["by_season"]:
+        assert sum(s["bets"] for s in by_season[int(cell["key"])]) == cell["bets"]
+    assert "none crosses a season" in r["check"]
+
+
+def test_a_season_below_the_floor_withholds_the_whole_series_and_the_band():
+    """A thin season cannot be merged anywhere: any point after it, less the one
+    before it and the neighbouring season cell, is that season's profit."""
+    rng = np.random.default_rng(3)
+    rows = []
+    for w in range(1, 11):                         # 2023: plenty
+        for i in range(8):
+            rows.append(_prop(2023, w, "P%02d" % i,
+                              "cleared" if rng.random() < .5 else "missed"))
+            rows.append(_prop(2023, w, "P%02d" % i, "missed", side="over"))
+    for w in range(1, 4):                          # 2024: 3 cleared in all
+        rows.append(_prop(2024, w, "Q", "cleared"))
+        rows.append(_prop(2024, w, "R", "missed"))
+        rows.append(_prop(2024, w, "Q", "missed", side="over"))
+    rows.append(_spread(2023, 1, "TTT", 4.5, "missed"))
+    out = L.build(_universe(rows), GEN, log=lambda *_: None)
+    f = out["lab/nfl/presets/fade_every_over.json"]
+    assert f["returns"]["steps"] == []
+    assert "season 2024 has 3 cleared" in f["returns"]["withheld"]
+    assert f["luck"]["paths"] is None
+    E.validate_contract({"lab/nfl/presets/fade_every_over.json": f})
+
+
+def test_verify_series_refuses_a_thin_step_a_split_week_and_a_wrong_point():
+    """The runtime guard is shown refusing, on each of its failure shapes."""
+    r = _engine("fade_every_over")
+    assert "steps over" in L.verify_series(r).statement
+    with pytest.raises(TypeError):
+        bool(L.verify_series(r))
+    # 1. a thin step: step 0 keeps only its last week, the rest moves to step 1
+    bad = copy.deepcopy(r)
+    s0, s1 = bad["series"]["steps"][0], bad["series"]["steps"][1]
+    last = max(bad["bet_list"][i]["week"] for i in s0["members"])
+    keep = [i for i in s0["members"] if bad["bet_list"][i]["week"] == last]
+    moved = [i for i in s0["members"] if i not in keep]
+    assert sum(bad["bet_list"][i]["outcome"] == "cleared" for i in keep) < L.MIN_CLEARED
+    s0["members"], s1["members"] = keep, sorted(moved + s1["members"])
+    with pytest.raises(SystemExit, match="fewer than 10"):
+        L.verify_series(bad)
+    # 2. a week block split across two steps
+    bad = copy.deepcopy(r)
+    s0, s1 = bad["series"]["steps"][0], bad["series"]["steps"][1]
+    s1["members"] = sorted(s1["members"] + [s0["members"].pop()])
+    with pytest.raises(SystemExit, match="split"):
+        L.verify_series(bad)
+    # 3. a point that does not re-derive from the bet list
+    bad = copy.deepcopy(r)
+    bad["series"]["steps"][0]["units"] += 0.5
+    with pytest.raises(SystemExit, match="units"):
+        L.verify_series(bad)
+
+
+@pytest.fixture(scope="module")
+def big():
+    """Enough bets that chase_the_streak clears the floor in every season and
+    draws from a pool larger than itself, so it has a band to publish."""
+    return L.build(_universe(_rows(np.random.default_rng(11), per_week=30)), GEN,
+                   log=lambda *_: None)
+
+
+def test_the_band_is_published_at_the_steps_only_and_matches_them(big):
+    seen = 0
+    for f in big.values():
+        if f.get("kind") != "lab_preset" or f["luck"]["paths"] is None:
+            continue
+        p, steps = f["luck"]["paths"], f["returns"]["steps"]
+        assert p["index"] == [s["index"] for s in steps]
+        assert p["p5"] == [s["null_p5"] for s in steps]
+        assert p["p95"] == [s["null_p95"] for s in steps]
+        assert all(s["cleared"] >= L.MIN_CLEARED for s in steps)
+        assert f["returns"]["band_note"] is None
+        seen += 1
+    assert seen > 0
+
+
+def test_the_bet_level_band_the_file_used_to_carry_leaks_a_price():
+    """Discriminates the test above: at bet granularity the band's first p95 is
+    ONE random bet's profit - with every fixture price at -110, exactly 10/11."""
+    band = _engine("chase_the_streak")["luck"]["band"]
+    assert band["index"][0] == 0
+    assert band["p95"][0] == pytest.approx(100 / 110, abs=1e-3)
+
+
+def test_asking_for_the_series_moves_nothing_else_in_the_result():
+    from lab import run
+    u = _universe(_rows(np.random.default_rng(11), per_week=30))
+    s = next(p for p in L.PRESETS if p["key"] == "chase_the_streak")["strategy"]
+    a, b = run(s, u), run(s, u, series_min_cleared=L.MIN_CLEARED)
+    assert a["series"] is None and b["series"] is not None
+    assert a["luck"]["band_at"] is None and b["luck"]["band_at"] is not None
+    la, lb = dict(a["luck"]), dict(b["luck"])
+    la.pop("band_at"), lb.pop("band_at")
+    assert la == lb
+    for k in ("summary", "by_season", "segments", "drawdown", "bet_list", "verdict"):
+        assert a[k] == b[k], k
+
+
+def test_the_contract_refuses_a_bet_level_field_on_a_step_or_the_drawdown(files):
+    key = "lab/nfl/presets/fade_every_over.json"
+    bad = copy.deepcopy(files[key])
+    bad["returns"]["steps"][0]["members"] = [0, 1, 2]
+    with pytest.raises(E.ContractError, match="members"):
+        E.validate_contract({key: bad})
+    bad = copy.deepcopy(files[key])
+    bad["drawdown"]["peak_index"] = 3
+    with pytest.raises(E.ContractError, match="peak_index"):
+        E.validate_contract({key: bad})
+
+
+# ------------------------------------------------------------------ the drawdown (a-44)
+
+class _Members:
+    def __init__(self, members):
+        self.members = members
+
+
+def _dd_result(outcomes, peak, trough):
+    """A result carrying only what verify_drawdown reads. Every cleared bet pays 1.0."""
+    bl = [{"season": 2023, "week": i + 1, "market": "receptions", "outcome": o,
+           "profit": 1.0 if o == "cleared" else -1.0} for i, o in enumerate(outcomes)]
+    cum = np.concatenate([[0.0], np.cumsum([b["profit"] for b in bl])])
+    p = -1 if peak is None else peak
+    return {"drawdown": {"max_units": float(cum[p + 1] - cum[trough + 1]),
+                         "peak_index": peak, "trough_index": trough},
+            "bet_list": bl, "strategy": {"staking": {"method": "flat", "unit": 1}},
+            "summary": {"cleared": sum(o == "cleared" for o in outcomes)},
+            "by_season": [], "segments": {}}
+
+
+def test_a_drawdown_over_misses_only_is_published_it_reads_back_to_no_price():
+    outs = ["cleared"] * 12 + ["missed"] * 5 + ["cleared"] * 12
+    r = _dd_result(outs, peak=11, trough=16)
+    ok, why = L.verify_drawdown(r, _Members([set(range(0, 12)), set(range(12, 29))]))
+    assert ok, why
+
+
+def test_a_drawdown_whose_window_holds_a_few_prices_is_withheld():
+    outs = (["cleared"] * 12
+            + ["missed", "cleared", "missed", "cleared", "missed", "cleared", "missed", "missed"]
+            + ["cleared"] * 12)
+    r = _dd_result(outs, peak=11, trough=19)
+    ok, why = L.verify_drawdown(r, _Members([set(range(0, 12)), set(range(12, 32))]))
+    assert not ok and "the window itself holds 3 cleared" in why
+
+
+def test_a_drawdown_is_withheld_when_the_steps_isolate_a_thin_fragment():
+    """The window holds 14 cleared - fine alone - but a published step lies wholly
+    inside it, and the window less that step leaves 2 cleared bets."""
+    outs = (["cleared"] * 10 + ["missed"] * 3 + ["cleared", "missed"] * 12
+            + ["missed", "cleared", "missed", "cleared", "missed"] + ["cleared"] * 10)
+    r = _dd_result(outs, peak=9, trough=41)
+    D = set(range(10, 42))
+    atoms = [set(range(0, 10)), set(range(10, 37)), set(range(37, len(outs)))]
+    assert sum(outs[i] == "cleared" for i in D) >= L.MIN_CLEARED
+    ok, why = L.verify_drawdown(r, _Members(atoms))
+    assert not ok and "less the steps inside it holds 2 cleared" in why
+    # with no step boundary inside the window, the verdict turns on G alone - the
+    # one step it touches, less the window - so it is decided by that count
+    ok, why = L.verify_drawdown(r, _Members([set(range(0, 10)), set(range(10, len(outs)))]))
+    G = set(range(10, len(outs))) - D
+    assert (sum(outs[i] == "cleared" for i in G) >= L.MIN_CLEARED) == ok
+
+
+def test_the_published_drawdowns_pass_their_own_check(files):
+    seen = 0
+    for f in files.values():
+        if f.get("kind") != "lab_preset":
+            continue
+        d = f["drawdown"]
+        if d["max_units"] is not None:
+            assert d["check"] and d["withheld"] is None
+            seen += 1
+        else:
+            assert d["withheld"] and d["check"] is None
+    assert seen > 0

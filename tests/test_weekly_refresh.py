@@ -37,10 +37,12 @@ class Runner:
     # pointing the wrong way. Silent is also production's state until track F
     # publishes, so the four cases opt IN.
     def __init__(self, fail=(), refreshed=("nfl/players/", "nfl/teams/"), upload_stats=None,
-                 analytics_refreshed=None):
+                 analytics_refreshed=None, season_refreshed=None):
+        # `season_refreshed` defaults to silent for the same reason as analytics.
         self.calls, self.fail = [], set(fail)
         self.refreshed = refreshed
         self.analytics_refreshed = analytics_refreshed
+        self.season_refreshed = season_refreshed
         self.upload_stats = upload_stats
 
     def stdout_for(self, step):
@@ -55,6 +57,9 @@ class Runner:
             # passing analytics_refreshed=None.
             return ("88 keys, 52583 values, all validated\n"
                     + E.REFRESHED_SENTINEL + " " + " ".join(self.analytics_refreshed))
+        if step == "season" and self.season_refreshed is not None:
+            return ("metric gate: 11 metrics\nwrote 1, deleted 0\n"
+                    + E.REFRESHED_SENTINEL + " " + " ".join(self.season_refreshed))
         if step == "upload":
             return json.dumps(self.upload_stats if self.upload_stats is not None
                               else {"configured": True, "deleted": 0, "removed_withheld": 0})
@@ -92,6 +97,10 @@ class Runner:
         # would quietly exercise the no-sentinel path while passing.
         if "analytics.export" in s:
             return "analytics"
+        if "jobs.season_model" in s:
+            return "season"
+        if "jobs.landing_export" in s:
+            return "landing"
         return s
 
     def names(self):
@@ -149,7 +158,8 @@ def test_steps_run_in_order_and_touch_git_only_for_the_slug_registry(env):
     # SECOND PRODUCER into the same tree, and it has to have written before the
     # one uploader runs.
     assert py_steps == ["jobs.ingest_nflverse", "jobs.ingest_headshots", "jobs.map_markets",
-                        "jobs.export_web", "analytics.export", "jobs.export_web"]
+                        "jobs.export_web", "analytics.export", "jobs.season_model",
+                        "jobs.landing_export", "jobs.export_web"]
     git_calls = [c for c in r.calls if c and c[0] == "git"]
     assert git_calls, "the refresh should check the slug registry"
     assert all(c[-1] == W.SLUG_PATH and c[-2] == "--" for c in git_calls)
@@ -496,3 +506,81 @@ def test_preflight_names_the_real_imports_the_subprocesses_need():
     # scope. If one is dropped from requirements this list is what notices.
     assert "jsonschema" in W.REQUIRED_IMPORTS
     assert W.preflight() == [], "this interpreter is missing a declared dependency"
+
+
+# ------------------------------- the season model, a third producer (a-42)
+
+def test_the_fake_actually_answers_the_season_step():
+    """Same precondition as analytics: unclassified, the step answers "ok" and
+    every season case below silently tests the no-declaration path."""
+    cmd = [sys_exe(), "-m", "jobs.season_model", "--write", "--dest", "web"]
+    assert Runner().name(cmd) == "season"
+    assert "season/" in Runner(season_refreshed=("season/",)).stdout_for("season")
+    assert E.REFRESHED_SENTINEL not in Runner(season_refreshed=None).stdout_for("season")
+
+
+def test_the_season_step_runs_the_publishing_command(env):
+    tmp, _ = env
+    r = Runner()
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    cmd = r.cmd_for("season")
+    assert "jobs.season_model" in cmd and "--write" in cmd
+    assert cmd[cmd.index("--dest") + 1] == "web"
+
+
+def test_the_season_declaration_joins_the_others(env):
+    tmp, _ = env
+    r = Runner(refreshed=("nfl/players/",), analytics_refreshed=("analytics/",),
+               season_refreshed=("season/",))
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    assert _refreshed_arg(r) == "nfl/players/ analytics/ season/"
+
+
+def test_only_the_season_model_declares(env):
+    """A silent site export and a silent analytics export do not veto it."""
+    tmp, _ = env
+    r = Runner(refreshed=None, analytics_refreshed=None, season_refreshed=("season/",))
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    assert _refreshed_arg(r) == "season/"
+
+
+def test_a_failing_season_model_degrades_and_declares_nothing(env):
+    """A failed run must not authorise deleting the division file it did not
+    rebuild; the previous one stays served, and the refresh still uploads."""
+    tmp, _ = env
+    r = Runner(fail={"season"}, season_refreshed=("season/",))
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    assert "season/" not in (_refreshed_arg(r) or "")
+    assert "upload" in r.names()
+    assert "season model declared nothing" in read_log(tmp)
+
+
+# ------------------------------- the landing file, built last (a-47)
+
+def test_the_landing_runs_after_every_producer_and_before_the_upload(env):
+    """It reads the files the other steps wrote, so its place in the order is the
+    point: before them it would count last week's tree."""
+    tmp, _ = env
+    r = Runner()
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    names = r.names()
+    assert names.index("landing") > max(names.index(s) for s in ("export", "analytics", "season"))
+    assert names.index("landing") < names.index("upload")
+    cmd = r.cmd_for("landing")
+    assert "--write" in cmd and cmd[cmd.index("--dest") + 1] == "web"
+
+
+def test_the_landing_declares_nothing(env):
+    """It owns no prefix, so the uploader's declaration is exactly the others'."""
+    tmp, _ = env
+    r = Runner(refreshed=("nfl/players/",), season_refreshed=("season/",))
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    assert _refreshed_arg(r) == "nfl/players/ season/"
+
+
+def test_a_failing_landing_degrades(env):
+    tmp, _ = env
+    r = Runner(fail={"landing"})
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    assert "upload" in r.names()
+    assert "landing file was not rebuilt" in read_log(tmp)
