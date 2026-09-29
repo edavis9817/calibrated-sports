@@ -175,6 +175,13 @@ _METHOD_RULES = (
     (re.compile(r"^bayes(\d+)t$"), None,
      "Interval from randomly reweighting {blocks}, {draws} times, widened for how "
      "few {blocks} each estimate rests on."),
+    # a-51: the opportunity residual's band edges (`residual.band_values`), a
+    # percentile bootstrap whose tag NAMES the unit it resampled. The level is
+    # the literal [2.5, 97.5] in band_values - 0.95, pinned by
+    # tests/test_residual_publish.py - and the named unit must be the metric's
+    # own block, or the sentence would describe a resample that did not happen.
+    (re.compile(r"^boot(\d+)-([a-z]+)$"), None,
+     "Interval from resampling {blocks} with replacement, {draws} times."),
     (re.compile(r"^cluster_t(\d+)$"), "level",
      "Interval from how much the ratio varies between {blocks} (a t interval that "
      "treats each {block} as one observation)."),
@@ -196,6 +203,9 @@ def describe_method(code, block):
         m = pattern.match(code or "")
         if not m:
             continue
+        if pattern.groups == 2 and m.group(2) != block + "s":
+            raise MethodError("interval method %r names %r but the metric is blocked on "
+                              "%r" % (code, m.group(2), block))
         if number == "level":
             level, draws = int(m.group(1)) / 100.0, None
         else:
@@ -291,6 +301,25 @@ def build(con):
         "schema_version": 2, "generated_at": _now(), "kind": "analytics.index",
         "sport": SPORT, "source": paths.db_path(), "metrics": entries})
     return out, dropped
+
+
+def gate(out):
+    """The two checks the PUBLISHING path runs on the built tree before its first
+    write (a-51). -> [statement] or raises; never a bare boolean.
+
+    * `jobs.metric_registry.require(out, ANALYTICS_METRICS)` - every registered
+      analytics figure resolves in its owning metric file and every copy in the
+      index agrees with it. A registered metric the store did not publish is a
+      FAILURE, never a skip: the tree would otherwise ship without it and say
+      nothing.
+    * `jobs.source_registry.require_analytics(out)` - every metric's basis and
+      required datasets map to a source the Sources page names for this kind.
+
+    Imported lazily: jobs.metric_registry reads this module's PREFIX."""
+    from jobs import metric_registry, source_registry
+    rep = metric_registry.require(out, metric_registry.ANALYTICS_METRICS)
+    statement, _used = source_registry.require_analytics(out)
+    return [rep.statement, statement]
 
 
 def refreshed_sentinel():
@@ -402,6 +431,11 @@ def main(argv=None):
              (" - " + ", ".join("%s:%d" % kv for kv in sorted(dropped.items())))
              if dropped else ""))
     if a.write:
+        if a.dest == "web":
+            # The publishing path only: `own` reaches nothing, and a fixture
+            # store need not carry every registered metric.
+            for line in gate(out):
+                print(line)
         root = web_export_dir() if a.dest == "web" else export_dir()
         n, deleted, root = sync(out, root=root)
         print("wrote %d files, deleted %d stale, under %s/%s"

@@ -68,6 +68,44 @@ def _m(id, label, unit, decimals, source, copies=(), nullable=False):
                        for c in copies]}
 
 
+ANALYTICS_INDEX = "analytics/nfl/index.json"
+
+# a-51. The opportunity residual's published families. `asof` is NOT here: the
+# a-33 publish decision ships without the five as-of keys (9.6-15.0 MB each, no
+# page reads them; `analytics.residual --no-asof`), and that decision is Ethan's
+# to reverse, not this registry's.
+RESIDUAL_FAMILIES = ("player", "per_game", "fit", "bands", "persistence")
+
+
+def residual_metric_ids():
+    """The published opportunity_residual metric ids, read off the producer's own
+    `metric_for` rather than retyped - one definition of each id (a-51)."""
+    from analytics.residual import PAIRINGS, metric_for
+    return [metric_for(stat, fam).key for fam in RESIDUAL_FAMILIES for stat in PAIRINGS]
+
+
+def analytics_file(metric_id):
+    """Where analytics.export serves a metric - its own key rule, not retyped."""
+    from analytics.export import PREFIX
+    return "%s/%s.json" % (PREFIX, metric_id)
+
+
+def _residual_rows():
+    # One row per published figure a page prints beside the metric: the season
+    # range. The OWNER is the metric's own file; the index entry that tells a page
+    # the same range before it fetches the file is a COPY. The two are written by
+    # one function today (analytics.export.build), and that is a fact about the
+    # code, not a property of the files - the ngs_stability range disagreement
+    # (CLAUDE.md, Claims) was two internally consistent halves of one publish.
+    rows = []
+    for mid in residual_metric_ids():
+        for end, word in (("season_from", "First"), ("season_to", "Last")):
+            rows.append(_m(f"{mid}.{end}", f"{word} season of {mid}", "season", 0,
+                           (analytics_file(mid), end),
+                           [(ANALYTICS_INDEX, f"metrics[metric={mid}].{end}")]))
+    return rows
+
+
 STATS = ("receiving_yards", "receptions", "tackles_assists", "rush_attempts", "sacks")
 SEASONS = (2023, 2024, 2025)
 
@@ -194,6 +232,8 @@ METRICS = [
        (SEASON, "record.calibration[0].realised")),
     _m("season.division.as_of.games_played", "Regular-season games the forecast has seen",
        "games", 0, (SEASON, "as_of.games_played")),
+    # --- the opportunity residual (a-18 built it, a-21 fixed it, a-51 publishes it)
+    *_residual_rows(),
 ]
 
 
@@ -201,7 +241,7 @@ def _files_of(m):
     return {m["source"]["file"]} | {c["file"] for c in m["copies"]}
 
 
-# The three gates. The research gate runs before the first write; the manifest
+# The gates. The research gate runs before the first write; the manifest
 # gate runs on the built manifest before it is written; the season gate runs in
 # `jobs.season_export` on the built file before it is written (a-42) - a
 # different producer, so a different gate. A metric whose locations span two
@@ -211,8 +251,12 @@ RESEARCH_FILES = frozenset({MARKET, SCORE, REGISTER})
 RESEARCH_METRICS = [m for m in METRICS if _files_of(m) <= RESEARCH_FILES]
 MANIFEST_METRICS = [m for m in METRICS if _files_of(m) <= {MANIFEST}]
 SEASON_METRICS = [m for m in METRICS if _files_of(m) <= {SEASON}]
+# a-51: the fourth gate, `analytics.export.gate`, on the built analytics tree
+# before `--dest web` writes it (and in jobs.publish_preflight).
+ANALYTICS_METRICS = [m for m in METRICS if all(f.startswith("analytics/") for f in _files_of(m))]
 _ungated = [m["id"] for m in METRICS if m not in RESEARCH_METRICS
-            and m not in MANIFEST_METRICS and m not in SEASON_METRICS]
+            and m not in MANIFEST_METRICS and m not in SEASON_METRICS
+            and m not in ANALYTICS_METRICS]
 if _ungated:
     raise ImportError(f"metrics no gate can check (files span both groups): {_ungated}")
 

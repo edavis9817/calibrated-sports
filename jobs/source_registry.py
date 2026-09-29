@@ -129,7 +129,8 @@ SOURCES = {
         name="nflverse", sports=("nfl",), layer="FACTS",
         provides="Weekly player stats (the stats_player release), every season it carries",
         used_for=("Every player's season and career lines, the components table, team splits, "
-                  "and the actual each prop settles against"),
+                  "the analytics metrics built on weekly stats, and the actual each prop "
+                  "settles against"),
         last_read=("health", ("nflverse:weekly_stats",))),
     "nflverse.schedule": dict(
         name="nflverse", sports=("nfl",), layer="FACTS",
@@ -521,8 +522,14 @@ KIND_EXTRA = {
                                 "kalshi.trades", "nflverse.stats", "nflverse.schedule",
                                 "nflverse.snap_counts", "nflverse.pbp", "calibrated.model"),
         # produced outside sync_keys - declared from reading their producers
-        "analytics.index": ("nflverse.pbp", "nflverse.participation", "nflverse.ngs"),
-        "analytics.metric": ("nflverse.pbp", "nflverse.participation", "nflverse.ngs"),
+        # nflverse.stats added by a-51: 12 metrics on the served tree already had
+        # basis weekly_stats (and the opportunity residual reads position groups
+        # from it) while this row named three sources. `analytics_problems()` now
+        # derives each metric's sources from its own basis and `requires`.
+        "analytics.index": ("nflverse.pbp", "nflverse.participation", "nflverse.ngs",
+                            "nflverse.stats"),
+        "analytics.metric": ("nflverse.pbp", "nflverse.participation", "nflverse.ngs",
+                             "nflverse.stats"),
         "live.prices": ("kalshi.ladders",),
         # a-23's Live snapshot (jobs/live_snapshot.py, written straight to R2 under
         # live/): the schedule skeleton from the store, the scoreboard overlay, the
@@ -1003,6 +1010,70 @@ def require_declared(files):
             "the Sources page. Fix jobs/source_registry.py:\n  "
             + "\n  ".join(sorted(set(problems))))
     return approved
+# =============================================================================
+# analytics: sources derived from each metric's own basis (a-51)
+# =============================================================================
+#
+# analytics.export writes outside sync_keys, so `require_declared` never sees its
+# files and KIND_EXTRA's analytics rows were only as good as the reading behind
+# them - and they were short: 12 served metrics had basis weekly_stats against a
+# row naming pbp, participation and ngs. Every metric file states its `basis` and
+# the columns its range was derived from (`requires`, "dataset.column|cond"), so
+# the sources it reads are derivable from the file itself. A dataset missing from
+# this map REFUSES: a new basis is a new source to name, never a silent pass.
+ANALYTICS_DATASETS = {
+    "pbp": "nflverse.pbp",
+    "participation": "nflverse.participation",
+    "ngs": "nflverse.ngs",
+    "weekly_stats": "nflverse.stats",
+}
+
+
+def analytics_datasets(obj):
+    """{dataset} one analytics.metric file reads: its basis plus every `requires`."""
+    out = {obj.get("basis")}
+    for r in obj.get("requires") or ():
+        out.add(str(r).split(".", 1)[0])
+    return out
+
+
+def analytics_problems(files, sport="nfl"):
+    """[problem] for the analytics.metric files in `files` ({key: obj}): a dataset
+    with no source id, or a source id the kind does not declare. Empty is clean.
+    Checks nothing it did not see, so it reports how many files it read."""
+    declared = set(DECLARED.get(sport, {}).get("analytics.metric", ()))
+    problems, seen = [], 0
+    for key, obj in sorted(files.items()):
+        if not isinstance(obj, dict) or obj.get("kind") != "analytics.metric":
+            continue
+        seen += 1
+        for ds in sorted(analytics_datasets(obj), key=str):
+            sid = ANALYTICS_DATASETS.get(ds)
+            if sid is None:
+                problems.append(f"{key}: dataset {ds!r} has no source in ANALYTICS_DATASETS")
+            elif sid not in declared:
+                problems.append(f"{key}: reads {sid} ({ds}), which {sport}/analytics.metric "
+                                f"does not declare")
+    return problems, seen
+
+
+def require_analytics(files, sport="nfl"):
+    """The analytics half of the Sources gate. -> (statement, {source ids read}) or raises."""
+    problems, seen = analytics_problems(files, sport)
+    if not seen:
+        raise SourceRegistryError("no analytics.metric files to check - an empty check is "
+                                  "not a pass")
+    if problems:
+        raise SourceRegistryError(
+            "refusing to export - an analytics metric reads a source the Sources page "
+            "would not name:\n  " + "\n  ".join(problems))
+    used = sorted({ANALYTICS_DATASETS[d] for o in files.values()
+                   if isinstance(o, dict) and o.get("kind") == "analytics.metric"
+                   for d in analytics_datasets(o)})
+    return (f"analytics sources: {seen} metric files, every basis and required dataset "
+            f"declared ({', '.join(used)})"), used
+
+
 # =============================================================================
 # not connected yet
 # =============================================================================

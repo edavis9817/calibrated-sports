@@ -39,7 +39,26 @@ def files():
             M.REGISTER: {"kind": "research.hypotheses", "hypotheses": hyp["hypotheses"]},
             M.SCORE: _calibration_fixture(),
             M.MANIFEST: _manifest_fixture(),
-            M.SEASON: _season_fixture()}
+            M.SEASON: _season_fixture(),
+            **analytics_fixture()}
+
+
+def analytics_fixture(season_from=2006, season_to=2025):
+    """The opportunity_residual metric files and the analytics index entry for
+    each, shaped as analytics.export.build writes them (a-51). The real-data gate
+    is `jobs.publish_preflight`, which runs analytics.export.gate on the tree it
+    builds from the store."""
+    out, entries = {}, []
+    for mid in M.residual_metric_ids():
+        basis = "weekly_stats" if mid.endswith("_tds") else "pbp"
+        key = M.analytics_file(mid)
+        out[key] = {"kind": "analytics.metric", "sport": "nfl", "metric": mid,
+                    "basis": basis, "season_from": season_from, "season_to": season_to,
+                    "requires": ["weekly_stats.position"], "values": []}
+        entries.append({"metric": mid, "key": key, "season_from": season_from,
+                        "season_to": season_to})
+    out[M.ANALYTICS_INDEX] = {"kind": "analytics.index", "sport": "nfl", "metrics": entries}
+    return out
 
 
 def _season_fixture():

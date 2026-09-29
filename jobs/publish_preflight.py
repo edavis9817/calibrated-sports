@@ -233,9 +233,12 @@ def run_analytics_export(dest):
     con = paths.connect(read_only=True)
     out, dropped = AX.build(con)
     con.close()
+    # The same gate `analytics.export --write --dest web` runs (a-51).
+    gate = AX.gate(out)
     n, deleted, _root = AX.sync(out, root=dest)
     return {"keys": len(out), "written": n, "deleted_stale": deleted,
-            "unbounded_dropped": sum(dropped.values()), "declared": [AX.OWNED_PREFIX]}
+            "unbounded_dropped": sum(dropped.values()), "declared": [AX.OWNED_PREFIX],
+            "gate": gate}
 
 
 def run_lab(live_db, scratch, dest, log=log):
