@@ -219,8 +219,11 @@ class Season:
 def simulate(season: Season, p_home, n: int, rng: np.random.Generator):
     """(n x G) home-result matrix: fixed results where played, draws elsewhere.
 
-    `p_home` is a length-G array of P(home wins) for every game; it is read
-    only where the result is None.
+    `p_home` is a length-G array of P(home wins) for every game, or an (n x G)
+    array with one row per simulation (a-55: the projection draws each
+    simulation's ratings, so its probabilities differ by row). It is read only
+    where the result is None. The random draws are the same either way, so a
+    1-D call is unchanged by the 2-D case existing.
     """
     fixed = np.array([np.nan if g[3] is None else g[3] for g in season.games])
     out = np.empty((n, season.G))
@@ -229,7 +232,7 @@ def simulate(season: Season, p_home, n: int, rng: np.random.Generator):
     open_ = ~played
     if open_.any():
         u = rng.random((n, int(open_.sum())))
-        out[:, open_] = (u < np.asarray(p_home)[open_]).astype(float)
+        out[:, open_] = (u < np.asarray(p_home)[..., open_]).astype(float)
     return out
 
 
@@ -432,3 +435,64 @@ def standings(season: Season):
 
 def brier(probs: dict, winner: str) -> float:
     return sum((p - (1.0 if t == winner else 0.0)) ** 2 for t, p in probs.items())
+
+
+# ---------------------------------------------------------------- projection (a-55)
+#
+# The final-record projection. Same ratings, same game distribution, same
+# schedule as the division model - and ONE difference, measured rather than
+# assumed: the division model holds each rating fixed inside a simulation,
+# which a-41 disclosed as understating uncertainty. Scored on final wins, that
+# understatement is large: with fixed ratings the central 80% interval after
+# week 3 held the real final record 73.4% of the time while carrying 88.0% of
+# the simulations (research/a55_projection_uncertainty.py). So
+# each simulation here draws every team's rating once, N(rating, sigma^2), and
+# plays the whole remaining season at the drawn strength - the rating is an
+# estimate, and a season is played by the team, not by the estimate. `sigma` is
+# one constant, chosen per season on earlier seasons only (jobs.season_projection).
+
+def rating_vector(season: Season, ratings):
+    """The published teams' ratings in `season.teams` order (franchise-folded)."""
+    return np.array([ratings.get(franchise(t), MEAN) for t in season.teams], dtype=float)
+
+
+def rating_draws(season: Season, ratings, sigma, n, rng):
+    """(n x T): each simulation's rating for every team."""
+    r = rating_vector(season, ratings)
+    if sigma <= 0:
+        return np.repeat(r[None, :], n, axis=0)
+    return r[None, :] + sigma * rng.standard_normal((n, season.T))
+
+
+def p_home_draws(season: Season, draws, hfa):
+    """(n x G) P(home wins) under each simulation's drawn ratings."""
+    return win_prob(draws[:, season.home] - draws[:, season.away] + hfa)
+
+
+def final_wins(season: Season, R):
+    """(n x T) final wins per simulation, ties counting half."""
+    return R @ season.H + (1.0 - R) @ season.A
+
+
+def crps(W, actual):
+    """Continuous ranked probability score of each column's sample against its
+    actual value: E|X - a| - E|X - X'| / 2. Lower is better; in wins."""
+    W = np.asarray(W, dtype=float)
+    a = np.asarray(actual, dtype=float)
+    n = W.shape[0]
+    e1 = np.abs(W - a[None, :]).mean(axis=0)
+    ws = np.sort(W, axis=0)
+    i = np.arange(1, n + 1, dtype=float)[:, None]
+    e2 = 2.0 * ((2.0 * i - n - 1.0) * ws).sum(axis=0) / (n * n)
+    return e1 - 0.5 * e2
+
+
+def team_results(season: Season, R, team):
+    """(game indices in week order, n x g matrix of this team's result in each)."""
+    j = season.idx[team]
+    gi = [i for i in np.nonzero((season.home == j) | (season.away == j))[0]]
+    gi.sort(key=lambda i: (season.games[i][2], i))
+    gi = np.array(gi, dtype=int)
+    home = season.home[gi] == j
+    res = np.where(home[None, :], R[:, gi], 1.0 - R[:, gi])
+    return gi, res

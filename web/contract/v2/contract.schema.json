@@ -33,6 +33,7 @@
       "lab_preset": "LabPresetFile",
       "lab_catalogue": "LabCatalogueFile",
       "season_model": "SeasonModelFile",
+      "season_projection": "SeasonProjectionFile",
       "landing": "LandingFile"
     },
     "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.market_calibration", "research.execution", "coverage", "landing"],
@@ -61,7 +62,8 @@
       {"pattern": "^lab/[a-z0-9]+/index\\.json$", "kind": "lab_index"},
       {"pattern": "^lab/[a-z0-9]+/presets/[a-z0-9_]+\\.json$", "kind": "lab_preset"},
       {"pattern": "^lab/[a-z0-9]+/catalogue\\.json$", "kind": "lab_catalogue"},
-      {"pattern": "^season/[a-z0-9]+/[a-z0-9_]+\\.json$", "kind": "season_model"},
+      {"pattern": "^season/[a-z0-9]+/division\\.json$", "kind": "season_model"},
+      {"pattern": "^season/[a-z0-9]+/projection\\.json$", "kind": "season_projection"},
       {"pattern": "^landing\\.json$", "kind": "landing"}
     ],
     "tables": {
@@ -4370,6 +4372,850 @@
         "universe_built",
         "price_coverage",
         "features"
+      ],
+      "additionalProperties": false
+    },
+    "SeasonProjectionFile": {
+      "description": "The projected final record per team WITH ITS SCORING RECORD (a-55). The season model's simulation of the remaining schedule - the division model's margin-of-victory Elo, with each simulation's ratings drawn around the estimate - summarised as a distribution over final wins, the cumulative path to it, and what the remaining schedule does to it. Every sentence and verdict is computed from the figures.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "season_projection"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+$"
+        },
+        "label": {
+          "type": "string"
+        },
+        "season": {
+          "type": "integer"
+        },
+        "as_of": {
+          "type": "object",
+          "properties": {
+            "games_played": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "games_total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "last_complete_week": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "last_game_ts": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "games_played",
+            "games_total",
+            "last_complete_week",
+            "last_game_ts"
+          ],
+          "additionalProperties": false
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "line": {
+          "description": "What the team page's dashed forward line IS. It replaces the pace line (the win rate so far times the games on the schedule).",
+          "type": "object",
+          "properties": {
+            "label": {
+              "description": "The word a page names the dashed forward line with.",
+              "type": "string"
+            },
+            "replaces": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "label",
+            "replaces",
+            "note"
+          ],
+          "additionalProperties": false
+        },
+        "method": {
+          "type": "object",
+          "properties": {
+            "rating": {
+              "type": "string"
+            },
+            "game_distribution": {
+              "type": "string"
+            },
+            "rating_uncertainty": {
+              "type": "string"
+            },
+            "constants": {
+              "type": "object",
+              "properties": {
+                "k": {
+                  "type": "number"
+                },
+                "hfa": {
+                  "type": "number"
+                },
+                "regress": {
+                  "type": "number"
+                },
+                "fitted_on": {
+                  "$ref": "#/$defs/Interval"
+                },
+                "fit_games": {
+                  "type": "integer"
+                },
+                "fit_log_loss": {
+                  "type": "number"
+                },
+                "grid": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "k",
+                "hfa",
+                "regress",
+                "fitted_on",
+                "fit_games",
+                "fit_log_loss",
+                "grid"
+              ],
+              "additionalProperties": false
+            },
+            "sigma": {
+              "description": "The standard deviation, in rating points, of each simulation's draw of a team's rating; chosen on earlier seasons only.",
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "fitted_on": {
+                  "$ref": "#/$defs/Interval"
+                },
+                "fit_crps": {
+                  "type": "number"
+                },
+                "grid": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 1
+                },
+                "criterion": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "value",
+                "fitted_on",
+                "fit_crps",
+                "grid",
+                "criterion"
+              ],
+              "additionalProperties": false
+            },
+            "simulations": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "mc_se_max": {
+              "type": "number"
+            },
+            "limitations": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "rating",
+            "game_distribution",
+            "rating_uncertainty",
+            "constants",
+            "sigma",
+            "simulations",
+            "mc_se_max",
+            "limitations"
+          ],
+          "additionalProperties": false
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AnalyticMethod"
+          },
+          "minItems": 1
+        },
+        "teams": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "team": {
+                "type": "string"
+              },
+              "conference": {
+                "type": "string"
+              },
+              "division": {
+                "type": "string"
+              },
+              "rating": {
+                "type": "number"
+              },
+              "wins": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "losses": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "ties": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "games_played": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "games_total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "projection": {
+                "type": "object",
+                "properties": {
+                  "mean": {
+                    "type": "number",
+                    "description": "Expected final wins. Equals wins so far (ties half) plus the sum of `schedule[].p_win`; the producer refuses a file where it does not."
+                  },
+                  "mc_se": {
+                    "type": "number",
+                    "description": "Monte Carlo standard error of `mean`: simulation error only."
+                  },
+                  "sd": {
+                    "type": "number"
+                  },
+                  "median": {
+                    "type": "number"
+                  },
+                  "interval80": {
+                    "$ref": "#/$defs/Interval",
+                    "description": "Quantiles of simulated wins: whole numbers, or halves for a team with a tie."
+                  },
+                  "interval80_mass": {
+                    "type": "number",
+                    "description": "Share of simulations inside `interval80` - above 0.80, because wins are discrete."
+                  },
+                  "interval95": {
+                    "$ref": "#/$defs/Interval",
+                    "description": "Quantiles of simulated wins: whole numbers, or halves for a team with a tie."
+                  },
+                  "interval95_mass": {
+                    "type": "number"
+                  },
+                  "distribution": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "wins": {
+                          "type": "number"
+                        },
+                        "p": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        }
+                      },
+                      "required": [
+                        "wins",
+                        "p"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "description": "The simulated distribution of final wins; `p` sums to 1."
+                  }
+                },
+                "required": [
+                  "mean",
+                  "mc_se",
+                  "sd",
+                  "median",
+                  "interval80",
+                  "interval80_mass",
+                  "interval95",
+                  "interval95_mass",
+                  "distribution"
+                ],
+                "additionalProperties": false
+              },
+              "path": {
+                "type": "array",
+                "description": "Cumulative wins after each remaining game, in week order: the dashed forward line (`mean`) and its band.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "week": {
+                      "type": "integer"
+                    },
+                    "mean": {
+                      "type": "number"
+                    },
+                    "interval80": {
+                      "$ref": "#/$defs/Interval"
+                    },
+                    "interval95": {
+                      "$ref": "#/$defs/Interval"
+                    }
+                  },
+                  "required": [
+                    "week",
+                    "mean",
+                    "interval80",
+                    "interval95"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "remaining": {
+                "description": "What the remaining schedule does to the projection, from the model's own ratings - the numbers the simulation used.",
+                "type": "object",
+                "properties": {
+                  "games": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "opponent_rating_mean": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "expected_wins": {
+                    "type": "number",
+                    "description": "This team's expected wins in its remaining games (sum of `schedule[].p_win`)."
+                  },
+                  "expected_wins_average_opponents": {
+                    "type": "number",
+                    "description": "The same team's expected wins in the same games at the same venues against league-average opponents."
+                  },
+                  "schedule_effect": {
+                    "type": "number",
+                    "description": "expected_wins minus expected_wins_average_opponents: negative is a harder remaining schedule than average, in wins."
+                  },
+                  "average_team_expected_wins": {
+                    "type": "number",
+                    "description": "A league-average team's expected wins against this remaining schedule."
+                  },
+                  "average_team_win_share": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "difficulty_rank": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 1,
+                    "description": "1 = the remaining schedule a league-average team would do worst against."
+                  }
+                },
+                "required": [
+                  "games",
+                  "opponent_rating_mean",
+                  "expected_wins",
+                  "expected_wins_average_opponents",
+                  "schedule_effect",
+                  "average_team_expected_wins",
+                  "average_team_win_share",
+                  "difficulty_rank"
+                ],
+                "additionalProperties": false
+              },
+              "schedule": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "week": {
+                      "type": "integer"
+                    },
+                    "opponent": {
+                      "type": "string"
+                    },
+                    "home": {
+                      "type": "boolean"
+                    },
+                    "opponent_rating": {
+                      "type": "number"
+                    },
+                    "p_win": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "week",
+                    "opponent",
+                    "home",
+                    "opponent_rating",
+                    "p_win"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "statement": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "team",
+              "conference",
+              "division",
+              "rating",
+              "wins",
+              "losses",
+              "ties",
+              "games_played",
+              "games_total",
+              "projection",
+              "path",
+              "remaining",
+              "schedule",
+              "statement"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "record": {
+          "description": "The walk-forward record of the projected final wins against the pace line and the coin-flip standings.",
+          "type": "object",
+          "properties": {
+            "seasons": {
+              "$ref": "#/$defs/Interval"
+            },
+            "team_seasons": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "n_forecasts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "states": {
+              "type": "string"
+            },
+            "simulations_per_state": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "block": {
+              "type": "string"
+            },
+            "rmse": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "number"
+                },
+                "pace": {
+                  "type": "number"
+                },
+                "standings_coin_flip": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "model",
+                "pace",
+                "standings_coin_flip"
+              ],
+              "additionalProperties": false
+            },
+            "baselines": {
+              "type": "object",
+              "properties": {
+                "pace": {
+                  "type": "string"
+                },
+                "standings_coin_flip": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "pace",
+                "standings_coin_flip"
+              ],
+              "additionalProperties": false
+            },
+            "vs": {
+              "type": "object",
+              "properties": {
+                "pace": {
+                  "description": "Mean squared error of final wins, model minus the baseline, with its season-block interval.",
+                  "type": "object",
+                  "properties": {
+                    "estimate": {
+                      "type": "number"
+                    },
+                    "interval": {
+                      "$ref": "#/$defs/Interval"
+                    },
+                    "n_blocks": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "n_forecasts": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "method": {
+                      "type": "string"
+                    },
+                    "verdict": {
+                      "enum": [
+                        "better_than",
+                        "no_better_than",
+                        "worse_than",
+                        "not_readable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "estimate",
+                    "interval",
+                    "n_blocks",
+                    "n_forecasts",
+                    "method",
+                    "verdict"
+                  ],
+                  "additionalProperties": false
+                },
+                "standings_coin_flip": {
+                  "description": "Mean squared error of final wins, model minus the baseline, with its season-block interval.",
+                  "type": "object",
+                  "properties": {
+                    "estimate": {
+                      "type": "number"
+                    },
+                    "interval": {
+                      "$ref": "#/$defs/Interval"
+                    },
+                    "n_blocks": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "n_forecasts": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "method": {
+                      "type": "string"
+                    },
+                    "verdict": {
+                      "enum": [
+                        "better_than",
+                        "no_better_than",
+                        "worse_than",
+                        "not_readable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "estimate",
+                    "interval",
+                    "n_blocks",
+                    "n_forecasts",
+                    "method",
+                    "verdict"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "pace",
+                "standings_coin_flip"
+              ],
+              "additionalProperties": false
+            },
+            "coverage": {
+              "type": "object",
+              "properties": {
+                "80": {
+                  "description": "How often the central interval held the real final record (`realised`), against the share of simulations inside the same interval (`mass`); `verdict` reads the season-block interval of realised minus mass.",
+                  "type": "object",
+                  "properties": {
+                    "nominal": {
+                      "type": "number"
+                    },
+                    "realised": {
+                      "type": "number"
+                    },
+                    "mass": {
+                      "type": "number"
+                    },
+                    "difference_interval": {
+                      "$ref": "#/$defs/Interval"
+                    },
+                    "n_blocks": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "n_forecasts": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "method": {
+                      "type": "string"
+                    },
+                    "verdict": {
+                      "enum": [
+                        "within",
+                        "too_narrow",
+                        "too_wide",
+                        "not_readable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "nominal",
+                    "realised",
+                    "mass",
+                    "difference_interval",
+                    "n_blocks",
+                    "n_forecasts",
+                    "method",
+                    "verdict"
+                  ],
+                  "additionalProperties": false
+                },
+                "95": {
+                  "description": "How often the central interval held the real final record (`realised`), against the share of simulations inside the same interval (`mass`); `verdict` reads the season-block interval of realised minus mass.",
+                  "type": "object",
+                  "properties": {
+                    "nominal": {
+                      "type": "number"
+                    },
+                    "realised": {
+                      "type": "number"
+                    },
+                    "mass": {
+                      "type": "number"
+                    },
+                    "difference_interval": {
+                      "$ref": "#/$defs/Interval"
+                    },
+                    "n_blocks": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "n_forecasts": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "method": {
+                      "type": "string"
+                    },
+                    "verdict": {
+                      "enum": [
+                        "within",
+                        "too_narrow",
+                        "too_wide",
+                        "not_readable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "nominal",
+                    "realised",
+                    "mass",
+                    "difference_interval",
+                    "n_blocks",
+                    "n_forecasts",
+                    "method",
+                    "verdict"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "80",
+                "95"
+              ],
+              "additionalProperties": false
+            },
+            "by_week": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "after_week": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "n": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "model": {
+                    "type": "number"
+                  },
+                  "pace": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "standings_coin_flip": {
+                    "type": "number"
+                  },
+                  "coverage80": {
+                    "type": "number"
+                  },
+                  "mass80": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "after_week",
+                  "n",
+                  "model",
+                  "pace",
+                  "standings_coin_flip",
+                  "coverage80",
+                  "mass80"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "sigma_by_season": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "season": {
+                    "type": "integer"
+                  },
+                  "sigma": {
+                    "type": "number"
+                  },
+                  "fit_seasons": {
+                    "$ref": "#/$defs/Interval"
+                  }
+                },
+                "required": [
+                  "season",
+                  "sigma",
+                  "fit_seasons"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "verdict": {
+              "enum": [
+                "beats_baselines",
+                "no_better_than_a_baseline",
+                "worse_than_a_baseline",
+                "not_readable"
+              ]
+            },
+            "statement": {
+              "type": "string"
+            },
+            "coverage_statement": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "seasons",
+            "team_seasons",
+            "n_forecasts",
+            "states",
+            "simulations_per_state",
+            "block",
+            "rmse",
+            "baselines",
+            "vs",
+            "coverage",
+            "by_week",
+            "sigma_by_season",
+            "verdict",
+            "statement",
+            "coverage_statement"
+          ],
+          "additionalProperties": false
+        },
+        "display": {
+          "type": "object",
+          "properties": {
+            "show": {
+              "enum": [
+                "model",
+                "standings_coin_flip"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "show",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "model",
+        "label",
+        "season",
+        "as_of",
+        "sources",
+        "line",
+        "method",
+        "methods",
+        "teams",
+        "record",
+        "display"
       ],
       "additionalProperties": false
     },

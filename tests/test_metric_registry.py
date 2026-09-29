@@ -39,7 +39,7 @@ def files():
             M.REGISTER: {"kind": "research.hypotheses", "hypotheses": hyp["hypotheses"]},
             M.SCORE: _calibration_fixture(),
             M.MANIFEST: _manifest_fixture(),
-            M.SEASON: _season_fixture(),
+            **_season_fixture(),
             **analytics_fixture()}
 
 
@@ -63,10 +63,14 @@ def analytics_fixture(season_from=2006, season_to=2025):
 
 def _season_fixture():
     """The division file built by the real `season_export.build` over the
-    season tests' synthetic record (a-42)."""
+    season tests' synthetic record (a-42), and the projection beside it built by
+    `season_export.build_projection` over the projection tests' league (a-55)."""
     from jobs import season_export as X
-    from tests.test_season_model import _fake_result
-    return X.validated(X.build(_fake_result(), generated_at="2026-09-27T00:00:00Z"))
+    from tests.test_season_projection import both
+    f = both()
+    X.validated(f[X.KEY])
+    X.validated_projection(f[X.PROJECTION_KEY])
+    return {M.SEASON: f[X.KEY], M.PROJECTION: f[X.PROJECTION_KEY]}
 
 
 def _manifest_fixture():
@@ -232,15 +236,16 @@ def test_the_market_file_validates_against_the_contract(files):
 
 def test_every_season_metric_is_in_the_season_gate_and_nowhere_else():
     ids = {m["id"] for m in M.SEASON_METRICS}
-    assert ids and all(i.startswith("season.division.") for i in ids)
+    assert ids and all(i.startswith(("season.division.", "season.projection.")) for i in ids)
     assert not ids & {m["id"] for m in M.MANIFEST_METRICS + M.RESEARCH_METRICS}
     assert ids <= {m["id"] for m in M.manifest_block()}, "the manifest must carry them"
 
 
 def test_the_season_gate_resolves_its_file_and_refuses_a_missing_one(files):
-    rep = M.check({M.SEASON: files[M.SEASON]}, M.SEASON_METRICS)
+    rep = M.check({M.SEASON: files[M.SEASON], M.PROJECTION: files[M.PROJECTION]},
+                  M.SEASON_METRICS)
     assert rep.clean, rep.statement
-    assert rep.checked == len(M.SEASON_METRICS)
+    assert rep.checked == len(M.SEASON_METRICS) + sum(len(m["copies"]) for m in M.SEASON_METRICS)
     rep = M.check({}, M.SEASON_METRICS)
     assert not rep.clean and "was not produced" in rep.statement
 
@@ -249,6 +254,7 @@ def test_the_low_tail_metric_reads_the_lowest_bin(files):
     """The figure a-41 asked the page to print beside the bars."""
     cal = files[M.SEASON]["record"]["calibration"][0]
     assert cal["bin"][0] == 0.0
-    got = {m["id"]: M.resolve(files[M.SEASON], m["source"]["path"]) for m in M.SEASON_METRICS}
+    got = {m["id"]: M.resolve(files[M.SEASON], m["source"]["path"]) for m in M.SEASON_METRICS
+           if m["source"]["file"] == M.SEASON}
     assert got["season.division.calibration.low_tail.forecast"] == cal["forecast"]
     assert got["season.division.calibration.low_tail.realised"] == cal["realised"]

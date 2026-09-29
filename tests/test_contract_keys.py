@@ -47,6 +47,7 @@ def test_no_key_shape_resolves_to_two_kinds():
         "nfl/market/00-0036223/2026-2.json",
         "research/hypotheses.json", "research/calibration.json", "research/execution.json",
         "analytics/nfl/index.json", "analytics/nfl/role.touch_share.json",
+        "season/nfl/division.json", "season/nfl/projection.json",
     ]
     for key in samples:
         hits = resolve(key)
@@ -58,6 +59,10 @@ def test_the_sample_set_actually_resolves():
     test above while checking nothing."""
     assert resolve("nfl/teams/buf.json") == ["team"]
     assert resolve("analytics/nfl/index.json") == ["analytics.index"]
+    # a-55 narrowed season_model from any season/{sport}/{name}.json to the one
+    # file it describes, so the projection has a kind of its own
+    assert resolve("season/nfl/division.json") == ["season_model"]
+    assert resolve("season/nfl/projection.json") == ["season_projection"]
     assert resolve("nfl/players/00-0036223/2025.json") == ["player_season"]
 
 
