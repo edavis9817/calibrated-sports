@@ -57,6 +57,11 @@ def db(tmp_path, monkeypatch):
                   "def_tackles_solo, source, ingested_ts) VALUES (?,?,?,?,'v1',?,?,?,?,?,?,?,?,?,?,?,?,?,3,'t',0)", w)
     c.execute("UPDATE nfl_player_week SET fumbles_lost=1, two_pt_conversions=2, return_tds=1 "
               "WHERE gsis_id='00-A' AND season=2026 AND week=1")
+    # A DERIVED store (c-18): nflverse publishes no nulls in the kicking and
+    # return columns, so a store the a-14 normalizer wrote holds recorded zeros.
+    # A NULL there means an underived store, which the published export refuses
+    # (tests/test_a14_extended.py pins that refusal on its own fixture).
+    c.execute("UPDATE nfl_player_week SET " + ", ".join(f"{col}=0" for _, col in E.ST_MAP))
     c.execute("INSERT INTO player_xwalk (gsis_id, display_name, position, pfr_id) VALUES ('00-A','Wide One','WR','WideWi00')")
     c.execute("INSERT INTO player_alias (alias, gsis_id, source) VALUES ('w one', '00-A', 'short')")
     c.execute("INSERT INTO nfl_snap_counts (pfr_player_id, game_id, data_version, season, week, player, "
@@ -347,7 +352,16 @@ def test_index_scope_and_slugs(db):
     s = E.export(only=["players", "manifest"], now_ts=NOW, dest=dest)
     idx = _walk(dest)["nfl/players/index.json"]["players"]
     by_id = {p["id"]: p for p in idx}
-    assert "00-D" not in by_id                            # no offensive usage
+    # c-18: 00-D has no offensive usage and three solo tackles - in the index
+    # of an extended build, out of an offensive one. Both are built whichever is
+    # published, so this discriminates in either state of the flip.
+    assert ("00-D" in by_id) is E.PUBLISH_EXTENDED
+    ids = {}
+    for ext in (False, True):
+        out = str(db / f"scope-{ext}")
+        E.export(only=["players"], now_ts=NOW, dest=out, extended=ext)
+        ids[ext] = {p["id"] for p in _walk(out)["nfl/players/index.json"]["players"]}
+    assert ids[True] - ids[False] == {"00-D"}
     assert by_id["00-S1"]["slug"] == "josh-allen"        # tie on games -> earliest first_season
     assert by_id["00-S2"]["slug"] == "josh-allen-2026"
     assert set(s["slug_collisions"]) == {"00-S2"}

@@ -7,7 +7,9 @@ why each one is a test rather than a comment:
 
   * THE GATE. The weekly refresh runs this exporter from whatever branch its
     clone has checked out and uploads the result. So "merged but not published"
-    must be a property of the code: `--extended` without `--dest` refuses.
+    must be a property of the code. a-14 staged the extended profile behind
+    `--extended --dest`; c-18 published it and staged the OFFENSIVE scope
+    instead (`--offensive` without `--dest` refuses).
   * NULL IS NOT ZERO. A stored NULL in a new column means the row predates the
     column (nflverse publishes zero nulls in these 31 columns across 478,384
     rows). Publishing it as 0 is a page saying a kicker attempted nothing in
@@ -48,20 +50,79 @@ def parquet(rows, schema=None):
 
 
 # ------------------------------------------------------------------ the gate
+# a-14 staged the extended profile behind `--extended --dest`. c-18 generalised
+# the gate: whichever scope is NOT the published one (PUBLISH_EXTENDED) needs
+# --dest, so flipping the constant flips which flag is staged - never a flag
+# that publishes.
 
-def test_extended_without_dest_is_refused():
+def test_the_published_profile_is_pinned():
+    """THE ONE-LINE FLIP. c-18's merge branch holds it False because the
+    denominators (§P) were not served; branch c-18-flip changes this line and the
+    constant together."""
+    assert E.PUBLISH_EXTENDED is False
+    assert E.PARTICIPATION is E.participation(E.PUBLISH_EXTENDED)
+
+
+def _unpublished_flag():
+    return "--offensive" if E.PUBLISH_EXTENDED else "--extended"
+
+
+def test_the_unpublished_scope_without_dest_is_refused():
     with pytest.raises(SystemExit):
-        E.main(["--extended"])
+        E.main([_unpublished_flag()])
 
 
-def test_extended_with_upload_is_refused_even_with_dest(tmp_path):
+def test_the_unpublished_scope_with_upload_is_refused_even_with_dest(tmp_path):
     with pytest.raises(SystemExit):
-        E.main(["--extended", "--dest", str(tmp_path / "out"), "--upload"])
+        E.main([_unpublished_flag(), "--dest", str(tmp_path / "out"), "--upload"])
 
 
-def test_extended_refuses_the_components_part(db):
-    with pytest.raises(E.ConfigError):
-        E.export(only=["components"], dest=str(db / "out"), extended=True)
+def test_two_scopes_at_once_are_refused(tmp_path):
+    with pytest.raises(SystemExit):
+        E.main(["--extended", "--offensive", "--dest", str(tmp_path / "out")])
+
+
+# ------------------------------------------- the special-teams store guard (c-18)
+
+def st_row(season, **over):
+    r = {"gsis_id": "00-W", "season": season, "season_type": "REG", "targets": 4}
+    r.update({c: 0 for _, c in E.ST_MAP})
+    r.update(over)
+    return r
+
+
+def test_a_publishing_run_refuses_a_store_with_null_special_teams_columns():
+    with pytest.raises(E.ConfigError, match="REFUSING the extended export"):
+        E.assert_special_teams_derived([st_row(2025), st_row(2024, fg_att=None)], True)
+
+
+def test_a_staged_run_over_the_same_store_only_warns():
+    said = []
+    E.assert_special_teams_derived([st_row(2024, fg_att=None)], False, log=said.append)
+    assert len(said) == 1 and said[0].startswith("WARN")
+
+
+def test_a_derived_store_passes_and_a_recorded_zero_is_not_a_null():
+    said = []
+    E.assert_special_teams_derived([st_row(2025), st_row(2024, fg_att=0)], True, log=said.append)
+    assert said == []
+
+
+def test_the_export_refuses_before_its_first_write(db, monkeypatch):
+    """End to end on a real store: a weekly row written by a normalizer that
+    knows no special-teams column (the logger's stale one) reads NULL, and the
+    PUBLISHING export refuses before writing a single key."""
+    rows = [{k: v for k, v in weekly(player_id="00-W", position="WR", targets=4.0).items()
+             if k not in ("fg_att", "fg_made", "kickoff_returns")}]
+    schema = {k: v for k, v in WEEKLY_SCHEMA.items()
+              if k not in ("fg_att", "fg_made", "kickoff_returns")}
+    table, cols, out = I.normalize_weekly_stats(parquet(rows, schema), "v1")
+    store.replace_rows(table, cols, out)
+    out_dir = db / "published"
+    monkeypatch.setattr(config, "WEB_EXPORT_DIR", str(out_dir))
+    with pytest.raises(E.ConfigError, match="REFUSING"):
+        E.export(only=["players"], extended=True)
+    assert not out_dir.exists() or not any(out_dir.rglob("*"))
 
 
 def test_the_staged_registry_is_a_copy_beside_the_tree_never_the_committed_one(db):
@@ -335,3 +396,61 @@ def test_the_contract_accepts_the_identity_fields_and_refuses_a_bad_jersey():
     assert not list(v.iter_errors(base))
     base["identity"]["jersey_number"] = "69B"
     assert list(v.iter_errors(base))
+
+
+# ------------------------------------------------ components stay offensive (c-18)
+
+def _season_file(gsis, season, periods):
+    return {"kind": "player_season", "identity": {"id": gsis}, "season": season,
+            "periods": periods}
+
+
+def _period(season, index, snaps):
+    return {"season": season, "index": index, "stats": {"snaps": snaps}}
+
+
+def test_the_offensive_projection_drops_defenders_and_defence_only_played_zero_weeks():
+    by_player = {"00-W": [{"season": 2024, "week": 1}], "00-L": [{"season": 2024, "week": 1}]}
+    files = {
+        "nfl/players/00-W/summary.json": {"kind": "player_summary", "identity": {"id": "00-W"}},
+        "nfl/players/00-L/summary.json": {"kind": "player_summary", "identity": {"id": "00-L"}},
+        "nfl/players/00-W/2024.json": _season_file("00-W", 2024, [
+            _period(2024, 1, 0),      # a stat row: kept whatever its snaps
+            _period(2024, 2, 31),     # played-zero with offensive snaps: the v1 rule emits it
+            _period(2024, 3, 0)]),    # played-zero on defence/ST only: only extended emits it
+        "nfl/players/00-W/2023.json": _season_file("00-W", 2023, [_period(2023, 4, 0)]),
+        "nfl/players/00-L/2024.json": _season_file("00-L", 2024, [_period(2024, 1, 0)]),
+        "nfl/players/index.json": {"kind": "player_index"},
+    }
+    out = E.offensive_projection(files, by_player, {"00-W"})
+    assert sorted(out) == ["nfl/players/00-W/2024.json", "nfl/players/00-W/summary.json"]
+    assert [p["index"] for p in out["nfl/players/00-W/2024.json"]["periods"]] == [1, 2]
+    # the input is not mutated - the player files are published as they are
+    assert len(files["nfl/players/00-W/2024.json"]["periods"]) == 3
+
+
+def test_the_offensive_projection_is_the_identity_on_an_offensive_build():
+    by_player = {"00-W": [{"season": 2024, "week": 1}]}
+    files = {"nfl/players/00-W/summary.json": {"kind": "player_summary", "identity": {"id": "00-W"}},
+             "nfl/players/00-W/2024.json": _season_file("00-W", 2024, [
+                 _period(2024, 1, 0), _period(2024, 2, 31)])}
+    assert E.offensive_projection(files, by_player, {"00-W"}) == files
+
+
+# ------------------------------------------------ the published counts' wording
+
+def test_every_player_count_label_carries_the_runs_participation_noun():
+    """The manifest publishes these labels beside the counts. a-46 typed them as
+    'offensive usage'; a count holding linebackers would have carried that
+    wording, so the label is filled from the same config as the count."""
+    from jobs import metric_registry as M
+    ids = ("coverage.players.archive", "coverage.players.season",
+           "coverage.players.week.played")
+    for cfg, other in ((E.OFFENSIVE_PARTICIPATION, E.EXTENDED_PARTICIPATION),
+                       (E.EXTENDED_PARTICIPATION, E.OFFENSIVE_PARTICIPATION)):
+        block = M.manifest_block(cfg.noun)
+        labels = {m["id"]: m["label"] for m in block if m["id"] in ids}
+        assert set(labels) == set(ids)
+        assert all(cfg.noun in label for label in labels.values()), labels
+        assert not any(other.noun in m["label"] for m in block)
+        assert not any("{" in m["label"] for m in block)

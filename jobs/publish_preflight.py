@@ -223,7 +223,11 @@ def run_analytics_publishers(season, only=None, no_asof=False, log=log):
 
 def run_site_export(dest, slugs, stages, only=None, log=log):
     from jobs import export_web as E
-    s = E.export(only=only, dest=dest, registry_path=slugs, stages=stages, log=log)
+    # publishing=True: a rehearsal of the publish refuses what the publish
+    # refuses (c-18, the special-teams store guard), rather than the staged
+    # warning a scratch dest would otherwise get.
+    s = E.export(only=only, dest=dest, registry_path=slugs, stages=stages, log=log,
+                 publishing=True)
     return s
 
 

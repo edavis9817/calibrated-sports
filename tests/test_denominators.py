@@ -126,7 +126,30 @@ def test_the_nfl_participation_is_the_player_index_rule():
             {"gsis_id": "y", "season_type": "REG", "targets": 0, "carries": 0, "attempts": 0},
             {"gsis_id": "z", "season_type": "POST", "targets": 4, "carries": 0, "attempts": 0}]
     assert E.player_scope(rows) == {"x"}
+    assert E.player_scope(rows, extended=True) == {"x"}
+    assert [E.OFFENSIVE_PARTICIPATION.used(r) for r in rows] == [True, False, True]
     assert [E.PARTICIPATION.used(r) for r in rows] == [True, False, True]
+
+
+def test_the_extended_participation_is_the_extended_index_rule():
+    """c-18: the all-positions profile counts every position. A linebacker and a
+    kicker take part; a row with nothing to show does not."""
+    rows = [{"gsis_id": "lb", "season_type": "REG", "def_tackles_solo": 5},
+            {"gsis_id": "k", "season_type": "REG", "fg_att": 2},
+            {"gsis_id": "o", "season_type": "REG", "targets": 0, "fg_att": 0}]
+    assert E.player_scope(rows, extended=True) == {"lb", "k"}
+    assert E.player_scope(rows, extended=False) == set()
+    assert [E.EXTENDED_PARTICIPATION.used(r) for r in rows] == [True, True, False]
+    assert [E.OFFENSIVE_PARTICIPATION.used(r) for r in rows] == [False, False, False]
+    assert E.EXTENDED_PARTICIPATION.noun != E.OFFENSIVE_PARTICIPATION.noun
+
+
+def test_participation_is_any_nonzero_column_not_a_positive_sum():
+    """Return yards can be negative; a sum lets one column cancel another."""
+    cfg = E.EXTENDED_PARTICIPATION
+    assert cfg.used({"kickoff_return_yards": -3})
+    assert cfg.used({"targets": 2, "kickoff_return_yards": -2})
+    assert not cfg.used({"targets": 0, "kickoff_return_yards": None})
 
 
 # ------------------------------------------------------------------ the export
@@ -138,16 +161,20 @@ def test_the_manifest_publishes_the_tiers_and_the_legacy_counts_agree(db):  # no
     m = _walk(dest)["nfl/manifest.json"]
     d = m["denominators"]
     # store fixture: current period 2026 week 2, DET@BUF open. BUF's last final
-    # game is 2026 week 1 at HOU, where 00-A and 00-S2 had usage and 00-D did
-    # not; DET has no final game at all.
+    # game is 2026 week 1 at HOU, where 00-A and 00-S2 had offensive usage and
+    # 00-D had tackles only; DET has no final game at all. Under the published
+    # all-positions participation (c-18) 00-D takes part: 3, not the offensive 2.
     assert d["week"]["span"]["period"]["key"] == "2026-2"
     assert d["week"]["games"] == {"scheduled": 1, "final": 0, "open": 1, "awaiting_final": 0}
-    assert d["week"]["players"] == {"played": 0, "expected": 2, "priced": 0, "priced_expected": 0}
+    n = 3 if E.PUBLISH_EXTENDED else 2
+    assert d["week"]["players"] == {"played": 0, "expected": n, "priced": 0, "priced_expected": 0}
     assert d["week"]["share_priced"] == 0.0
-    assert d["season"]["players"] == 2 and d["season"]["games"] == {"final": 1, "scheduled": 2}
+    assert d["season"]["players"] == n and d["season"]["games"] == {"final": 1, "scheduled": 2}
     assert d["archive"]["players"] == m["counts"]["players"]
     assert d["archive"]["games"]["final"] == m["counts"]["games"] == 4
-    assert d["participation"]["noun"] == "offensive usage"
+    assert d["participation"]["noun"] == E.PARTICIPATION.noun
+    labels = {x["id"]: x["label"] for x in m["metrics"]}
+    assert E.PARTICIPATION.noun in labels["coverage.players.archive"]
     rep = M.check({M.MANIFEST: m}, M.MANIFEST_METRICS)
     assert rep.clean, rep.statement
     assert rep.checked == sum(1 + len(x["copies"]) for x in M.MANIFEST_METRICS)

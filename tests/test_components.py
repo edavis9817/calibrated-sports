@@ -90,6 +90,14 @@ def test_every_row_is_the_player_season_file_with_absent_keys_as_zero(db, tmp_pa
         periods = {(o["identity"]["id"], p["index"]): p["stats"]
                    for k, o in files.items() if o["kind"] == "player_season" and o["season"] == season
                    for p in o["periods"]}
+        # c-18: the published export carries defenders; the components table
+        # stays the OFFENSIVE projection. 00-D (tackles, no offensive usage) has
+        # a season file and no row - both halves asserted, so this cannot pass
+        # by the file never having been written.
+        if season == 2026:
+            assert (("00-D", 1) in periods) is E.PUBLISH_EXTENDED
+            assert ("00-D", 1) not in table
+        periods = {k: v for k, v in periods.items() if k[0] != "00-D"}
         assert set(table) == set(periods) and periods
         for key, stats in periods.items():
             for col in E.PERIOD_KEYS:
@@ -168,3 +176,22 @@ def test_an_absent_usage_key_raises_rather_than_being_filled():
     files["nfl/players/00-X/2025.json"]["periods"][0]["stats"]["snaps"] = None
     out, census = E.build_components(files, [], {}, {}, "2026-09-22T00:00:00Z")
     assert census["rows"] == 1
+
+
+def test_an_extended_build_publishes_the_same_components_as_an_offensive_one(db, tmp_path):
+    """c-18: the components table stays the OFFENSIVE projection under the
+    all-positions profile - identical, not similar. Discriminating: the extended
+    build's player files DO carry 00-D, so an unprojected table would differ."""
+    def comp(ext):
+        out = tmp_path / f"c-{ext}"
+        E.export(only=["players", "components"], now_ts=NOW, dest=str(out), extended=ext,
+                 log=lambda *a: None)
+        files = {k: json.load(open(p, encoding="utf-8")) for k, p in E.local_keys(str(out)).items()}
+        tables = {k: {f: v for f, v in o.items() if f != "generated_at"}
+                  for k, o in files.items() if "/components/" in k}
+        return files, tables
+    off_files, off = comp(False)
+    ext_files, ext = comp(True)
+    assert off and ext == off
+    assert any(k.startswith("nfl/players/00-D/") for k in ext_files)
+    assert not any(k.startswith("nfl/players/00-D/") for k in off_files)

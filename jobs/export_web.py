@@ -70,7 +70,16 @@ PERIOD_TYPE = "week"
 # index (`player_scope`) and all three published denominators, so the archive
 # count and the index cannot come to mean different things. "Offensive usage" is
 # an NFL notion; another sport supplies its own `Participation`.
-PARTICIPATION = denominators.Participation(
+#
+# TWO CONFIGS, ONE PUBLISHED (c-18). OFFENSIVE is the v1 scope and still drives
+# what is offensive by nature - the PPR calibration note and the components
+# table. EXTENDED is the all-positions scope (DECISIONS-2026-09-28 §M, Ethan) and
+# is what the published export runs: its index, and therefore all three
+# denominators, count defenders and specialists too. The noun travels with the
+# counts, so "players with offensive usage" can never sit on a count that holds
+# linebackers. The extended columns are EXT_STAT_MAP's, appended below where
+# that map is defined.
+OFFENSIVE_PARTICIPATION = denominators.Participation(
     noun="offensive usage",
     definition="a target, a carry or a pass attempt in the game",
     columns=("targets", "carries", "attempts"),
@@ -180,16 +189,14 @@ DEF_COLUMNS = (("def_tkl_solo", "def_tackles_solo"), ("def_tkl_with_assist", "de
 # THE EXTENDED PROFILE (a-14): defence, special teams and identity on players
 # =============================================================================
 #
-# Track B's A-B2, A-B3 and A-B4 (docs/track-a-requests.md). STAGED, NOT
-# PUBLISHED: built only with `--extended`, which main() refuses without `--dest`,
-# so neither the weekly refresh nor an --upload can produce these keys. The
-# weekly refresh runs from whatever branch the working clone has checked out and
-# uploads what it builds - so "merged but not published" has to be a property of
-# the code, not of anyone remembering. Making this the default is the publish
-# decision, and it is Ethan's (the a-11 precedent for `components`).
+# Track B's A-B2, A-B3 and A-B4 (docs/track-a-requests.md). Built by a-14 as a
+# STAGED profile. c-18 made publishing it ONE CONSTANT, `PUBLISH_EXTENDED`
+# (DECISIONS-2026-09-28 §M - Ethan: the site carries every position): whichever
+# scope that constant does not name is the staged one, `--extended --dest` or
+# `--offensive --dest`. Neither flag can publish.
 #
-# The default export is untouched by everything below: every extended path is
-# reached only through an `ExtendedInputs`, and the default passes None.
+# Every extended path is still reached only through an `ExtendedInputs`, so an
+# offensive build passes None and is byte-for-byte what the v1 export was.
 
 # Published key -> nfl_player_week column. The published keys for defence are
 # the ones team splits already use (DEF_COLUMNS), so a player's line and his
@@ -215,6 +222,41 @@ EXT_PERIOD_KEYS = PHASE_SNAP_KEYS + EXT_COUNT_KEYS
 # published extended key -> source column, for collected(). Phase snaps are
 # governed by SNAP_FIRST_SEASON instead.
 EXT_SOURCE_OF = {k: c for k, c in EXT_STAT_MAP}
+
+# The all-positions participation (c-18): offensive usage, or any non-zero
+# published defensive, kicking or return stat. `player_scope(extended=True)` is
+# exactly `EXTENDED_PARTICIPATION.used` over regular-season rows - one rule, so
+# the index and the denominators cannot drift apart.
+EXTENDED_PARTICIPATION = denominators.Participation(
+    noun="a published stat",
+    definition=("a target, a carry or a pass attempt, or a non-zero defensive, kicking or "
+                "return stat in the game"),
+    columns=OFFENSIVE_PARTICIPATION.columns + tuple(c for _, c in EXT_STAT_MAP),
+    scope_season_types=("REG",),
+    id_col="gsis_id", period_col="week", team_col="team")
+
+# THE PUBLISH DECISION (c-18; DECISIONS-2026-09-28 §M, Ethan: "we are adding all
+# players to this not just the skilled positions"). True makes the published
+# export run the extended profile. It is False on c-18's merge branch because
+# the unit's precondition failed as SERVED: the live manifest carried no
+# `denominators` block on 2026-09-28 and the site's player page still prints
+# "N of <archive> players priced this week". Branch `c-18-flip` sets it True, one
+# line; merge that only once §P is served and read. Once True, going back does
+# NOT unpublish anything:
+# the slugs it appended are permanent URLs and the uploader deletes only inside
+# the prefixes a run declares, so defenders' pages would stay in R2 until a run
+# that owns nfl/players/ rebuilt without them - which it would then do, deleting
+# them. Read it as a one-way door.
+PUBLISH_EXTENDED = False
+
+
+def participation(extended):
+    return EXTENDED_PARTICIPATION if extended else OFFENSIVE_PARTICIPATION
+
+
+# What the published export counts with - the config the manifest's
+# `denominators.participation` names.
+PARTICIPATION = participation(PUBLISH_EXTENDED)
 
 
 # =============================================================================
@@ -1780,13 +1822,9 @@ def player_scope(weeks, extended=False):
     player: an offensive lineman with snaps and no stat row has nothing to
     render, and a page of zeros is not a player page.
     """
-    base = {r["gsis_id"] for r in weeks
-            if r["season_type"] in PARTICIPATION.scope_season_types and PARTICIPATION.used(r)}
-    if not extended:
-        return base
-    cols = [c for _, c in EXT_STAT_MAP]
-    return base | {r["gsis_id"] for r in weeks if r["season_type"] == "REG"
-                   and any(r.get(c) for c in cols)}
+    cfg = participation(extended)
+    return {r["gsis_id"] for r in weeks
+            if r["season_type"] in cfg.scope_season_types and cfg.used(r)}
 
 
 def players_by_id(weeks, scope):
@@ -2302,6 +2340,42 @@ def team_targets_by_game(weeks):
     for r in weeks:
         out[(r["season"], r["week"], r["team"])] += num(r.get("targets"))
     return {k: (intish(v) if collected("targets", k[0]) else None) for k, v in out.items()}
+
+
+def offensive_projection(player_files, by_player, offensive_scope):
+    """The player files an OFFENSIVE-scope export would have fed build_components,
+    recovered from an extended build (c-18).
+
+    Two things differ between the builds for a player the offensive scope admits,
+    and both are removed here:
+      * players outside the offensive scope (defenders, specialists) - dropped;
+      * played-zero periods admitted only by the extended rule - a week with no
+        stat row and no OFFENSIVE snap (defence- or special-teams-only). The
+        offensive rule emits a played-zero week only when offensive snaps > 0
+        (played_zero_periods), and a stat-row period is emitted by both.
+    The extended keys on the remaining rows are ignored by build_components,
+    which projects PERIOD_KEYS only. A season left with no period is dropped: the
+    offensive build never had it. Asserted byte-identical, modulo generated_at,
+    against a real offensive build in the c-18 report.
+    """
+    stat_weeks = {g: {(r["season"], r["week"]) for r in rows} for g, rows in by_player.items()}
+    out = {}
+    for key, obj in player_files.items():
+        kind = obj.get("kind")
+        if kind not in ("player_summary", "player_season"):
+            continue
+        gsis = obj["identity"]["id"]
+        if gsis not in offensive_scope:
+            continue
+        if kind == "player_season":
+            have = stat_weeks.get(gsis, set())
+            periods = [p for p in obj["periods"]
+                       if (p["season"], p["index"]) in have or (p["stats"].get("snaps") or 0) > 0]
+            if not periods:
+                continue
+            obj = {**obj, "periods": periods}
+        out[key] = obj
+    return out
 
 
 def build_components(player_files, weeks, snap_index, team_snaps, generated_at, airz=False):
@@ -2904,7 +2978,7 @@ def reconcile_path(abbr, summary):
 def build_manifest(games, current, index, market_keys, unresolved, source_version, scoring_note,
                    generated_at, rungs, team_colors, team_groupings, team_seasons,
                    stat_definitions=None, market_definitions=None, fixtures=None,
-                   denominators=None):
+                   denominators=None, participation_noun=None):
     # `fixtures` is None unless the staged feature built it, and then the key is
     # ABSENT - not an empty list, which would read as a week with no games.
     return {
@@ -2941,14 +3015,15 @@ def build_manifest(games, current, index, market_keys, unresolved, source_versio
         "unresolved_ids": unresolved,
         # a-36: metric id -> the served file and JSON path that owns the figure,
         # so the site renders a registered number by reading it, never by typing it.
-        "metrics": metric_registry.manifest_block(),
+        "metrics": metric_registry.manifest_block(
+            PARTICIPATION.noun if participation_noun is None else participation_noun),
         # a-46: the same counts at three named tiers, each with its span. Only
         # `week` is divisible, and its one share is computed here.
         **({"denominators": denominators} if denominators is not None else {}),
     }
 
 
-def build_denominators(games, weeks, current, index, market_keys, now_ts):
+def build_denominators(games, weeks, current, index, market_keys, now_ts, cfg=None):
     """The manifest's `denominators` block (a-46) from what this run holds.
 
     archive_ids is the player INDEX - the same set `counts.players` counts - and
@@ -2958,8 +3033,11 @@ def build_denominators(games, weeks, current, index, market_keys, now_ts):
     gs = [{"season": g["season"], "period": g["week"], "final": g["home_score"] is not None,
            "kickoff_ts": g["kickoff_ts"], "teams": (g["home_team"], g["away_team"])}
           for g in games.values()]
+    # `cfg` is the run's participation - the one that built `index` - so the
+    # archive tier's noun always describes the set it counts.
     return denominators.compute(
-        PARTICIPATION, weeks, gs, current, [p["id"] for p in index], market_keys, now_ts,
+        PARTICIPATION if cfg is None else cfg, weeks, gs, current, [p["id"] for p in index],
+        market_keys, now_ts,
         team_of=lambda r: FRANCHISE.get(r["team"], r["team"]))
 
 
@@ -3001,22 +3079,62 @@ def air_rz_census(player_files, airz, log=print):
     return out
 
 
+def special_teams_null_rows(weeks):
+    """season -> stat rows whose kicking/return columns are NULL. nflverse
+    publishes no nulls in these columns (a-14: 0 across 478,384 rows), so a NULL
+    is a row written by a normalizer older than a-14 - never 'not collected'."""
+    st_cols = [c for _, c in ST_MAP]
+    stale = Counter()
+    for r in weeks:
+        if any(r.get(c) is None for c in st_cols):
+            stale[r["season"]] += 1
+    return stale
+
+
+def assert_special_teams_derived(weeks, publishing, log=print):
+    """REFUSE to publish the extended profile over a store whose special-teams
+    columns were never derived (c-18). Before the first write.
+
+    The null clause (emit a key that is null in any period) is right, and it is
+    exactly why this must refuse rather than warn: a NULL ST column on EVERY row
+    puts all 22 kicking and return keys on EVERY player's page, rendered "not
+    recorded" - Ja'Marr Chase's 2025 season with sixteen field-goal columns, a
+    claim that nflverse did not collect what it did. Measured 2026-09-28 on a
+    copy of the live store: 475,543 of the in-scope rows, every season
+    1999-2026, because the logger that refreshes nflverse daily had been running
+    since before a-14's normalizer existed. The fix is operational - restart the
+    logger, then `python -m jobs.ingest_nflverse --from-archive --dataset
+    weekly_stats --dataset players` - and a staged build (--dest) only warns, so
+    the comparison can still be made.
+    """
+    stale = special_teams_null_rows(weeks)
+    if not stale:
+        return
+    msg = (f"{sum(stale.values()):,} nfl_player_week rows carry NULL special-teams columns "
+           f"(seasons {min(stale)}-{max(stale)}, {len(stale)} seasons). Published under the "
+           f"extended profile they would put every kicking and return key on every player's "
+           f"page as 'not recorded'. Restart the logger (its in-process nflverse refresh must "
+           f"load the a-14 normalizer, or it re-writes today's rows NULL), then run `python -m "
+           f"jobs.ingest_nflverse --from-archive --dataset weekly_stats --dataset players`.")
+    if publishing:
+        raise ConfigError("REFUSING the extended export: " + msg)
+    log("WARN staged extended export over an underived store: " + msg)
+
+
 def extended_census(weeks, by_player, xwalk, ext, log=print):
     """What an extended run could and could not fill, printed on every run.
 
     THE STORE, NOT THE CODE, DECIDES HOW MUCH OF THIS IS NULL. The kicking and
     return columns exist in nfl_player_week only on rows written after a-14; an
     older row reads NULL, which the export publishes as null (see _ext_count).
-    So a store that has not been re-derived from the archive yields a correct
-    and nearly empty special-teams tab - and this is the line that says so,
-    rather than a reader discovering it. Zero counts are printed too: a number
+    So a store that has not been re-derived from the archive publishes every
+    kicking and return key as null on every page (the null clause keeps a null
+    key) - which is why a PUBLISHING run refuses first
+    (assert_special_teams_derived) and only a staged one reaches this line with
+    stale rows. Zero counts are printed too: a number
     that reads 0 most runs is what makes the run it reads 400 visible.
     """
-    st_cols = [c for _, c in ST_MAP]
-    stale = Counter()
-    for r in weeks:
-        if r["gsis_id"] in by_player and any(r.get(c) is None for c in st_cols):
-            stale[r["season"]] += 1
+    stale = special_teams_null_rows([r for r in weeks if r["gsis_id"] in by_player])
     players = len(by_player)
     with_jersey = sum(1 for g, rows in by_player.items()
                       if ext.jerseys.get((g, rows[-1]["season"])) is not None)
@@ -3250,18 +3368,20 @@ def assert_numeric_stack(executable=None, timeout=60):
 
 
 def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry_path=None,
-           extended=False, stages=None):
+           extended=None, stages=None, publishing=None):
     # BEFORE `dest` is resolved and long before anything is written.
     assert_numeric_stack()
+    # A run with no --dest writes the tree the uploader publishes; one with a
+    # --dest is a staging tree. Decided before `dest` is resolved, because after
+    # it every run has one. The publish preflight exports into a scratch dest
+    # AS a publish and says so (`publishing=True`), so a rehearsal refuses
+    # exactly what the publish would.
+    publishing = (dest is None) if publishing is None else publishing
     dest = dest or require_setting("WEB_EXPORT_DIR")
     parts = set(only or PARTS)
-    if extended and "components" in parts:
-        # The components table is a fixed-column projection of the OFFENSIVE
-        # period keys (a-11). Which extended keys it should carry, and whether
-        # defenders belong in a fantasy leaderboard at all, was not decided by
-        # a-14 - so the two are not combined by accident.
-        raise ConfigError("--extended does not build `components`; the columns for the "
-                          "extended keys are undecided")
+    # None is "the published profile", read here rather than bound as a default
+    # so the constant in use is the constant you read (CLAUDE.md, default args).
+    extended = PUBLISH_EXTENDED if extended is None else extended
     stages = frozenset(DEFAULT_STAGES if stages is None else stages)
     unknown = stages - set(STAGES)
     if unknown:
@@ -3299,6 +3419,10 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
     source_registry.watch(con, SPORT)
     games = load_games(con)
     weeks = load_player_weeks(con)
+    if extended and parts & {"players", "teams"}:
+        # Only the parts that render a player's stat line; a research- or
+        # market-only run publishes no special-teams key and is not held up.
+        assert_special_teams_derived(weeks, publishing, log)
     xwalk, aliases = load_xwalk(con)
     snaps, snap_unresolved = load_snaps(con, xwalk)
     # Weeks a player PLAYED and recorded nothing - nflverse writes no row for
@@ -3393,7 +3517,14 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
                                        [f"{SPORT}/players/"], dry_run)
         refreshed.append(f"{SPORT}/players/")
     if "components" in parts:
-        components, census = build_components(player_files, weeks, snap_index,
+        # Under the extended profile the components table is still the OFFENSIVE
+        # projection it was (a-11): which extended columns a fantasy leaderboard
+        # should carry, and whether defenders belong on it, is undecided, so the
+        # all-positions flip leaves it byte-identical rather than deciding that
+        # by accident (c-18). See offensive_projection.
+        comp_src = (offensive_projection(player_files, by_player, offensive_scope)
+                    if ext is not None else player_files)
+        components, census = build_components(comp_src, weeks, snap_index,
                                               load_team_snaps(con), generated_at,
                                               airz=airz is not None)
         assert_stats_defined(components, defs)
@@ -3429,7 +3560,8 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
         market_files = {k: json.load(open(on_disk[k], encoding="utf-8"))
                         for k in market_keys.values() if k in on_disk}
     rungs = count_rungs(market_files)
-    tiers = build_denominators(games, weeks, current, index, market_keys, now_ts)
+    tiers = build_denominators(games, weeks, current, index, market_keys, now_ts,
+                               cfg=participation(extended))
     summary["denominators"] = tiers
     log(denominators_statement(tiers))
 
@@ -3447,7 +3579,8 @@ def export(only=None, dry_run=False, now_ts=None, dest=None, log=print, registry
                                   team_season_summaries(games, current["season"],
                                                         count_markets_by_team(market_files)),
                                   stat_definitions=defs, market_definitions=mdefs,
-                                  fixtures=fixtures, denominators=tiers)
+                                  fixtures=fixtures, denominators=tiers,
+                                  participation_noun=participation(extended).noun)
         assert_stats_defined({f"{SPORT}/manifest.json": manifest}, defs)
         # The unlabelled `counts` and their tiered owners must agree before the
         # manifest is written (a-46). Market, players and teams are already on
@@ -3890,10 +4023,13 @@ def main(argv=None):
                          "absence is not information. Never read from a file - pass it from the "
                          "export run that produced the tree, in the same job.")
     ap.add_argument("--extended", action="store_true",
-                    help="a-14: add defence, special teams, jersey and birth date, and widen the "
-                         "player scope to defenders and specialists. STAGED ONLY - requires --dest, "
-                         "and uses a staged copy of the slug registry so the committed one is never "
-                         "appended to.")
+                    help="a-14/c-18: build the all-positions profile (defence, special teams, "
+                         "jersey, birth date). Staged - requires --dest - unless it IS the published "
+                         "profile (PUBLISH_EXTENDED).")
+    ap.add_argument("--offensive", action="store_true",
+                    help="c-18: build the v1 offensive-only scope. Staged - requires --dest - unless "
+                         "it IS the published profile. Once the extended profile is published, "
+                         "publishing this would delete every defender's page.")
     ap.add_argument("--stage", action="append", choices=STAGES, default=[],
                     help="a-15: build a staged feature - `fixtures` (current.fixtures on the "
                          "manifest) or `air_rz` (air yards and red-zone looks). Requires --dest; "
@@ -3905,21 +4041,27 @@ def main(argv=None):
         ap.error("--stage is staged: pass --dest. Publishing it is a decision, not a flag.")
     if a.dest and (a.upload or a.upload_only):
         ap.error("--dest stages a tree; the uploader reads WEB_EXPORT_DIR. Refusing to pair them.")
-    if a.extended and not a.dest:
-        # THE GATE. The weekly refresh runs `python -m jobs.export_web` from
-        # whatever branch its clone has checked out and uploads the result, so
-        # an extended build reachable without --dest is one merge away from
-        # being published. Enabling the profile for real is a code change, made
-        # on purpose.
-        ap.error("--extended is staged: pass --dest. Publishing it is a decision, not a flag.")
+    if a.extended and a.offensive:
+        ap.error("--extended and --offensive are two scopes; pick one")
+    requested = True if a.extended else (False if a.offensive else None)
+    # THE GATE (a-14, generalised by c-18). The weekly refresh runs this job from
+    # whatever branch its clone has checked out and uploads the result, so a
+    # scope other than the published one is reachable only into a staging tree.
+    # Changing what is published is PUBLISH_EXTENDED, a code change, made on
+    # purpose - never a flag.
+    staged_scope = requested is not None and requested != PUBLISH_EXTENDED
+    if staged_scope and not a.dest:
+        ap.error(f"--{'extended' if requested else 'offensive'} is not the published profile, so "
+                 f"it is staged: pass --dest. Publishing it is a decision, not a flag.")
     registry_path = None
-    if a.extended or a.stage:
+    if staged_scope or a.stage:
         # A staged build never appends to the committed registry, whatever it
         # stages: web/slugs is public URLs and only a real refresh may grow it.
         registry_path = staged_registry(a.dest)
     refreshed = None
     if not a.upload_only:
-        s = export(only=a.only, dry_run=a.dry_run, dest=a.dest, extended=a.extended,
+        s = export(only=a.only, dry_run=a.dry_run, dest=a.dest,
+                   extended=requested,
                    registry_path=registry_path,
                    stages=(DEFAULT_STAGES + tuple(a.stage)) if a.stage else None)
         refreshed = s.get("refreshed")

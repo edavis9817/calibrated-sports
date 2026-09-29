@@ -472,13 +472,29 @@ Fantasy's period leaderboard wait on.
   `--only components`, so `weekly_refresh` cannot publish it. Stage with
   `--dest`; moving it into `PARTS` is the publish decision.
 
-## The extended profile — defence, special teams, identity (a-14, STAGED, not published)
+## The extended profile — defence, special teams, identity (a-14; one constant from c-18)
 
-Track B's A-B2, A-B3 and A-B4. Built only by `python -m jobs.export_web --extended --dest
-<staging>`; `--extended` without `--dest` is refused, so the weekly refresh cannot produce it.
+Track B's A-B2, A-B3 and A-B4. a-14 built it staged behind `--extended --dest`. c-18 made
+publishing it **one constant**, `PUBLISH_EXTENDED` in `jobs/export_web.py` (DECISIONS-2026-09-28
+§M, Ethan: every position). Whichever scope the constant does not name is staged:
+`--extended --dest <staging>` while it is False, `--offensive --dest <staging>` once it is True;
+either without `--dest` is refused. **It is False on `main`**: c-18 found the denominators (§P)
+not served on 2026-09-28, and branch `c-18-flip` carries the one-line change for when they are.
 It adds no kind and no key pattern: it widens the player scope and adds fields to kinds that
-exist. The default export is byte-identical with and without a-14 (23,293 files compared on one
-store, 0 differing).
+exist. Once published:
+
+- **The denominators follow the scope.** `denominators.participation` is `a published stat` ("a
+  target, a carry or a pass attempt, or a non-zero defensive, kicking or return stat in the
+  game"), and it is the SAME rule as the player index, in all three tiers - so the week tier's
+  `expected` and `played` now include defenders and specialists, and `share_priced` is a share of
+  every expected player, not of the offensive ones.
+- **`components` is unchanged**: still the offensive projection (offensive-scope players, the
+  weeks the offensive rule emits), byte-identical to an offensive build. Which extended columns a
+  leaderboard carries is undecided.
+- **A publishing run refuses over an underived store.** Any `nfl_player_week` row with a NULL
+  kicking/return column (written by a pre-a-14 normalizer) would put all 22 keys on every page as
+  "not recorded", so `export()` raises before its first write when it is publishing (no `--dest`,
+  or the publish preflight) and only warns on a staged build.
 
 - **Scope.** Offensive usage (v1) OR any non-zero published defensive or special-teams stat in a
   regular-season week. 3,987 → 10,996 players on the staged store. The slugs are appended to a
@@ -514,10 +530,10 @@ store, 0 differing).
 ## Staged features — fixtures, air yards, red-zone looks (a-15, STAGED, not published)
 
 Track B's A-B5 and A-B8. Built only by `python -m jobs.export_web --stage fixtures --stage air_rz
---dest <staging>`; `--stage` without `--dest` is refused, like `--extended`, and a staged build
+--dest <staging>`; `--stage` without `--dest` is refused, like an unpublished scope, and a staged build
 appends slugs only to the copy beside the tree. Publishing a feature is adding its name to
 `DEFAULT_STAGES` in `jobs/export_web.py`. The default export is byte-identical with and without
-a-15 (23,293 files compared on one store, 0 differing). Each stage composes with `--extended`.
+a-15 (23,293 files compared on one store, 0 differing). Each stage composes with the extended profile.
 
 **`fixtures` — `current.fixtures[]` on the sport manifest (A-B5).** Every game of
 `current.period`, league-wide, in kickoff order: `{game_id, kickoff_ts, home, away, spread,

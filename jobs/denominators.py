@@ -45,7 +45,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class Participation:
     """What makes a row count as a player taking part - the sport config."""
-    noun: str                  # "offensive usage"
+    noun: str                  # "offensive usage", "a published stat"
     definition: str            # the sentence a page may quote verbatim
     columns: tuple             # any of these > 0 counts
     scope_season_types: tuple  # season types the archive and season tiers admit
@@ -54,7 +54,13 @@ class Participation:
     team_col: str = "team"
 
     def used(self, row):
-        return sum(_num(row.get(c)) for c in self.columns) > 0
+        # ANY non-zero column, not a positive sum (c-18). The two agree on counts,
+        # which cannot go negative; they part on yardage, which can, and the
+        # all-positions config carries return yards. A sum also lets one column
+        # cancel another. `!= 0` is also exactly the rule a-14's extended scope
+        # used (`any(r.get(c))`), so moving that scope onto this object changes
+        # no player's membership.
+        return any(_num(row.get(c)) != 0 for c in self.columns)
 
 
 def _num(v):

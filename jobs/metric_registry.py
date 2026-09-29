@@ -174,11 +174,11 @@ METRICS = [
     # Every player and game count at a named tier. The legacy unlabelled
     # `counts` fields are registered as COPIES of the tier they always were, so
     # the gate refuses the day "3,988" and the archive tier stop being one number.
-    _m("coverage.players.archive", "Players with offensive usage, whole archive", "players", 0,
+    _m("coverage.players.archive", "Players with {participation}, whole archive", "players", 0,
        (MANIFEST, "denominators.archive.players"), [(MANIFEST, "counts.players")]),
-    _m("coverage.players.season", "Players with offensive usage, current season", "players", 0,
+    _m("coverage.players.season", "Players with {participation}, current season", "players", 0,
        (MANIFEST, "denominators.season.players")),
-    _m("coverage.players.week.played", "Players with offensive usage in the current period's "
+    _m("coverage.players.week.played", "Players with {participation} in the current period's "
        "final games", "players", 0, (MANIFEST, "denominators.week.players.played")),
     _m("coverage.players.week.expected", "Players expected in the current period's open games",
        "players", 0, (MANIFEST, "denominators.week.players.expected")),
@@ -393,10 +393,19 @@ def require(files, metrics=None):
     return rep
 
 
-def manifest_block():
+def manifest_block(participation):
     """What the sport manifest publishes. A copy of METRICS, so no caller can
-    mutate the registry through the manifest it built."""
-    return json.loads(json.dumps(METRICS))
+    mutate the registry through the manifest it built.
+
+    `participation` is the run's participation noun (`denominators.participation
+    .noun`), substituted into the player-count labels (c-18). They were typed as
+    "offensive usage" (a-46); a count that holds linebackers would have carried
+    that wording, so the label is filled from the same config as the count.
+    Required, because a forgotten substitution would publish the placeholder."""
+    out = json.loads(json.dumps(METRICS))
+    for m in out:
+        m["label"] = m["label"].replace("{participation}", participation)
+    return out
 
 
 def load_files(dest):
