@@ -44,6 +44,13 @@ SCORE = "research/calibration.json"
 REGISTER = "research/hypotheses.json"
 MANIFEST = "nfl/manifest.json"
 SEASON = "season/nfl/division.json"
+PROJECTION = "season/nfl/projection.json"
+# a-55: the projection's per-team rows are keyed by team, so the registry names
+# the 32 published abbreviations (nflverse's, the site's team keys). A relocation
+# or a renamed code fails the season gate loudly rather than dropping a team.
+NFL_TEAMS = ("ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN", "DET",
+             "GB", "HOU", "IND", "JAX", "KC", "LA", "LAC", "LV", "MIA", "MIN", "NE", "NO",
+             "NYG", "NYJ", "PHI", "PIT", "SEA", "SF", "TB", "TEN", "WAS")
 
 # R10 was restated 2026-09-17 on the n=706 common set, when 229 week-1 Kalshi
 # books were one-sided at the prediction instant. The Kalshi candle backfill
@@ -231,7 +238,47 @@ METRICS = [
        "Realised rate in the lowest probability bin", "probability", 4,
        (SEASON, "record.calibration[0].realised")),
     _m("season.division.as_of.games_played", "Regular-season games the forecast has seen",
-       "games", 0, (SEASON, "as_of.games_played")),
+       "games", 0, (SEASON, "as_of.games_played"),
+       # a-55: the projection is built in the same run from the same games; a
+       # file that disagrees saw a different season
+       [(PROJECTION, "as_of.games_played")]),
+    # --- the projected final record (a-55) ----------------------------------
+    # Unlike the division file, the per-team headline IS registered: it is the
+    # figure the team page prints beside the dashed line, one per team, and the
+    # brief asked for every published figure. The distribution, path and
+    # per-game rows are the file's body and are not.
+    _m("season.projection.record.team_seasons", "Team-seasons scored walk-forward, projection",
+       "team-seasons", 0, (PROJECTION, "record.team_seasons")),
+    _m("season.projection.record.n_forecasts", "Projections scored walk-forward", "forecasts", 0,
+       (PROJECTION, "record.n_forecasts")),
+    *[_m(f"season.projection.record.rmse.{b}", f"RMS error of final wins, {w}, walk-forward",
+         "wins", 2, (PROJECTION, f"record.rmse.{b}"))
+      for b, w in (("model", "season model"), ("pace", "pace line"),
+                   ("standings_coin_flip", "coin-flip standings"))],
+    *[_m(f"season.projection.record.vs_{b}{sfx}",
+         f"MSE(model) - MSE({w}), final wins{lab}", "wins^2", 2,
+         (PROJECTION, f"record.vs.{b}.{fld}"))
+      for b, w in (("pace", "pace line"), ("standings_coin_flip", "coin-flip standings"))
+      for sfx, fld, lab in (("", "estimate", ""), (".interval", "interval",
+                                                    ", season-block 95% interval"))],
+    *[_m(f"season.projection.record.coverage{l}.{f}",
+         f"Central {l}% interval, {w}, walk-forward", "share", 3,
+         (PROJECTION, f"record.coverage.{l}.{f}"))
+      for l in ("80", "95") for f, w in (("realised", "real final records inside"),
+                                          ("mass", "simulations inside"))],
+    _m("season.projection.sigma", "Rating uncertainty drawn per simulation", "rating points", 0,
+       (PROJECTION, "method.sigma.value")),
+    *[_m(f"season.projection.{t}.{f}", f"{t}: {w}", u, d,
+         (PROJECTION, f"teams[team={t}].{path}"))
+      for t in NFL_TEAMS
+      for f, w, u, d, path in (
+          ("mean", "projected final wins", "wins", 2, "projection.mean"),
+          ("interval80", "projected final wins, central 80% interval", "wins", 1,
+           "projection.interval80"),
+          ("schedule_effect", "wins the remaining schedule adds against average opponents",
+           "wins", 2, "remaining.schedule_effect"),
+          ("difficulty_rank", "remaining schedule difficulty rank", "rank", 0,
+           "remaining.difficulty_rank"))],
     # --- the opportunity residual (a-18 built it, a-21 fixed it, a-51 publishes it)
     *_residual_rows(),
 ]
@@ -250,7 +297,7 @@ def _files_of(m):
 RESEARCH_FILES = frozenset({MARKET, SCORE, REGISTER})
 RESEARCH_METRICS = [m for m in METRICS if _files_of(m) <= RESEARCH_FILES]
 MANIFEST_METRICS = [m for m in METRICS if _files_of(m) <= {MANIFEST}]
-SEASON_METRICS = [m for m in METRICS if _files_of(m) <= {SEASON}]
+SEASON_METRICS = [m for m in METRICS if _files_of(m) <= {SEASON, PROJECTION}]
 # a-51: the fourth gate, `analytics.export.gate`, on the built analytics tree
 # before `--dest web` writes it (and in jobs.publish_preflight).
 ANALYTICS_METRICS = [m for m in METRICS if all(f.startswith("analytics/") for f in _files_of(m))]

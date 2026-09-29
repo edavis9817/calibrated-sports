@@ -5,6 +5,10 @@
     python -m jobs.season_model --write --dest web # ... into WEB_EXPORT_DIR, and declare it
     python -m jobs.season_model --record-json r.json   # also save the raw record
 
+a-55: the same run also builds `season/nfl/projection.json` - the projected
+final record per team, from `jobs.season_projection` - and publishes both files
+in one `sync_keys` call, because this job owns `season/` and fills all of it.
+
 `--dest web` (a-42) is the publishing path: it writes `season/` into the tree
 the uploader walks and prints `REFRESHED season/` as its LAST line, which
 `weekly_refresh` hands to the uploader so a retired key can leave the bucket.
@@ -395,7 +399,11 @@ def current(games, groupings, losses, n=N_CURRENT):
 
 # ------------------------------------------------------------------ main
 
-def compute(log=print, n_walk=N_WALK, n_current=N_CURRENT, seasons=None):
+def compute(log=print, n_walk=N_WALK, n_current=N_CURRENT, seasons=None,
+            n_proj_walk=None, n_proj_current=None):
+    from jobs import season_projection as P
+    n_proj_walk = P.N_PROJ_WALK if n_proj_walk is None else n_proj_walk
+    n_proj_current = P.N_PROJ_CURRENT if n_proj_current is None else n_proj_current
     con = market_log_ro()
     try:
         games, groupings, versions = load(con)
@@ -409,9 +417,20 @@ def compute(log=print, n_walk=N_WALK, n_current=N_CURRENT, seasons=None):
     summ = summarise(rows, fits, games, groupings)
     tb = tiebreak_check(games, groupings)
     cur = current(games, groupings, losses, n=n_current)
+    # a-55: the projected final record, from the same ratings and schedule
+    from jobs import season_projection as P
+    t0 = time.time()
+    prows, psigma, crps_by = P.walk_forward(sys.modules[__name__], games, groupings, losses,
+                                            n=n_proj_walk, seasons=seasons, log=log)
+    psumm = P.summarise(prows)
+    pcur = P.current(sys.modules[__name__], games, groupings, losses, crps_by,
+                     n=n_proj_current)
+    log("projection: walk-forward and current %.0fs, sigma %g" % (time.time() - t0, pcur["sigma"]))
     return {"games": games, "groupings": groupings, "versions": versions,
             "rows": rows, "fits": fits, "summary": summ, "tiebreak": tb, "current": cur,
-            "n_walk": n_walk}
+            "n_walk": n_walk, "projection_rows": prows, "projection_sigma": psigma,
+            "projection_summary": psumm, "projection_current": pcur,
+            "n_proj_walk": n_proj_walk}
 
 
 def main(argv=None):
@@ -457,17 +476,27 @@ def main(argv=None):
         from jobs import season_export
         payload = season_export.validated(season_export.build(res))
         print(season_export.summary(payload))
+        proj = season_export.validated_projection(season_export.build_projection(res))
+        print(season_export.projection_summary(proj))
+        pr = proj["record"]
+        print("projection: rmse model %.2f pace %.2f coin-flip %.2f | coverage 80 %.3f (mass %.3f) "
+              "95 %.3f (mass %.3f) -> %s"
+              % (pr["rmse"]["model"], pr["rmse"]["pace"], pr["rmse"]["standings_coin_flip"],
+                 pr["coverage"]["80"]["realised"], pr["coverage"]["80"]["mass"],
+                 pr["coverage"]["95"]["realised"], pr["coverage"]["95"]["mass"], pr["verdict"]))
+        files = {season_export.KEY: payload, season_export.PROJECTION_KEY: proj}
         if a.write and a.dest == "web":
             from jobs import export_web as E
             dest = E.require_setting("WEB_EXPORT_DIR")
-            written, deleted, gate = season_export.publish(payload, dest)
+            written, deleted, gate = season_export.publish_all(files, dest)
             print(gate)
             print("wrote %d, deleted %d, under %s/%s"
                   % (written, deleted, dest, season_export.OWNED_PREFIX))
             # LAST LINE, and only on a real write into the published tree.
             print(E.REFRESHED_SENTINEL + " " + season_export.OWNED_PREFIX)
         elif a.write:
-            print("wrote", season_export.write(payload))
+            for key, p in files.items():
+                print("wrote", season_export.write(p, key=key))
     return 0
 
 
