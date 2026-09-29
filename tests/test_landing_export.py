@@ -680,7 +680,7 @@ def test_the_archive_carries_the_current_period_after_the_export_deletes_it(tree
     assert fl["player"]["id"] == "00-0000002" and len(fl["rungs"]) == 10
     assert fl["provenance"]["carried"] is True and fl["provenance"]["walked"] == 0
     assert fl["provenance"]["period"]["key"] == PKEY
-    assert "last published" in fl["provenance"]["reason"]
+    assert "as read before its games were played" in fl["provenance"]["reason"]
     assert fl["source"]["key"] == "server:landing-archive/nfl/market/00-0000002/2026-3.json"
     assert L.verify(p, files).clean
     # Without the archive the same tree is dark - the archive is what carried it.

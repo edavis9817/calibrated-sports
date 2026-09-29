@@ -39,10 +39,16 @@ walks back, independently, from the current period through at most
 UNCHANGED selection rule is satisfied in. Past the bound it is null and listed
 under `unavailable` as before.
   - The walk reads the LANDING ARCHIVE (`--archive`, server-side, never
-    served): every run with --write copies the current period's served market
-    files there, overwriting a player's file with its newer publication and
-    removing nothing. So a carried part is a figure this system published, as
-    it was last published - never a recomputation, never an example.
+    served). Two writers fill it, and neither removes anything. Every run with
+    --write copies the current period's served market files there, overwriting
+    a player's file only with a NEWER read of it. And `jobs.landing_backfill`
+    (a-54) writes each period whose games have kicked off, rebuilt from the
+    store by the live export's own builder at the CLOSING read - the last quote
+    before kickoff - which is the newer read, so it wins. So a carried part is a
+    market file this system's builder made from quotes timestamped before
+    kickoff, dated by its as_of - never an example. It is NOT always byte for
+    byte what the site served: a backfilled file is the close, the served one
+    was the read at its last export.
   - Every such part carries `provenance` (`carried`, the period it came from,
     its as_of, how many periods back) and is listed under `carried`, NOT under
     `unavailable`.
@@ -85,7 +91,7 @@ LAB_INDEX = f"lab/{SPORT}/index.json"
 # Not a served key: the Lab universe's meta lives beside the universe on the
 # server. Named with a prefix no served key can carry so a page can tell.
 LAB_META = "server:lab/universe.meta.json"
-# The landing archive: earlier periods' market files, as last published. Also
+# The landing archive: earlier periods' market files, as last read before kickoff. Also
 # never served, so the same prefix.
 ARCHIVE = "server:landing-archive/"
 # The Board's append-only lean ledger (contract table board_ledger), served.
@@ -272,9 +278,9 @@ def provenance(files, step, f, part, as_of=None):
     cur = files[MANIFEST]["current"]["period"]
     reason = None
     if carried:
-        reason = ("nothing served for %s satisfies this part's rule; carried from %s, %s "
+        reason = ("nothing served for %s satisfies this part's rule; carried from %s, %s"
                   % (cur["label"], f["period"]["label"],
-                     "as it was last published before its games were played" if walked == 0
+                     "as read before its games were played" if walked == 0
                      else "%d period(s) back, the most recent within the window of %d that does"
                      % (walked, _window(files)["bound"])))
     return {"carried": carried, "walked": walked, "period": dict(f["period"]),
@@ -1087,13 +1093,19 @@ def archive_current(files, archive_dir, dry_run=False):
     """Copy the current period's SERVED market files into the landing archive,
     so a later run can carry them after the export has deleted them. A player's
     file is overwritten by its newer publication; nothing is ever removed.
-    -> (written, unchanged)."""
+
+    NEWER means a later read, not a later run (a-54): an archived file whose
+    as_of is LATER than the served one - the backfill's closing read - is kept,
+    so a served file that outlived its game's kickoff by one run cannot
+    overwrite the close with an earlier price. -> (written, unchanged)."""
     written = unchanged = 0
     for key, obj in _market_files(files, files[MANIFEST]).items():
         path = os.path.join(archive_dir, *key.split("/"))
-        if os.path.isfile(path) and _load(path) == obj:
-            unchanged += 1
-            continue
+        if os.path.isfile(path):
+            old = _load(path)
+            if old == obj or parse_iso(old["as_of"]) > parse_iso(obj["as_of"]):
+                unchanged += 1
+                continue
         written += 1
         if dry_run:
             continue

@@ -15,8 +15,14 @@ config.storage_path("logs", "weekly_refresh.log"):
   3. export            jobs.export_web                       (failure: ERROR, stop)
   3a. analytics        analytics.export --write --dest web  (failure: WARN)
   3a'. season model    jobs.season_model --write --dest web (failure: WARN; a-42)
-  3a''. landing        jobs.landing_export --write --dest web (failure: WARN; a-47).
-                       Last, because it reads the files the steps above wrote.
+  3a''. landing archive jobs.landing_backfill --auto --archive <A> (failure: WARN;
+                       a-54). Every period the landing can walk to whose games
+                       have kicked off, rebuilt at the closing read into the
+                       server-side archive <A>. Never served; idempotent.
+  3a'''. landing       jobs.landing_export --write --dest web --archive <A>
+                       (failure: WARN; a-47). Last, because it reads the files
+                       the steps above wrote, and the archive the step above
+                       filled.
   3b. slug registry    if the export appended to web/slugs/, commit ONLY that path
                        in THIS repo (failure: WARN). URLs are only stable once
                        the registry is in git; nothing else is ever committed.
@@ -78,6 +84,13 @@ class Log:
         print(line, flush=True)
         with open(self.path, "a", encoding="utf-8") as f:
             f.write(line + "\n")
+
+
+def landing_archive():
+    """The landing archive, resolved once so the backfill and the landing are
+    handed the same directory (jobs.landing_export.default_archive)."""
+    from jobs.landing_export import default_archive
+    return default_archive()
 
 
 def season_now(now=None):
@@ -239,8 +252,23 @@ def _run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fet
     # `landing.json`, written through sync_keys with prefixes [] - so it prints no
     # declaration and can delete nothing. Non-fatal like the others: a failure
     # leaves the previous landing.json served, which says what it was built from.
-    landing = step("landing", [py, "-m", "jobs.landing_export", "--write", "--dest", "web"],
-                   fatal=False)
+    # THE LANDING ARCHIVE (a-54). The landing carries a showpiece from an
+    # earlier period only if that period's market files are in its archive, and
+    # the export above builds the UNPLAYED slate alone - so each period is
+    # rebuilt at its closing read here, as it passes, from the store (mode=ro).
+    # Before the landing, which reads it; named explicitly on both commands so
+    # the writer and the reader cannot drift to two directories. Non-fatal: a
+    # failure leaves the archive as it was, and the landing carries from that.
+    # TIME-CRITICAL IN ONE WAY: live quotes are pruned at 14 days of ingestion,
+    # so a period not archived within ~2 weeks of kickoff has lost its close.
+    archive = landing_archive()
+    backfill = step("landing-archive", [py, "-m", "jobs.landing_backfill", "--auto",
+                                        "--archive", archive], fatal=False)
+    if backfill.returncode != 0:
+        log("WARN", "the landing archive was not filled this run - the landing carries from "
+                    "whatever an earlier run archived")
+    landing = step("landing", [py, "-m", "jobs.landing_export", "--write", "--dest", "web",
+                               "--archive", archive], fatal=False)
     if landing.returncode != 0:
         log("WARN", "the landing file was not rebuilt - the landing.json served is the "
                     "previous one, and its counters describe that run")

@@ -2373,22 +2373,37 @@ def build_components(player_files, weeks, snap_index, team_snaps, generated_at, 
     return files, dict(census)
 
 
-def build_market(con, games, weeks, xwalk, slugs, current, now_ts, generated_at, n_sims=N_SIMS):
+def build_market(con, games, weeks, xwalk, slugs, current, now_ts, generated_at, n_sims=N_SIMS,
+                 played=False):
     """Current-period market-implied fantasy distributions (research/implied.py arm A).
     -> ({key: obj}, {gsis: key}, census, {(venue, market_id)} published).
 
     The fourth value is what retention holds on: the venue market ids whose
     ladders are actually ON the site. A market the site is showing must not have
-    its price history pruned out from under it (see quote_retention_hold)."""
+    its price history pruned out from under it (see quote_retention_hold).
+
+    `played=True` is the landing archive's variant (a-54, jobs.landing_backfill),
+    never the live export's: it takes the period's games that have KICKED OFF
+    rather than the unplayed ones, so every quote read is capped at kickoff - the
+    closing read, the last quote strictly before kickoff. The two selections are
+    complements. The caller owns as-of: `weeks` must already stop before the
+    period, which the live export's does by construction and a backfill's does
+    not."""
     from research import implied as I
 
     season, index = current["season"], current["period"]["index"]
     pkey = current["period"]["key"]
-    wk_games = {gid: g for gid, g in games.items()
-                if g["season"] == season and g["week"] == index and g["home_score"] is None
-                and g["kickoff_ts"] and g["kickoff_ts"] > now_ts}
+    if played:
+        wk_games = {gid: g for gid, g in games.items()
+                    if g["season"] == season and g["week"] == index
+                    and g["kickoff_ts"] and g["kickoff_ts"] <= now_ts}
+    else:
+        wk_games = {gid: g for gid, g in games.items()
+                    if g["season"] == season and g["week"] == index and g["home_score"] is None
+                    and g["kickoff_ts"] and g["kickoff_ts"] > now_ts}
     if not wk_games:
-        return {}, {}, {"reason": "no unplayed games in the current period"}, set()
+        return {}, {}, {"reason": "no kicked-off games in the period" if played
+                        else "no unplayed games in the current period"}, set()
     rows = con.execute(
         "SELECT o.entity_id, o.stat, o.line, o.event_id, mo.market_id FROM outcomes o "
         "JOIN market_outcome mo ON mo.outcome_id = o.outcome_id AND mo.venue = 'kalshi' "
@@ -2400,7 +2415,8 @@ def build_market(con, games, weeks, xwalk, slugs, current, now_ts, generated_at,
     for gsis, stat, line, game_id, market_id in rows:
         g = wk_games.get(game_id)
         if g is None:
-            census["market not in an unplayed current-period game"] += 1
+            census["market not in a kicked-off game of the period" if played
+                   else "market not in an unplayed current-period game"] += 1
             continue
         if not market_id.startswith(MARKET_STATS[stat] + "-"):
             census["market series does not match stat"] += 1

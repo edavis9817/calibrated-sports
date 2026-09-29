@@ -101,6 +101,8 @@ class Runner:
             return "season"
         if "jobs.landing_export" in s:
             return "landing"
+        if "jobs.landing_backfill" in s:
+            return "landing-archive"
         return s
 
     def names(self):
@@ -159,7 +161,7 @@ def test_steps_run_in_order_and_touch_git_only_for_the_slug_registry(env):
     # one uploader runs.
     assert py_steps == ["jobs.ingest_nflverse", "jobs.ingest_headshots", "jobs.map_markets",
                         "jobs.export_web", "analytics.export", "jobs.season_model",
-                        "jobs.landing_export", "jobs.export_web"]
+                        "jobs.landing_backfill", "jobs.landing_export", "jobs.export_web"]
     git_calls = [c for c in r.calls if c and c[0] == "git"]
     assert git_calls, "the refresh should check the slug registry"
     assert all(c[-1] == W.SLUG_PATH and c[-2] == "--" for c in git_calls)
@@ -576,6 +578,35 @@ def test_the_landing_declares_nothing(env):
     r = Runner(refreshed=("nfl/players/",), season_refreshed=("season/",))
     assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
     assert _refreshed_arg(r) == "nfl/players/ season/"
+
+
+def test_the_archive_is_filled_before_the_landing_and_both_name_one_directory(env, monkeypatch):
+    """a-54: the landing only carries a period that is in its archive, so the
+    backfill runs first, and the two commands are handed the SAME directory -
+    a writer and a reader resolving it separately is how they drift apart."""
+    tmp, _ = env
+    monkeypatch.setattr(W, "landing_archive", lambda: str(tmp / "the-archive"))
+    r = Runner()
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    names = r.names()
+    assert names.index("season") < names.index("landing-archive") < names.index("landing")
+    fill, land = r.cmd_for("landing-archive"), r.cmd_for("landing")
+    assert "--auto" in fill and "--check" not in fill
+    assert fill[fill.index("--archive") + 1] == str(tmp / "the-archive")
+    assert land[land.index("--archive") + 1] == str(tmp / "the-archive")
+
+
+def test_the_default_archive_is_the_one_the_landing_reads():
+    from jobs import landing_export as L
+    assert W.landing_archive() == L.default_archive()
+
+
+def test_a_failing_archive_fill_degrades_and_the_landing_still_runs(env):
+    tmp, _ = env
+    r = Runner(fail={"landing-archive"})
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    assert "landing" in r.names() and "upload" in r.names()
+    assert "landing archive was not filled" in read_log(tmp)
 
 
 def test_a_failing_landing_degrades(env):
