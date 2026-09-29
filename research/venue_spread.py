@@ -527,7 +527,9 @@ def step3(matched, out):
 # step 4 - the model against the exchange mid (C19-H1)
 # =============================================================================
 
-def step4(games, kmeta, kq, cons, resolve, workers, out):
+def step4(games, kmeta, kq, cons, resolve, workers, out, rows_out=None):
+    """`rows_out` (c-24): if a list, the scored rows are appended to it. The
+    computation and everything printed are unchanged."""
     out("\n== STEP 4 - C19-H1: model vs Kalshi mid, 2026 weeks 2-3, entry kickoff - 180 min ==")
     from research import walkforward as wf
     from core import settlement
@@ -671,6 +673,8 @@ def step4(games, kmeta, kq, cons, resolve, workers, out):
         verdict = "model no better than the Kalshi mid"
     out(f"  DECISION (pre-registered rule): {verdict}")
     con.close()
+    if rows_out is not None:
+        rows_out.extend(scored)
     return {"census": dict(census), "fit_errors": dict(errs), "n": len(scored),
             "fits": len({(r['gsis'], r['stat'], r['game']) for r in scored}),
             "games": len({r['game'] for r in scored}),
