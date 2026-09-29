@@ -237,12 +237,19 @@ EXTENDED_PARTICIPATION = denominators.Participation(
 
 # THE PUBLISH DECISION (c-18; DECISIONS-2026-09-28 §M, Ethan: "we are adding all
 # players to this not just the skilled positions"). True makes the published
-# export run the extended profile. It is False on c-18's merge branch because
-# the unit's precondition failed as SERVED: the live manifest carried no
-# `denominators` block on 2026-09-28 and the site's player page still prints
-# "N of <archive> players priced this week". Branch `c-18-flip` sets it True, one
-# line; merge that only once §P is served and read. Once True, going back does
-# NOT unpublish anything:
+# export run the extended profile. It is False on c-18's merge branch; branch
+# `c-18-flip` sets it True, one line. Two gates, both read rather than assumed:
+#   1. §P served - MET 2026-09-29: the live manifest (generated 02:07Z) carries
+#      `denominators`, and the deployed site (46fcc32) reads the week tier. It
+#      was NOT met on 2026-09-28, which is why this line was first held.
+#   2. the store re-derived - NOT met 2026-09-29: every nfl_player_week row in
+#      the live store has NULL kicking/return columns, and the logger started
+#      2026-09-20 (before a-14's normalizer) rewrites current rows NULL daily.
+#      With this True over that store, a publishing export REFUSES
+#      (assert_special_teams_derived); weekly_refresh treats its export step as
+#      fatal, so it stops there and uploads nothing.
+#      Restart the logger, re-derive, then merge the flip.
+# Once True, going back does NOT unpublish anything:
 # the slugs it appended are permanent URLs and the uploader deletes only inside
 # the prefixes a run declares, so defenders' pages would stay in R2 until a run
 # that owns nfl/players/ rebuilt without them - which it would then do, deleting
