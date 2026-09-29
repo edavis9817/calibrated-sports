@@ -1,7 +1,7 @@
 """c-20 - is the book's over bias tradeable on the exchange?
 
-    python -m research.over_bias_exchange --fetch          # prints -> D:/temp/c20 (free, ~3/s)
-    python -m research.over_bias_exchange --json-out F     # the registered analysis
+    python -m research.over_bias_exchange --cache C --trades T --fetch    # free prints, ~3/s
+    python -m research.over_bias_exchange --cache C --trades T --json-out F
 
 PRE-REGISTRATION: docs/C20-over-bias-on-the-exchange-preregistration.md,
 committed at fefa959 BEFORE this file existed. This implements it; it does not
@@ -9,14 +9,14 @@ extend it.
 
 WHAT IS READ, AND HOW
 - Kalshi quotes, depth, the market->outcome map and game kickoffs/scores come
-  from c-19's scratch cache (`--cache`, default D:/temp/c19/extract.sqlite),
+  from c-19's scratch cache (`--cache`, c-19 used D:/temp/c19),
   opened read-only. Week 2's live quotes began pruning from the store on
   2026-09-29, so the cache is the population, not a convenience.
 - Settlement facts come from `market_log.db`, `mode=ro`, through exactly the
   call c-19 Step 4 makes.
 - Trade prints come from Kalshi `/markets/trades` (public, unauthenticated,
-  free), fetched by `--fetch` into a SCRATCH store (`--trades`, default
-  D:/temp/c20/trades.sqlite). Every page is gzipped to `<trades dir>/raw/`
+  free), fetched by `--fetch` into a SCRATCH store (`--trades`; c-20 used
+  D:/temp/c20). Every page is gzipped to `<trades dir>/raw/`
   before a field is read. Nothing here writes `market_log.db`, `trades_m01.db`
   or the production raw archive.
 
@@ -41,8 +41,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config  # noqa: E402
 from core.fees import kalshi_fee, series_multiplier, series_of  # noqa: E402
 
-CACHE = "D:/temp/c19/extract.sqlite"
-TRADES = "D:/temp/c20/trades.sqlite"
 SERIES = {"KXNFLREC": "receptions", "KXNFLRSHATT": "rush_attempts"}
 WEEKS = (2, 3)
 ENTRY_LEAD = 180 * 60          # E = kickoff - 180 min (c-19 Step 4's entry)
@@ -688,8 +686,10 @@ def run(cache, trades, json_out=None):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--cache", default=CACHE)
-    ap.add_argument("--trades", default=TRADES)
+    # No defaults: scratch paths are named by the caller, never written here as literals
+    # (tests/test_storage_paths.py).
+    ap.add_argument("--cache", required=True, help="c-19's scratch cache (venue_spread --extract)")
+    ap.add_argument("--trades", required=True, help="scratch print store, created by --fetch")
     ap.add_argument("--fetch", action="store_true")
     ap.add_argument("--json-out")
     a = ap.parse_args()

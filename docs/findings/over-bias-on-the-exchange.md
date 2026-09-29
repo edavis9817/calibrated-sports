@@ -18,10 +18,10 @@ Unit c-20 (track C), 2026-09-29. This is a findings document; nothing publishes 
     It is marked as such below.
   - No registered rule was changed.
 - **Reproduce.**
-  - `python -m research.over_bias_exchange --fetch` pulls the free, unauthenticated
+  - `python -m research.over_bias_exchange --cache D:/temp/c19/extract.sqlite --trades D:/temp/c20/trades.sqlite --fetch` pulls the free, unauthenticated
     Kalshi `/markets/trades` tape into a scratch store. That took 998 s for 2,984
     markets, 34,049 prints, 0 capped windows and one 429.
-  - Then run `LOGGER_DB=<market_log.db> python -m research.over_bias_exchange --json-out F`
+  - Then run the same command with `--json-out F` in place of `--fetch`, under `LOGGER_DB=<market_log.db>`,
     with the 3.12 venv, which takes about 2 min.
   - `market_log.db` is opened `mode=ro`. The quotes and depth come from c-19's cache,
     `D:/temp/c19/extract.sqlite`, because week 2's live quotes began pruning from the
