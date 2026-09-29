@@ -48,7 +48,7 @@ def test_two_rows_per_metric_owned_by_the_file_copied_by_the_index():
             assert m["copies"] == [{"file": M.ANALYTICS_INDEX,
                                     "path": "metrics[metric=%s].%s" % (mid, end)}]
     # and the manifest exports them, so the site resolves them by id
-    assert {m["id"] for m in M.manifest_block()} >= set(rows)
+    assert {m["id"] for m in M.manifest_block("a published stat")} >= set(rows)
 
 
 def test_the_gate_passes_an_agreeing_tree():

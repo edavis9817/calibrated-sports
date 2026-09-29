@@ -359,7 +359,10 @@ def test_index_scope_and_slugs(db):
     ids = {}
     for ext in (False, True):
         out = str(db / f"scope-{ext}")
-        E.export(only=["players"], now_ts=NOW, dest=out, extended=ext)
+        # A staged copy of the registry: these comparison builds must not grow
+        # the committed one the assertions below read.
+        E.export(only=["players"], now_ts=NOW, dest=out, extended=ext,
+                 registry_path=E.staged_registry(out))
         ids[ext] = {p["id"] for p in _walk(out)["nfl/players/index.json"]["players"]}
     assert ids[True] - ids[False] == {"00-D"}
     assert by_id["00-S1"]["slug"] == "josh-allen"        # tie on games -> earliest first_season

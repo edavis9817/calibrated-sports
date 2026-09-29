@@ -112,8 +112,15 @@ def test_the_headline_has_the_register_as_a_checked_copy():
 
 
 def test_the_manifest_carries_the_registry_and_it_validates():
-    block = M.manifest_block()
-    assert block == M.METRICS and block is not M.METRICS
+    block = M.manifest_block(E.PARTICIPATION.noun)
+    assert block is not M.METRICS
+    # A copy of the registry with ONE difference (c-18): the player-count labels
+    # carry the run's participation noun, never the placeholder.
+    assert [m["id"] for m in block] == [m["id"] for m in M.METRICS]
+    assert not any("{participation}" in m["label"] for m in block)
+    assert any("{participation}" in m["label"] for m in M.METRICS)
+    for got, reg in zip(block, M.METRICS):
+        assert got == {**reg, "label": reg["label"].replace("{participation}", E.PARTICIPATION.noun)}
     schema = E.CONTRACT["$defs"]["SportManifest"]["properties"]["metrics"]
     assert schema["items"] == {"$ref": "#/$defs/MetricEntry"}
 
@@ -234,7 +241,7 @@ def test_every_season_metric_is_in_the_season_gate_and_nowhere_else():
     ids = {m["id"] for m in M.SEASON_METRICS}
     assert ids and all(i.startswith("season.division.") for i in ids)
     assert not ids & {m["id"] for m in M.MANIFEST_METRICS + M.RESEARCH_METRICS}
-    assert ids <= {m["id"] for m in M.manifest_block()}, "the manifest must carry them"
+    assert ids <= {m["id"] for m in M.manifest_block(E.PARTICIPATION.noun)}, "the manifest must carry them"
 
 
 def test_the_season_gate_resolves_its_file_and_refuses_a_missing_one(files):
