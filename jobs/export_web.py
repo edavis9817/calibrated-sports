@@ -254,7 +254,7 @@ EXTENDED_PARTICIPATION = denominators.Participation(
 # the prefixes a run declares, so defenders' pages would stay in R2 until a run
 # that owns nfl/players/ rebuilt without them - which it would then do, deleting
 # them. Read it as a one-way door.
-PUBLISH_EXTENDED = False
+PUBLISH_EXTENDED = True
 
 
 def participation(extended):

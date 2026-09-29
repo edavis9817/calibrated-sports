@@ -59,7 +59,7 @@ def test_the_published_profile_is_pinned():
     """THE ONE-LINE FLIP. c-18's merge branch holds it False until the live store
     is re-derived (see the constant's comment); branch c-18-flip changes this
     line and the constant together, so the pin moves only on purpose."""
-    assert E.PUBLISH_EXTENDED is False
+    assert E.PUBLISH_EXTENDED is True
     assert E.PARTICIPATION is E.participation(E.PUBLISH_EXTENDED)
 
 
