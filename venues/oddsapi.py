@@ -294,55 +294,244 @@ MARKET_STAT = {
     "player_pass_attempts": outcomes.Stat.PASS_ATTEMPTS,
     "player_pass_completions": outcomes.Stat.COMPLETIONS,
     "player_anytime_td": outcomes.Stat.ANYTIME_TD,
+    "player_tackles_assists": outcomes.Stat.TACKLES_ASSISTS,
+    "player_sacks": outcomes.Stat.SACKS,
+    # An ALTERNATE ladder is the same claim at more thresholds - over 4.5 on
+    # `player_receptions_alternate` is Kalshi's "5+ receptions" exactly - so it
+    # maps to the base stat, as jobs/backfill_oddsapi.py already does for
+    # receptions. Measured 2026-09-29: the live capture carries 60,108
+    # alternate (book, player, side, line) rows, and before these entries every
+    # one was recorded "not a player prop".
+    "player_receptions_alternate": outcomes.Stat.RECEPTIONS,
+    "player_reception_yds_alternate": outcomes.Stat.RECEIVING_YARDS,
+    "player_rush_attempts_alternate": outcomes.Stat.RUSH_ATTEMPTS,
+    "player_rush_yds_alternate": outcomes.Stat.RUSH_YARDS,
+    "player_pass_yds_alternate": outcomes.Stat.PASSING_YARDS,
 }
 
 SIDE = {"over": outcomes.Side.OVER, "under": outcomes.Side.UNDER,
         "yes": outcomes.Side.YES, "no": outcomes.Side.NO}
 
 
-def map_market(row: dict):
-    """One Odds API row -> (outcome_id, method, confidence).
+# ---- the live prop join (a-53) ----------------------------------------------
+#
+# A live prop QUOTE's market_id is `{event}|{market key}|{player}|{side}` and
+# carries NO LINE. It is not an instrument: measured 2026-09-29, one such id
+# carries up to 28 distinct lines inside a single snapshot and up to 85 across
+# its life, because the line moves and some keys are ladders. An outcome_id
+# includes the line, so the join is keyed one level down - one `markets` row per
+# (book, quote id, line), with the line appended:
+#
+#     {event}|{market key}|{player}|{side}|{line}
+#
+# which is the same five-part shape jobs/backfill_oddsapi.py already uses for
+# the 2023-2025 closes. The quote rows themselves are NOT rewritten (raw first,
+# and jobs/board_read.py parses the four-part id): a study goes from an outcome
+# to its markets rows, then `split_prop_market_id` gives the (quote id, line)
+# to select the quotes with - an indexed lookup on (venue, market_id).
 
-    Quote rows carry `{event_id}|{market_key}|{player}|{side}` as the market id;
-    discovery rows carry `game:{event_id}` and describe a whole game rather than
-    a claim, so they are recorded unmapped with that reason rather than being
-    forced into an outcome.
+def prop_market_id(quote_market_id: str, line) -> str:
+    """The instrument id of ONE line of a live book prop."""
+    return f"{quote_market_id}|{float(line)!r}"
+
+
+def split_prop_market_id(market_id: str):
+    """(quote market_id, line) from an instrument id; the inverse of
+    `prop_market_id`. Raises ValueError on anything else - a caller holding a
+    four-part quote id must not get a line back that was never there."""
+    head, sep, line = (market_id or "").rpartition("|")
+    if not sep or head.count("|") != 3:
+        raise ValueError(f"not a five-part prop instrument id: {market_id!r}")
+    return head, float(line)
+
+
+def derive_prop_markets(con, event_ids=None):
+    """`markets` rows for every (book, prop, line) in the LIVE quote log.
+
+    `con` is a read-only connection. Keyed per Odds API event through the
+    (source, event_id) index - a venue-prefix scan of `quotes` walks every
+    Kalshi row too. `first_seen` / `last_seen` are the first and last quote
+    captured for that line, and `close_ts` is the game's kickoff from the
+    discovery row, so `close_ts - last_seen` is how long before kickoff the
+    book's last price for this line was taken: a game whose last snapshot fell
+    outside a close window is a FIELD on every row, not a silent exclusion.
+
+    Returns (rows, census). A quote with no line (a one-sided market) cannot
+    be an instrument here and is counted, never dropped silently.
     """
-    mid = row.get("market_id") or ""
-    if mid.startswith("game:"):
-        raise mapping.Unresolved(
-            "discovery row: an event, not a claim - props arrive as quote rows "
-            "at snapshot time")
+    games = {eid: (title, close_ts) for eid, title, close_ts in con.execute(
+        "SELECT event_id, title, close_ts FROM markets "
+        "WHERE venue = 'oddsapi' AND market_type = 'game'")}
+    if event_ids is not None:
+        wanted = set(event_ids)
+        games = {e: g for e, g in games.items() if e in wanted}
+    rows, census = [], {"events": len(games), "events_with_props": 0,
+                        "no_line_quote_ids": 0}
+    for eid, (title, kick) in sorted(games.items()):
+        got = con.execute(
+            "SELECT venue, market_id, line, MAX(subject), MIN(ts), MAX(ts) "
+            "FROM quotes WHERE source = 'live' AND event_id = ? "
+            "AND market_type = 'prop' AND venue LIKE 'oddsapi:%' "
+            "GROUP BY venue, market_id, line", (eid,)).fetchall()
+        if got:
+            census["events_with_props"] += 1
+        for venue, qmid, line, subject, first, last in got:
+            if line is None:
+                census["no_line_quote_ids"] += 1
+                continue
+            rows.append({
+                "venue": venue, "market_id": prop_market_id(qmid, line),
+                "event_id": eid, "sport": "nfl", "market_type": "prop",
+                "subject": subject, "line": float(line), "title": title,
+                "open_ts": None, "close_ts": kick, "settle_ts": None,
+                "result": None, "first_seen": first, "last_seen": last,
+            })
+    census["rows"] = len(rows)
+    return rows, census
 
-    parts = mid.split("|")
-    if len(parts) != 4:
-        raise mapping.Unresolved(f"market_id not in 4-part form: {mid[:60]!r}")
-    _eid, mkey, player, side_name = parts
 
+class BookOnly(mapping.Unresolved):
+    """The claim resolved, and no outcome row exists for it.
+
+    Not an identity failure: the player, game, stat, line and side are all
+    known and so is the outcome_id, which the reason carries. It is left
+    unlinked on purpose - creating the outcome would add it to the settled
+    record `jobs/export_web.py` publishes as prop history (a-53).
+    """
+    PREFIX = "book-only claim"
+
+
+def book_only_reason(o) -> str:
+    """`book-only claim <outcome_id> <key>: ...` - the claim's full identity,
+    so a study can count and join book-only lines from the store without the
+    outcome row existing. `parse_book_only` is the inverse."""
+    return f"{BookOnly.PREFIX} {o.outcome_id} {o.key}: outcome not created (a-53)"
+
+
+def parse_book_only(reason):
+    """(outcome_id, key) from a book-only unmapped_reason, else None."""
+    if not reason or not reason.startswith(BookOnly.PREFIX + " "):
+        return None
+    rest = reason[len(BookOnly.PREFIX) + 1:]
+    oid, _, tail = rest.partition(" ")
+    key = tail.split(": ", 1)[0]
+    return (oid, key) if oid and key else None
+
+
+def _memo(cache, key, fn):
+    """fn() memoised in `cache` (if given), exceptions included."""
+    if cache is not None and key in cache:
+        got = cache[key]
+    else:
+        try:
+            got = fn()
+        except mapping.Unresolved as e:
+            got = e
+        if cache is not None:
+            cache[key] = got
+    if isinstance(got, Exception):
+        raise got
+    return got
+
+
+def _prop_claim(row: dict, game=None, player=None):
+    """Resolve one five-part live prop row to (Outcome, game_id, method, conf).
+
+    `game` and `player` are optional memo dicts so a batch resolves each event
+    and each (name, season, teams) once. Raises mapping.Unresolved with a
+    reason for anything that is not a resolvable player prop.
+    """
+    try:
+        qmid, line = split_prop_market_id(row.get("market_id"))
+    except ValueError as e:
+        raise mapping.Unresolved(str(e)[:120])
+    _eid, mkey, player_name, side_name = qmid.split("|")
     stat = MARKET_STAT.get(mkey)
     if stat is None:
         raise mapping.Unresolved(f"market key {mkey!r} is not a player prop")
     side = SIDE.get((side_name or "").strip().lower())
     if side is None:
         raise mapping.Unresolved(f"unknown side {side_name!r}")
-
     close_ts = row.get("close_ts")
     if not close_ts:
         raise mapping.Unresolved("no kickoff time to place the game")
-    from datetime import datetime, timezone
+    title = row.get("title") or ""
+    if " @ " not in title:
+        raise mapping.Unresolved(f"no team pair on the discovery row: {title!r}")
+    # The title is OUR construction from the event's structured away_team /
+    # home_team fields (list_markets), the same read jobs/board_read.py makes.
+    away, home = title.split(" @ ", 1)
     day = datetime.fromtimestamp(close_ts, timezone.utc).strftime("%Y-%m-%d")
-
-    home, away = row.get("home_team"), row.get("away_team")
-    if home and away:
-        season, week, game_id = mapping.game_for(away, home, day)
-    else:
-        raise mapping.Unresolved("no team pair on the row to place the game")
-
-    line = row.get("line")
-    if line is None and stat is not outcomes.Stat.ANYTIME_TD:
-        raise mapping.Unresolved("prop with no point/line")
-    gsis, how, conf = mapping.resolve_player(player, season)
-    o = outcomes.player_prop(season, week, gsis, stat,
-                             0.5 if line is None else float(line), side,
+    season, week, game_id = _memo(game, (away, home, day),
+                                  lambda: mapping.game_for(away, home, day))
+    teams = tuple(t for t in (mapping.team_abbr(away), mapping.team_abbr(home)) if t)
+    clean, team_hint, pos_hint = mapping.parse_book_name(player_name)
+    hint = (team_hint,) if team_hint else teams
+    gsis, how, conf = _memo(
+        player, (clean, season, hint, pos_hint),
+        lambda: mapping.resolve_player(clean, season, position=pos_hint, teams=hint))
+    o = outcomes.player_prop(season, week, gsis, stat, float(line), side,
                              event_id=game_id)
-    return store.upsert_outcome(o, game_id), f"oddsapi:{mkey}+{how}", conf
+    return o, game_id, f"oddsapi:{mkey}+{how}", conf
+
+
+def map_prop_rows(rows, existing, create=False):
+    """Batch-map five-part live prop rows.
+
+    `existing` is the set of outcome_ids already in `outcomes`. A claim whose
+    outcome exists is linked. One whose outcome does NOT exist is recorded as
+    `book-only claim <outcome_id>` unless `create` - see BookOnly for why that
+    is off by default. Returns (mappings, new_outcomes, census): mappings are
+    `store.record_mappings` tuples, new_outcomes `store.upsert_outcomes` pairs
+    (always empty unless `create`).
+    """
+    game, player = {}, {}
+    mappings, new = [], {}
+    census = {"linked": 0, "book_only": 0, "unresolved": 0}
+    for r in rows:
+        try:
+            o, gid, method, conf = _prop_claim(r, game, player)
+        except mapping.Unresolved as e:
+            mappings.append((r["venue"], r["market_id"], None, None, None,
+                             str(e)[:200]))
+            census["unresolved"] += 1
+            continue
+        oid = o.outcome_id
+        if oid in existing or create:
+            if oid not in existing:
+                new[oid] = (o, gid)
+            mappings.append((r["venue"], r["market_id"], oid, method, conf, None))
+            census["linked"] += 1
+        else:
+            mappings.append((r["venue"], r["market_id"], None, None, None,
+                             book_only_reason(o)))
+            census["book_only"] += 1
+    census["new_outcomes"] = len(new)
+    return mappings, list(new.values()), census
+
+
+def map_market(row: dict):
+    """One Odds API row -> (outcome_id, method, confidence).
+
+    Five-part rows are live prop instruments (`derive_prop_markets`); they are
+    LINKED to an existing outcome and never create one (BookOnly). A four-part
+    quote id carries no line and cannot name a claim. Discovery rows carry
+    `game:{event_id}` and describe a whole game rather than a claim, so they
+    are recorded unmapped with that reason rather than being forced into an
+    outcome.
+    """
+    mid = row.get("market_id") or ""
+    if mid.startswith("game:"):
+        raise mapping.Unresolved(
+            "discovery row: an event, not a claim - props arrive as quote rows "
+            "at snapshot time")
+    if mid.count("|") != 4:
+        raise mapping.Unresolved(
+            f"not a five-part prop instrument id (no line): {mid[:60]!r}")
+    o, _gid, method, conf = _prop_claim(row)
+    with store.db() as c:
+        have = c.execute("SELECT 1 FROM outcomes WHERE outcome_id = ?",
+                         (o.outcome_id,)).fetchone()
+    if not have:
+        raise BookOnly(book_only_reason(o))
+    return o.outcome_id, method, conf

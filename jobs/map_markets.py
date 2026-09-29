@@ -4,6 +4,7 @@
     python -m jobs.map_markets --venue kalshi
     python -m jobs.map_markets --coverage      # report only, no re-mapping
     python -m jobs.map_markets --unmapped 20   # a sample to work from
+    python -m jobs.map_markets --venue oddsapi # the live book-prop join (a-53)
 
 EVERY market gets a market_outcome row. A market that could not be resolved is
 recorded WITH ITS REASON, never dropped: a coverage number computed over the
@@ -43,12 +44,14 @@ def _rows(venue=None, limit=None):
         con.close()
 
 
-def run(venue=None, limit=None) -> dict:
+def run(venue=None, limit=None, create_book_outcomes=False) -> dict:
     stats = Counter()
     reasons = Counter()
     t0 = time.time()
     for row in _rows(venue, limit):
         v = row["venue"]
+        if v.startswith("oddsapi:"):
+            continue                # the book-prop join, batched below
         # oddsapi venue names carry the book: "oddsapi:pinnacle"
         fn = MAPPERS.get(v.split(":")[0])
         if fn is None:
@@ -70,11 +73,53 @@ def run(venue=None, limit=None) -> dict:
                                  unmapped_reason=f"MAPPER ERROR {type(e).__name__}: {e}"[:200])
             stats[f"{v}:error"] += 1
             reasons[f"{v}: MAPPER ERROR {type(e).__name__}: {e}"[:70]] += 1
+    if venue in (None, "oddsapi") and not limit:
+        # AFTER the exchanges, so a Kalshi rung's outcome exists before the
+        # book line for the same claim looks for it.
+        book = run_book_props(create=create_book_outcomes)
+        for k, n in book["census"].items():
+            stats[f"oddsapi_props:{k}"] += n
+        reasons.update(book["reasons"])
     stats["elapsed"] = round(time.time() - t0, 1)
     store.record_health("mapping", stats.get("kalshi:error", 0) == 0,
                         ", ".join(f"{k}={v}" for k, v in sorted(stats.items())),
                         watermark=time.time())
     return {"stats": stats, "reasons": reasons}
+
+
+def run_book_props(create=False, event_ids=None) -> dict:
+    """The live Odds API prop join (a-53): derive one `markets` row per (book,
+    prop, line) from the quote log, then link each to its outcome.
+
+    Linking only, by default. A book line whose claim has no `outcomes` row -
+    most of all a stat no exchange lists - is recorded as `book-only claim
+    <outcome_id>` rather than created, because every player outcome that gets
+    settled enters the prop history `jobs/export_web.py` publishes. Creating
+    them (`create=True`, `--create-book-outcomes`) is a decision about what the
+    site shows, and it is not this job's to take.
+    """
+    con = sqlite3.connect(f"file:{config.DB_PATH}?mode=ro", uri=True)
+    try:
+        rows, census = oddsapi.derive_prop_markets(con, event_ids)
+        existing = {r[0] for r in con.execute(
+            "SELECT outcome_id FROM outcomes WHERE entity_type = 'player'")}
+    finally:
+        con.close()
+    mappings, new, mcensus = oddsapi.map_prop_rows(rows, existing, create)
+    store.upsert_prop_markets(rows)
+    if create and new:
+        store.upsert_outcomes(new)
+    store.record_mappings(mappings)
+    census.update(mcensus)
+    reasons = Counter()
+    for m in mappings:
+        if m[5] and not m[5].startswith(oddsapi.BookOnly.PREFIX):
+            reasons[f"oddsapi props: {m[5][:70]}"] += 1
+    ok = census["rows"] == 0 or census["linked"] + census["book_only"] > 0
+    store.record_health("mapping_oddsapi_props", ok,
+                        ", ".join(f"{k}={v}" for k, v in sorted(census.items())),
+                        watermark=time.time())
+    return {"census": census, "reasons": reasons}
 
 
 def coverage():
@@ -141,6 +186,9 @@ def main():
     ap.add_argument("--limit", type=int)
     ap.add_argument("--coverage", action="store_true")
     ap.add_argument("--unmapped", type=int, nargs="?", const=20)
+    ap.add_argument("--create-book-outcomes", action="store_true",
+                    help="create outcomes for book-only prop lines; these then "
+                         "settle into the PUBLISHED prop history (a-53)")
     args = ap.parse_args()
 
     store.init_db()
@@ -151,7 +199,7 @@ def main():
         unmapped(args.unmapped)
         return
 
-    res = run(args.venue, args.limit)
+    res = run(args.venue, args.limit, args.create_book_outcomes)
     print(f"mapped in {res['stats']['elapsed']}s\n")
     coverage()
     print()

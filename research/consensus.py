@@ -90,7 +90,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config  # noqa: E402
 from core.fees import fee_per_contract, series_multiplier  # noqa: E402
 from research.implied import shin_devig  # noqa: E402
-from venues.mapping import team_abbr  # noqa: E402
+from venues.mapping import ABBR_FORMS, team_abbr  # noqa: E402
+from venues.kalshi import spread_team  # noqa: E402
 
 ET = ZoneInfo("America/New_York")
 
@@ -181,12 +182,20 @@ def consensus(pairs, method, min_books=MIN_BOOKS):
 
 
 def kalshi_key(market_id, subject, line):
+    """(kind, team, line) for a Kalshi SPREAD/TOTAL rung, or None.
+
+    The team is read from the TICKER suffix (`venues.kalshi.spread_team`), never
+    from `subject`: Kalshi reworded the subject to "ARI Cardinals wins by ..."
+    and the old prose parse returned None for every rung, so c-19 measured an
+    empty sample without an error. `subject` is kept in the signature for the
+    callers and is deliberately unused.
+    """
     if line is None:
         return None
     if market_id.startswith("KXNFLTOTAL-"):
         return ("total", None, float(line))
     if market_id.startswith("KXNFLSPREAD-"):
-        team = team_abbr(re.sub(r"\s+wins by.*$", "", subject or ""))
+        team = spread_team(market_id)
         return ("spread", team, float(line)) if team else None
     return None
 
@@ -346,15 +355,19 @@ def load_kalshi(c, games):
             "SELECT DISTINCT event_id FROM markets WHERE venue='kalshi' "
             "AND market_id >= 'KXNFLSPREAD-' AND market_id < 'KXNFLSPREAD.'"):
         suffix = eid.split("-", 1)[1]
-        teams = {team_abbr(re.sub(r"\s+wins by.*$", "", s or "")) for (s,) in c.execute(
-            "SELECT DISTINCT subject FROM markets WHERE venue='kalshi' AND event_id=?", (eid,))}
+        # The game from the event ticker's own team block ("26SEP28PHICHI" ->
+        # PHI, CHI), not from the subject prose (see kalshi_key). Matched as a
+        # concatenation, never split: the split is ambiguous from the string.
+        blob = suffix[7:]
         try:
             day = datetime.strptime(suffix[:7], "%y%b%d").date()
         except ValueError:
             continue
         for gid, g in games.items():
             kday = datetime.fromtimestamp(g["kick"], ET).date()
-            if {g["home"], g["away"]} == teams and abs(kday - day) <= timedelta(days=1):
+            pairs = {p for x in ABBR_FORMS.get(g["away"], (g["away"],))
+                     for y in ABBR_FORMS.get(g["home"], (g["home"],)) for p in (x + y, y + x)}
+            if blob in pairs and abs(kday - day) <= timedelta(days=1):
                 ev_game[suffix] = gid
     markets = defaultdict(list)
     for mid, eid, subject, line in c.execute(
