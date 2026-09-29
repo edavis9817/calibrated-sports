@@ -12,6 +12,7 @@ config.storage_path("logs", "weekly_refresh.log"):
   1b. headshots        jobs.ingest_headshots --season <season> (archive only;
                        failure: WARN)
   2. market mapping    jobs.map_markets --venue kalshi       (failure: WARN)
+  2b. book-prop join   jobs.map_markets --venue oddsapi      (failure: WARN; a-53)
   3. export            jobs.export_web                       (failure: ERROR, stop)
   3a. analytics        analytics.export --write --dest web  (failure: WARN)
   3a'. season model    jobs.season_model --write --dest web (failure: WARN; a-42)
@@ -189,6 +190,10 @@ def _run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fet
     # Archive-only re-derivation, so it runs even with --skip-ingest.
     step("headshots", [py, "-m", "jobs.ingest_headshots", "--season", str(season)], fatal=False)
     step("map", [py, "-m", "jobs.map_markets", "--venue", "kalshi"], fatal=False)
+    # AFTER Kalshi, so an exchange rung's outcome exists before the book line
+    # for the same claim looks for it. Links only - it creates no outcome, so
+    # nothing it writes reaches the export (a-53).
+    step("map_books", [py, "-m", "jobs.map_markets", "--venue", "oddsapi"], fatal=False)
     exported = step("export", [py, "-m", "jobs.export_web"], fatal=True)
     if exported.returncode != 0:
         return 1
