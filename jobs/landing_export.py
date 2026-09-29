@@ -29,6 +29,22 @@ WHAT IT READS - files only, never the store:
 A missing input makes its part null and lists it under `unavailable` with the
 reason; it never becomes a zero or a guess.
 
+THE PAGE HAS ONE PERIOD, CHOSEN BY COVERAGE (a-56, DECISIONS-2026-09-28 §U
+amendment). Before any showpiece is picked, `choose_period` picks the period the
+page is drawn from: the current one only once its market files (served, plus
+the archive's copies of its played games) name at least
+`config.LANDING_MIN_PLAYERS` players with a ladder across at least
+`config.LANDING_MIN_GAMES` distinct games - so one early slate can never own the
+page - and otherwise the most recent earlier period in the window that does,
+which is the previous settled week, shown with its results. If no period in the
+window is broad enough, the widest one is used (ties to a settled one, then the
+newest). There is no day-of-week rule: what a calendar would guess at is
+counted. Every showpiece - the featured ladder, the distributions, the fantasy
+example and the de-vig's Board read - is then filled from that ONE period, and a
+part falls back to another period (the walk below) only when the chosen period
+genuinely has nothing its rule accepts. The week-tier counters and freshness
+stay on the current period: they describe this week, not the showcase.
+
 THE SHOWPIECES FALL BACK, AND SAY SO (a-52, DECISIONS-2026-09-28 §T). The
 featured ladder, the distributions and the fantasy example are drawn from
 market files, and the market builder writes only the current period's UNPLAYED
@@ -49,6 +65,9 @@ under `unavailable` as before.
     kickoff, dated by its as_of - never an example. It is NOT always byte for
     byte what the site served: a backfilled file is the close, the served one
     was the read at its last export.
+  - Since a-56 the walk starts at the CHOSEN period, not at the current one,
+    and the current period is read as one step - served files plus the
+    archive's copies of its played games, a served file winning over its copy.
   - Every such part carries `provenance` (`carried`, the period it came from,
     its as_of, how many periods back) and is listed under `carried`, NOT under
     `unavailable`.
@@ -156,7 +175,8 @@ def _market_glob(root, pkey):
         yield os.path.basename(os.path.dirname(p)), p
 
 
-def load_inputs(dest, board_dir=None, lab_meta=None, archive_dir=None, fallback_periods=None):
+def load_inputs(dest, board_dir=None, lab_meta=None, archive_dir=None, fallback_periods=None,
+                min_players=None, min_games=None):
     """-> ({key: parsed file}, [missing notes]). Keys are the served keys, except
     the Lab universe meta (LAB_META) and the landing archive (ARCHIVE...). Never
     raises on an absent optional input."""
@@ -167,7 +187,10 @@ def load_inputs(dest, board_dir=None, lab_meta=None, archive_dir=None, fallback_
     files[MANIFEST] = manifest = _load(mpath)
     fallback_periods = (config.LANDING_FALLBACK_PERIODS if fallback_periods is None
                         else fallback_periods)
-    files[WINDOW] = {"bound": fallback_periods, "periods": window(manifest, fallback_periods)}
+    files[WINDOW] = {"bound": fallback_periods, "periods": window(manifest, fallback_periods),
+                     "min_players": (config.LANDING_MIN_PLAYERS if min_players is None
+                                     else min_players),
+                     "min_games": config.LANDING_MIN_GAMES if min_games is None else min_games}
     for _, _, _, pkey in files[WINDOW]["periods"]:
         for pid, p in _market_glob(dest, pkey):
             files[f"{SPORT}/market/{pid}/{pkey}.json"] = _load(p)
@@ -191,21 +214,24 @@ def load_inputs(dest, board_dir=None, lab_meta=None, archive_dir=None, fallback_
         else:
             missing.append(f"{key} is not in the export tree")
     if board_dir:
-        season = manifest["current"]["season"]
-        week = manifest["current"]["period"]["index"]
-        wk = f"board/{SPORT}/{season}/wk{int(week):02d}"
-        ipath = os.path.join(board_dir, *wk.split("/"), "index.json")
-        if os.path.isfile(ipath):
-            idx = _load(ipath)
-            files[f"{wk}/index.json"] = idx
-            rkey = f"{wk}/{B.read_file_name(idx['latest'])}"
-            rpath = os.path.join(board_dir, *rkey.split("/"))
-            if os.path.isfile(rpath):
-                files[rkey] = _load(rpath)
-            else:
-                missing.append(f"{rkey} (the Board index's latest read) is not in {board_dir}")
-        else:
-            missing.append(f"the Board has no read for {season} week {week} in {board_dir}")
+        # Every week in the window: the de-vig is drawn from the page's chosen
+        # period (a-56), which is not always the current one. Only the current
+        # week's absence is a note - it is the one the counters read.
+        for walked, season, week, _ in files[WINDOW]["periods"]:
+            wk = _board_prefix(season, week)
+            ipath = os.path.join(board_dir, *wk.split("/"), "index.json")
+            if os.path.isfile(ipath):
+                idx = _load(ipath)
+                files[f"{wk}/index.json"] = idx
+                rkey = f"{wk}/{B.read_file_name(idx['latest'])}"
+                rpath = os.path.join(board_dir, *rkey.split("/"))
+                if os.path.isfile(rpath):
+                    files[rkey] = _load(rpath)
+                elif walked == 0:
+                    missing.append(f"{rkey} (the Board index's latest read) is not in "
+                                   f"{board_dir}")
+            elif walked == 0:
+                missing.append(f"the Board has no read for {season} week {week} in {board_dir}")
         lpath = os.path.join(board_dir, *LEDGER.split("/"))
         if os.path.isfile(lpath):
             with open(lpath, encoding="utf-8", newline="") as f:
@@ -246,52 +272,144 @@ def _period_files(files, pkey):
     return dict(sorted(out.values()))
 
 
-def walk(files):
-    """-> [(walked, key, market files, carried)], the order a part is looked for
-    in: the current period as served, then - carried - the current period as last
-    published (its played games are gone from the served tree), then each earlier
-    period in the window. Never reads a result."""
-    win = _window(files)["periods"]
-    cur = files[MANIFEST]["current"]["period"]["key"]
-    return [(0, cur, _served(files, cur), False)] + \
-        [(k, pkey, _period_files(files, pkey), True) for k, _, _, pkey in win]
+def steps(files):
+    """-> [(walked, key, market files)], every period in the window newest
+    first, each read as ONE step: its served files plus the archive's copies, a
+    served file winning. (Before a-56 the current period was two steps, served
+    first, so a Sunday-night page drew only from the games not yet played.)
+    Never reads a result."""
+    return [(k, pkey, _period_files(files, pkey)) for k, _, _, pkey in _window(files)["periods"]]
 
 
 def _window(files):
     """The window load_inputs read; a hand-built `files` without one walks only
     the current period (bound 0), never an unread one."""
-    return files.get(WINDOW) or {"bound": 0, "periods": window(files[MANIFEST], 0)}
+    w = files.get(WINDOW) or {"bound": 0, "periods": window(files[MANIFEST], 0)}
+    return {"min_players": config.LANDING_MIN_PLAYERS, "min_games": config.LANDING_MIN_GAMES,
+            **w}
 
 
-def _fall_back(files, choose):
+def breadth(mfiles):
+    """How much of a period is priced: players with a MARKET ladder, and the
+    distinct games they play in. Counts only - never a result."""
+    games = {f["identity"]["id"]: f["game_id"] for _, f, _ in _ladders(mfiles)}
+    return {"players": len(games), "games": len(set(games.values()))}
+
+
+class Choice:
+    """The one period the page is drawn from (a-56). Refuses truth-testing:
+    read .step (None when nothing in the window carries a ladder) and
+    .statement."""
+
+    def __init__(self, step, coverage, broad, min_players, min_games, labels):
+        self.step, self.coverage, self.broad = step, coverage, broad
+        self.min_players, self.min_games, self.labels = min_players, min_games, labels
+        if step is None:
+            self.statement = "period: none - no period in the window carries a ladder"
+            return
+        c, (ckey, cc) = self.coverage_of(step[1]), coverage[0]
+        self.statement = (
+            "period: %s, %d players across %d games (breadth needs %d players and %d games)%s"
+            % (labels[step[1]], c["players"], c["games"], min_players, min_games,
+               "" if step[0] == 0 else
+               "; %s has %d players across %d games%s"
+               % (labels[ckey], cc["players"], cc["games"],
+                  "" if broad else "; no period in the window is broad, so the widest is used")))
+
+    def coverage_of(self, pkey):
+        return dict(self.coverage)[pkey]
+
+    def __bool__(self):
+        raise TypeError("a period Choice is not a boolean: read .step and .statement")
+
+
+def choose_period(files):
+    """The written rule: the newest period in the window that is BROAD - at
+    least `min_players` players with a ladder AND at least `min_games` distinct
+    games among them. The current period is first in line, so it owns the page
+    as soon as it is broad and never before. If none is broad: the widest
+    (games, then players), ties to a settled period, then to the newest.
+    Reads rungs and game ids only. -> Choice."""
+    w = _window(files)
+    minp, ming = w["min_players"], w["min_games"]
+    labels = {pkey: "Week %d" % index for _, _, index, pkey in w["periods"]}
+    cur = files[MANIFEST]["current"]["period"]
+    labels[cur["key"]] = cur["label"]
+    all_steps = steps(files)
+    coverage = [(s[1], breadth(s[2])) for s in all_steps]
+    sized = list(zip(all_steps, (c for _, c in coverage)))
+    broad = [s for s, c in sized if c["players"] >= minp and c["games"] >= ming]
+    if broad:
+        return Choice(broad[0], coverage, True, minp, ming, labels)
+    priced = [(s, c) for s, c in sized if c["players"]]
+    if not priced:
+        return Choice(None, coverage, False, minp, ming, labels)
+    step = max(priced, key=lambda sc: (sc[1]["games"], sc[1]["players"], sc[0][0] > 0,
+                                       -sc[0][0]))[0]
+    return Choice(step, coverage, False, minp, ming, labels)
+
+
+def walk(files, choice=None):
+    """-> [(walked, key, market files)], the order a part is looked for in: the
+    chosen period first, then every other period in the window, newest first."""
+    choice = choose_period(files) if choice is None else choice
+    rest = [s for s in steps(files) if choice.step is None or s[1] != choice.step[1]]
+    return ([choice.step] if choice.step is not None else []) + rest
+
+
+def _fall_back(files, choose, choice=None):
     """The first step of the walk where `choose(market files)` is truthy.
     -> (pick, step) or (None, None)."""
-    for step in walk(files):
+    for step in walk(files, choice):
         pick = choose(step[2])
         if pick:
             return pick, step
     return None, None
 
 
-def provenance(files, step, f, part, as_of=None):
-    walked, pkey, _, carried = step
+def provenance(files, step, f, part, keys, choice=None, as_of=None):
+    """`keys`: the market files the part was drawn from. A part is carried when
+    it comes from an earlier period, or from the archive's copy of a played
+    game's file in this one - anything the served tree does not hold now."""
+    walked, pkey, _ = step
+    choice = choose_period(files) if choice is None else choice
+    chosen = choice.step[1] if choice.step is not None else None
+    carried = walked > 0 or any(k.startswith(ARCHIVE) for k in keys)
     cur = files[MANIFEST]["current"]["period"]
     reason = None
-    if carried:
-        reason = ("nothing served for %s satisfies this part's rule; carried from %s, %s"
-                  % (cur["label"], f["period"]["label"],
-                     "as read before its games were played" if walked == 0
-                     else "%d period(s) back, the most recent within the window of %d that does"
-                     % (walked, _window(files)["bound"])))
+    if carried and pkey == chosen and walked == 0:
+        reason = ("carried from %s as read before its games were played: the served tree no "
+                  "longer holds a played game's market file" % f["period"]["label"])
+    elif carried and pkey == chosen:
+        c = choice.coverage_of(cur["key"])
+        reason = ("the page is drawn from %s, %d period(s) back: %s has %d players across %d "
+                  "games, under the landing's breadth of %d players and %d games%s"
+                  % (f["period"]["label"], walked, cur["label"], c["players"], c["games"],
+                     choice.min_players, choice.min_games,
+                     "" if choice.broad else "; no period in the window reaches it, and %s "
+                     "is the widest" % f["period"]["label"]))
+    elif carried:
+        reason = ("%s, the page's period, has nothing this part's rule accepts; carried from "
+                  "%s, %d period(s) back, the most recent within the window of %d that does"
+                  % (choice.labels.get(chosen, cur["label"]), f["period"]["label"], walked,
+                     _window(files)["bound"]))
     return {"carried": carried, "walked": walked, "period": dict(f["period"]),
             "as_of": as_of or f["as_of"], "reason": reason}
 
 
-def _board(files):
-    idx = [k for k in files if k.startswith("board/") and k.endswith("/index.json")]
-    if not idx:
+def _board_prefix(season, week):
+    return f"board/{SPORT}/{season}/wk{int(week):02d}"
+
+
+def _board(files, period=None):
+    """The Board's index and latest read for `period` ({season, index}; the
+    current period when None). -> (ikey, index, rkey, read), Nones when absent."""
+    if period is None:
+        period = {"season": files[MANIFEST]["current"]["season"],
+                  "index": files[MANIFEST]["current"]["period"]["index"]}
+    ikey = _board_prefix(period["season"], period["index"]) + "/index.json"
+    if ikey not in files:
         return None, None, None, None
-    ikey = idx[0]
     rkey = ikey.rsplit("/", 1)[0] + "/" + B.read_file_name(files[ikey]["latest"])
     return ikey, files[ikey], rkey, files.get(rkey)
 
@@ -587,7 +705,7 @@ def featured_result(files, f, comp):
             "source": {"key": key, "path": "%s.%s" % (path, comp["stat"])}}
 
 
-def build_featured(files, pick, step):
+def build_featured(files, pick, step, choice=None):
     """-> (the part, a conflict note or None)."""
     m = files[MANIFEST]
     key, f, comp = pick
@@ -617,7 +735,7 @@ def build_featured(files, pick, step):
                    "quote_ts": r["quote_ts"]} for r in comp["rungs"]],
         "candidates": len(_ladders(step[2])),
         "source": {"key": key, "path": "components[stat=%s].rungs" % comp["stat"]},
-        "provenance": provenance(files, step, f, "featured_ladder"),
+        "provenance": provenance(files, step, f, "featured_ladder", [key], choice),
         "result": result,
         "lean": lean,
     }, conflict
@@ -628,7 +746,7 @@ def _survival(cdf):
     return [{"x": pt["x"], "p_over": round(1.0 - pt["p_at_most"], 4)} for pt in cdf]
 
 
-def build_distributions(files, picks, step):
+def build_distributions(files, picks, step, choice=None):
     m = files[MANIFEST]
     out = []
     for key, f, rungs in picks:
@@ -644,10 +762,11 @@ def build_distributions(files, picks, step):
     return {"rule": RULE_DISTRIBUTIONS, "scoring": "ppr",
             "scoring_label": m["scoring_presets"]["ppr"]["label"],
             "requested": N_DISTRIBUTIONS, "published": len(out), "players": out,
-            "provenance": provenance(files, step, newest, "distributions")}
+            "provenance": provenance(files, step, newest, "distributions",
+                                     [k for k, _, _ in picks], choice)}
 
 
-def build_fantasy(files, pick, step):
+def build_fantasy(files, pick, step, choice=None):
     m = files[MANIFEST]
     key, f, _ = pick
     r = fantasy_result(files, f, list(f["distributions"]))
@@ -665,7 +784,8 @@ def build_fantasy(files, pick, step):
                         {"points": r["points"][name],
                          "band": band(r["points"][name], d["quantiles"])}})
     return {"rule": RULE_FANTASY, "player": _player(m, f), "as_of": f["as_of"],
-            "presets": presets, "provenance": provenance(files, step, f, "fantasy"),
+            "presets": presets,
+            "provenance": provenance(files, step, f, "fantasy", [key], choice),
             "result": None if r is None else {"game_id": r["game_id"], "source": r["source"]}}
 
 
@@ -698,12 +818,26 @@ def devig_arithmetic(over, under):
             "devig_over": round(d, 4), "devig_under": round(1.0 - d, 4)}
 
 
-def build_devig(files, featured):
+def build_devig(files, featured, periods=None, exchange=True):
+    """`periods`: the Board weeks to look in, in order - the page's chosen period
+    first (a-56); the current week alone when None. The featured claim is
+    preferred only in its own week. `exchange`: whether the featured ladder may
+    stand in as a current price when no book row is found."""
     m = files[MANIFEST]
-    ikey, idx, rkey, read = _board(files)
-    fp = featured["player"]["id"] if featured else None
-    fm = featured["market"]["key"] if featured else None
-    row, book = pick_devig(read, fp, fm) if read is not None else (None, None)
+    row = book = rkey = None
+    for period in periods or [None]:
+        ikey, idx, rkey, read = _board(files, period)
+        same = featured is not None and (period is None or (
+            featured["period"].get("season", m["current"]["season"]),
+            featured["period"]["index"]) ==
+            (period["season"], period["index"]))
+        fp = featured["player"]["id"] if same else None
+        fm = featured["market"]["key"] if same else None
+        row, book = pick_devig(read, fp, fm) if read is not None else (None, None)
+        if row is not None:
+            break
+    if not exchange:
+        featured = None
     if row is not None:
         a = devig_arithmetic(book["over"], book["under"])
         # The Board computed the same two numbers when it published this row. A
@@ -847,17 +981,21 @@ def build(files, missing=(), generated_at=None):
     unavailable = [{"part": "inputs", "reason": r} for r in missing]
     bound = _window(files)["bound"]
     within = ("this period or the %d before it" % bound) if bound else "this period"
-    # Each part walks independently, with its OWN unchanged rule. The rules read
-    # rungs, as_of and ids; nothing in a walk step can see a result.
-    pick, fstep = _fall_back(files, pick_featured)
-    featured, conflict = build_featured(files, pick, fstep) if pick else (None, None)
+    # ONE period for the page (a-56), chosen by coverage before any part is
+    # picked. Each part then applies its OWN unchanged rule to that period, and
+    # walks on only if the period has nothing the rule accepts. The rules and the
+    # choice read rungs, game ids, as_of and ids; nothing can see a result.
+    choice = choose_period(files)
+    pick, fstep = _fall_back(files, pick_featured, choice)
+    featured, conflict = build_featured(files, pick, fstep, choice) if pick else (None, None)
     if featured is None:
         unavailable.append({"part": "featured_ladder",
                             "reason": "no posted market in %s carries a ladder" % within})
     if conflict:
         unavailable.append({"part": "featured_ladder.result", "reason": conflict})
-    dist_picks, dstep = _fall_back(files, pick_distributions)
-    distributions = build_distributions(files, dist_picks, dstep) if dist_picks else None
+    dist_picks, dstep = _fall_back(files, pick_distributions, choice)
+    distributions = (build_distributions(files, dist_picks, dstep, choice) if dist_picks
+                     else None)
     if distributions is None:
         unavailable.append({"part": "distributions",
                             "reason": "no posted market in %s carries a distribution" % within})
@@ -867,8 +1005,8 @@ def build(files, missing=(), generated_at=None):
                             % (distributions["published"], N_DISTRIBUTIONS,
                                distributions["published"], distributions["provenance"]
                                ["period"]["label"])})
-    fpick, fastep = _fall_back(files, pick_fantasy)
-    fantasy = build_fantasy(files, fpick, fastep) if fpick else None
+    fpick, fastep = _fall_back(files, pick_fantasy, choice)
+    fantasy = build_fantasy(files, fpick, fastep, choice) if fpick else None
     if fantasy is None:
         unavailable.append({"part": "fantasy", "reason": "no featured player with a "
                             "fantasy distribution in %s" % within})
@@ -882,10 +1020,15 @@ def build(files, missing=(), generated_at=None):
                        p["result"] is not None for p in distributions["players"])),
                    ("fantasy", fantasy, fantasy is not None and fantasy["result"] is not None))
                if x is not None and x["provenance"]["carried"]]
-    # The de-vig's exchange version reads the featured ladder's rungs as a
-    # CURRENT price; a carried ladder is not one, so it is not offered there.
-    devig = build_devig(files, featured if featured and not featured["provenance"]["carried"]
-                        else None)
+    # The de-vig reads the Board's read of the page's period first, then the
+    # other weeks in walk order. Its exchange version reads the featured
+    # ladder's rungs as a CURRENT price; a carried ladder is not one, so it is
+    # not offered there.
+    season = m["current"]["season"]
+    devig = build_devig(files, featured,
+                        [{"season": season, "index": int(s[1].rsplit("-", 1)[1])}
+                         for s in walk(files, choice)] or None,
+                        exchange=featured is not None and not featured["provenance"]["carried"])
     if devig is None:
         unavailable.append({"part": "devig", "reason": "no two-sided book price and no "
                             "exchange ladder this period"})
@@ -1164,6 +1307,7 @@ def main(argv=None):
     payload = build(files, missing)
     written, deleted, statement = publish(payload, files, dest, dry_run=not a.write)
     print(statement)
+    print(choose_period(files).statement)
     print(summary(payload))
     for line in carried_lines(payload):
         print("  " + line)
