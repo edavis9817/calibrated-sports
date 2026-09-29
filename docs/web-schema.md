@@ -739,46 +739,6 @@ is the one word a page names the line with. Producer: `jobs/season_model.py`
 published beside `division.json` by `season_export.publish_all` in ONE
 `sync_keys` call over `season/`.
 
-a-55 narrowed this kind's key pattern from any `season/{sport}/{name}.json` to
-`season/{sport}/division.json`, so the projection below has a kind of its own
-(a key may resolve to only one kind, `tests/test_contract_keys.py`).
-
-## season/{sport}/projection.json — kind `season_projection` (a-55)
-
-The projected final record per team, and what the team page's dashed forward
-line IS. It replaces the pace line - the win rate so far times the games on the
-schedule, which drew every 3-0 team at 17-0. The same margin-of-victory Elo,
-game distribution and remaining schedule as the division file, with one
-difference: each simulation draws every team's rating once, N(rating, sigma^2),
-because on final wins fixed ratings were measured overconfident. `sigma` is
-chosen per season on earlier seasons only (`method.sigma`).
-
-Per team (`teams[]`): the record so far; `projection` - `mean`, `median`,
-`interval80`/`interval95` (quantiles of whole wins) with `interval80_mass`/
-`interval95_mass` (the share of simulations actually inside, above nominal
-because wins are discrete), and `distribution` (final wins -> p, sums to 1);
-`path` - cumulative wins after each remaining game, `mean` plus both bands,
-which is the dashed line and its band; `schedule` - every remaining game with
-the opponent's rating and this team's `p_win`; `remaining` - `opponent_rating_mean`,
-`expected_wins` (= sum of `p_win`), `expected_wins_average_opponents` (the same
-team, same games and venues, against league-average opponents), `schedule_effect`
-(the difference, in wins; negative is harder than average),
-`average_team_expected_wins`, `average_team_win_share` and `difficulty_rank`
-(1 = hardest for a league-average team); and a generated `statement`. The
-producer REFUSES a file where `mean` differs from wins so far plus the sum of
-`p_win`, or where the path does not end at `mean`: the headline, the per-game
-numbers and the line are one simulation.
-
-`record` scores the projected mean final wins walk-forward, 2002-2025, against
-`pace` and `standings_coin_flip` (season-block bootstrap of the squared-error
-difference), plus interval `coverage` (realised against simulated mass).
-`record.verdict` is `beats_baselines` only when better than both, and
-`display.show` follows from it (`model` or `standings_coin_flip`). `line.label`
-is the one word a page names the line with. Producer: `jobs/season_model.py`
-(simulation in `jobs/season_projection.py`, shape in `jobs/season_export.py`),
-published beside `division.json` by `season_export.publish_all` in ONE
-`sync_keys` call over `season/`.
-
 ## {sport}/sources.json — kind `sources` (a-22, audit S-04)
 
 GENERATED from `jobs/source_registry.py`, never written. `sources[]` lists every
