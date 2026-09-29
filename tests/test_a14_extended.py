@@ -56,9 +56,9 @@ def parquet(rows, schema=None):
 # that publishes.
 
 def test_the_published_profile_is_pinned():
-    """THE ONE-LINE FLIP. c-18's merge branch holds it False because the
-    denominators (§P) were not served; branch c-18-flip changes this line and the
-    constant together."""
+    """THE ONE-LINE FLIP. c-18's merge branch holds it False until the live store
+    is re-derived (see the constant's comment); branch c-18-flip changes this
+    line and the constant together, so the pin moves only on purpose."""
     assert E.PUBLISH_EXTENDED is False
     assert E.PARTICIPATION is E.participation(E.PUBLISH_EXTENDED)
 
