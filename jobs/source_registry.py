@@ -499,9 +499,12 @@ KIND_INPUTS = {
         # the manifest's counts, this period's market files, the three research
         # files, the Lab index (and the universe meta behind it, whose reads the
         # preset files already declare) and the Board's latest read and index.
+        # a-52: a carried showpiece is shown with its result - the settled stat
+        # from the player's season file and the lean's grade from the Board's
+        # ledger, which board_read's producer writes (so board_read covers it).
         "landing": ("sport_manifest", "market", "research.calibration",
                     "research.hypotheses", "research.market_calibration", "lab_index",
-                    "board_read", "board_index"),
+                    "board_read", "board_index", "player_season"),
     },
     "cfb": {},
     "mlb": {},

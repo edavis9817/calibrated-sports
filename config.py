@@ -524,6 +524,10 @@ BOARD_GRADE_EVERY_MIN = 60
 # record. `--tick` refuses when it is unset. The bucket is the site's
 # (WEB_R2_BUCKET, same keys); only the local tree and the upload record differ.
 BOARD_EXPORT_DIR = os.getenv("BOARD_EXPORT_DIR")
+# The landing's showpieces fall back to the most recent period that has them
+# (a-52, DECISIONS-2026-09-28 §T), walking back at most this many periods from
+# the current one. Past it a part goes null: a month-old example is a stale page.
+LANDING_FALLBACK_PERIODS = int(os.getenv("LANDING_FALLBACK_PERIODS", "3"))
 # How often the scheduled `--tick` wakes (the task's trigger, documented in
 # docs/runbooks/board-cadence.md). It bounds the resolution of every cadence
 # above - a 15-minute read cannot be taken more often than the tick fires.

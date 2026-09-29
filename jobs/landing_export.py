@@ -29,6 +29,30 @@ WHAT IT READS - files only, never the store:
 A missing input makes its part null and lists it under `unavailable` with the
 reason; it never becomes a zero or a guess.
 
+THE SHOWPIECES FALL BACK, AND SAY SO (a-52, DECISIONS-2026-09-28 §T). The
+featured ladder, the distributions and the fantasy example are drawn from
+market files, and the market builder writes only the current period's UNPLAYED
+games - `sync_keys` then deletes every other period's file. So on a Monday the
+served tree holds no market file at all and all three went null. Each part now
+walks back, independently, from the current period through at most
+`LANDING_FALLBACK_PERIODS` earlier ones and takes the first period its
+UNCHANGED selection rule is satisfied in. Past the bound it is null and listed
+under `unavailable` as before.
+  - The walk reads the LANDING ARCHIVE (`--archive`, server-side, never
+    served): every run with --write copies the current period's served market
+    files there, overwriting a player's file with its newer publication and
+    removing nothing. So a carried part is a figure this system published, as
+    it was last published - never a recomputation, never an example.
+  - Every such part carries `provenance` (`carried`, the period it came from,
+    its as_of, how many periods back) and is listed under `carried`, NOT under
+    `unavailable`.
+  - A carried part comes from a played period, so it carries `result` where
+    the result is on disk: the settled stat from the player's season file and,
+    for the featured ladder, the Board's lean on that claim with its grade.
+    SELECTION NEVER READS THE RESULT. The rule picks; the result is attached
+    afterwards, whatever it was. A result absent from disk is null, never
+    inferred.
+
 WHERE IT WRITES. `landing.json`, a single top-level key, through
 `export_web.sync_keys(dest, {KEY: payload}, [])`: contract check and source gate,
 and it OWNS NO PREFIX, so it can delete nothing (the same shape as sports.json).
@@ -38,9 +62,11 @@ uploader to authorise deleting.
 from __future__ import annotations
 
 import argparse
+import csv
 import datetime as dt
 import glob
 import json
+import math
 import os
 import re
 import sys
@@ -59,6 +85,13 @@ LAB_INDEX = f"lab/{SPORT}/index.json"
 # Not a served key: the Lab universe's meta lives beside the universe on the
 # server. Named with a prefix no served key can carry so a page can tell.
 LAB_META = "server:lab/universe.meta.json"
+# The landing archive: earlier periods' market files, as last published. Also
+# never served, so the same prefix.
+ARCHIVE = "server:landing-archive/"
+# The Board's append-only lean ledger (contract table board_ledger), served.
+LEDGER = f"board/{SPORT}/ledger.csv"
+# Not a file: the period window load_inputs read, so build walks exactly it.
+WINDOW = "internal:window"
 N_DISTRIBUTIONS = 14
 FANTASY_POINTS = 20
 TIERS = ("archive", "season", "week")
@@ -99,18 +132,52 @@ def _load(path):
         return json.load(f)
 
 
-def load_inputs(dest, board_dir=None, lab_meta=None):
+def window(manifest, fallback_periods=None):
+    """The periods a part may be drawn from, newest first: [(walked, season,
+    index, key)] from the current period back `fallback_periods` periods. The
+    walk stops at the season's first period - the one before it is the previous
+    season, months away, which the bound exists to refuse."""
+    n = config.LANDING_FALLBACK_PERIODS if fallback_periods is None else fallback_periods
+    if n < 0:
+        raise ValueError(f"fallback_periods must be >= 0, got {n}")
+    season, index = manifest["current"]["season"], manifest["current"]["period"]["index"]
+    return [(k, season, index - k, f"{season}-{index - k}") for k in range(n + 1)
+            if index - k >= 1]
+
+
+def _market_glob(root, pkey):
+    for p in sorted(glob.glob(os.path.join(root, SPORT, "market", "*", f"{pkey}.json"))):
+        yield os.path.basename(os.path.dirname(p)), p
+
+
+def load_inputs(dest, board_dir=None, lab_meta=None, archive_dir=None, fallback_periods=None):
     """-> ({key: parsed file}, [missing notes]). Keys are the served keys, except
-    the Lab universe meta (LAB_META). Never raises on an absent optional input."""
+    the Lab universe meta (LAB_META) and the landing archive (ARCHIVE...). Never
+    raises on an absent optional input."""
     files, missing = {}, []
     mpath = os.path.join(dest, *MANIFEST.split("/"))
     if not os.path.isfile(mpath):
         raise LandingError(f"{MANIFEST} is not in {dest}: nothing to build a landing from")
     files[MANIFEST] = manifest = _load(mpath)
-    pkey = manifest["current"]["period"]["key"]
-    for p in sorted(glob.glob(os.path.join(dest, SPORT, "market", "*", f"{pkey}.json"))):
-        pid = os.path.basename(os.path.dirname(p))
-        files[f"{SPORT}/market/{pid}/{pkey}.json"] = _load(p)
+    fallback_periods = (config.LANDING_FALLBACK_PERIODS if fallback_periods is None
+                        else fallback_periods)
+    files[WINDOW] = {"bound": fallback_periods, "periods": window(manifest, fallback_periods)}
+    for _, _, _, pkey in files[WINDOW]["periods"]:
+        for pid, p in _market_glob(dest, pkey):
+            files[f"{SPORT}/market/{pid}/{pkey}.json"] = _load(p)
+        if archive_dir:
+            for pid, p in _market_glob(archive_dir, pkey):
+                files[f"{ARCHIVE}{SPORT}/market/{pid}/{pkey}.json"] = _load(p)
+    if not archive_dir:
+        missing.append("no landing archive was given: no earlier period can be carried")
+    # The settled stat for every player a window market file names, from the
+    # player's own season file - the settlement a carried part is shown with.
+    for k in [k for k in files if "/market/" in k]:
+        f = files[k]
+        skey = f"{SPORT}/players/{f['identity']['id']}/{f['period']['season']}.json"
+        spath = os.path.join(dest, *skey.split("/"))
+        if skey not in files and os.path.isfile(spath):
+            files[skey] = _load(spath)
     for key in (SCORE, REGISTER, MARKET_STUDY, LAB_INDEX):
         p = os.path.join(dest, *key.split("/"))
         if os.path.isfile(p):
@@ -133,6 +200,12 @@ def load_inputs(dest, board_dir=None, lab_meta=None):
                 missing.append(f"{rkey} (the Board index's latest read) is not in {board_dir}")
         else:
             missing.append(f"the Board has no read for {season} week {week} in {board_dir}")
+        lpath = os.path.join(board_dir, *LEDGER.split("/"))
+        if os.path.isfile(lpath):
+            with open(lpath, encoding="utf-8", newline="") as f:
+                files[LEDGER] = list(csv.DictReader(f))
+        else:
+            missing.append(f"{LEDGER} is not in {board_dir}: no lean can be shown with a result")
     else:
         missing.append("no Board tree was given (--board / BOARD_EXPORT_DIR unset)")
     if lab_meta:
@@ -146,9 +219,66 @@ def load_inputs(dest, board_dir=None, lab_meta=None):
 
 
 def _market_files(files, manifest):
-    pkey = manifest["current"]["period"]["key"]
+    """The current period's SERVED market files - what the site shows now."""
+    return _served(files, manifest["current"]["period"]["key"])
+
+
+def _served(files, pkey):
     return {k: v for k, v in sorted(files.items())
             if k.startswith(f"{SPORT}/market/") and k.endswith(f"/{pkey}.json")}
+
+
+def _period_files(files, pkey):
+    """One period's market files, served and archived. A player's served file
+    wins over its archived copy (it is the same publication or a newer one)."""
+    out = {}
+    for k, v in sorted(files.items()):
+        if k.startswith(f"{ARCHIVE}{SPORT}/market/") and k.endswith(f"/{pkey}.json"):
+            out[v["identity"]["id"]] = (k, v)
+    for k, v in _served(files, pkey).items():
+        out[v["identity"]["id"]] = (k, v)
+    return dict(sorted(out.values()))
+
+
+def walk(files):
+    """-> [(walked, key, market files, carried)], the order a part is looked for
+    in: the current period as served, then - carried - the current period as last
+    published (its played games are gone from the served tree), then each earlier
+    period in the window. Never reads a result."""
+    win = _window(files)["periods"]
+    cur = files[MANIFEST]["current"]["period"]["key"]
+    return [(0, cur, _served(files, cur), False)] + \
+        [(k, pkey, _period_files(files, pkey), True) for k, _, _, pkey in win]
+
+
+def _window(files):
+    """The window load_inputs read; a hand-built `files` without one walks only
+    the current period (bound 0), never an unread one."""
+    return files.get(WINDOW) or {"bound": 0, "periods": window(files[MANIFEST], 0)}
+
+
+def _fall_back(files, choose):
+    """The first step of the walk where `choose(market files)` is truthy.
+    -> (pick, step) or (None, None)."""
+    for step in walk(files):
+        pick = choose(step[2])
+        if pick:
+            return pick, step
+    return None, None
+
+
+def provenance(files, step, f, part, as_of=None):
+    walked, pkey, _, carried = step
+    cur = files[MANIFEST]["current"]["period"]
+    reason = None
+    if carried:
+        reason = ("nothing served for %s satisfies this part's rule; carried from %s, %s "
+                  % (cur["label"], f["period"]["label"],
+                     "as it was last published before its games were played" if walked == 0
+                     else "%d period(s) back, the most recent within the window of %d that does"
+                     % (walked, _window(files)["bound"])))
+    return {"carried": carried, "walked": walked, "period": dict(f["period"]),
+            "as_of": as_of or f["as_of"], "reason": reason}
 
 
 def _board(files):
@@ -336,16 +466,135 @@ def pick_distributions(mfiles, n=N_DISTRIBUTIONS):
     return sorted(ranked, key=lambda t: (-t[2], -_recency(t[1]), t[1]["identity"]["id"]))[:n]
 
 
+def pick_fantasy(mfiles):
+    """The written rule, RULE_FANTASY: the featured ladder's player of the SAME
+    market files, when that player carries a fantasy distribution."""
+    pick = pick_featured(mfiles)
+    return pick if pick and "ppr" in (pick[1].get("distributions") or {}) else None
+
+
 def _player(manifest, f):
     i = f["identity"]
     return {"id": i["id"], "slug": i["slug"], "name": i["name"], "position": i["position"],
             "team": _team(manifest, i["team"])}
 
 
-def build_featured(files, pick):
+# ----------------------------------------------------------------------------
+# results: attached AFTER selection, read from files, never inferred
+# ----------------------------------------------------------------------------
+
+def _settled_row(files, f):
+    """-> (the player's season-file row for f's game, its key, its path) or
+    (None, key, None). A player with no row for the game - not yet ingested,
+    did not play, or played and recorded nothing - has no result here: a missing
+    row is not a zero (CLAUDE.md, nflverse)."""
+    key = f"{SPORT}/players/{f['identity']['id']}/{f['period']['season']}.json"
+    doc = files.get(key)
+    rows = [r for r in (doc or {}).get("periods", []) if r.get("game_id") == f["game_id"]]
+    if len(rows) != 1:
+        return None, key, None
+    return rows[0], key, "periods[game_id=%s].stats" % f["game_id"]
+
+
+def _num(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def outcome(value, line):
+    """A rung against the settled value. `cleared` / `missed`, never win / loss."""
+    return "cleared" if value > line else "missed" if value < line else "push"
+
+
+def score(stats, weights):
+    """THE site's scoring (calibratedsports-web lib/scoring.ts), mirrored: sum of
+    weight x stat, a missing or null component scores 0, rounded to the cent the
+    way Math.round does (half up, not half to even)."""
+    total = sum(w * stats[k] for k, w in weights.items() if _num(stats.get(k)))
+    return math.floor(total * 100 + 0.5) / 100
+
+
+# The components a fantasy distribution is built on. A row missing any of them
+# is not scored: a missing rec scores 0 on the site, and a 0 in place of a
+# receiver's unrecorded catches is a result the page would state with confidence.
+FANTASY_REQUIRES = ("rec", "rec_yds")
+
+
+def band(value, quantiles):
+    """Which published quantile interval `value` fell in - an exact comparison
+    against the file's own quantiles, no interpolation."""
+    qs = sorted(quantiles.items(), key=lambda kv: (kv[1], kv[0]))
+    if value < qs[0][1]:
+        return "below %s" % qs[0][0]
+    for (lo, a), (hi, b) in zip(qs, qs[1:]):
+        if a <= value < b:
+            return "%s-%s" % (lo, hi)
+    return "at or above %s" % qs[-1][0]
+
+
+def fantasy_result(files, f, presets):
+    """-> {game_id, source, points: {preset: points}} or None."""
+    row, key, path = _settled_row(files, f)
+    if row is None or not all(_num(row["stats"].get(k)) for k in FANTASY_REQUIRES):
+        return None
+    m = files[MANIFEST]
+    return {"game_id": f["game_id"], "source": {"key": key, "path": path},
+            "points": {p: score(row["stats"], m["scoring_presets"][p]["weights"])
+                       for p in presets}}
+
+
+def lean_on(files, f, market):
+    """The Board's lean on this claim, from the ledger, ONLY once it is settled
+    (graded or void): a pending lean is a pick, and the landing does not publish
+    picks. Several leans on one claim -> the first published (then lean_id), a
+    choice that cannot see how any of them turned out. -> dict or None."""
+    rows = [r for r in files.get(LEDGER) or []
+            if r["gsis_id"] == f["identity"]["id"] and r["market"] == market
+            and r["season"] == str(f["period"]["season"])
+            and r["week"] == str(f["period"]["index"])]
+    by = {}
+    for r in rows:                      # append-only: the last event is the state
+        by.setdefault(r["lean_id"], []).append(r)
+    firsts = sorted((min(e["read_at"] for e in evs), lid) for lid, evs in by.items())
+    if not firsts:
+        return None
+    lid = firsts[0][1]
+    last = by[lid][-1]
+    if last["event"] not in ("graded", "void"):
+        return None
+    return {"lean_id": lid, "side": last["side"], "line": float(last["line"]),
+            "read_at": last["read_at"], "status": last["event"],
+            "result": last["result"] or None,
+            "actual": float(last["actual"]) if last["actual"] else None,
+            "void_reason": last["void_reason"] or None,
+            "source": {"key": LEDGER, "path": "[lean_id=%s]" % lid}}
+
+
+def featured_result(files, f, comp):
+    """-> {game_id, stat, value, rungs: [{line, outcome}], source} or None."""
+    row, key, path = _settled_row(files, f)
+    if row is None or not _num(row["stats"].get(comp["stat"])):
+        return None
+    v = row["stats"][comp["stat"]]
+    return {"game_id": f["game_id"], "stat": comp["stat"], "value": v,
+            "rungs": [{"line": r["line"], "outcome": outcome(v, r["line"])}
+                      for r in comp["rungs"]],
+            "source": {"key": key, "path": "%s.%s" % (path, comp["stat"])}}
+
+
+def build_featured(files, pick, step):
+    """-> (the part, a conflict note or None)."""
     m = files[MANIFEST]
     key, f, comp = pick
     market, label = _market_of_stat(m)[comp["stat"]]
+    result, lean = featured_result(files, f, comp), lean_on(files, f, market)
+    conflict = None
+    if result and lean and lean["actual"] is not None and lean["actual"] != result["value"]:
+        # Two settlements of one claim that disagree: a page showing both
+        # contradicts itself, so the stat is withheld and the ledger - the public
+        # record the lean was graded on - stands. Reported, never resolved here.
+        conflict = ("the player file settles %s at %s and the Board ledger at %s; the "
+                    "result is withheld" % (comp["stat"], result["value"], lean["actual"]))
+        result = None
     return {
         "rule": RULE_FEATURED,
         "player": _player(m, f),
@@ -360,9 +609,12 @@ def build_featured(files, pick):
         "mid_basis": "the mid of each rung's bid and ask, no de-vig (an exchange)",
         "rungs": [{"line": r["line"], "mid": r["p_over"], "bid": r["bid"], "ask": r["ask"],
                    "quote_ts": r["quote_ts"]} for r in comp["rungs"]],
-        "candidates": len(_ladders(_market_files(files, m))),
+        "candidates": len(_ladders(step[2])),
         "source": {"key": key, "path": "components[stat=%s].rungs" % comp["stat"]},
-    }
+        "provenance": provenance(files, step, f, "featured_ladder"),
+        "result": result,
+        "lean": lean,
+    }, conflict
 
 
 def _survival(cdf):
@@ -370,22 +622,29 @@ def _survival(cdf):
     return [{"x": pt["x"], "p_over": round(1.0 - pt["p_at_most"], 4)} for pt in cdf]
 
 
-def build_distributions(files, picks):
+def build_distributions(files, picks, step):
     m = files[MANIFEST]
     out = []
     for key, f, rungs in picks:
         d = f["distributions"]["ppr"]
+        r = fantasy_result(files, f, ["ppr"])
         out.append({"player": _player(m, f), "rungs": rungs, "as_of": f["as_of"],
                     "quantiles": dict(d["quantiles"]), "survival": _survival(d["cdf"]),
-                    "source": {"key": key, "path": "distributions.ppr.cdf"}})
+                    "source": {"key": key, "path": "distributions.ppr.cdf"},
+                    "result": None if r is None else
+                    {"game_id": r["game_id"], "points": r["points"]["ppr"],
+                     "band": band(r["points"]["ppr"], d["quantiles"]), "source": r["source"]}})
+    newest = max(picks, key=lambda t: _recency(t[1]))[1]
     return {"rule": RULE_DISTRIBUTIONS, "scoring": "ppr",
             "scoring_label": m["scoring_presets"]["ppr"]["label"],
-            "requested": N_DISTRIBUTIONS, "published": len(out), "players": out}
+            "requested": N_DISTRIBUTIONS, "published": len(out), "players": out,
+            "provenance": provenance(files, step, newest, "distributions")}
 
 
-def build_fantasy(files, pick):
+def build_fantasy(files, pick, step):
     m = files[MANIFEST]
     key, f, _ = pick
+    r = fantasy_result(files, f, list(f["distributions"]))
     presets = []
     for name, d in f["distributions"].items():
         at = [t["p_at_least"] for t in d["thresholds"] if t["points"] == FANTASY_POINTS]
@@ -395,9 +654,13 @@ def build_fantasy(files, pick):
                         "p_at_least": {"points": FANTASY_POINTS,
                                        "p": at[0] if len(at) == 1 else None},
                         "cdf": [dict(pt) for pt in d["cdf"]],
-                        "source": {"key": key, "path": f"distributions.{name}"}})
+                        "source": {"key": key, "path": f"distributions.{name}"},
+                        "result": None if r is None else
+                        {"points": r["points"][name],
+                         "band": band(r["points"][name], d["quantiles"])}})
     return {"rule": RULE_FANTASY, "player": _player(m, f), "as_of": f["as_of"],
-            "presets": presets}
+            "presets": presets, "provenance": provenance(files, step, f, "fantasy"),
+            "result": None if r is None else {"game_id": r["game_id"], "source": r["source"]}}
 
 
 # =============================================================================
@@ -576,27 +839,47 @@ def build(files, missing=(), generated_at=None):
     generated_at = generated_at or iso(dt.datetime.now(dt.timezone.utc).timestamp())
     mfiles = _market_files(files, m)
     unavailable = [{"part": "inputs", "reason": r} for r in missing]
-    pick = pick_featured(mfiles)
-    featured = build_featured(files, pick) if pick else None
+    bound = _window(files)["bound"]
+    within = ("this period or the %d before it" % bound) if bound else "this period"
+    # Each part walks independently, with its OWN unchanged rule. The rules read
+    # rungs, as_of and ids; nothing in a walk step can see a result.
+    pick, fstep = _fall_back(files, pick_featured)
+    featured, conflict = build_featured(files, pick, fstep) if pick else (None, None)
     if featured is None:
         unavailable.append({"part": "featured_ladder",
-                            "reason": "no posted market this period carries a ladder"})
-    dist_picks = pick_distributions(mfiles)
-    distributions = build_distributions(files, dist_picks) if dist_picks else None
+                            "reason": "no posted market in %s carries a ladder" % within})
+    if conflict:
+        unavailable.append({"part": "featured_ladder.result", "reason": conflict})
+    dist_picks, dstep = _fall_back(files, pick_distributions)
+    distributions = build_distributions(files, dist_picks, dstep) if dist_picks else None
     if distributions is None:
         unavailable.append({"part": "distributions",
-                            "reason": "no posted market this period carries a distribution"})
+                            "reason": "no posted market in %s carries a distribution" % within})
     elif distributions["published"] < N_DISTRIBUTIONS:
         unavailable.append({"part": "distributions", "reason": "%d of %d requested: only %d "
-                            "players carry a posted market this period"
+                            "players carry a posted market in %s"
                             % (distributions["published"], N_DISTRIBUTIONS,
-                               distributions["published"])})
-    fantasy = build_fantasy(files, pick) if pick and "ppr" in (pick[1].get("distributions")
-                                                               or {}) else None
+                               distributions["published"], distributions["provenance"]
+                               ["period"]["label"])})
+    fpick, fastep = _fall_back(files, pick_fantasy)
+    fantasy = build_fantasy(files, fpick, fastep) if fpick else None
     if fantasy is None:
         unavailable.append({"part": "fantasy", "reason": "no featured player with a "
-                            "fantasy distribution this period"})
-    devig = build_devig(files, featured)
+                            "fantasy distribution in %s" % within})
+    carried = [{"part": part, "period": dict(x["provenance"]["period"]),
+                "as_of": x["provenance"]["as_of"], "walked": x["provenance"]["walked"],
+                "settled": settled, "reason": x["provenance"]["reason"]}
+               for part, x, settled in (
+                   ("featured_ladder", featured,
+                    featured is not None and featured["result"] is not None),
+                   ("distributions", distributions, distributions is not None and any(
+                       p["result"] is not None for p in distributions["players"])),
+                   ("fantasy", fantasy, fantasy is not None and fantasy["result"] is not None))
+               if x is not None and x["provenance"]["carried"]]
+    # The de-vig's exchange version reads the featured ladder's rungs as a
+    # CURRENT price; a carried ladder is not one, so it is not offered there.
+    devig = build_devig(files, featured if featured and not featured["provenance"]["carried"]
+                        else None)
     if devig is None:
         unavailable.append({"part": "devig", "reason": "no two-sided book price and no "
                             "exchange ladder this period"})
@@ -624,6 +907,7 @@ def build(files, missing=(), generated_at=None):
         "register": register,
         "fantasy": fantasy,
         "freshness": build_freshness(files, mfiles),
+        "carried": carried,
         "unavailable": unavailable,
     }
 
@@ -682,6 +966,43 @@ def _scene_problems(payload, files):
         d = at(p["source"])
         if p["median"] != d["quantiles"]["q50"] or p["cdf"] != d["cdf"]:
             out.append(f"fantasy: {p['preset']} differs from {p['source']['path']}")
+    # Results: each re-read from the file it names, and each settled figure
+    # re-scored from the stats row there - not from the builder's own output.
+    def stats_at(src):
+        try:
+            return at(src)
+        except (KeyError, MR.Unresolved) as e:
+            out.append(f"result: {src['key']}:{src['path']} does not resolve ({e})")
+            return None
+
+    if fl is not None and fl.get("result") is not None:
+        n += 1
+        r = fl["result"]
+        v = stats_at(r["source"])
+        if v != r["value"] or [x["outcome"] for x in r["rungs"]] != \
+                [outcome(v, x["line"]) for x in fl["rungs"]]:
+            out.append("featured_ladder.result: differs from %s" % r["source"]["key"])
+    if fl is not None and fl.get("lean") is not None:
+        n += 1
+        ln = fl["lean"]
+        evs = [e for e in files.get(LEDGER) or [] if e["lean_id"] == ln["lean_id"]]
+        if not evs or evs[-1]["event"] != ln["status"] or (evs[-1]["result"] or None) != \
+                ln["result"] or evs[-1]["side"] != ln["side"]:
+            out.append("featured_ladder.lean: differs from %s" % LEDGER)
+    weights = {k: v["weights"] for k, v in files[MANIFEST]["scoring_presets"].items()}
+    for p in (ds or {}).get("players", []):
+        if p.get("result") is not None:
+            n += 1
+            st = stats_at(p["result"]["source"])
+            if st is None or score(st, weights["ppr"]) != p["result"]["points"]:
+                out.append(f"distributions: {p['player']['id']} result differs from its row")
+    if fa is not None and fa.get("result") is not None:
+        st = stats_at(fa["result"]["source"])
+        for p in fa["presets"]:
+            n += 1
+            if st is None or p["result"] is None or \
+                    score(st, weights[p["preset"]]) != p["result"]["points"]:
+                out.append(f"fantasy: {p['preset']} result differs from its row")
     dv = payload["devig"]
     if dv is not None and dv["basis"] == "book":
         n += 1
@@ -750,6 +1071,40 @@ def summary(payload):
                len(payload["unavailable"]), len(json.dumps(payload))))
 
 
+def carried_lines(payload):
+    """One line per part served from an earlier period than the current one -
+    the line that shows the landing has been carrying last week for a month."""
+    if not payload["carried"]:
+        return ["carried: none - every showpiece present is from %s"
+                % payload["period"]["label"]]
+    return ["carried: %s from %s %s (key %s, as_of %s, %d period(s) back), result %s"
+            % (c["part"], c["period"]["season"], c["period"]["label"], c["period"]["key"],
+               c["as_of"], c["walked"], "on disk" if c["settled"] else "NOT on disk")
+            for c in payload["carried"]]
+
+
+def archive_current(files, archive_dir, dry_run=False):
+    """Copy the current period's SERVED market files into the landing archive,
+    so a later run can carry them after the export has deleted them. A player's
+    file is overwritten by its newer publication; nothing is ever removed.
+    -> (written, unchanged)."""
+    written = unchanged = 0
+    for key, obj in _market_files(files, files[MANIFEST]).items():
+        path = os.path.join(archive_dir, *key.split("/"))
+        if os.path.isfile(path) and _load(path) == obj:
+            unchanged += 1
+            continue
+        written += 1
+        if dry_run:
+            continue
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(obj, f)
+        os.replace(tmp, path)
+    return written, unchanged
+
+
 def publish(payload, files, dest, dry_run=False):
     """Refuse before any write, then write through sync_keys owning nothing.
     -> (written, deleted, statement)."""
@@ -765,12 +1120,20 @@ def default_lab_meta():
     return os.path.join(config.storage_path("lab"), "universe.meta.json")
 
 
+def default_archive():
+    return config.storage_path("landing", "archive")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--dest", default="web",
                     help="'web' for WEB_EXPORT_DIR (the default), or a tree path")
     ap.add_argument("--board", help="the Board's tree (default BOARD_EXPORT_DIR)")
     ap.add_argument("--lab-meta", help="the Lab universe meta (default <STORAGE>/lab)")
+    ap.add_argument("--archive", help="the landing archive (default <STORAGE>/landing/archive)")
+    ap.add_argument("--fallback-periods", type=int, default=None,
+                    help="how many periods back a showpiece may be carried from "
+                         "(default config.LANDING_FALLBACK_PERIODS)")
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--write", action="store_true", help="write landing.json into --dest")
     g.add_argument("--check", action="store_true", help="build and verify, write nothing")
@@ -778,11 +1141,20 @@ def main(argv=None):
     from jobs.export_web import require_setting
     dest = require_setting("WEB_EXPORT_DIR") if a.dest == "web" else a.dest
     board = a.board or getattr(config, "BOARD_EXPORT_DIR", None) or os.getenv("BOARD_EXPORT_DIR")
-    files, missing = load_inputs(dest, board, a.lab_meta or default_lab_meta())
+    archive = a.archive or default_archive()
+    files, missing = load_inputs(dest, board, a.lab_meta or default_lab_meta(), archive,
+                                 a.fallback_periods)
+    # Archived BEFORE the build, so a landing that refuses still keeps this
+    # period's files for the run that will need them once the export deletes them.
+    aw, au = archive_current(files, archive, dry_run=not a.write)
+    print("%s %d current-period market file(s) into %s (%d unchanged)"
+          % ("archived" if a.write else "would archive", aw, archive, au))
     payload = build(files, missing)
     written, deleted, statement = publish(payload, files, dest, dry_run=not a.write)
     print(statement)
     print(summary(payload))
+    for line in carried_lines(payload):
+        print("  " + line)
     for u in payload["unavailable"]:
         print("  unavailable: %s - %s" % (u["part"], u["reason"]))
     print("%s %s: written %d, deleted %d" % ("wrote" if a.write else "checked (dry run)",

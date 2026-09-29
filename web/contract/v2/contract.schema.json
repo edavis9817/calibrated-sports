@@ -5309,6 +5309,41 @@
       ],
       "additionalProperties": false
     },
+    "LandingProvenance": {
+      "description": "Where a landing showpiece came from (a-52). `carried` is true when no file served for the CURRENT period satisfies the part's rule and it is drawn from the landing archive: the most recent period within the bound that does, as that period was last published. A page reads `carried` to label the part; `period` here is the part's own period, never the file's.",
+      "type": "object",
+      "properties": {
+        "carried": {
+          "type": "boolean"
+        },
+        "walked": {
+          "description": "Periods back from the current one: 0 is the current period (served, or as last published when carried).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "period": {
+          "$ref": "#/$defs/LandingPeriod"
+        },
+        "as_of": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "reason": {
+          "description": "Why the part was carried; null when it was not.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "carried",
+        "walked",
+        "period",
+        "as_of",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
     "LandingCounterSource": {
       "type": "object",
       "properties": {
@@ -5547,6 +5582,119 @@
       ],
       "additionalProperties": false
     },
+    "LandingRungOutcome": {
+      "type": "object",
+      "properties": {
+        "line": {
+          "type": "number"
+        },
+        "outcome": {
+          "enum": [
+            "cleared",
+            "missed",
+            "push"
+          ]
+        }
+      },
+      "required": [
+        "line",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "LandingLadderResult": {
+      "description": "What happened, read from the player's season file AFTER the ladder was chosen; null when that file holds no settled row for the game. Selection never reads it.",
+      "type": "object",
+      "properties": {
+        "game_id": {
+          "type": "string"
+        },
+        "stat": {
+          "type": "string"
+        },
+        "value": {
+          "type": "number"
+        },
+        "rungs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LandingRungOutcome"
+          }
+        },
+        "source": {
+          "$ref": "#/$defs/LandingSource"
+        }
+      },
+      "required": [
+        "game_id",
+        "stat",
+        "value",
+        "rungs",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "LandingLean": {
+      "description": "The Board's lean on the featured claim, from the append-only ledger, shown ONLY once graded or void - a pending lean is a pick and is not published here.",
+      "type": "object",
+      "properties": {
+        "lean_id": {
+          "type": "string"
+        },
+        "side": {
+          "enum": [
+            "over",
+            "under"
+          ]
+        },
+        "line": {
+          "type": "number"
+        },
+        "read_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "status": {
+          "enum": [
+            "graded",
+            "void"
+          ]
+        },
+        "result": {
+          "description": "The lean's grade: cleared or missed; null when void.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "actual": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "void_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/LandingSource"
+        }
+      },
+      "required": [
+        "lean_id",
+        "side",
+        "line",
+        "read_at",
+        "status",
+        "result",
+        "actual",
+        "void_reason",
+        "source"
+      ],
+      "additionalProperties": false
+    },
     "LandingFeatured": {
       "description": "The one ladder for the 'one line becomes a curve' scene, chosen by the written `rule`.",
       "type": "object",
@@ -5597,6 +5745,29 @@
         },
         "source": {
           "$ref": "#/$defs/LandingSource"
+        },
+        "provenance": {
+          "$ref": "#/$defs/LandingProvenance"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LandingLadderResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lean": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LandingLean"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -5613,7 +5784,10 @@
         "mid_basis",
         "rungs",
         "candidates",
-        "source"
+        "source",
+        "provenance",
+        "result",
+        "lean"
       ],
       "additionalProperties": false
     },
@@ -5808,6 +5982,16 @@
         },
         "source": {
           "$ref": "#/$defs/LandingSource"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LandingDistributionResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -5816,6 +6000,32 @@
         "as_of",
         "quantiles",
         "survival",
+        "source",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    "LandingDistributionResult": {
+      "description": "The realised fantasy points against the distribution, scored by the site's one scoring function from the player's season-file row. `band` is the published quantile interval the value fell in. Null when the row is absent or lacks a component the distribution is built on.",
+      "type": "object",
+      "properties": {
+        "game_id": {
+          "type": "string"
+        },
+        "points": {
+          "type": "number"
+        },
+        "band": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/LandingSource"
+        }
+      },
+      "required": [
+        "game_id",
+        "points",
+        "band",
         "source"
       ],
       "additionalProperties": false
@@ -5844,6 +6054,9 @@
           "items": {
             "$ref": "#/$defs/LandingDistribution"
           }
+        },
+        "provenance": {
+          "$ref": "#/$defs/LandingProvenance"
         }
       },
       "required": [
@@ -5852,7 +6065,8 @@
         "scoring_label",
         "requested",
         "published",
-        "players"
+        "players",
+        "provenance"
       ],
       "additionalProperties": false
     },
@@ -5920,6 +6134,16 @@
         },
         "source": {
           "$ref": "#/$defs/LandingSource"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LandingFantasyPresetResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -5930,6 +6154,39 @@
         "quantiles",
         "p_at_least",
         "cdf",
+        "source",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    "LandingFantasyPresetResult": {
+      "type": "object",
+      "properties": {
+        "points": {
+          "type": "number"
+        },
+        "band": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "points",
+        "band"
+      ],
+      "additionalProperties": false
+    },
+    "LandingFantasyResult": {
+      "type": "object",
+      "properties": {
+        "game_id": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/LandingSource"
+        }
+      },
+      "required": [
+        "game_id",
         "source"
       ],
       "additionalProperties": false
@@ -5951,13 +6208,28 @@
           "items": {
             "$ref": "#/$defs/LandingFantasyPreset"
           }
+        },
+        "provenance": {
+          "$ref": "#/$defs/LandingProvenance"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LandingFantasyResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
         "rule",
         "player",
         "as_of",
-        "presets"
+        "presets",
+        "provenance",
+        "result"
       ],
       "additionalProperties": false
     },
@@ -6262,6 +6534,44 @@
       ],
       "additionalProperties": false
     },
+    "LandingCarried": {
+      "description": "One row per showpiece served from the landing archive rather than the current period (a-52). A carried part is NOT unavailable.",
+      "type": "object",
+      "properties": {
+        "part": {
+          "type": "string"
+        },
+        "period": {
+          "$ref": "#/$defs/LandingPeriod"
+        },
+        "as_of": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "walked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "settled": {
+          "description": "Whether a result is on disk for it.",
+          "type": "boolean"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "part",
+        "period",
+        "as_of",
+        "walked",
+        "settled",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
     "LandingFile": {
       "description": "THE LANDING (a-47): one file, one fetch. Built by jobs/landing_export.py from served files (and the Board's tree), never from the store; every counter carries the file and path it was read from, and the job re-derives each before writing. Sport-agnostic key; the counters name their sport.",
       "type": "object",
@@ -6357,6 +6667,13 @@
         "freshness": {
           "$ref": "#/$defs/LandingFreshness"
         },
+        "carried": {
+          "description": "Every showpiece drawn from an earlier period than the current one, and from which (a-52). Distinct from `unavailable`: a carried part has something to show.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LandingCarried"
+          }
+        },
         "unavailable": {
           "description": "Every part that is null or short, with the reason. A page draws a Pending line from this rather than guessing.",
           "type": "array",
@@ -6380,6 +6697,7 @@
         "register",
         "fantasy",
         "freshness",
+        "carried",
         "unavailable"
       ],
       "additionalProperties": false
