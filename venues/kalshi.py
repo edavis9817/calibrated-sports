@@ -259,7 +259,12 @@ def _iso(s):
 #  ^series   ^date ^teams  ^player   ^threshold
 _TICKER = re.compile(r"^(?P<series>KX[A-Z0-9]+?)-(?P<yy>\d{2})(?P<mon>[A-Z]{3})"
                      r"(?P<dd>\d{2})(?P<teams>[A-Z]+)-(?P<rest>.+)$")
-_SPREAD_SUBJECT = re.compile(r"^(?P<team>.+?)\s+wins by (over|more than)\s", re.I)
+# The spread rung's team, from the ticker SUFFIX: KXNFLSPREAD-26SEP28PHICHI-CHI28
+# is CHI. Never from the subject text - Kalshi reworded it from "New England
+# wins by over 9.5 points" to "CHI Bears wins by over 27.5 points" mid-season,
+# and a prose parse turned that into ~170 unmapped rungs and an empty research
+# sample (c-19), which reads as "no data" rather than as an error.
+_SPREAD_SUFFIX = re.compile(r"^(?P<team>[A-Z]{2,3})(?P<n>\d+)$")
 _TITLE_THRESHOLD = re.compile(r"^(?P<name>.+?):\s*(?P<n>\d+)\+\s*(?P<stat>.+)$")
 _MONTHS = {m: i for i, m in enumerate(
     ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
@@ -278,6 +283,31 @@ SERIES_STAT = {
     "KXNFLTD": "touchdowns",
     "KXNFLANYTD": "anytime touchdown",
 }
+
+
+def spread_team(ticker: str):
+    """nflverse team code a KXNFLSPREAD rung is about, or None.
+
+    Read from the ticker's last dash-block ("CHI28" -> CHI), and checked against
+    the event's own concatenated team block ("PHICHI"), so a suffix naming a
+    team that is not in the game is refused rather than trusted. The digits are
+    NOT the line: `floor_strike` is, and it is carried separately.
+    """
+    parts = (ticker or "").split("-")
+    if len(parts) != 3 or parts[0] != "KXNFLSPREAD":
+        return None
+    m = _SPREAD_SUFFIX.match(parts[2])
+    ev = _TICKER.match(ticker)
+    if not m or not ev:
+        return None
+    team = mapping.team_abbr(m.group("team"))
+    if team is None:
+        return None
+    block = ev.group("teams")
+    forms = mapping.ABBR_FORMS.get(team, (team,))
+    if not any(block.startswith(f) or block.endswith(f) for f in forms):
+        return None
+    return team
 
 
 def _event_game(ticker: str):
@@ -344,13 +374,15 @@ def map_market(row: dict):
         if line is None:
             raise mapping.Unresolved(f"{mtype} with no strike: {title!r}")
         if mtype == "spread":
-            # Kalshi's yes_sub_title for a spread is a whole sentence -
-            # "New England wins by over 9.5 points" - not a team code.
-            subj = row.get("subject") or ""
-            m2 = _SPREAD_SUBJECT.match(subj)
-            team = mapping.team_abbr(m2.group("team") if m2 else subj)
+            # The team comes from the TICKER, not the subject sentence: the
+            # sentence was reworded mid-season and a prose parse went quietly
+            # empty. See spread_team.
+            team = spread_team(ticker)
             if not team:
-                raise mapping.Unresolved(f"unknown team in spread subject {subj!r}")
+                raise mapping.Unresolved(f"no team in spread ticker suffix {ticker!r}")
+            if team not in game_id.split("_")[2:]:
+                raise mapping.Unresolved(
+                    f"spread team {team} is not in game {game_id} ({ticker!r})")
             subject, mt = team, outcomes.MarketType.SPREAD
         else:
             subject, mt = game_id, outcomes.MarketType.TOTAL

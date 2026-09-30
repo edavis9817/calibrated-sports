@@ -1682,6 +1682,40 @@ def upsert_markets(rows):
     return len(rows)
 
 
+def upsert_prop_markets(rows):
+    """`markets` rows DERIVED from logged quotes (venues.oddsapi.derive_prop_markets).
+
+    Unlike `upsert_markets`, `first_seen` / `last_seen` come from the caller -
+    they are the first and last QUOTE for the line, not the wall clock of this
+    write - and a re-run only ever widens them. Live quotes prune at 14 days, so
+    a later derivation sees fewer quotes than an earlier one did; taking MIN /
+    MAX against the stored row means pruning can never make a line look as if
+    it was last priced earlier than it was. One connection for the batch.
+    """
+    if not rows:
+        return 0
+    with db() as c:
+        c.executemany(
+            """INSERT INTO markets
+               (venue,market_id,event_id,sport,market_type,subject,line,title,
+                open_ts,close_ts,settle_ts,result,first_seen,last_seen)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(venue,market_id) DO UPDATE SET
+                 event_id=excluded.event_id, market_type=excluded.market_type,
+                 subject=excluded.subject, line=excluded.line, title=excluded.title,
+                 close_ts=excluded.close_ts,
+                 first_seen=MIN(COALESCE(markets.first_seen, excluded.first_seen),
+                                excluded.first_seen),
+                 last_seen=MAX(COALESCE(markets.last_seen, excluded.last_seen),
+                               excluded.last_seen)""",
+            [(r.get("venue"), r.get("market_id"), r.get("event_id"),
+              r.get("sport", "nfl"), r.get("market_type"), r.get("subject"),
+              r.get("line"), r.get("title"), r.get("open_ts"), r.get("close_ts"),
+              r.get("settle_ts"), r.get("result"), r["first_seen"], r["last_seen"])
+             for r in rows])
+    return len(rows)
+
+
 def log_poll(venue, endpoint, n_markets, n_quotes, ok, error, elapsed):
     with db() as c:
         c.execute(

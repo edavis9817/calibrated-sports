@@ -137,7 +137,8 @@ SOURCES = {
         provides="The schedule: every game's date, kickoff, teams, final score, and the "
                  "spread and total the release carries",
         used_for=("The fixture source. Team schedules, standings and season paths, the current "
-                  "week, and the spread and total shown beside each game"),
+                  "week, the spread and total shown beside each game, and the season model's "
+                  "division chances and projected final records (scores and remaining schedule)"),
         last_read=("health", ("nflverse:games",))),
     "nflverse.snap_counts": dict(
         name="nflverse", sports=("nfl",), layer="FACTS",
@@ -546,6 +547,8 @@ KIND_EXTRA = {
         # a-41: jobs/season_model.py reads nfl_games (scores, schedule) and
         # nfl_teams (conference and division), mode=ro, outside sync_keys.
         "season_model": ("nflverse.schedule", "nflverse.teams"),
+        # a-55: the projected final record, same job, same two tables.
+        "season_projection": ("nflverse.schedule", "nflverse.teams"),
         # a-45: jobs/lab_publish.py's catalogue. Its ranges also come from the
         # analytics column survey (analytics.metrics.derive_range, run by
         # lab.catalogue.ranges when the universe is built), which measures the

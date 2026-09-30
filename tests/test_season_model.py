@@ -351,17 +351,27 @@ def web_tree(tmp_path, monkeypatch):
     return tmp_path / "web"
 
 
+def _both(division=None):
+    """a-55: `season/` holds two files and publishes them together. The division
+    file from `_fake_result`, the projection from the projection tests' league."""
+    from tests.test_season_projection import both
+    f = both()
+    if division is not None:
+        f[X.KEY] = division
+    return f
+
+
 def test_publish_writes_season_into_the_web_tree_and_passes_the_metric_gate(web_tree):
-    p = X.build(_fake_result(), generated_at="2026-09-27T00:00:00Z")
-    written, deleted, gate = X.publish(p, str(web_tree))
-    assert (written, deleted) == (1, 0)
+    written, deleted, gate = X.publish_all(_both(), str(web_tree))
+    assert (written, deleted) == (2, 0)
     assert (web_tree / "season" / "nfl" / "division.json").is_file()
     from jobs import metric_registry as MR
     assert gate.startswith("metric gate: %d metrics" % len(MR.SEASON_METRICS))
     assert len(MR.SEASON_METRICS) >= 10
     # an unchanged file is not rewritten: generated_at alone does not count
-    p2 = X.build(_fake_result(), generated_at="2026-09-28T00:00:00Z")
-    assert X.publish(p2, str(web_tree))[:2] == (0, 0)
+    from tests.test_season_projection import fake_result, make_world
+    p2 = X.build(fake_result(make_world()), generated_at="2026-09-28T00:00:00Z")
+    assert X.publish_all(_both(p2), str(web_tree))[:2] == (0, 0)
 
 
 def test_publish_owns_season_and_nothing_else(web_tree):
@@ -370,8 +380,7 @@ def test_publish_owns_season_and_nothing_else(web_tree):
     for f in (stale, other):
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text("{}")
-    written, deleted, _ = X.publish(X.build(_fake_result(), generated_at="2026-09-27T00:00:00Z"),
-                                    str(web_tree))
+    written, deleted, _ = X.publish_all(_both(), str(web_tree))
     assert deleted == 1 and not stale.exists()
     assert other.exists(), "publish deleted a key outside season/"
 
@@ -379,12 +388,13 @@ def test_publish_owns_season_and_nothing_else(web_tree):
 def test_publish_refuses_before_writing_when_a_registered_figure_is_missing(web_tree):
     """The low-tail bin is a registered metric; a file whose lowest bin is empty
     has no figure there, and the gate refuses BEFORE sync_keys touches disk."""
-    res = _fake_result()
+    from tests.test_season_projection import fake_result, make_world
+    res = fake_result(make_world())
     res["summary"]["calibration"]["model"][0] = dict(res["summary"]["calibration"]["model"][1])
     p = X.build(res, generated_at="2026-09-27T00:00:00Z")
     from jobs import metric_registry as MR
-    with pytest.raises(MR.MetricDisagreement, match="low_tail"):
-        X.publish(p, str(web_tree))
+    with pytest.raises(MR.MetricDisagreement, match="(?s)2 PROBLEM.*low_tail"):
+        X.publish_all(_both(p), str(web_tree))
     assert not web_tree.exists() or not any(web_tree.rglob("*.json"))
 
 
