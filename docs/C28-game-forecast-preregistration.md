@@ -165,3 +165,18 @@ not chosen after seeing 2a:
 Registered intervals: Part 1 = 3 baselines x (dBrier, dMCB, dDSC, dAUC) = 12;
 Part 2 = 2a 4 + 2b 2 series x 5 + 2c 3 = 17. Total 29. No correction is
 applied; the count is reported beside the results.
+
+## Addendum, 2026-09-30 (after the first run; no rule changed)
+
+- **A 20-draw smoke run preceded the registered 2,000-draw run**, on the same
+  code and data, to find crashes. Its point estimates are identical to the
+  registered run's; only the intervals differ. Nothing was changed between them
+  except replacing `rc.BOOT` default arguments with `None` (the repo's
+  default-argument guard), which does not change behaviour.
+- **The interval count above says 29; the rule text produces 32.** 2c's
+  moneyline is a comparison and so carries dBrier, dMCB, dDSC and dAUC (4, not
+  1). 12 + 4 + 10 + 4 + 2 = 32. The rule text governs; the count was a slip.
+- **Per-season cuts ran at 1,000 draws**, not 2,000. They are cuts, not verdicts.
+- **Kalshi week 1 has no live close** (candle backfill only on every game-line
+  series), so 2a/2b cover weeks 2-3, 32 games. The rule was applied as written;
+  no candle-based close was substituted.
