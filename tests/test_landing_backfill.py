@@ -191,7 +191,8 @@ def test_the_landing_carries_a_backfilled_period(world, tmp_path):
     for pid, path in L._market_glob(archive, PKEY):
         loaded[f"{L.ARCHIVE}nfl/market/{pid}/{PKEY}.json"] = json.load(open(path))
     pick, step = L._fall_back(loaded, L.pick_featured)
-    assert step[0] == 1 and step[1] == PKEY and step[3] is True     # carried, one back
+    assert step[0] == 1 and step[1] == PKEY                         # one back
+    assert L.provenance(loaded, step, pick[1], "featured_ladder", [pick[0]])["carried"]
     assert pick[1]["identity"]["id"] in {P1, P2}
     assert L.pick_fantasy(step[2]) is not None                       # ppr is there
 

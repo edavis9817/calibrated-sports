@@ -528,6 +528,18 @@ BOARD_EXPORT_DIR = os.getenv("BOARD_EXPORT_DIR")
 # (a-52, DECISIONS-2026-09-28 §T), walking back at most this many periods from
 # the current one. Past it a part goes null: a month-old example is a stale page.
 LANDING_FALLBACK_PERIODS = int(os.getenv("LANDING_FALLBACK_PERIODS", "3"))
+# The landing's period is chosen by COVERAGE, not the calendar (a-56,
+# DECISIONS-2026-09-28 §U amendment). The current period owns the page only once
+# its market files - served, plus the archive's copies of its played games -
+# name at least this many players with a ladder AND this many distinct games;
+# until then the previous settled period does, with its results. Measured on the
+# logger's Kalshi REC/RSHATT listings (a-56): weeks 2 and 3 held 1 game and 8-14
+# players Tuesday to Thursday, then 15 games and 144-154 players by Friday noon.
+# 8 games is half a full slate, above any early slate (Thursday plus an
+# international game is 2-3) and below a bye week's 13-14. 40 players is ~3x the
+# largest single-slate count seen and far below a posted week.
+LANDING_MIN_PLAYERS = int(os.getenv("LANDING_MIN_PLAYERS", "40"))
+LANDING_MIN_GAMES = int(os.getenv("LANDING_MIN_GAMES", "8"))
 # How often the scheduled `--tick` wakes (the task's trigger, documented in
 # docs/runbooks/board-cadence.md). It bounds the resolution of every cadence
 # above - a 15-minute read cannot be taken more often than the tick fires.
