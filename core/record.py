@@ -541,8 +541,10 @@ def statement_parts(corp, const, auc, loss_lo, seasons):
     tail = ("both barely beat a constant" if edge < loss_lo / 4 else
             f"the close beats a constant by up to {edge:.4f}, which is not small against the "
             f"model's {loss_lo:.4f} loss")
-    c2 = (f"Corrected for that, the model scores within {worst_model:.4f} Brier of a constant "
-          f"base-rate forecast, and " + "; ".join(bits) + f" - {tail}.")
+    seen = " and ".join(str(c["season"]) for c in const)
+    c2 = (f"Corrected for that out of sample ({seen}, the seasons with an earlier season to fit "
+          f"on), the model scores within {worst_model:.4f} Brier of a constant base-rate "
+          f"forecast, and " + "; ".join(bits) + f" - {tail}.")
     est, lo, hi = auc
     if hi < 0:
         c3 = (f"And the close still orders outcomes better: the model's AUC is {-est:.3f} lower "
