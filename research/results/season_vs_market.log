@@ -1,0 +1,499 @@
+== P0 census (market_log.db, mode=ro)
+  DIVISION         {'markets': 32, 'quoted': 32, 'two_sided_ever': 31, 'quote_rows': 128613, 'with_depth': 0, 'with_trades': 0}
+  KXNFLAFCCHAMP    {'markets': 16, 'quoted': 16, 'two_sided_ever': 13, 'quote_rows': 64305, 'with_depth': 0, 'with_trades': 0}
+  KXNFLNFCCHAMP    {'markets': 16, 'quoted': 16, 'two_sided_ever': 15, 'quote_rows': 64305, 'with_depth': 0, 'with_trades': 0}
+  KXNFLWINS        {'markets': 547, 'quoted': 516, 'two_sided_ever': 468, 'quote_rows': 1966303, 'with_depth': 0, 'with_trades': 0}
+  KXNFLWINSTREAK   {'markets': 9, 'quoted': 9, 'two_sided_ever': 9, 'quote_rows': 36172, 'with_depth': 0, 'with_trades': 0}
+  KXNFLWINSWEEK    {'markets': 728, 'quoted': 728, 'two_sided_ever': 539, 'quote_rows': 2307586, 'with_depth': 0, 'with_trades': 0}
+  quote span 2026-09-16 03:23 UTC -> 2026-09-30 03:32 UTC
+  markets with a result: 0
+  /series KXNFLWINS        fee_type quadratic  multiplier 1
+  /series KXNFLWINSWEEK    fee_type quadratic  multiplier 1
+  /series KXNFLWINSTREAK   fee_type quadratic  multiplier 1
+  /series KXNFLAFCEAST     fee_type quadratic_with_maker_fees  multiplier 1
+  /series KXNFLAFCNORTH    fee_type quadratic_with_maker_fees  multiplier 1
+  /series KXNFLAFCSOUTH    fee_type quadratic_with_maker_fees  multiplier 1
+  /series KXNFLAFCWEST     fee_type quadratic_with_maker_fees  multiplier 1
+  /series KXNFLNFCEAST     fee_type quadratic_with_maker_fees  multiplier 1
+  /series KXNFLNFCNORTH    fee_type quadratic_with_maker_fees  multiplier 1
+  /series KXNFLNFCSOUTH    fee_type quadratic_with_maker_fees  multiplier 1
+  /series KXNFLNFCWEST     fee_type quadratic_with_maker_fees  multiplier 1
+  /series KXNFLAFCCHAMP    fee_type quadratic_with_maker_fees  multiplier 1
+  /series KXNFLNFCCHAMP    fee_type quadratic_with_maker_fees  multiplier 1
+  /series KXNFLREC         fee_type quadratic  multiplier 1
+  /series KXNFLSPREAD      fee_type quadratic_with_maker_fees  multiplier 1
+  as-of instants verified: every week-k game kicked >= 4h before T_k, none of week k+1 before
+
+== model: params {'k': 20.0, 'hfa': 50.0, 'regress': 0.5} (refit = published), sigma 100.0 (published; chosen on 2001-2025 by CRPS)  5s
+
+== P1 the model's own honesty at weeks 1-3 (walk-forward 2002-2025, settled)
+  walk-forward states (1, 2, 3), 2002-2025: 4s
+  reproduce after week 1: RMSE 2.6943 vs published 2.6943; cov80 0.8438 vs 0.8438
+  reproduce after week 2: RMSE 2.5473 vs published 2.5473; cov80 0.8581 vs 0.8581
+  reproduce after week 3: RMSE 2.3783 vs published 2.3783; cov80 0.8698 vs 0.8698
+  coverage80 after week 1: realised 0.8438 vs mass 0.8619, diff -0.0181 [-0.0412, +0.0041] n_blocks 24 n 768 -> within
+  coverage80 after week 2: realised 0.8581 vs mass 0.8638, diff -0.0058 [-0.0310, +0.0189] n_blocks 24 n 768 -> within
+  coverage80 after week 3: realised 0.8698 vs mass 0.8645, diff +0.0053 [-0.0185, +0.0298] n_blocks 24 n 768 -> within
+  WINS rungs after week 1: n 11,033 seasons 24  Brier 0.1064 = MCB 0.0008 - DSC 0.1443 + UNC 0.2500; coin-flip 0.1235; model-coin -0.0170 [-0.0198, -0.0142]* SE 0.0015; AUC 0.9305 vs 0.9151
+  WINS rungs after week 2: n 10,337 seasons 24  Brier 0.1068 = MCB 0.0011 - DSC 0.1443 + UNC 0.2500; coin-flip 0.1255; model-coin -0.0187 [-0.0217, -0.0158]* SE 0.0015; AUC 0.9298 vs 0.9121
+  WINS rungs after week 3: n 9,698 seasons 24  Brier 0.1062 = MCB 0.0010 - DSC 0.1447 + UNC 0.2500; coin-flip 0.1258; model-coin -0.0196 [-0.0232, -0.0161]* SE 0.0018; AUC 0.9308 vs 0.9109
+  WINSWEEK rungs (N 4/8/12, states < N): n 37,582 seasons 24  Brier 0.1272 = MCB 0.0004 - DSC 0.1231 + UNC 0.2500; coin-flip 0.1417; model-coin -0.0145 [-0.0177, -0.0113]* SE 0.0016
+  excluded as priced exactly 0/1 from an undecided state: {'wins': 1692, 'week': 200}
+  division bands: a-41's published calibration record (pooled over states, division-season blocks), not recomputed
+  bands WINS_k3: [0.0) f0.030 r0.027 [0.019,0.037]  [0.1) f0.147 r0.142 [0.124,0.160]  [0.2) f0.250 r0.261 [0.234,0.287]  [0.3) f0.350 r0.356 [0.327,0.384]  [0.4) f0.446 r0.467 [0.435,0.499]  [0.5) f0.553 r0.578 [0.540,0.616]  [0.6) f0.653 r0.633 [0.602,0.665]  [0.7) f0.749 r0.722 [0.694,0.747]  [0.8) f0.851 r0.840 [0.820,0.859]  [0.9) f0.970 r0.971 [0.965,0.977]
+  bands WINSWEEK: [0.0) f0.038 r0.035 [0.029,0.042]  [0.1) f0.147 r0.152 [0.138,0.165]  [0.2) f0.248 r0.251 [0.237,0.264]  [0.3) f0.349 r0.348 [0.334,0.363]  [0.4) f0.449 r0.441 [0.428,0.452]  [0.5) f0.549 r0.550 [0.537,0.564]  [0.6) f0.651 r0.643 [0.625,0.659]  [0.7) f0.751 r0.752 [0.736,0.769]  [0.8) f0.852 r0.850 [0.841,0.860]  [0.9) f0.962 r0.960 [0.955,0.965]
+  bands DIVISION: [0.0) f0.019 r0.032 [0.022,0.043]  [0.1) f0.146 r0.168 [0.139,0.198]  [0.2) f0.247 r0.268 [0.238,0.298]  [0.3) f0.349 r0.339 [0.299,0.378]  [0.4) f0.449 r0.411 [0.369,0.453]  [0.5) f0.549 r0.509 [0.458,0.560]  [0.6) f0.651 r0.573 [0.508,0.637]  [0.7) f0.749 r0.722 [0.660,0.785]  [0.8) f0.850 r0.812 [0.743,0.875]  [0.9) f0.975 r0.955 [0.927,0.977]
+
+== the model at the 2026 states
+  parsed Counter({'WINSWEEK': 728, 'WINS': 544, 'DIVISION': 32, 'WINSTREAK': 9}); conference champion excluded (no playoff simulation): 32
+  state 1: T 2026-09-16 16:00 UTC  simulated 4s
+  state 2: T 2026-09-23 16:00 UTC  simulated 5s
+  k=3 against the published files: max |mean wins - published| 0.0133 (published to 1 dp); max |division p - published| 0.0033, max z over sqrt(2) mc_se 0.82
+  state 3: T 2026-09-29 16:00 UTC  simulated 5s
+
+== P2 disagreement map (descriptive - no outcome exists)
+  WINS      k1: usable 314 of 544 (quoted 513, decided 32)  |gap| med 0.074 p90 0.228  signed mean -0.0080 -0.0080 [-0.0477, +0.0345] n_blocks 32  spearman 0.915  spread med 0.040
+  WINS      k2: usable 297 of 544 (quoted 480, decided 64)  |gap| med 0.060 p90 0.188  signed mean +0.0021 +0.0021 [-0.0323, +0.0414] n_blocks 32  spearman 0.932  spread med 0.040
+  WINS      k3: usable 320 of 544 (quoted 448, decided 96)  |gap| med 0.065 p90 0.181  signed mean -0.0002 -0.0002 [-0.0336, +0.0364] n_blocks 32  spearman 0.945  spread med 0.010
+  WINSWEEK  k1: usable 492 of 728 (quoted 728, decided 96)  |gap| med 0.060 p90 0.232  signed mean +0.0051 +0.0051 [-0.0279, +0.0406] n_blocks 32  spearman 0.908  spread med 0.100
+  WINSWEEK  k2: usable 160 of 728 (quoted 536, decided 192)  |gap| med 0.093 p90 0.329  signed mean -0.0268 -0.0268 [-0.0683, +0.0141] n_blocks 32  spearman 0.701  spread med 0.100
+  WINSWEEK  k3: usable 363 of 728 (quoted 440, decided 288)  |gap| med 0.058 p90 0.164  signed mean -0.0045 -0.0045 [-0.0306, +0.0238] n_blocks 32  spearman 0.95  spread med 0.100
+  DIVISION  k1: usable  30 of 32 (quoted 32, decided 0)  |gap| med 0.062 p90 0.167  signed mean -0.0056 -0.0056 [-0.0413, +0.0316] n_blocks 30  spearman 0.799  spread med 0.010
+  DIVISION  k2: usable  31 of 32 (quoted 32, decided 0)  |gap| med 0.089 p90 0.214  signed mean -0.0028 -0.0028 [-0.0437, +0.0399] n_blocks 31  spearman 0.858  spread med 0.010
+  DIVISION  k3: usable  31 of 32 (quoted 32, decided 0)  |gap| med 0.081 p90 0.229  signed mean -0.0002 -0.0002 [-0.0456, +0.0443] n_blocks 31  spearman 0.817  spread med 0.010
+  WINSTREAK k1: usable   6 of 9 (quoted 9, decided 1)  |gap| med 0.055 p90 0.087  signed mean -0.0377  spearman 1.0  spread med 0.280
+  WINSTREAK k2: usable   6 of 9 (quoted 9, decided 1)  |gap| med 0.073 p90 0.176  signed mean +0.0437  spearman 0.771  spread med 0.210
+  WINSTREAK k3: usable   7 of 9 (quoted 9, decided 1)  |gap| med 0.036 p90 0.063  signed mean +0.0330  spearman 1.0  spread med 0.230
+  mean wins model - market, k1: 0 of 32 teams have a complete two-sided ladder
+  mean wins model - market, k2: 0 of 32 teams have a complete two-sided ladder
+  mean wins model - market, k3: 0 of 32 teams have a complete two-sided ladder
+  POST HOC ladder median (0.5 crossing), k1: teams 32; SD across teams model 1.56 vs market 2.23 wins; slope model-on-market +0.588 [+0.461, +0.753] n_blocks 32; |gap| median 0.73, max 3.10
+  POST HOC ladder median (0.5 crossing), k2: teams 32; SD across teams model 1.86 vs market 2.41 wins; slope model-on-market +0.686 [+0.554, +0.839] n_blocks 32; |gap| median 0.73, max 2.91
+  POST HOC ladder median (0.5 crossing), k3: teams 32; SD across teams model 2.03 vs market 2.34 wins; slope model-on-market +0.764 [+0.628, +0.915] n_blocks 32; |gap| median 0.89, max 2.34
+  movement (descriptive, n 64): slope of d-market on gap +0.108 [-0.024, +0.285] n_blocks 32; slope of d-model on gap -0.025 [-0.166, +0.134] n_blocks 32
+
+== P3 forward shortlist, frozen at T_3 = 2026-09-29 16:00 UTC
+  considered (two-sided, undecided at T_3): {'DIVISION': 31, 'WINS': 320, 'WINSWEEK': 363}
+  shortlisted (a) and (b): 414   disagree but do not clear cost: 182
+    KXNFLWINS-27CLE-9                buy YES model 0.530 band [0.540,0.617] bid/ask 0.21/0.22 edge@band +0.308  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27MIA-6                buy YES model 0.402 band [0.435,0.499] bid/ask 0.11/0.12 edge@band +0.308  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27MIA-4                buy YES model 0.727 band [0.694,0.747] bid/ask 0.37/0.38 edge@band +0.298  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27MIA-5                buy YES model 0.562 band [0.540,0.617] bid/ask 0.22/0.23 edge@band +0.298  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LAR-10               buy NO  model 0.364 band [0.327,0.385] bid/ask 0.66/0.69 edge@band +0.260  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27BAL-11               buy NO  model 0.399 band [0.327,0.385] bid/ask 0.65/0.67 edge@band +0.249  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CLE-8                buy YES model 0.675 band [0.602,0.665] bid/ask 0.33/0.34 edge@band +0.246  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27MIA-3                buy YES model 0.862 band [0.820,0.859] bid/ask 0.55/0.56 edge@band +0.243  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-MIA2         buy YES model 0.815 band [0.841,0.860] bid/ask 0.49/0.59 edge@band +0.234  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27LAR-11               buy NO  model 0.225 band [0.234,0.287] bid/ask 0.53/0.54 edge@band +0.225  closes 2027-01-18 05:00 UTC
+    KXNFLNFCWEST-27-LAR              buy NO  model 0.045 band [0.022,0.043] bid/ask 0.28/0.29 edge@band +0.223  closes 2027-01-25 15:00 UTC
+    KXNFLWINS-27BAL-9                buy NO  model 0.698 band [0.602,0.665] bid/ask 0.89/0.90 edge@band +0.218  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27DAL-10               buy NO  model 0.196 band [0.124,0.160] bid/ask 0.39/0.40 edge@band +0.213  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LAR-8                buy NO  model 0.668 band [0.602,0.665] bid/ask 0.88/0.90 edge@band +0.207  closes 2027-01-18 05:00 UTC
+    KXNFLAFCSOUTH-27-JAC             buy YES model 0.823 band [0.743,0.875] bid/ask 0.51/0.52 edge@band +0.205  closes 2027-01-25 15:00 UTC
+    KXNFLWINS-27BAL-12               buy NO  model 0.252 band [0.234,0.287] bid/ask 0.51/0.52 edge@band +0.205  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27ARI-7                buy YES model 0.516 band [0.540,0.617] bid/ask 0.31/0.32 edge@band +0.205  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-MIA3         buy YES model 0.595 band [0.537,0.564] bid/ask 0.22/0.32 edge@band +0.201  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27LAR-12               buy NO  model 0.117 band [0.124,0.160] bid/ask 0.37/0.39 edge@band +0.193  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-LAR6         buy NO  model 0.545 band [0.537,0.564] bid/ask 0.77/0.87 edge@band +0.193  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27MIA-2                buy YES model 0.948 band [0.965,0.977] bid/ask 0.75/0.76 edge@band +0.192  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-LAR7         buy NO  model 0.313 band [0.334,0.363] bid/ask 0.57/0.67 edge@band +0.190  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27CLE-10               buy YES model 0.380 band [0.327,0.385] bid/ask 0.12/0.13 edge@band +0.189  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LAR-7                buy NO  model 0.796 band [0.694,0.747] bid/ask 0.94/0.95 edge@band +0.189  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CLE-7                buy YES model 0.799 band [0.694,0.747] bid/ask 0.47/0.49 edge@band +0.187  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-BAL8         buy NO  model 0.383 band [0.334,0.363] bid/ask 0.56/0.66 edge@band +0.180  closes 2026-12-08 15:00 UTC
+    KXNFLNFCNORTH-27-DET             buy NO  model 0.166 band [0.139,0.198] bid/ask 0.39/0.40 edge@band +0.175  closes 2027-01-25 15:00 UTC
+    KXNFLWINS-27CLE-6                buy YES model 0.893 band [0.820,0.859] bid/ask 0.62/0.63 edge@band +0.174  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27MIN-9                buy YES model 0.908 band [0.965,0.977] bid/ask 0.77/0.78 edge@band +0.173  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-BAL7         buy NO  model 0.599 band [0.537,0.564] bid/ask 0.75/0.85 edge@band +0.172  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-BAL5          buy NO  model 0.584 band [0.537,0.564] bid/ask 0.75/0.85 edge@band +0.172  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27DAL-8                buy NO  model 0.472 band [0.435,0.499] bid/ask 0.68/0.69 edge@band +0.166  closes 2027-01-18 05:00 UTC
+    KXNFLAFCSOUTH-27-HOU             buy NO  model 0.091 band [0.022,0.043] bid/ask 0.22/0.23 edge@band +0.165  closes 2027-01-25 15:00 UTC
+    KXNFLWINSWEEK-26W12-MIA4         buy YES model 0.360 band [0.334,0.363] bid/ask 0.06/0.16 edge@band +0.165  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27BAL-13               buy NO  model 0.137 band [0.124,0.160] bid/ask 0.34/0.35 edge@band +0.164  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LAC-8                buy NO  model 0.190 band [0.124,0.160] bid/ask 0.34/0.35 edge@band +0.164  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CLE-5                buy YES model 0.955 band [0.965,0.977] bid/ask 0.78/0.79 edge@band +0.164  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LAR-13               buy NO  model 0.048 band [0.019,0.036] bid/ask 0.21/0.23 edge@band +0.162  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W8-BAL6          buy NO  model 0.274 band [0.237,0.264] bid/ask 0.44/0.54 edge@band +0.158  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27MIN-11               buy YES model 0.702 band [0.694,0.747] bid/ask 0.50/0.52 edge@band +0.157  closes 2027-01-18 05:00 UTC
+    KXNFLAFCSOUTH-27-IND             buy NO  model 0.083 band [0.022,0.043] bid/ask 0.21/0.22 edge@band +0.156  closes 2027-01-25 15:00 UTC
+    KXNFLWINS-27LV-9                 buy YES model 0.625 band [0.602,0.665] bid/ask 0.42/0.43 edge@band +0.155  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W8-MIA1          buy YES model 0.807 band [0.841,0.860] bid/ask 0.57/0.67 edge@band +0.155  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27ARI-5                buy YES model 0.810 band [0.820,0.859] bid/ask 0.63/0.65 edge@band +0.154  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27ARI-4                buy YES model 0.912 band [0.965,0.977] bid/ask 0.79/0.80 edge@band +0.154  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27BAL-10               buy NO  model 0.551 band [0.540,0.617] bid/ask 0.78/0.80 edge@band +0.151  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LAR-9                buy NO  model 0.517 band [0.540,0.617] bid/ask 0.78/0.79 edge@band +0.151  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-CLE6         buy YES model 0.589 band [0.537,0.564] bid/ask 0.27/0.37 edge@band +0.150  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-BAL9         buy NO  model 0.198 band [0.138,0.165] bid/ask 0.33/0.43 edge@band +0.150  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27CLE-11               buy YES model 0.246 band [0.234,0.287] bid/ask 0.05/0.08 edge@band +0.149  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27MIA-7                buy YES model 0.262 band [0.234,0.287] bid/ask 0.06/0.08 edge@band +0.149  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CIN-11               buy NO  model 0.390 band [0.327,0.385] bid/ask 0.55/0.57 edge@band +0.148  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27DAL-7                buy NO  model 0.627 band [0.602,0.665] bid/ask 0.82/0.83 edge@band +0.144  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27MIN-10               buy YES model 0.823 band [0.820,0.859] bid/ask 0.65/0.66 edge@band +0.144  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W8-MIA2          buy YES model 0.458 band [0.428,0.452] bid/ask 0.17/0.27 edge@band +0.144  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27MIN-12               buy YES model 0.556 band [0.540,0.617] bid/ask 0.37/0.38 edge@band +0.144  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27BAL-14               buy NO  model 0.060 band [0.019,0.036] bid/ask 0.19/0.21 edge@band +0.143  closes 2027-01-18 05:00 UTC
+    KXNFLNFCNORTH-27-MIN             buy YES model 0.678 band [0.508,0.637] bid/ask 0.34/0.35 edge@band +0.142  closes 2027-01-25 15:00 UTC
+    KXNFLWINS-27DAL-9                buy NO  model 0.325 band [0.327,0.385] bid/ask 0.54/0.56 edge@band +0.138  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NYG-10               buy YES model 0.303 band [0.327,0.385] bid/ask 0.17/0.18 edge@band +0.137  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27IND-10               buy NO  model 0.195 band [0.124,0.160] bid/ask 0.31/0.32 edge@band +0.135  closes 2027-01-18 05:00 UTC
+    KXNFLAFCNORTH-27-BAL             buy NO  model 0.330 band [0.299,0.378] bid/ask 0.53/0.54 edge@band +0.134  closes 2027-01-25 15:00 UTC
+    KXNFLWINS-27CIN-9                buy NO  model 0.686 band [0.602,0.665] bid/ask 0.81/0.82 edge@band +0.134  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-CLE7         buy YES model 0.366 band [0.334,0.363] bid/ask 0.09/0.19 edge@band +0.133  closes 2026-12-08 15:00 UTC
+    KXNFLNFCEAST-27-NYG              buy YES model 0.220 band [0.238,0.298] bid/ask 0.09/0.10 edge@band +0.131  closes 2027-01-25 15:00 UTC
+    KXNFLWINS-27NYG-9                buy YES model 0.447 band [0.435,0.499] bid/ask 0.28/0.29 edge@band +0.131  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-DAL6         buy NO  model 0.470 band [0.428,0.452] bid/ask 0.60/0.70 edge@band +0.131  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-CAR3          buy NO  model 0.626 band [0.625,0.659] bid/ask 0.80/0.98 edge@band +0.130  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27ARI-8                buy YES model 0.364 band [0.327,0.385] bid/ask 0.18/0.19 edge@band +0.127  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LV-11                buy YES model 0.315 band [0.327,0.385] bid/ask 0.18/0.19 edge@band +0.127  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27DAL-6                buy NO  model 0.766 band [0.694,0.747] bid/ask 0.88/0.89 edge@band +0.125  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27HOU-8                buy NO  model 0.492 band [0.435,0.499] bid/ask 0.64/0.65 edge@band +0.125  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27PIT-9                buy YES model 0.623 band [0.602,0.665] bid/ask 0.45/0.46 edge@band +0.125  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27GB-11                buy NO  model 0.094 band [0.019,0.036] bid/ask 0.17/0.18 edge@band +0.124  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NYG-8                buy YES model 0.600 band [0.540,0.617] bid/ask 0.39/0.40 edge@band +0.123  closes 2027-01-18 05:00 UTC
+    KXNFLAFCNORTH-27-PIT             buy YES model 0.247 band [0.238,0.298] bid/ask 0.10/0.11 edge@band +0.121  closes 2027-01-25 15:00 UTC
+    KXNFLWINS-27LV-10                buy YES model 0.466 band [0.435,0.499] bid/ask 0.29/0.30 edge@band +0.121  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27PIT-11               buy YES model 0.322 band [0.327,0.385] bid/ask 0.19/0.20 edge@band +0.116  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27JAC-8                buy YES model 0.900 band [0.965,0.977] bid/ask 0.83/0.84 edge@band +0.116  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27ARI-6                buy YES model 0.673 band [0.602,0.665] bid/ask 0.46/0.47 edge@band +0.115  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LAC-4                buy NO  model 0.771 band [0.694,0.747] bid/ask 0.87/0.88 edge@band +0.115  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LAC-6                buy NO  model 0.462 band [0.435,0.499] bid/ask 0.63/0.64 edge@band +0.115  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27PHI-10               buy NO  model 0.499 band [0.435,0.499] bid/ask 0.63/0.65 edge@band +0.115  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-LAR8         buy NO  model 0.131 band [0.138,0.165] bid/ask 0.29/0.38 edge@band +0.111  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-KC8          buy NO  model 0.457 band [0.428,0.452] bid/ask 0.58/0.68 edge@band +0.111  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27PIT-10               buy YES model 0.470 band [0.435,0.499] bid/ask 0.30/0.31 edge@band +0.110  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W8-IND4          buy NO  model 0.340 band [0.334,0.363] bid/ask 0.49/0.59 edge@band +0.110  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W12-LV7          buy YES model 0.525 band [0.537,0.564] bid/ask 0.31/0.41 edge@band +0.110  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-CLE5         buy YES model 0.789 band [0.736,0.769] bid/ask 0.51/0.61 edge@band +0.109  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27LAR-6                buy NO  model 0.890 band [0.820,0.859] bid/ask 0.97/0.98 edge@band +0.109  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W8-IND3          buy NO  model 0.660 band [0.625,0.659] bid/ask 0.78/0.88 edge@band +0.109  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W8-LAR4          buy NO  model 0.615 band [0.625,0.659] bid/ask 0.78/0.88 edge@band +0.109  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W12-MIN8         buy YES model 0.607 band [0.625,0.659] bid/ask 0.40/0.50 edge@band +0.108  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27LV-8                 buy YES model 0.766 band [0.694,0.747] bid/ask 0.56/0.57 edge@band +0.107  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NYG-7                buy YES model 0.741 band [0.694,0.747] bid/ask 0.56/0.57 edge@band +0.107  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27ARI-9                buy YES model 0.227 band [0.234,0.287] bid/ask 0.10/0.12 edge@band +0.106  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LV-6                 buy YES model 0.948 band [0.965,0.977] bid/ask 0.84/0.85 edge@band +0.106  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NYG-5                buy YES model 0.936 band [0.965,0.977] bid/ask 0.84/0.85 edge@band +0.106  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-CLE4         buy YES model 0.919 band [0.955,0.965] bid/ask 0.74/0.84 edge@band +0.105  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27HOU-6                buy NO  model 0.774 band [0.694,0.747] bid/ask 0.86/0.88 edge@band +0.104  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27PHI-8                buy NO  model 0.780 band [0.694,0.747] bid/ask 0.86/0.87 edge@band +0.104  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-LAR5         buy NO  model 0.750 band [0.736,0.769] bid/ask 0.88/0.98 edge@band +0.104  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-LV6           buy YES model 0.413 band [0.428,0.452] bid/ask 0.21/0.31 edge@band +0.103  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W8-DAL4          buy NO  model 0.462 band [0.428,0.452] bid/ask 0.57/0.67 edge@band +0.100  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W8-LAR5          buy NO  model 0.307 band [0.334,0.363] bid/ask 0.48/0.58 edge@band +0.100  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W8-ATL3          buy YES model 0.711 band [0.736,0.769] bid/ask 0.52/0.62 edge@band +0.100  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W12-DAL7         buy NO  model 0.278 band [0.237,0.264] bid/ask 0.38/0.48 edge@band +0.099  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-CLE6          buy YES model 0.205 band [0.237,0.264] bid/ask 0.03/0.13 edge@band +0.099  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27DAL-5                buy NO  model 0.874 band [0.820,0.859] bid/ask 0.96/0.97 edge@band +0.099  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-DAL5         buy NO  model 0.678 band [0.625,0.659] bid/ask 0.77/0.87 edge@band +0.099  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-KC7          buy NO  model 0.690 band [0.625,0.659] bid/ask 0.77/0.87 edge@band +0.099  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27CHI-7                buy YES model 0.906 band [0.965,0.977] bid/ask 0.85/0.86 edge@band +0.097  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27PIT-6                buy YES model 0.933 band [0.965,0.977] bid/ask 0.85/0.86 edge@band +0.097  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-MIN7         buy YES model 0.805 band [0.841,0.860] bid/ask 0.63/0.73 edge@band +0.097  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27DET-12               buy NO  model 0.259 band [0.234,0.287] bid/ask 0.40/0.41 edge@band +0.096  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27GB-10                buy NO  model 0.181 band [0.124,0.160] bid/ask 0.27/0.29 edge@band +0.096  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27DAL-12               buy NO  model 0.048 band [0.019,0.036] bid/ask 0.14/0.15 edge@band +0.095  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27DET-14               buy NO  model 0.062 band [0.019,0.036] bid/ask 0.14/0.15 edge@band +0.095  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27KC-9                 buy NO  model 0.788 band [0.694,0.747] bid/ask 0.85/0.87 edge@band +0.094  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-BAL6         buy NO  model 0.788 band [0.736,0.769] bid/ask 0.87/0.97 edge@band +0.093  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-ARI5         buy YES model 0.460 band [0.428,0.452] bid/ask 0.22/0.32 edge@band +0.093  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-ATL4          buy YES model 0.420 band [0.428,0.452] bid/ask 0.22/0.32 edge@band +0.093  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W12-NYG7         buy YES model 0.337 band [0.334,0.363] bid/ask 0.13/0.23 edge@band +0.092  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-ARI4          buy YES model 0.314 band [0.334,0.363] bid/ask 0.13/0.23 edge@band +0.092  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W12-NYG6         buy YES model 0.556 band [0.537,0.564] bid/ask 0.33/0.43 edge@band +0.089  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-JAC5          buy YES model 0.539 band [0.537,0.564] bid/ask 0.33/0.43 edge@band +0.089  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W12-CIN8         buy NO  model 0.279 band [0.237,0.264] bid/ask 0.37/0.47 edge@band +0.089  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-HOU4         buy NO  model 0.695 band [0.625,0.659] bid/ask 0.76/0.86 edge@band +0.088  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27HOU-9                buy NO  model 0.341 band [0.327,0.385] bid/ask 0.49/0.50 edge@band +0.088  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CIN-12               buy NO  model 0.250 band [0.234,0.287] bid/ask 0.39/0.40 edge@band +0.086  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NYG-6                buy YES model 0.858 band [0.820,0.859] bid/ask 0.71/0.72 edge@band +0.086  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CIN-14               buy NO  model 0.062 band [0.019,0.036] bid/ask 0.13/0.14 edge@band +0.086  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27MIN-14               buy YES model 0.241 band [0.234,0.287] bid/ask 0.13/0.14 edge@band +0.085  closes 2027-01-18 05:00 UTC
+    KXNFLAFCNORTH-27-CLE             buy YES model 0.128 band [0.139,0.198] bid/ask 0.04/0.05 edge@band +0.085  closes 2027-01-25 15:00 UTC
+    KXNFLWINSWEEK-26W8-CLE5          buy YES model 0.471 band [0.428,0.452] bid/ask 0.23/0.33 edge@band +0.083  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27KC-10                buy NO  model 0.655 band [0.602,0.665] bid/ask 0.76/0.77 edge@band +0.082  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LAC-5                buy NO  model 0.622 band [0.602,0.665] bid/ask 0.76/0.78 edge@band +0.082  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27PHI-9                buy NO  model 0.649 band [0.602,0.665] bid/ask 0.76/0.77 edge@band +0.082  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-LV8          buy YES model 0.320 band [0.334,0.363] bid/ask 0.14/0.24 edge@band +0.081  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27CLE-12               buy YES model 0.138 band [0.124,0.160] bid/ask 0.02/0.04 edge@band +0.081  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27MIA-8                buy YES model 0.152 band [0.124,0.160] bid/ask 0.02/0.04 edge@band +0.081  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-GB5          buy NO  model 0.479 band [0.428,0.452] bid/ask 0.55/0.65 edge@band +0.080  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-HOU5         buy NO  model 0.481 band [0.428,0.452] bid/ask 0.55/0.65 edge@band +0.080  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-LAR6          buy NO  model 0.077 band [0.029,0.042] bid/ask 0.13/0.23 edge@band +0.080  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W12-ATL4         buy YES model 0.713 band [0.736,0.769] bid/ask 0.54/0.64 edge@band +0.080  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-LV5           buy YES model 0.709 band [0.736,0.769] bid/ask 0.54/0.64 edge@band +0.080  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W12-CAR5         buy YES model 0.533 band [0.537,0.564] bid/ask 0.34/0.44 edge@band +0.079  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27KC-12                buy NO  model 0.349 band [0.327,0.385] bid/ask 0.48/0.50 edge@band +0.078  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27PHI-11               buy NO  model 0.350 band [0.327,0.385] bid/ask 0.48/0.49 edge@band +0.078  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W8-KC5           buy NO  model 0.661 band [0.625,0.659] bid/ask 0.75/0.85 edge@band +0.078  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27PIT-8                buy YES model 0.757 band [0.694,0.747] bid/ask 0.59/0.60 edge@band +0.078  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CIN-7                buy NO  model 0.895 band [0.820,0.859] bid/ask 0.94/0.96 edge@band +0.077  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27KC-8                 buy NO  model 0.889 band [0.820,0.859] bid/ask 0.94/0.95 edge@band +0.077  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LAC-3                buy NO  model 0.890 band [0.820,0.859] bid/ask 0.94/0.95 edge@band +0.077  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27DAL-11               buy NO  model 0.103 band [0.124,0.160] bid/ask 0.25/0.26 edge@band +0.076  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27DET-13               buy NO  model 0.141 band [0.124,0.160] bid/ask 0.25/0.27 edge@band +0.076  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27PIT-7                buy YES model 0.864 band [0.820,0.859] bid/ask 0.72/0.73 edge@band +0.076  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CAR-7                buy YES model 0.612 band [0.602,0.665] bid/ask 0.50/0.51 edge@band +0.075  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CAR-9                buy YES model 0.309 band [0.327,0.385] bid/ask 0.23/0.24 edge@band +0.074  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27GB-6                 buy NO  model 0.745 band [0.694,0.747] bid/ask 0.83/0.84 edge@band +0.073  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27IND-6                buy NO  model 0.770 band [0.694,0.747] bid/ask 0.83/0.85 edge@band +0.073  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W8-LAC3          buy NO  model 0.105 band [0.138,0.165] bid/ask 0.25/0.76 edge@band +0.072  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27HOU-7                buy NO  model 0.643 band [0.602,0.665] bid/ask 0.75/0.77 edge@band +0.072  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-CAR6         buy YES model 0.312 band [0.334,0.363] bid/ask 0.15/0.25 edge@band +0.071  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27PIT-13               buy YES model 0.102 band [0.124,0.160] bid/ask 0.04/0.05 edge@band +0.070  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-PHI7         buy NO  model 0.492 band [0.428,0.452] bid/ask 0.54/0.64 edge@band +0.070  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-CLE4          buy YES model 0.758 band [0.736,0.769] bid/ask 0.55/0.65 edge@band +0.070  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27CAR-8                buy YES model 0.457 band [0.435,0.499] bid/ask 0.34/0.35 edge@band +0.069  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CIN-10               buy NO  model 0.542 band [0.540,0.617] bid/ask 0.70/0.71 edge@band +0.069  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27MIN-8                buy YES model 0.957 band [0.965,0.977] bid/ask 0.88/0.89 edge@band +0.068  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27SEA-8                buy YES model 0.934 band [0.965,0.977] bid/ask 0.87/0.89 edge@band +0.068  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LAC-7                buy NO  model 0.311 band [0.327,0.385] bid/ask 0.47/0.48 edge@band +0.068  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W8-ARI3          buy YES model 0.616 band [0.625,0.659] bid/ask 0.44/0.54 edge@band +0.068  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W12-MIA1         buy YES model 0.952 band [0.955,0.965] bid/ask 0.78/0.88 edge@band +0.067  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-NYG4         buy YES model 0.911 band [0.955,0.965] bid/ask 0.78/0.88 edge@band +0.067  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27CIN-13               buy NO  model 0.137 band [0.124,0.160] bid/ask 0.24/0.25 edge@band +0.067  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27BAL-8                buy NO  model 0.820 band [0.820,0.859] bid/ask 0.93/0.95 edge@band +0.067  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27JAC-9                buy YES model 0.817 band [0.820,0.859] bid/ask 0.72/0.74 edge@band +0.067  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LAC-10               buy NO  model 0.047 band [0.019,0.036] bid/ask 0.11/0.13 edge@band +0.067  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-LAR4         buy NO  model 0.895 band [0.841,0.860] bid/ask 0.93/0.98 edge@band +0.066  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27ATL-7                buy YES model 0.650 band [0.602,0.665] bid/ask 0.51/0.52 edge@band +0.065  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27ATL-10               buy YES model 0.223 band [0.234,0.287] bid/ask 0.15/0.16 edge@band +0.064  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27MIN-13               buy YES model 0.394 band [0.327,0.385] bid/ask 0.24/0.25 edge@band +0.064  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27SEA-13               buy YES model 0.307 band [0.327,0.385] bid/ask 0.24/0.25 edge@band +0.064  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27IND-8                buy NO  model 0.475 band [0.435,0.499] bid/ask 0.58/0.60 edge@band +0.064  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27JAC-11               buy YES model 0.556 band [0.540,0.617] bid/ask 0.45/0.46 edge@band +0.063  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NO-7                 buy NO  model 0.685 band [0.602,0.665] bid/ask 0.74/0.75 edge@band +0.061  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-BAL10        buy NO  model 0.071 band [0.029,0.042] bid/ask 0.11/0.21 edge@band +0.061  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-IND8         buy NO  model 0.091 band [0.029,0.042] bid/ask 0.11/0.21 edge@band +0.061  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-NYG5          buy YES model 0.324 band [0.334,0.363] bid/ask 0.16/0.26 edge@band +0.061  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W8-KC6           buy NO  model 0.311 band [0.334,0.363] bid/ask 0.44/0.51 edge@band +0.060  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27ARI-10               buy YES model 0.130 band [0.124,0.160] bid/ask 0.05/0.06 edge@band +0.060  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27MIN-15               buy YES model 0.121 band [0.124,0.160] bid/ask 0.05/0.06 edge@band +0.060  closes 2027-01-18 05:00 UTC
+    KXNFLAFCWEST-27-KC               buy NO  model 0.454 band [0.369,0.453] bid/ask 0.53/0.54 edge@band +0.060  closes 2027-01-25 15:00 UTC
+    KXNFLWINS-27ATL-4                buy YES model 0.949 band [0.965,0.977] bid/ask 0.89/0.90 edge@band +0.059  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CAR-4                buy YES model 0.940 band [0.965,0.977] bid/ask 0.88/0.90 edge@band +0.059  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27DET-10               buy NO  model 0.556 band [0.540,0.617] bid/ask 0.69/0.71 edge@band +0.059  closes 2027-01-18 05:00 UTC
+    KXNFLNFCEAST-27-DAL              buy NO  model 0.114 band [0.139,0.198] bid/ask 0.27/0.28 edge@band +0.058  closes 2027-01-25 15:00 UTC
+    KXNFLWINS-27NO-9                 buy NO  model 0.382 band [0.327,0.385] bid/ask 0.46/0.47 edge@band +0.058  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CHI-9                buy YES model 0.703 band [0.694,0.747] bid/ask 0.61/0.62 edge@band +0.058  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-ARI4         buy YES model 0.681 band [0.625,0.659] bid/ask 0.45/0.55 edge@band +0.058  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27NO-12                buy NO  model 0.068 band [0.019,0.036] bid/ask 0.10/0.11 edge@band +0.057  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NYJ-10               buy NO  model 0.086 band [0.019,0.036] bid/ask 0.10/0.12 edge@band +0.057  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-NYJ4         buy NO  model 0.696 band [0.625,0.659] bid/ask 0.73/0.83 edge@band +0.057  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-NYJ3          buy NO  model 0.666 band [0.625,0.659] bid/ask 0.73/0.83 edge@band +0.057  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27LV-7                 buy YES model 0.879 band [0.820,0.859] bid/ask 0.74/0.75 edge@band +0.057  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-ARI6         buy YES model 0.262 band [0.237,0.264] bid/ask 0.07/0.17 edge@band +0.057  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-JAC9         buy YES model 0.210 band [0.237,0.264] bid/ask 0.07/0.17 edge@band +0.057  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27HOU-5                buy NO  model 0.873 band [0.820,0.859] bid/ask 0.92/0.94 edge@band +0.056  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27PHI-7                buy NO  model 0.877 band [0.820,0.859] bid/ask 0.92/0.93 edge@band +0.056  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W8-LAR3          buy NO  model 0.857 band [0.841,0.860] bid/ask 0.92/0.98 edge@band +0.055  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27SEA-11               buy YES model 0.636 band [0.602,0.665] bid/ask 0.52/0.53 edge@band +0.055  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27ATL-9                buy YES model 0.351 band [0.327,0.385] bid/ask 0.25/0.26 edge@band +0.054  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27GB-8                 buy NO  model 0.446 band [0.435,0.499] bid/ask 0.57/0.58 edge@band +0.054  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W8-DAL5          buy NO  model 0.188 band [0.138,0.165] bid/ask 0.23/0.33 edge@band +0.053  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W12-JAC8         buy YES model 0.443 band [0.428,0.452] bid/ask 0.26/0.36 edge@band +0.052  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-PIT7         buy YES model 0.424 band [0.428,0.452] bid/ask 0.26/0.36 edge@band +0.052  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-KC10         buy NO  model 0.079 band [0.029,0.042] bid/ask 0.10/0.20 edge@band +0.052  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-BAL7          buy NO  model 0.064 band [0.029,0.042] bid/ask 0.10/0.20 edge@band +0.052  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W12-LV6          buy YES model 0.733 band [0.736,0.769] bid/ask 0.57/0.67 edge@band +0.051  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-NYG5         buy YES model 0.760 band [0.736,0.769] bid/ask 0.57/0.67 edge@band +0.051  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-IND6         buy NO  model 0.419 band [0.428,0.452] bid/ask 0.52/0.62 edge@band +0.050  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W4-GB2           buy NO  model 0.477 band [0.428,0.452] bid/ask 0.52/0.82 edge@band +0.050  closes 2026-10-13 14:00 UTC
+    KXNFLWINSWEEK-26W8-NYJ4          buy NO  model 0.350 band [0.334,0.363] bid/ask 0.43/0.53 edge@band +0.050  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27ARI-3                buy YES model 0.969 band [0.965,0.977] bid/ask 0.90/0.91 edge@band +0.049  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NE-6                 buy YES model 0.908 band [0.965,0.977] bid/ask 0.90/0.91 edge@band +0.049  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27TB-3                 buy YES model 0.927 band [0.965,0.977] bid/ask 0.90/0.91 edge@band +0.049  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27TEN-2                buy YES model 0.913 band [0.965,0.977] bid/ask 0.89/0.91 edge@band +0.049  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W8-ATL2          buy YES model 0.926 band [0.955,0.965] bid/ask 0.80/0.90 edge@band +0.049  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27IND-9                buy NO  model 0.323 band [0.327,0.385] bid/ask 0.45/0.48 edge@band +0.048  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27GB-12                buy NO  model 0.043 band [0.019,0.036] bid/ask 0.09/0.10 edge@band +0.048  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27IND-12               buy NO  model 0.049 band [0.019,0.036] bid/ask 0.09/0.11 edge@band +0.048  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27PHI-14               buy NO  model 0.046 band [0.019,0.036] bid/ask 0.09/0.10 edge@band +0.048  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27TB-10                buy NO  model 0.085 band [0.019,0.036] bid/ask 0.09/0.10 edge@band +0.048  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27TEN-8                buy NO  model 0.092 band [0.019,0.036] bid/ask 0.09/0.11 edge@band +0.048  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CHI-8                buy YES model 0.819 band [0.820,0.859] bid/ask 0.75/0.76 edge@band +0.047  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27BUF-14               buy NO  model 0.259 band [0.234,0.287] bid/ask 0.35/0.37 edge@band +0.047  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-IND5         buy NO  model 0.637 band [0.625,0.659] bid/ask 0.72/0.82 edge@band +0.047  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W4-BUF4          buy NO  model 0.642 band [0.625,0.659] bid/ask 0.72/0.85 edge@band +0.047  closes 2026-10-13 14:00 UTC
+    KXNFLWINSWEEK-26W8-BAL4          buy NO  model 0.842 band [0.841,0.860] bid/ask 0.91/0.97 edge@band +0.044  closes 2026-11-10 15:00 UTC
+    KXNFLNFCWEST-27-SEA              buy YES model 0.443 band [0.369,0.453] bid/ask 0.30/0.31 edge@band +0.044  closes 2027-01-25 15:00 UTC
+    KXNFLWINS-27CHI-10               buy YES model 0.553 band [0.540,0.617] bid/ask 0.47/0.48 edge@band +0.043  closes 2027-01-18 05:00 UTC
+    KXNFLNFCEAST-27-WAS              buy NO  model 0.096 band [0.022,0.043] bid/ask 0.09/0.10 edge@band +0.042  closes 2027-01-25 15:00 UTC
+    KXNFLNFCNORTH-27-GB              buy NO  model 0.012 band [0.022,0.043] bid/ask 0.09/0.10 edge@band +0.042  closes 2027-01-25 15:00 UTC
+    KXNFLWINSWEEK-26W8-CIN4          buy NO  model 0.759 band [0.736,0.769] bid/ask 0.82/0.92 edge@band +0.041  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W8-DAL3          buy NO  model 0.753 band [0.736,0.769] bid/ask 0.82/0.92 edge@band +0.041  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27IND-7                buy NO  model 0.628 band [0.602,0.665] bid/ask 0.72/0.73 edge@band +0.041  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-GB6          buy NO  model 0.263 band [0.237,0.264] bid/ask 0.32/0.42 edge@band +0.040  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-KC9          buy NO  model 0.232 band [0.237,0.264] bid/ask 0.32/0.42 edge@band +0.040  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-GB4           buy NO  model 0.468 band [0.428,0.452] bid/ask 0.51/0.61 edge@band +0.040  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27CLE-4                buy YES model 0.987 band [0.965,0.977] bid/ask 0.90/0.92 edge@band +0.040  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27JAC-7                buy YES model 0.952 band [0.965,0.977] bid/ask 0.90/0.92 edge@band +0.040  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27MIA-1                buy YES model 0.989 band [0.965,0.977] bid/ask 0.91/0.92 edge@band +0.040  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NO-5                 buy YES model 0.901 band [0.965,0.977] bid/ask 0.91/0.92 edge@band +0.040  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-CHI8         buy YES model 0.302 band [0.334,0.363] bid/ask 0.18/0.28 edge@band +0.040  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-MIN9         buy YES model 0.368 band [0.334,0.363] bid/ask 0.18/0.28 edge@band +0.040  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-CIN7         buy NO  model 0.502 band [0.537,0.564] bid/ask 0.62/0.72 edge@band +0.039  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-MIN6         buy YES model 0.927 band [0.955,0.965] bid/ask 0.81/0.91 edge@band +0.039  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27SEA-12               buy YES model 0.474 band [0.435,0.499] bid/ask 0.37/0.38 edge@band +0.039  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W8-JAC4          buy YES model 0.837 band [0.841,0.860] bid/ask 0.69/0.79 edge@band +0.039  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27NYG-11               buy YES model 0.184 band [0.124,0.160] bid/ask 0.07/0.08 edge@band +0.039  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27BAL-15               buy NO  model 0.019 band [0.019,0.036] bid/ask 0.08/0.09 edge@band +0.038  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27DEN-14               buy NO  model 0.078 band [0.019,0.036] bid/ask 0.08/0.10 edge@band +0.038  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27HOU-12               buy NO  model 0.046 band [0.019,0.036] bid/ask 0.08/0.09 edge@band +0.038  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27KC-15                buy NO  model 0.042 band [0.019,0.036] bid/ask 0.08/0.10 edge@band +0.038  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LAR-14               buy NO  model 0.014 band [0.019,0.036] bid/ask 0.08/0.10 edge@band +0.038  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CAR-6                buy YES model 0.751 band [0.694,0.747] bid/ask 0.63/0.64 edge@band +0.038  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27HOU-11               buy NO  model 0.109 band [0.124,0.160] bid/ask 0.21/0.22 edge@band +0.038  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LAC-9                buy NO  model 0.101 band [0.124,0.160] bid/ask 0.21/0.23 edge@band +0.038  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-PIT8         buy YES model 0.225 band [0.237,0.264] bid/ask 0.09/0.19 edge@band +0.036  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-MIN7          buy YES model 0.209 band [0.237,0.264] bid/ask 0.09/0.19 edge@band +0.036  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27CIN-8                buy NO  model 0.804 band [0.820,0.859] bid/ask 0.90/0.91 edge@band +0.035  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27GB-5                 buy NO  model 0.863 band [0.820,0.859] bid/ask 0.90/0.91 edge@band +0.035  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27IND-5                buy NO  model 0.881 band [0.820,0.859] bid/ask 0.90/0.93 edge@band +0.035  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-CIN5         buy NO  model 0.881 band [0.841,0.860] bid/ask 0.90/0.97 edge@band +0.034  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-DET5         buy NO  model 0.889 band [0.841,0.860] bid/ask 0.90/0.97 edge@band +0.034  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-GB3          buy NO  model 0.878 band [0.841,0.860] bid/ask 0.90/0.97 edge@band +0.034  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27DET-11               buy NO  model 0.402 band [0.435,0.499] bid/ask 0.55/0.56 edge@band +0.034  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W8-GB5           buy NO  model 0.193 band [0.138,0.165] bid/ask 0.21/0.31 edge@band +0.034  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27JAC-13               buy YES model 0.244 band [0.234,0.287] bid/ask 0.17/0.19 edge@band +0.033  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27WAS-10               buy YES model 0.203 band [0.234,0.287] bid/ask 0.18/0.19 edge@band +0.033  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-ATL5         buy YES model 0.492 band [0.428,0.452] bid/ask 0.28/0.38 edge@band +0.032  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-CAR4         buy YES model 0.743 band [0.736,0.769] bid/ask 0.59/0.69 edge@band +0.031  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27BUF-11               buy NO  model 0.718 band [0.694,0.747] bid/ask 0.79/0.80 edge@band +0.031  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27DET-9                buy NO  model 0.702 band [0.694,0.747] bid/ask 0.79/0.80 edge@band +0.031  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27DEN-7                buy YES model 0.923 band [0.965,0.977] bid/ask 0.92/0.93 edge@band +0.031  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27SF-8                 buy YES model 0.944 band [0.965,0.977] bid/ask 0.91/0.93 edge@band +0.031  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W8-NO4           buy NO  model 0.284 band [0.237,0.264] bid/ask 0.31/0.41 edge@band +0.031  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W12-NYJ5         buy NO  model 0.482 band [0.428,0.452] bid/ask 0.50/0.60 edge@band +0.030  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W4-IND2          buy NO  model 0.433 band [0.428,0.452] bid/ask 0.50/0.73 edge@band +0.030  closes 2026-10-13 14:00 UTC
+    KXNFLWINSWEEK-26W12-WAS6         buy YES model 0.322 band [0.334,0.363] bid/ask 0.19/0.29 edge@band +0.030  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-CHI7         buy YES model 0.537 band [0.537,0.564] bid/ask 0.39/0.49 edge@band +0.029  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-DET7         buy NO  model 0.528 band [0.537,0.564] bid/ask 0.61/0.71 edge@band +0.029  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W4-DET3          buy NO  model 0.531 band [0.537,0.564] bid/ask 0.61/0.74 edge@band +0.029  closes 2026-10-13 14:00 UTC
+    KXNFLWINS-27BUF-16               buy NO  model 0.049 band [0.019,0.036] bid/ask 0.07/0.09 edge@band +0.029  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27ATL-8                buy YES model 0.498 band [0.435,0.499] bid/ask 0.38/0.39 edge@band +0.029  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27PHI-13               buy NO  model 0.113 band [0.124,0.160] bid/ask 0.20/0.22 edge@band +0.029  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27ATL-11               buy YES model 0.122 band [0.124,0.160] bid/ask 0.07/0.09 edge@band +0.028  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CAR-11               buy YES model 0.100 band [0.124,0.160] bid/ask 0.07/0.09 edge@band +0.028  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27JAC-14               buy YES model 0.124 band [0.124,0.160] bid/ask 0.08/0.09 edge@band +0.028  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27BUF-12               buy NO  model 0.570 band [0.540,0.617] bid/ask 0.66/0.67 edge@band +0.028  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27HOU-10               buy NO  model 0.209 band [0.234,0.287] bid/ask 0.33/0.34 edge@band +0.027  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27KC-13                buy NO  model 0.212 band [0.234,0.287] bid/ask 0.33/0.34 edge@band +0.027  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NO-10                buy NO  model 0.246 band [0.234,0.287] bid/ask 0.33/0.34 edge@band +0.027  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27PHI-12               buy NO  model 0.218 band [0.234,0.287] bid/ask 0.33/0.34 edge@band +0.027  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27DET-8                buy NO  model 0.819 band [0.820,0.859] bid/ask 0.89/0.90 edge@band +0.025  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-TB7          buy NO  model 0.032 band [0.029,0.042] bid/ask 0.07/0.75 edge@band +0.023  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-KC7           buy NO  model 0.067 band [0.029,0.042] bid/ask 0.07/0.17 edge@band +0.023  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W8-NO2           buy NO  model 0.897 band [0.841,0.860] bid/ask 0.89/0.97 edge@band +0.023  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27SF-12                buy YES model 0.514 band [0.540,0.617] bid/ask 0.49/0.50 edge@band +0.023  closes 2027-01-18 05:00 UTC
+    KXNFLAFCWEST-27-LV               buy YES model 0.191 band [0.139,0.198] bid/ask 0.10/0.11 edge@band +0.022  closes 2027-01-25 15:00 UTC
+    KXNFLWINSWEEK-26W12-ATL7         buy YES model 0.126 band [0.138,0.165] bid/ask 0.01/0.11 edge@band +0.021  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-NYG8         buy YES model 0.159 band [0.138,0.165] bid/ask 0.01/0.11 edge@band +0.021  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27BUF-9                buy YES model 0.908 band [0.965,0.977] bid/ask 0.93/0.94 edge@band +0.021  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CHI-6                buy YES model 0.958 band [0.965,0.977] bid/ask 0.93/0.94 edge@band +0.021  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27PIT-5                buy YES model 0.974 band [0.965,0.977] bid/ask 0.93/0.94 edge@band +0.021  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27WAS-4                buy YES model 0.946 band [0.965,0.977] bid/ask 0.92/0.94 edge@band +0.021  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-HOU6         buy NO  model 0.263 band [0.237,0.264] bid/ask 0.30/0.40 edge@band +0.021  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-IND7         buy NO  model 0.224 band [0.237,0.264] bid/ask 0.30/0.40 edge@band +0.021  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-PHI8         buy NO  model 0.274 band [0.237,0.264] bid/ask 0.30/0.40 edge@band +0.021  closes 2026-12-08 15:00 UTC
+    KXNFLNFCWEST-27-SF               buy YES model 0.510 band [0.458,0.560] bid/ask 0.41/0.42 edge@band +0.021  closes 2027-01-25 15:00 UTC
+    KXNFLWINSWEEK-26W12-CIN6         buy NO  model 0.722 band [0.736,0.769] bid/ask 0.80/0.90 edge@band +0.020  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-HOU2          buy NO  model 0.745 band [0.736,0.769] bid/ask 0.80/0.90 edge@band +0.020  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W8-BUF6          buy NO  model 0.499 band [0.428,0.452] bid/ask 0.49/0.58 edge@band +0.020  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W12-ARI3         buy YES model 0.857 band [0.841,0.860] bid/ask 0.73/0.81 edge@band +0.020  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27NE-13                buy NO  model 0.062 band [0.019,0.036] bid/ask 0.06/0.08 edge@band +0.019  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W8-PIT6          buy YES model 0.309 band [0.334,0.363] bid/ask 0.21/0.30 edge@band +0.019  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W4-TB1           buy YES model 0.523 band [0.537,0.564] bid/ask 0.18/0.50 edge@band +0.019  closes 2026-10-13 14:00 UTC
+    KXNFLWINS-27BUF-15               buy NO  model 0.130 band [0.124,0.160] bid/ask 0.19/0.21 edge@band +0.019  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27DEN-13               buy NO  model 0.171 band [0.124,0.160] bid/ask 0.19/0.21 edge@band +0.019  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NO-11                buy NO  model 0.136 band [0.124,0.160] bid/ask 0.19/0.20 edge@band +0.019  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NYJ-9                buy NO  model 0.167 band [0.124,0.160] bid/ask 0.19/0.20 edge@band +0.019  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27ATL-6                buy YES model 0.783 band [0.694,0.747] bid/ask 0.65/0.66 edge@band +0.019  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CAR-5                buy YES model 0.862 band [0.820,0.859] bid/ask 0.76/0.79 edge@band +0.018  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27GB-9                 buy NO  model 0.301 band [0.327,0.385] bid/ask 0.42/0.43 edge@band +0.018  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-PIT6         buy YES model 0.646 band [0.625,0.659] bid/ask 0.53/0.59 edge@band +0.018  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27LV-12                buy YES model 0.192 band [0.124,0.160] bid/ask 0.09/0.10 edge@band +0.018  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27SF-15                buy YES model 0.105 band [0.124,0.160] bid/ask 0.09/0.10 edge@band +0.018  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27DEN-12               buy NO  model 0.300 band [0.234,0.287] bid/ask 0.32/0.33 edge@band +0.018  closes 2027-01-18 05:00 UTC
+    KXNFLAFCNORTH-27-CIN             buy NO  model 0.296 band [0.238,0.298] bid/ask 0.33/0.34 edge@band +0.016  closes 2027-01-25 15:00 UTC
+    KXNFLWINSWEEK-26W12-ATL6         buy YES model 0.280 band [0.237,0.264] bid/ask 0.11/0.21 edge@band +0.015  closes 2026-12-08 15:00 UTC
+    KXNFLNFCSOUTH-27-NO              buy NO  model 0.360 band [0.299,0.378] bid/ask 0.41/0.42 edge@band +0.015  closes 2027-01-25 15:00 UTC
+    KXNFLWINSWEEK-26W12-LAR9         buy NO  model 0.029 band [0.029,0.042] bid/ask 0.06/0.16 edge@band +0.014  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-DAL4         buy NO  model 0.848 band [0.841,0.860] bid/ask 0.88/0.97 edge@band +0.013  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-HOU3         buy NO  model 0.862 band [0.841,0.860] bid/ask 0.88/0.98 edge@band +0.013  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-KC6          buy NO  model 0.867 band [0.841,0.860] bid/ask 0.88/0.97 edge@band +0.013  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27SF-14                buy YES model 0.215 band [0.234,0.287] bid/ask 0.20/0.21 edge@band +0.012  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27DET-7                buy YES model 0.904 band [0.965,0.977] bid/ask 0.94/0.95 edge@band +0.012  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LV-5                 buy YES model 0.985 band [0.965,0.977] bid/ask 0.94/0.95 edge@band +0.012  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27MIN-7                buy YES model 0.984 band [0.965,0.977] bid/ask 0.93/0.95 edge@band +0.012  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NYJ-3                buy YES model 0.951 band [0.965,0.977] bid/ask 0.93/0.95 edge@band +0.012  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27SEA-7                buy YES model 0.973 band [0.965,0.977] bid/ask 0.94/0.95 edge@band +0.012  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-LV9          buy YES model 0.158 band [0.138,0.165] bid/ask 0.02/0.12 edge@band +0.011  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-LV7           buy YES model 0.162 band [0.138,0.165] bid/ask 0.02/0.12 edge@band +0.011  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W12-WAS3         buy YES model 0.902 band [0.955,0.965] bid/ask 0.84/0.94 edge@band +0.011  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-NYG3          buy YES model 0.915 band [0.955,0.965] bid/ask 0.84/0.94 edge@band +0.011  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27DAL-13               buy NO  model 0.017 band [0.019,0.036] bid/ask 0.05/0.07 edge@band +0.010  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27DET-15               buy NO  model 0.020 band [0.019,0.036] bid/ask 0.05/0.07 edge@band +0.010  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LAC-11               buy NO  model 0.019 band [0.019,0.036] bid/ask 0.05/0.06 edge@band +0.010  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NYJ-11               buy NO  model 0.039 band [0.019,0.036] bid/ask 0.05/0.07 edge@band +0.010  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27TEN-9                buy NO  model 0.042 band [0.019,0.036] bid/ask 0.05/0.06 edge@band +0.010  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27WAS-12               buy NO  model 0.046 band [0.019,0.036] bid/ask 0.05/0.06 edge@band +0.010  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-JAC6         buy YES model 0.848 band [0.841,0.860] bid/ask 0.72/0.82 edge@band +0.010  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-PIT5         buy YES model 0.830 band [0.841,0.860] bid/ask 0.73/0.82 edge@band +0.010  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-CIN5          buy NO  model 0.418 band [0.428,0.452] bid/ask 0.48/0.58 edge@band +0.010  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W8-DET5          buy NO  model 0.415 band [0.428,0.452] bid/ask 0.48/0.58 edge@band +0.010  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W8-SF6           buy NO  model 0.454 band [0.428,0.452] bid/ask 0.48/0.55 edge@band +0.010  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27GB-7                 buy NO  model 0.601 band [0.602,0.665] bid/ask 0.69/0.70 edge@band +0.010  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-NO4          buy NO  model 0.749 band [0.736,0.769] bid/ask 0.79/0.89 edge@band +0.010  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-DET4          buy NO  model 0.743 band [0.736,0.769] bid/ask 0.79/0.89 edge@band +0.010  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27IND-11               buy NO  model 0.107 band [0.124,0.160] bid/ask 0.18/0.19 edge@band +0.009  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27KC-14                buy NO  model 0.107 band [0.124,0.160] bid/ask 0.18/0.20 edge@band +0.009  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-WAS5         buy YES model 0.537 band [0.537,0.564] bid/ask 0.41/0.51 edge@band +0.009  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-MIN6          buy YES model 0.577 band [0.537,0.564] bid/ask 0.41/0.51 edge@band +0.009  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27ATL-5                buy YES model 0.884 band [0.820,0.859] bid/ask 0.79/0.80 edge@band +0.009  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27SEA-9                buy YES model 0.870 band [0.820,0.859] bid/ask 0.78/0.80 edge@band +0.009  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-NO5          buy NO  model 0.532 band [0.537,0.564] bid/ask 0.59/0.69 edge@band +0.009  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-NYG4          buy YES model 0.666 band [0.625,0.659] bid/ask 0.50/0.60 edge@band +0.008  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W8-WAS3          buy YES model 0.630 band [0.625,0.659] bid/ask 0.50/0.60 edge@band +0.008  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27TB-7                 buy YES model 0.416 band [0.435,0.499] bid/ask 0.40/0.41 edge@band +0.008  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NYJ-8                buy NO  model 0.282 band [0.234,0.287] bid/ask 0.31/0.32 edge@band +0.008  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27PIT-12               buy YES model 0.196 band [0.124,0.160] bid/ask 0.10/0.11 edge@band +0.007  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27WAS-11               buy YES model 0.108 band [0.124,0.160] bid/ask 0.09/0.11 edge@band +0.007  closes 2027-01-18 05:00 UTC
+    KXNFLNFCSOUTH-27-ATL             buy YES model 0.271 band [0.238,0.298] bid/ask 0.21/0.22 edge@band +0.006  closes 2027-01-25 15:00 UTC
+    KXNFLNFCSOUTH-27-CAR             buy YES model 0.267 band [0.238,0.298] bid/ask 0.21/0.22 edge@band +0.006  closes 2027-01-25 15:00 UTC
+    KXNFLWINSWEEK-26W8-NO3           buy NO  model 0.617 band [0.625,0.659] bid/ask 0.68/0.78 edge@band +0.006  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W8-IND5          buy NO  model 0.107 band [0.138,0.165] bid/ask 0.18/0.28 edge@band +0.005  closes 2026-11-10 15:00 UTC
+    KXNFLWINSWEEK-26W8-TEN3          buy YES model 0.209 band [0.237,0.264] bid/ask 0.12/0.22 edge@band +0.005  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27BUF-13               buy NO  model 0.412 band [0.435,0.499] bid/ask 0.52/0.53 edge@band +0.004  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27BUF-10               buy NO  model 0.830 band [0.820,0.859] bid/ask 0.87/0.88 edge@band +0.003  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NYJ-4                buy NO  model 0.867 band [0.820,0.859] bid/ask 0.87/0.89 edge@band +0.003  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27GB-4                 buy YES model 0.938 band [0.965,0.977] bid/ask 0.95/0.96 edge@band +0.003  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NYG-4                buy YES model 0.981 band [0.965,0.977] bid/ask 0.94/0.96 edge@band +0.003  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27WAS-9                buy YES model 0.333 band [0.327,0.385] bid/ask 0.30/0.31 edge@band +0.002  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-NYJ3         buy NO  model 0.873 band [0.841,0.860] bid/ask 0.87/0.97 edge@band +0.002  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-PHI5         buy NO  model 0.869 band [0.841,0.860] bid/ask 0.87/0.97 edge@band +0.002  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-CHI6         buy YES model 0.753 band [0.736,0.769] bid/ask 0.62/0.72 edge@band +0.002  closes 2026-12-08 15:00 UTC
+    KXNFLWINS-27CHI-12               buy YES model 0.254 band [0.234,0.287] bid/ask 0.21/0.22 edge@band +0.002  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CIN-6                buy NO  model 0.953 band [0.965,0.977] bid/ask 0.98/0.99 edge@band +0.002  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27TEN-1                buy NO  model 0.979 band [0.965,0.977] bid/ask 0.98/0.99 edge@band +0.002  closes 2027-01-18 05:00 UTC
+    KXNFLWINSWEEK-26W12-TEN1         buy YES model 0.906 band [0.955,0.965] bid/ask 0.85/0.95 edge@band +0.001  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-WAS2          buy YES model 0.903 band [0.955,0.965] bid/ask 0.87/0.95 edge@band +0.001  closes 2026-11-10 15:00 UTC
+    KXNFLWINS-27ATL-12               buy NO  model 0.056 band [0.019,0.036] bid/ask 0.04/0.05 edge@band +0.001  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CHI-14               buy NO  model 0.058 band [0.019,0.036] bid/ask 0.04/0.05 edge@band +0.001  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27CIN-15               buy NO  model 0.018 band [0.019,0.036] bid/ask 0.04/0.05 edge@band +0.001  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27DEN-15               buy NO  model 0.026 band [0.019,0.036] bid/ask 0.04/0.05 edge@band +0.001  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27LV-13                buy NO  model 0.099 band [0.019,0.036] bid/ask 0.04/0.05 edge@band +0.001  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NO-13                buy NO  model 0.027 band [0.019,0.036] bid/ask 0.04/0.06 edge@band +0.001  closes 2027-01-18 05:00 UTC
+    KXNFLWINS-27NYG-12               buy NO  model 0.096 band [0.019,0.036] bid/ask 0.04/0.05 edge@band +0.001  closes 2027-01-18 05:00 UTC
+    KXNFLNFCWEST-27-ARI              buy YES model 0.003 band [0.022,0.043] bid/ask 0.01/0.02 edge@band +0.000  closes 2027-01-25 15:00 UTC
+    KXNFLWINSWEEK-26W12-CAR7         buy YES model 0.144 band [0.138,0.165] bid/ask 0.03/0.13 edge@band +0.000  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-CHI9         buy YES model 0.121 band [0.138,0.165] bid/ask 0.03/0.13 edge@band +0.000  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W12-DEN7         buy NO  model 0.500 band [0.428,0.452] bid/ask 0.47/0.57 edge@band +0.000  closes 2026-12-08 15:00 UTC
+    KXNFLWINSWEEK-26W8-HOU3          buy NO  model 0.406 band [0.428,0.452] bid/ask 0.47/0.57 edge@band +0.000  closes 2026-11-10 15:00 UTC
+
+== P4 power at settlement, under the model (upper bound)
+  DIVISION  rungs  31 teams 31: E[Brier model - mid] -0.0072, SD 0.0247, MDE 0.0691; model better in 62.6% of seasons drawn from the model itself
+  WINS      rungs 320 teams 32: E[Brier model - mid] -0.0128, SD 0.0111, MDE 0.0310; model better in 88.0% of seasons drawn from the model itself
+  WINSWEEK  rungs 363 teams 32: E[Brier model - mid] -0.0107, SD 0.0101, MDE 0.0283; model better in 85.5% of seasons drawn from the model itself
+  shortlist P&L per contract under the model: E +0.0772, SD 0.0550, MDE 0.1541, positive in 92.5% of drawn seasons
+
+wrote research/results/season_vs_market.json and research/registers/c25_forward_calls.json
