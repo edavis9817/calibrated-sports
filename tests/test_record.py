@@ -183,7 +183,7 @@ def test_event_at_after_kickoff_is_excluded_too_and_at_kickoff_is_not_before():
     a = pub("evt")
     a["event_at"] = iso(KICK + 5)                           # read claims early, written late
     b = pub("tie", read_ts=KICK)                            # exactly AT kickoff
-    body = R.build_published([a, b], KICK - 10)
+    body = R.build_published([b, a], KICK - 10)             # file order is event_at order (a-62)
     assert sorted(r["lean_id"] for r in body["excluded_not_pre_kickoff"]["rows"]) == ["evt", "tie"]
     assert body["n_published"] == 0
 
@@ -231,7 +231,7 @@ def test_one_graded_week_publishes_no_interval_and_says_so():
     iv = R.build_published(ev, KICK + 90_000)["record"]["interval"]
     assert iv["n_blocks"] == 1 and iv["block"] == "week"
     assert iv["hit_rate"] is None and iv["margin_pp"] is None
-    assert iv["informative"] is False and "one block" in iv["why"]
+    assert iv["informative"] is False and "at least 3 weeks" in iv["why"]
 
 
 def test_three_graded_weeks_give_an_informative_interval():
@@ -240,13 +240,16 @@ def test_three_graded_weeks_give_an_informative_interval():
         for i in range(10):
             p = pub(f"w{w}-{i}", week=w, kick=KICK + w * 604800, read_ts=KICK + w * 604800 - 3600)
             ev += [p, graded(p, "cleared" if (i + w) % 3 else "missed")]
+    ev.sort(key=lambda e: e["event_at"])                    # the order a writer appends them (a-62)
     iv = R.build_published(ev, KICK + 10 * 604800)["record"]["interval"]
     assert iv["n_blocks"] == 3 and iv["informative"] is True
     lo, hi = iv["hit_rate"]
     assert 0 <= lo <= hi <= 1
     two = [e for e in ev if e["week"] != 5]
     iv2 = R.build_published(two, KICK + 10 * 604800)["record"]["interval"]
-    assert iv2["n_blocks"] == 2 and iv2["informative"] is False and iv2["hit_rate"] is not None
+    # a-62 (f-22 D2): two blocks are three resamples, so NO bounds - not the two weeks' rates
+    assert iv2["n_blocks"] == 2 and iv2["informative"] is False
+    assert iv2["hit_rate"] is None and iv2["margin_pp"] is None
 
 
 def test_chain_is_null_without_a48_and_says_so():
@@ -350,8 +353,8 @@ def test_backtest_register_figure_is_the_restatement_and_the_old_pair_is_superse
 def test_the_statement_carries_all_three_clauses_in_one_string():
     _doc, b = _backtest()
     assert [p["clause"] for p in b["statement_parts"]] == ["over_confidence", "constant_base_rate", "ordering"]
-    for p in b["statement_parts"]:
-        assert p["text"] in b["statement"]
+    # a-62 (f-22 D3): a part carries its clause's name and figures, never its text
+    assert all(set(p) == {"clause", "figures"} for p in b["statement_parts"])
     s = b["statement"]
     assert "over-confidence" in s and "barely beat a constant" in s and "orders outcomes better" in s
 

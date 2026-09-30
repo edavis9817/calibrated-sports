@@ -3667,29 +3667,54 @@ def check_append_only(client, bucket, key, data):
 
 
 def _chain_widening(key, old, new):
-    """The ONE widening an append-only table may make, and only once (a-48): a
-    bucket copy written before its table had a hash chain gains exactly the
-    chain's two columns, every other cell unchanged, and the chain it gains must
-    verify. -> the statement it approved, or None when this is not that case
-    (the ordinary row-for-row comparison then runs, and refuses a widening of
-    any other shape). Once the bucket's copy carries the chain this never fires
-    again, because the column sets then match."""
+    """The widenings an append-only table may make (a-48, a-62): a bucket copy
+    written before a column existed gains it, every other cell unchanged. Only
+    the contract's WIDENING columns qualify - the hash chain's two
+    (`hash_chain.prev` / `.row`) and the write stamp (`hash_chain.stamped
+    .column`) - and each has a condition: a chain it gains must verify, and a
+    stamp column it gains must be null on every row the bucket already held
+    (those rows were written before stamps existed; a stamp appearing on one
+    now would be a rewrite). -> the statement it approved, or None when this is
+    not that case (the ordinary row-for-row comparison then runs, and refuses a
+    widening of any other shape). Once the bucket's copy carries every column
+    this never fires again, because the column sets then match."""
     kind, entry = table_for_key(key)
     hc = (entry or {}).get("hash_chain")
     if not hc or not old or not new:
         return None
     chain_cols = (hc["prev"], hc["row"])
+    stamp_col = (hc.get("stamped") or {}).get("column")
+    widening = set(chain_cols) | ({stamp_col} if stamp_col else set())
     full = list(entry["columns"])
-    legacy = [c for c in full if c not in chain_cols]
-    if list(old[0]) != legacy or list(new[0]) != full:
+
+    def shape(cols):
+        missing = [c for c in full if c not in cols]
+        ok = set(missing) <= widening and list(cols) == [c for c in full if c not in missing]
+        return set(missing) if ok else None
+
+    o_miss, n_miss = shape(list(old[0])), shape(list(new[0]))
+    if o_miss is None or n_miss is None or not n_miss < o_miss:
         return None
-    from core import board as B
-    rep = B.verify_chain(new)
-    if not rep.holds:
-        raise AppendOnlyError(f"{key}: adds the hash chain's columns, but the chain does not "
-                              f"verify ({rep.statement}) - refusing")
-    return (f"hash chain added to {len(old)} existing row(s), no other cell changed "
-            f"({rep.statement})")
+    added = o_miss - n_miss
+    said = []
+    if set(chain_cols) & added:
+        if not set(chain_cols) <= added:
+            return None
+        from core import board as B
+        rep = B.verify_chain(new)
+        if not rep.holds:
+            raise AppendOnlyError(f"{key}: adds the hash chain's columns, but the chain does not "
+                                  f"verify ({rep.statement}) - refusing")
+        said.append(f"hash chain added to {len(old)} existing row(s), no other cell changed "
+                    f"({rep.statement})")
+    if stamp_col in added:
+        stamped = [i for i, r in enumerate(new[:len(old)]) if r.get(stamp_col) not in (None, "")]
+        if stamped:
+            raise AppendOnlyError(f"{key}: adds {stamp_col}, and {len(stamped)} row(s) the bucket "
+                                  f"already held now carry one (first: row {stamped[0]}) - a stamp "
+                                  "on an existing row is a rewrite; refusing")
+        said.append(f"{stamp_col} column added, null on all {len(old)} existing row(s)")
+    return "; ".join(said)
 
 
 class TablePairError(RuntimeError):

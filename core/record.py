@@ -21,17 +21,31 @@ correctly, that there is not one.
 
 PUBLISHED IS A PROJECTION OF THE LEDGER, NEVER A RE-DERIVATION. A published
 call is one that existed in the ledger before its kickoff. A lean whose
-publication cannot be shown to predate its own `kickoff_ts` - its `read_at` or
-`event_at` at or after kickoff, or unparseable - is excluded and counted in
-`excluded_not_pre_kickoff` by lean id, with its terminal event. Reconstructed
-weeks (a-54's landing backfill) live in a different tree and never reach the
-ledger; if one ever did, this is where it stops.
+publication cannot be shown to predate its own `kickoff_ts` - its `read_at`,
+`event_at` or (a-62) `written_at` at or after kickoff, or unparseable - is
+excluded and counted in `excluded_not_pre_kickoff` by lean id, with its
+terminal event.
 
-THE INTERVAL BLOCKS ON WEEK and on nothing finer. With one graded week there is
-one block, the bootstrap has no variance to estimate, and the interval is
-published as null with `informative: false` - never as a zero-width pair and
-never narrowed by blocking on game or lean. `informative` stays false while
-n_blocks < 3.
+A REPLAY IS NOT A PUBLICATION (a-62, f-22 D1). `read_at` and `event_at` are the
+READ's time, and `board_read --at` lets a caller name it, so a replayed week is
+pre-kickoff by construction: f-22 appended a-35's week-2 replay to the live
+ledger and a-57's rule published all 208 of its leans. Two layers now stop it:
+  1. the ledger's `event_at` must be non-decreasing in file order, or the file
+     is REFUSED (`ledger_order`) - a replay appended after live rows goes back
+     in time. It cannot see a replay into an empty ledger, which is why:
+  2. `written_at`, stamped by the writer from its wall clock and never taken
+     from a caller, must be before kickoff where it exists. Rows written before
+     a-62 carry null and are accepted only as the ledger's leading rows, which
+     layer 1 has shown are in order; a null after a stamped row is refused.
+(And `board_read` refuses `--at` into BOARD_EXPORT_DIR, so the door is shut
+before either lock is needed.)
+
+THE INTERVAL BLOCKS ON WEEK and on nothing finer. Below INFORMATIVE_MIN_BLOCKS
+graded weeks the interval is published as null with `informative: false` -
+never as a zero-width pair, never narrowed by blocking on game or lean, and
+(a-62, f-22 D2) never as a two-week "interval": a bootstrap over two blocks has
+three distinct resamples, so its percentiles are just the two weeks' own rates.
+`informative` is false exactly when the bounds are null.
 
 RESEARCH ROWS COME FROM THE DOCUMENTS. One row per tracked
 `docs/*preregistration*.md`; its findings document is the tracked
@@ -49,7 +63,10 @@ the book close is mostly over-confidence, the same string says that a corrected
 model and the close both barely beat a constant base rate, and that the close
 still orders outcomes better - so no consumer can render the first clause
 alone. Each clause's wording is computed from the figures it states, so each
-can come out the other way.
+can come out the other way. `statement_parts` carries each clause's NAME and
+FIGURES and no text (a-62, f-22 D3): a per-clause string is the first clause
+alone, one field away. And no research row may paraphrase the decomposition
+either (`SPLIT_CLAUSE_WORDS`, f-22 D4).
 """
 from __future__ import annotations
 
@@ -93,15 +110,63 @@ def _r(x, nd=4):
 # published - the ledger, projected
 # =============================================================================
 
+def ledger_order(ledger):
+    """-> the statement it approved; raises RecordError otherwise (a-62, f-22 D1).
+
+    The ledger is appended by one writer in wall-clock order, so `event_at` is
+    non-decreasing in file order and `written_at`, where present, is too. A row
+    that goes back in time was not written by the live read - f-22's splice of a
+    replayed week onto the live ledger fails here, and the live ledger passes.
+    Rows without `written_at` (written before a-62) may only LEAD the file: the
+    writer stamps every row since, so a null after a stamp was not written by
+    it."""
+    prev_ev, prev_w, stamped_at = None, None, None
+    for i, e in enumerate(ledger):
+        v = e.get("event_at")
+        try:
+            t = _ts(v)
+        except (TypeError, ValueError):
+            raise RecordError(f"ledger row {i} ({e.get('lean_id')}) has event_at {v!r}, which is "
+                              "not a time - refusing to order the ledger")
+        if prev_ev is not None and t < prev_ev[1]:
+            raise RecordError(f"ledger row {i} ({e.get('lean_id')}) has event_at {v}, before row "
+                              f"{prev_ev[0]}'s - the ledger goes back in time, so a row was not "
+                              "appended by the live read (a replayed week?); refusing")
+        prev_ev = (i, t)
+        w = e.get(B.STAMP_COLUMN)
+        if w is None:
+            if stamped_at is not None:
+                raise RecordError(f"ledger row {i} ({e.get('lean_id')}) has no written_at after "
+                                  f"row {stamped_at} carried one - the writer stamps every row, "
+                                  "so this one was not written by it; refusing")
+            continue
+        try:
+            tw = _ts(w)
+        except (TypeError, ValueError):
+            raise RecordError(f"ledger row {i} has written_at {w!r}, which is not a time")
+        if prev_w is not None and tw < prev_w[1]:
+            raise RecordError(f"ledger row {i} has written_at {w}, before row {prev_w[0]}'s - "
+                              "refusing")
+        if stamped_at is None:
+            stamped_at = i
+        prev_w = (i, tw)
+    n_st = 0 if stamped_at is None else len(ledger) - stamped_at
+    return (f"ledger in order: {len(ledger)} rows, event_at non-decreasing; "
+            f"{len(ledger) - n_st} unstamped leading row(s), {n_st} stamped with written_at")
+
+
 def pre_kickoff(pub):
     """-> None if this published event can be shown to predate its kickoff,
-    else the reason it cannot. Both the read it names and the moment the event
-    was written must be strictly before kickoff."""
+    else the reason it cannot. The read it names, the moment the event says it
+    happened and - where the row carries one - the moment it was WRITTEN must
+    all be strictly before kickoff."""
     try:
         kick = float(pub["kickoff_ts"])
     except (TypeError, ValueError, KeyError):
         return "no kickoff_ts"
-    for field in ("read_at", "event_at"):
+    fields = ("read_at", "event_at") + ((B.STAMP_COLUMN,) if pub.get(B.STAMP_COLUMN) is not None
+                                        else ())
+    for field in fields:
         v = pub.get(field)
         if v is None:
             return f"no {field}"
@@ -155,18 +220,23 @@ def week_block_interval(leans, draws=BOOT_DRAWS, seed=BOOT_SEED):
     resampling WEEKS with replacement. -> the interval block.
 
     A week is a block because a slate shares a scoring environment and one
-    player's rungs are one claim. With fewer than two blocks there is nothing
-    to resample: the interval is null, not the point repeated."""
+    player's rungs are one claim. Below INFORMATIVE_MIN_BLOCKS blocks the
+    bounds are NULL (a-62, f-22 D2): one block has no variance, and two have
+    three distinct resamples whose percentiles are just the two weeks' own
+    rates - a pair of numbers that is not an interval and must not be
+    renderable as one. So `informative` is false exactly when both bounds are
+    null."""
     decided = [x for x in leans if x["_bucket"] in ("cleared", "missed")]
     weeks = sorted({(x["season"], x["week"]) for x in decided})
     out = {"method": "percentile bootstrap, resampling weeks with replacement",
            "block": "week", "n_blocks": len(weeks), "draws": draws, "seed": seed,
            "hit_rate": None, "margin_pp": None,
            "informative": len(weeks) >= INFORMATIVE_MIN_BLOCKS}
-    if len(weeks) < 2:
-        out["why"] = (f"{len(weeks)} graded week(s): a week-block bootstrap has one block and no "
-                      "variance to estimate, so no interval is published. Blocking on game or "
-                      "lean instead would print a narrower interval than the data supports.")
+    if len(weeks) < INFORMATIVE_MIN_BLOCKS:
+        out["why"] = (f"{len(weeks)} graded week(s): a week-block bootstrap needs at least "
+                      f"{INFORMATIVE_MIN_BLOCKS} weeks - with fewer, its percentiles are only the "
+                      "weeks' own rates - so no interval is published. Blocking on game or lean "
+                      "instead would print a narrower interval than the data supports.")
         return out
     by = {w: [x for x in decided if (x["season"], x["week"]) == w] for w in weeks}
     rng = random.Random(seed)
@@ -184,9 +254,14 @@ def week_block_interval(leans, draws=BOOT_DRAWS, seed=BOOT_SEED):
         return [_r(v[int(0.025 * (len(v) - 1))]), _r(v[int(0.975 * (len(v) - 1))])]
     out["hit_rate"] = pct(hits)
     out["margin_pp"] = pct(margins) if margins else None
-    out["why"] = (None if out["informative"] else
-                  f"{len(weeks)} graded weeks: fewer than {INFORMATIVE_MIN_BLOCKS} blocks, so the "
-                  "interval is shown for completeness and is not informative")
+    if out["margin_pp"] is None:
+        # no priced lean: the margin has no interval, so the pair is not
+        # informative and neither bound is published - the implication holds
+        # in both directions
+        out["hit_rate"], out["informative"] = None, False
+        out["why"] = "no graded lean carries a valid price, so no margin interval can be drawn"
+    else:
+        out["why"] = None
     return out
 
 
@@ -194,6 +269,7 @@ def build_published(ledger, now_ts, chain=None, source=None):
     """The published tier, from the ledger's rows ALONE. -> the payload body
     (envelope added by the job). `ledger` is the list of ledger events in file
     order; `chain` is a-48's {head, rows_verified, verified_at} or None."""
+    order = ledger_order(ledger)                # raises on a ledger that goes back in time
     states = B.lean_states(ledger, now_ts)      # raises on a broken partition
     pubs = {e["lean_id"]: e for e in ledger if e["event"] == "published"}
     term = {e["lean_id"]: e for e in ledger if e["event"] in ("graded", "void")}
@@ -258,8 +334,13 @@ def build_published(ledger, now_ts, chain=None, source=None):
         "weeks_graded": [{"season": x["season"], "week": x["week"]}
                          for x in weeks if x["graded"] > 0],
         "excluded_not_pre_kickoff": {"n": len(excluded),
-                                     "rule": ("a lean is a published call only if both its read_at and "
-                                              "its event_at are strictly before its own kickoff_ts"),
+                                     "rule": ("a lean is a published call only if its read_at, its "
+                                              "event_at and - on rows written since a-62 - its "
+                                              "written_at (the writer's wall clock, never a caller's) "
+                                              "are all strictly before its own kickoff_ts; and no "
+                                              "file is built unless the ledger's event_at is "
+                                              "non-decreasing in file order"),
+                                     "order": order,
                                      "rows": sorted(excluded, key=lambda e: e["lean_id"])},
         "record": {**{k: total[k] for k in ("cleared", "missed", "push", "void", "hit_rate",
                                              "hit_rate_priced", "breakeven", "margin_pp",
@@ -317,6 +398,21 @@ def cited_prereg(text, prereg_paths):
     return hits[0] if len(hits) == 1 else None
 
 
+# a-62 (f-22 D4): the words of the backtest statement's first clause. The
+# statement is one string so that "the loss is mostly over-confidence" is never
+# read without "both barely beat a constant base rate" and "the close still
+# orders better"; a research row paraphrasing the first clause in another tier's
+# file is the same split one file over. Matched on folded text, any case.
+SPLIT_CLAUSE_WORDS = ("over-confidence", "overconfidence", "over-confident", "overconfident",
+                      "miscalibration", "miscalibrated")
+
+
+def split_clause(text):
+    """-> the first SPLIT_CLAUSE_WORDS word `text` contains, or None."""
+    t = norm_text(text).lower()
+    return next((w for w in SPLIT_CLAUSE_WORDS if w in t), None)
+
+
 def build_research(docs, declarations):
     """The research tier, from the documents ALONE. `docs` is
     {path: {"text", "commit", "author_date"}} for every TRACKED pre-registration
@@ -365,6 +461,12 @@ def build_research(docs, declarations):
                 raise RecordError(f"{d['id']}: a retired row must say what it was retired on "
                                   "(venue, window, sample, interval) - a bare 'retired' is refused")
             for field in ("question", "power", "note"):
+                split = split_clause(d.get(field) or "")
+                if split:
+                    raise RecordError(f"{d['id']}: {field} says {split!r} - that is the first "
+                                      "clause of the backtest statement, and a research row may "
+                                      "not restate it without the other two; point at "
+                                      "backtest.json's statement instead (a-62, f-22 D4)")
                 missing = numbers_in(d.get(field) or "") - known
                 if missing:
                     raise RecordError(f"{d['id']}: {field} states {sorted(missing)}, which appear in "
@@ -484,6 +586,7 @@ def build_backtest(text, source):
     disc = _table(text, ["population", "AUC model", "AUC market", "dAUC"])
     auc = parse_figure(_row(disc, "P1 pooled")[3])
     parts = statement_parts(corp, const, auc, lo, seasons)
+    statement = " ".join(p["text"] for p in parts)
     return {
         "tier": "backtest", "supports": SUPPORTS["backtest"], "source": source,
         "population": {
@@ -503,8 +606,10 @@ def build_backtest(text, source):
         "register_figure": {"lo": lo, "hi": hi, "n": n_all,
                             "text": f"{lo:+.4f} to {hi:+.4f} over {n_all:,}"},
         "superseded": [dict(x) for x in SUPERSEDED],
-        "statement": " ".join(p["text"] for p in parts),
-        "statement_parts": parts,
+        "statement": statement,
+        # a-62 (f-22 D3): names and figures only. A per-clause `text` was the
+        # over-confidence clause alone, renderable without the other two.
+        "statement_parts": [{k: v for k, v in p.items() if k != "text"} for p in parts],
     }
 
 

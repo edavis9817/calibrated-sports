@@ -102,8 +102,8 @@
         "quote": "| P1 pooled | 0.530 | 0.573 | **−0.043 [−0.054, −0.033]**",
         "unit": "auc"
       },
-      "power": "Retired in all five registered populations: the 2023, 2024 and 2025 walk-forward against the book close (16,041 outcomes over 852 games) and pooled, and Kalshi REC/RSHATT weeks 2-3 of 2026 (2,513 rungs, 31 games). Every AUC-difference interval excludes zero below.",
-      "note": "The model orders outcomes worse than the market in every registered population. Against the book close most of its loss is over-confidence; against the Kalshi ladder the loss is ordering and calibration is not at fault."
+      "power": "Retired in all five registered populations: the 2023, 2024 and 2025 walk-forward against the book close (16,041 outcomes over 852 games) and pooled, and Kalshi REC/RSHATT weeks 2-3 of 2026 (2,513 rungs, 31 games). Every AUC-difference interval lies entirely below zero.",
+      "note": "The model orders outcomes worse than the market in every registered population. What its loss against the book close is made of is stated once, in the backtest record's statement, and is not restated here; against the Kalshi ladder the loss is ordering and calibration is not at fault."
     }
   ]
 }

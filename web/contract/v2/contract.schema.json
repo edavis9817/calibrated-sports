@@ -79,14 +79,15 @@
         "formats": ["parquet", "csv"],
         "append_only": true,
         "sources_as": "board_read",
-        "description": "The Board's lean ledger: append-only EVENTS, never mutable rows. One `published` event when a lean first appears at a read, and at most one terminal event later - `graded` (result cleared / missed / push) or `void` (with void_reason). A later file must equal the earlier one row for row, plus rows at the end. The CSV is the same rows as the parquet, written in the same step. HASH CHAIN (a-48): every row carries prev_hash (the previous row's row_hash; 64 zeros on row 0) and row_hash = sha256 over the UTF-8 bytes of a JSON array with no whitespace: [hash_chain.tag, each column in hash_chain.covers order as text or null, prev_hash]. Cells are canonical so the parquet and the CSV hash identically: strings as-is, int64 as a decimal integer, float64 as ECMAScript Number.prototype.toString writes it (String(n) - `1790528400`, `4.5`, `-146`), null and the empty string both as null. Editing or removing any row fails its hash and every one after it; a row appended leaves every earlier hash unchanged. The chain covers every event column: the ledger is events, so nothing in a row changes after it is written - grading appends a graded row.",
+        "description": "The Board's lean ledger: append-only EVENTS, never mutable rows. One `published` event when a lean first appears at a read, and at most one terminal event later - `graded` (result cleared / missed / push) or `void` (with void_reason). A later file must equal the earlier one row for row, plus rows at the end. The CSV is the same rows as the parquet, written in the same step. HASH CHAIN (a-48): every row carries prev_hash (the previous row's row_hash; 64 zeros on row 0) and row_hash = sha256 over the UTF-8 bytes of a JSON array with no whitespace: [hash_chain.tag, each column in hash_chain.covers order as text or null, prev_hash]. Cells are canonical so the parquet and the CSV hash identically: strings as-is, int64 as a decimal integer, float64 as ECMAScript Number.prototype.toString writes it (String(n) - `1790528400`, `4.5`, `-146`), null and the empty string both as null. Editing or removing any row fails its hash and every one after it; a row appended leaves every earlier hash unchanged. The chain covers every event column: the ledger is events, so nothing in a row changes after it is written - grading appends a graded row. WRITTEN_AT (a-62): `written_at` is when the producer WROTE the row, stamped from its own wall clock at write time and never taken from a caller, unlike read_at / event_at, which a replayed read names. Null on rows written before a-62. A row carrying it is hashed under hash_chain.stamped.tag with the stamp after the event cells - [stamped.tag, each covers column, written_at, prev_hash] - and a row without it exactly as above, so no hash written before a-62 moves. A file written before a-62 lacks the column; it gains it null on every existing row. The published record counts a lean only if its written_at, where present, is before its kickoff_ts.",
         "hash_chain": {
           "tag": "cs-board-ledger-chain-v1",
           "digest": "sha256",
           "genesis": "0000000000000000000000000000000000000000000000000000000000000000",
           "prev": "prev_hash",
           "row": "row_hash",
-          "covers": ["event", "lean_id", "claim_id", "row_id", "season", "week", "game_id", "gsis_id", "market", "line", "side", "read_at", "kickoff_ts", "mkt_p_over", "mkt_books", "model_p_over", "gap_pp", "price", "band", "model_version", "lean_threshold_pp", "result", "actual", "void_reason", "event_at"]
+          "covers": ["event", "lean_id", "claim_id", "row_id", "season", "week", "game_id", "gsis_id", "market", "line", "side", "read_at", "kickoff_ts", "mkt_p_over", "mkt_books", "model_p_over", "gap_pp", "price", "band", "model_version", "lean_threshold_pp", "result", "actual", "void_reason", "event_at"],
+          "stamped": {"tag": "cs-board-ledger-chain-v2", "column": "written_at"}
         },
         "columns": {
           "event": "string", "lean_id": "string", "claim_id": "string", "row_id": "string",
@@ -96,6 +97,7 @@
           "model_p_over": "float64", "gap_pp": "float64", "price": "float64", "band": "string",
           "model_version": "string", "lean_threshold_pp": "float64", "result": "string",
           "actual": "float64", "void_reason": "string", "event_at": "string",
+          "written_at": "string",
           "prev_hash": "string", "row_hash": "string"
         }
       }
@@ -7585,7 +7587,7 @@
 
     "RecordInterval": {
       "type": "object",
-      "description": "A week-block bootstrap, blocking on week and on nothing finer. Null bounds when n_blocks < 2 (one block has no variance to estimate). informative is false while n_blocks < 3: a page reads it and says so in words.",
+      "description": "A week-block bootstrap, blocking on week and on nothing finer. informative is false exactly when both bounds are null (a-62): below 3 graded weeks there are no bounds, because one block has no variance and two have only three distinct resamples, whose percentiles are just the two weeks' own rates - not an interval. A page renders no interval when informative is false and says why in words.",
       "properties": {
         "method": {
           "type": "string"
@@ -7644,6 +7646,11 @@
         "informative",
         "why"
       ],
+      "if": {"properties": {"informative": {"const": false}}},
+      "then": {"properties": {"hit_rate": {"type": "null"}, "margin_pp": {"type": "null"}}},
+      "else": {"properties": {"hit_rate": {"$ref": "#/$defs/Interval"},
+                              "margin_pp": {"$ref": "#/$defs/Interval"},
+                              "n_blocks": {"minimum": 3}}},
       "additionalProperties": false
     },
     "RecordWeek": {
@@ -8048,6 +8055,11 @@
             "rule": {
               "type": "string"
             },
+            "order": {
+              "description": "a-62: the statement the ledger-order check approved - event_at non-decreasing in file order, and how many leading rows predate written_at. A ledger that fails it builds no file, so this is never a failure message.",
+              "type": "string",
+              "minLength": 1
+            },
             "rows": {
               "type": "array",
               "items": {
@@ -8079,6 +8091,7 @@
           "required": [
             "n",
             "rule",
+            "order",
             "rows"
           ],
           "additionalProperties": false
@@ -8700,9 +8713,10 @@
         "statement": {
           "type": "string",
           "minLength": 1,
-          "description": "The one string a page prints. It carries all three clauses - the loss is mostly over-confidence, a corrected model and the close both barely beat a constant base rate, the close still orders outcomes better - so no consumer can render the first alone. Each clause is worded from its figures."
+          "description": "The one string a page prints, and the ONLY field carrying clause text. It carries all three clauses - the loss is mostly over-confidence, a corrected model and the close both barely beat a constant base rate, the close still orders outcomes better - so no consumer can render the first alone. Each clause is worded from its figures."
         },
         "statement_parts": {
+          "description": "Each clause of `statement` by NAME, with the figures it was worded from - and no text (a-62): a per-clause string would be the first clause alone, one field away from a page. Render `statement`.",
           "type": "array",
           "items": {
             "type": "object",
@@ -8714,16 +8728,12 @@
                   "ordering"
                 ]
               },
-              "text": {
-                "type": "string"
-              },
               "figures": {
                 "$ref": "#/$defs/RecordFigures"
               }
             },
             "required": [
               "clause",
-              "text",
               "figures"
             ],
             "additionalProperties": false

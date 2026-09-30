@@ -212,7 +212,7 @@ def test_a_row_with_no_lean_carries_no_band():
 def test_the_ledger_columns_and_types_are_the_contracts():
     from jobs import board_read as J
     schema = J.ledger_schema()
-    assert list(schema) == list(B.LEDGER_COLUMNS) + ["prev_hash", "row_hash"]
+    assert list(schema) == list(B.LEDGER_COLUMNS) + ["written_at", "prev_hash", "row_hash"]
     assert schema["season"] == pl.Int64 and schema["line"] == pl.Float64
     assert schema["event"] == pl.Utf8
     entry = E.TABLES["board_ledger"]

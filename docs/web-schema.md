@@ -800,6 +800,15 @@ most one `graded` or `void`). The uploader ships it only after reading the bucke
 copy back and showing the new file is that copy plus rows at the end, and **no uploader
 ever deletes a key under `board/`**.
 
+**`written_at` (a-62).** When the writer wrote the row, from its own wall clock, never
+from a caller. `read_at` and `event_at` are the READ's time, which `board_read --at`
+names, so a replayed week looks exactly like a live one on those two fields (f-22 D1).
+Null on rows written before a-62. It sits between the event columns and the chain; a
+row carrying it is hashed under `hash_chain.stamped.tag` with the stamp after the event
+cells, and a row without it exactly as a-48 hashed it, so no existing hash moves. A file
+written before it gains the column null on every existing row - the one other widening
+the uploader allows. `board_read` refuses `--at` whenever `--dest` is `BOARD_EXPORT_DIR`.
+
 ## landing.json — kind `landing` (a-47)
 
 The one file the landing page reads, sportless at the root. Built LAST in
@@ -838,12 +847,18 @@ and its builder in `core/record.py` cannot see the other two.
 | `record/backtest.json` | backtest | `docs/findings/ranking-versus-calibration.md` at HEAD | "the method was checked at scale" |
 
 - **published.** A projection of the ledger. A lean is a published call only if
-  its `read_at` and `event_at` are both strictly before its own `kickoff_ts`;
-  anything else is in `excluded_not_pre_kickoff.rows` by lean id and in no count.
+  its `read_at`, its `event_at` and, on rows written since a-62, its `written_at`
+  are all strictly before its own `kickoff_ts`; anything else is in
+  `excluded_not_pre_kickoff.rows` by lean id and in no count. No file is built
+  unless the ledger's `event_at` is non-decreasing in file order and unstamped rows
+  only lead it (`excluded_not_pre_kickoff.order` states what was checked): a replay
+  appended to the live ledger goes back in time.
   `record` and `weeks[]` measure the hit rate against the break-even of the price
   the ledger published (`margin_pp`), not against 50%. `record.interval` is a
-  week-block bootstrap: null bounds below two graded weeks, and `informative`
-  false below three — a page says so in words. `chain` is a-48's verified head,
+  week-block bootstrap: null bounds and `informative: false` below three graded
+  weeks, one exactly when the other (the contract's `if`/`then` holds it) — two
+  weeks have three resamples, whose "bounds" are the two weeks' own rates. A page
+  renders no interval then and says so in words. `chain` is a-48's verified head,
   or null with `chain_note` saying why; nothing substitutes for it. A ledgered
   price inside (-100, 100) is not an American price (the Board medians American
   odds); such a lean carries `price: null`, `price_ledgered`, and is counted in
@@ -853,9 +868,11 @@ and its builder in `core/record.py` cannot see the other two.
   commit that added it. `headline` is parsed from a quote that appears verbatim
   in the row's documents. A `retired` row always carries `power`. A
   pre-registration with no declared verdict is `open` with `classified: false`.
-- **backtest.** `statement` is the one string to print: its three clauses
-  (over-confidence, both barely beat a constant, the close still orders better)
-  are each worded from their figures in `statement_parts`. `superseded` carries
+- **backtest.** `statement` is the one string to print, and the only field that
+  carries clause text: its three clauses (over-confidence, both barely beat a
+  constant, the close still orders better) are each worded from their figures,
+  which `statement_parts` carries by clause name with no text (a-62). No research
+  row restates the first clause either (`core.record.SPLIT_CLAUSE_WORDS`). `superseded` carries
   the pre-settlement-fix pair, never as a current figure.
 
 Each owns no prefix (`sync_keys(dest, files, [])`), so the job deletes nothing.

@@ -523,11 +523,45 @@ LEDGER_DTYPES.update({c: "string" for c in CHAIN_COLUMNS})
 CHAIN_TAG = "cs-board-ledger-chain-v1"
 CHAIN_GENESIS = "0" * 64
 
+# WRITTEN_AT (a-62). `event_at` is the READ's time, and `board_read --at` lets a
+# caller name that - so a replayed week wrote events that were pre-kickoff by
+# construction, and f-22 spliced one onto the live ledger as 208 "published"
+# calls. `written_at` is when `jobs.board_read.write_ledger` wrote the row, from
+# the WALL CLOCK, and is never accepted from a caller (invariant 8's `ingest_ts`
+# rule, applied to the ledger). Rows written before a-62 carry null.
+#
+# It is NOT one of LEDGER_COLUMNS, on purpose. The chain hashes every
+# LEDGER_COLUMNS cell, so adding a 26th would put one more null into every
+# existing row's payload and break all 411 hashes already published. Instead a
+# row that CARRIES written_at is hashed under CHAIN_TAG_STAMPED with the stamp
+# after the event cells; a row with none is hashed exactly as a-48 hashed it.
+# So the stamp is tamper-evident where it exists and no existing hash moves.
+STAMP_COLUMN = "written_at"
+LEDGER_DTYPES[STAMP_COLUMN] = "string"
+CHAIN_TAG_STAMPED = "cs-board-ledger-chain-v2"
+# The columns a ledger file written earlier may lack, in file order. A file
+# without them is NARROWER, not different: every cell it has is unchanged.
+WIDENING_COLUMNS = (STAMP_COLUMN,) + CHAIN_COLUMNS
+
 
 def ledger_file_columns():
-    """The ledger FILE's columns: the event columns, then the chain. A function,
-    not a constant, so it reads LEDGER_COLUMNS as it is when called."""
-    return tuple(LEDGER_COLUMNS) + CHAIN_COLUMNS
+    """The ledger FILE's columns: the event columns, the write stamp, then the
+    chain. A function, not a constant, so it reads LEDGER_COLUMNS as it is when
+    called."""
+    return tuple(LEDGER_COLUMNS) + (STAMP_COLUMN,) + CHAIN_COLUMNS
+
+
+def is_narrower_file(columns):
+    """True if `columns` are the ledger file's columns with some (not none) of
+    WIDENING_COLUMNS absent and the rest in order - a file written before a-48
+    and/or a-62. Anything else is a different file, not an older one."""
+    full = ledger_file_columns()
+    cols = list(columns)
+    if cols == list(full):
+        return False
+    missing = [c for c in full if c not in cols]
+    return (bool(missing) and all(c in WIDENING_COLUMNS for c in missing)
+            and cols == [c for c in full if c not in missing])
 
 
 def ledger_events(ledger, rows, read_at_iso, settle_lean, pulled_claims,
@@ -606,8 +640,9 @@ def assert_append_only(old, new):
     on every column. Raises otherwise - settled rows are never rewritten."""
     if len(new) < len(old):
         raise AssertionError(f"ledger shrank: {len(old)} -> {len(new)} rows")
+    cols = tuple(LEDGER_COLUMNS) + (STAMP_COLUMN,)      # a-62: the stamp is never rewritten either
     for i, (a, b) in enumerate(zip(old, new)):
-        if {k: a.get(k) for k in LEDGER_COLUMNS} != {k: b.get(k) for k in LEDGER_COLUMNS}:
+        if {k: a.get(k) for k in cols} != {k: b.get(k) for k in cols}:
             raise AssertionError(f"ledger row {i} was rewritten: {a.get('lean_id')}")
     return True
 
@@ -667,11 +702,16 @@ def canon_value(v, dtype):
 def chain_payload(row, prev_hash):
     """The exact bytes a row hash is taken over: a JSON array, no whitespace -
     [CHAIN_TAG, every LEDGER_COLUMNS cell in contract order (text or null),
-    prev_hash]."""
+    prev_hash], or for a row carrying `written_at` (a-62)
+    [CHAIN_TAG_STAMPED, the same cells, written_at, prev_hash]."""
     import json
     cells = [canon_value(row.get(c), LEDGER_DTYPES[c]) for c in LEDGER_COLUMNS]
-    return json.dumps([CHAIN_TAG, *cells, prev_hash], ensure_ascii=False,
-                      separators=(",", ":")).encode("utf-8")
+    stamp = canon_value(row.get(STAMP_COLUMN), LEDGER_DTYPES[STAMP_COLUMN])
+    if stamp is None:
+        payload = [CHAIN_TAG, *cells, prev_hash]
+    else:           # a-62: [CHAIN_TAG_STAMPED, every event cell, written_at, prev_hash]
+        payload = [CHAIN_TAG_STAMPED, *cells, stamp, prev_hash]
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
 def row_hash(row, prev_hash):

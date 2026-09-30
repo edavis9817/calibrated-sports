@@ -537,11 +537,13 @@ def ledger_schema():
     if tuple(cols.values()) != tuple(B.LEDGER_DTYPES[c] for c in B.ledger_file_columns()):
         raise E.ContractError("ledger column types drifted from the contract")
     hc = entry.get("hash_chain") or {}
+    st = hc.get("stamped") or {}
     if (tuple(hc.get("covers") or ()) != tuple(B.LEDGER_COLUMNS) or hc.get("tag") != B.CHAIN_TAG
             or hc.get("genesis") != B.CHAIN_GENESIS or hc.get("digest") != "sha256"
-            or (hc.get("prev"), hc.get("row")) != B.CHAIN_COLUMNS):
+            or (hc.get("prev"), hc.get("row")) != B.CHAIN_COLUMNS
+            or (st.get("tag"), st.get("column")) != (B.CHAIN_TAG_STAMPED, B.STAMP_COLUMN)):
         raise E.ContractError("the ledger's hash chain drifted from the contract's hash_chain "
-                              "(covers, tag, genesis, digest, column names)")
+                              "(covers, tag, genesis, digest, column names, stamped)")
     return {c: getattr(pl, _POLARS_TYPES[t]) for c, t in cols.items()}
 
 
@@ -549,6 +551,13 @@ def _atomic(path, write):
     tmp = path + ".tmp"
     write(tmp)
     os.replace(tmp, path)
+
+
+def wall_clock():
+    """The time `write_ledger` stamps into `written_at` (a-62). A function so a
+    test can pin it; there is deliberately no ARGUMENT for it anywhere - a row
+    that can name its own write time can name one before kickoff."""
+    return time.time()
 
 
 def write_ledger(dest, old, new_events, log=None):
@@ -563,7 +572,15 @@ def write_ledger(dest, old, new_events, log=None):
     verify. A ledger on disk from before a-48 carries none: the first write
     after it chains every existing row from genesis, changing no other cell, and
     does so even when the read appends nothing - otherwise a quiet week would
-    publish an index with no head beside a ledger with no chain."""
+    publish an index with no head beside a ledger with no chain.
+
+    WRITTEN_AT (a-62). Every appended row is stamped with `wall_clock()` here, at
+    the one choke point, OVERWRITING whatever the caller's dict carried (a
+    terminal event is built as a copy of its published row, so it arrives with
+    that row's stamp). Existing rows keep theirs, null before a-62; the record
+    publishes a lean only if its stamp is before its kickoff. A ledger with no
+    new rows is not rewritten to add the column: nothing is appended, so there is
+    nothing to stamp, and the column appears with the first stamped row."""
     import polars as pl
     if not new_events and os.path.exists(ledger_path(dest)) and B.is_chained(old):
         # a-35: a read that appends nothing still re-pairs the two files. The
@@ -573,6 +590,8 @@ def write_ledger(dest, old, new_events, log=None):
         pair_ledger(dest, log)
         return 0
     migrating = bool(old) and not B.is_chained(old)
+    stamp = B.iso(wall_clock())
+    new_events = [dict(e, **{B.STAMP_COLUMN: stamp}) for e in new_events]
     rows = B.extend_chain(old, new_events)
     B.assert_append_only(old, rows)
     schema = ledger_schema()
@@ -617,8 +636,9 @@ def pair_ledger(dest, log=None):
     # a-48: a CSV left UNCHAINED beside a chained parquet (a crash between the two
     # writes of the migration) is a CSV that trails its parquet by two columns
     # rather than by rows. Compared on the columns it has; healed the same way.
-    legacy = (have.columns == list(B.LEDGER_COLUMNS)
-              and as_csv.columns == list(B.ledger_file_columns()))
+    # a-62: the same for a CSV that predates the written_at column.
+    legacy = (have.columns != as_csv.columns and B.is_narrower_file(have.columns)
+              and all(c in as_csv.columns for c in have.columns))
     shared = as_csv.select(have.columns) if legacy else as_csv
     if have.height == pq.height and not legacy:
         if (all(c in have.columns for c in B.CHAIN_COLUMNS)
@@ -714,6 +734,25 @@ def refuse_publish_tree(dest):
     if d == w or d.startswith(w + os.sep) or w.startswith(d + os.sep):
         raise SystemExit(f"--dest {dest} overlaps WEB_EXPORT_DIR; the Board publishes from its "
                          "own tree (BOARD_EXPORT_DIR) with its own upload record - refusing")
+
+
+def _overlaps(a, b):
+    d, w = os.path.normcase(os.path.abspath(a)), os.path.normcase(os.path.abspath(b))
+    return d == w or d.startswith(w + os.sep) or w.startswith(d + os.sep)
+
+
+def refuse_replay_into_live(dest):
+    """a-62 (f-22 D1): a read at a caller-named time (`--at`) may not write where
+    the live read writes. `--at` stamps read_at and event_at from the caller, so
+    a replayed week is indistinguishable from a live one by those fields; f-22
+    appended one to the live ledger and the record published 208 of its leans.
+    Refused when --dest is, contains or sits inside BOARD_EXPORT_DIR - which is
+    also where --tick defaults. `written_at` catches it downstream as well; this
+    is the door, that is the lock."""
+    board = getattr(config, "BOARD_EXPORT_DIR", None) or os.getenv("BOARD_EXPORT_DIR")
+    if board and _overlaps(dest, board):
+        raise SystemExit(f"--at is a replay, and --dest {dest} is the live Board tree "
+                         "(BOARD_EXPORT_DIR) - refusing: a replay writes to a scratch tree only")
 
 
 class NoRows(SystemExit):
@@ -821,6 +860,13 @@ def run(season, week, dest, read_ts=None, db=None, log=print):
     E.validate_contract(wanted)
     approved = R.require_declared(wanted)
     ledger_new = write_ledger(dest, old, new_ev, log)
+    # a-62: write_ledger stamps `written_at` on the rows it appends, and a stamped
+    # row hashes differently, so the head computed above (from the rows BEFORE
+    # the stamp) is not the head on disk. Re-read it from the file just written
+    # rather than stamp here too: the writer stays the only thing that stamps.
+    if new_ev:
+        on_disk = B.chain_head(read_ledger(dest))
+        index["ledger_head"] = None if on_disk is None else dict(on_disk, as_of=read_iso)
     # No owned prefix: sync_keys deletes nothing here, whatever is on disk.
     written, deleted = E.sync_keys(dest, wanted, [])
     assert deleted == 0
@@ -1189,6 +1235,8 @@ def _main(a, ap):
         dest = dest or E.require_setting("BOARD_EXPORT_DIR")
     if not dest:
         ap.error("--dest is required (no default: a job that can publish must be told where)")
+    if a.at and not (a.check or a.due or a.verify_chain):
+        refuse_replay_into_live(dest)
     if a.verify_chain:
         return verify_chain_cli(dest, a.head)
     if a.check:
