@@ -825,6 +825,41 @@ index — plus the Board's own tree and the Lab universe meta; never the store.
 It owns no prefix: written through `sync_keys(dest, {"landing.json": ...}, [])`,
 so it deletes nothing and declares nothing to the uploader.
 
+## record/... — kinds `record.published`, `record.research`, `record.backtest` (a-57)
+
+Three tiers of evidence, three files, and **no figure in any of them combines
+two tiers**. Built by `jobs/record_export.py`; each file has exactly one source
+and its builder in `core/record.py` cannot see the other two.
+
+| key | tier | its one source | supports |
+|---|---|---|---|
+| `record/{sport}/published.json` | published | the Board ledger, `board/{sport}/ledger.parquet` | "these were our calls" |
+| `record/research.json` | research | tracked `docs/*preregistration*.md` + `docs/findings/*.md` at HEAD, with `docs/record/research-verdicts.json` | "this is what we tested and what failed" |
+| `record/backtest.json` | backtest | `docs/findings/ranking-versus-calibration.md` at HEAD | "the method was checked at scale" |
+
+- **published.** A projection of the ledger. A lean is a published call only if
+  its `read_at` and `event_at` are both strictly before its own `kickoff_ts`;
+  anything else is in `excluded_not_pre_kickoff.rows` by lean id and in no count.
+  `record` and `weeks[]` measure the hit rate against the break-even of the price
+  the ledger published (`margin_pp`), not against 50%. `record.interval` is a
+  week-block bootstrap: null bounds below two graded weeks, and `informative`
+  false below three — a page says so in words. `chain` is a-48's verified head,
+  or null with `chain_note` saying why; nothing substitutes for it. A ledgered
+  price inside (-100, 100) is not an American price (the Board medians American
+  odds); such a lean carries `price: null`, `price_ledgered`, and is counted in
+  `n_price_invalid`. `leans[]` carry `gsis_id`, not a name: names are not in the
+  ledger.
+- **research.** One row per tracked pre-registration; `registered_at` is the
+  commit that added it. `headline` is parsed from a quote that appears verbatim
+  in the row's documents. A `retired` row always carries `power`. A
+  pre-registration with no declared verdict is `open` with `classified: false`.
+- **backtest.** `statement` is the one string to print: its three clauses
+  (over-confidence, both barely beat a constant, the close still orders better)
+  are each worded from their figures in `statement_parts`. `superseded` carries
+  the pre-settlement-fix pair, never as a current figure.
+
+Each owns no prefix (`sync_keys(dest, files, [])`), so the job deletes nothing.
+
 ## Refresh
 
 `python -m jobs.weekly_refresh` logs to

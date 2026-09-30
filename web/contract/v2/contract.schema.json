@@ -7715,7 +7715,7 @@
     },
     "RecordLean": {
       "type": "object",
-      "description": "One published lean as the ledger holds it: what a reader can check, row by row, against board/nfl/ledger.csv.",
+      "description": "One published lean as the ledger holds it: what a reader can check, row by row, against board/{sport}/ledger.csv.",
       "properties": {
         "lean_id": {
           "type": "string"
