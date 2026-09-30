@@ -23,8 +23,8 @@ unheld live rows past the window must ALL go. A result where both groups
 survive (the prune never ran) or both go (the hold is ignored) fails loudly.
 
 The live store is opened `mode=ro` only. `prune_quotes.run` writes a
-`source_health` row; LOGGER_DB is pinned to the scratch file BEFORE `config`
-is imported, so that write lands in the copy.
+`source_health` row; LOGGER_DB is pinned to the scratch file and `config`
+re-read BEFORE `store` is imported, so that write lands in the copy (asserted).
 """
 import argparse
 import os
@@ -32,23 +32,26 @@ import sqlite3
 import sys
 import time
 
-LIVE = os.environ.get("LOGGER_DB", "D:/calibrated-sports/data/market_log.db")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("dest")
     ap.add_argument("--days", type=float, default=0.5)
-    ap.add_argument("--live", default=LIVE)
+    ap.add_argument("--live", default=None,
+                    help="the logger's store (default: config.DB_PATH, read before pinning)")
     ap.add_argument("--every", type=int, default=5)
     a = ap.parse_args()
     if os.path.exists(a.dest):
         raise SystemExit(f"refusing to overwrite {a.dest}; remove it first")
-    live = os.path.abspath(a.live).replace("\\", "/")
-    dest = os.path.abspath(a.dest)
-    os.environ["LOGGER_DB"] = dest            # before config is imported
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    sys.path.insert(0, ROOT)
+    import importlib
     import config
+    live = os.path.abspath(a.live or config.DB_PATH).replace("\\", "/")
+    dest = os.path.abspath(a.dest)
+    os.environ["LOGGER_DB"] = dest            # then re-read config, before store is imported
+    importlib.reload(config)
     import store
     from jobs import hold_weeks, prune_quotes
     assert os.path.abspath(config.DB_PATH) == dest, (config.DB_PATH, dest)

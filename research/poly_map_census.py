@@ -30,23 +30,32 @@ import sqlite3
 import sys
 from collections import Counter, defaultdict
 
-LIVE = os.environ.get("LOGGER_DB", "D:/calibrated-sports/data/market_log.db")
 TABLES = ("markets", "market_outcome", "outcomes", "nfl_games", "player_xwalk",
           "player_alias", "nfl_player_week")
 SLUG = re.compile(r"^nfl-[a-z0-9]+-[a-z0-9]+-(\d{4}-\d{2}-\d{2})(?:-.*)?$")
 
 
+def live_db():
+    """The logger's store as config resolves it, read before anything is pinned."""
+    sys.path.insert(0, os.getcwd())
+    import config
+    return os.path.abspath(config.DB_PATH).replace("\\", "/")
+
+
 def _pin(dest):
+    import importlib
     os.environ["LOGGER_DB"] = os.path.abspath(dest)
     sys.path.insert(0, os.getcwd())
     import config
+    importlib.reload(config)
     assert os.path.abspath(config.DB_PATH) == os.path.abspath(dest), config.DB_PATH
     return config
 
 
-def build(dest, live=LIVE):
+def build(dest):
     if os.path.exists(dest):
         raise SystemExit(f"refusing to overwrite {dest}; remove it first")
+    live = live_db()
     _pin(dest)
     import store
     store.init_db()
@@ -181,7 +190,7 @@ def main():
     elif a.cmd == "map":
         run_map(a.db)
     else:
-        census(LIVE if a.live else a.db, live=a.live, json_out=a.json)
+        census(live_db() if a.live else a.db, live=a.live, json_out=a.json)
 
 
 if __name__ == "__main__":
