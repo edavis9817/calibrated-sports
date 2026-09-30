@@ -382,6 +382,13 @@ writes it, which is luck holding a guarantee up.
   top-of-book values, 235× fewer bytes, and materially fresher — gamma logged
   zero price changes across four minutes where CLOB logged 17–65 per 20s cycle.
   Gamma inline is the fallback only.
+- **Titles are in BOOK form and the game moneyline has no market word** (a-60, measured on the
+  raw events payload). `Spread: Bills (-1.5)` is Bills win by more than 1.5, which is the canonical
+  `spread|buf|1.5|over` - the mapper NEGATES the line; keyed raw, no spread ever joined Kalshi.
+  `Patriots vs. Seahawks` (no colon) is the moneyline, outcomes in title order, and the logged token
+  is outcomes[0], so the row is the FIRST-NAMED team winning. A slug's date is the kickoff's UTC
+  date. Player lines LINK to outcomes other venues created and never create one: every settled
+  player outcome is published as prop history.
 
 **The Odds API**
 - Cost = markets × regions × **events** for props, alternates and period

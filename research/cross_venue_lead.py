@@ -3,6 +3,8 @@
     python -m research.cross_venue_lead --extract D:/temp/a59/xv.db   # pull from the store, mode=ro
     python -m research.cross_venue_lead --cache D:/temp/a59/xv.db     # every table below
     python -m research.cross_venue_lead --cache ... --json out.json   # the same, machine-readable
+    python -m research.cross_venue_lead --extract D:/temp/a60/xv4.db --pairs-db D:/temp/a60/map_new.db --week 4
+    python -m research.cross_venue_lead --cache D:/temp/a60/xv4.db --week 4
 
 The store's cross-venue join (`market_outcome`, a-53) names the claims two
 venues share. `jobs/cross_venue.py` asks whether two prices DISAGREE; this asks
@@ -33,6 +35,15 @@ Polymarket keys "Spread: Bills (-1.5)" as line -1.5. Same claim, two outcome ids
 so the store join never pairs them. This script pairs them explicitly, labelled
 `join=folded`, and lists the fold as a mapping work item: it does not fix the
 store.
+
+a-60 FIXED THE SIGN IN THE MAPPER (venues/polymarket.py), so a re-mapped store
+pairs spreads itself and the fold is WRONG against it: under the corrected
+convention a negative Polymarket line is an underdog "(+L)" claim, and negating
+it would pair "Patriots +2.5" with "Patriots win by over 2.5". So `--pairs-db`
+(pairs from a re-mapped scratch copy, `research/poly_map_census.py`) turns the
+fold off, and it stays on only to reproduce a-59 from the unfixed store.
+`--week` restricts the pairs to one week; quotes still come from the live
+store, mode=ro.
 """
 import argparse
 import bisect
@@ -106,7 +117,7 @@ def parse_key(key):
             "line": None if line == "na" else float(line), "side": side}
 
 
-def cross_pairs(con, season=SEASON):
+def cross_pairs(con, season=SEASON, fold=True):
     """[(outcome_id, key, week, event_id, venue, market_id, join)] for every
     claim quoted by more than one venue CLASS (kalshi / polymarket / book),
     plus the folded spread pairs. `join` is 'store' or 'folded'."""
@@ -121,6 +132,8 @@ def cross_pairs(con, season=SEASON):
     for oid, rs in by.items():
         if len({venue_class(r[4]) for r in rs}) > 1:
             out += [(*r, "store") for r in rs]
+    if not fold:
+        return out
     # the fold: polymarket spread|team|-L|over  ==  kalshi spread|team|+L|over
     kal = {}
     for oid, rs in by.items():
@@ -160,15 +173,28 @@ CREATE TABLE polls (ts REAL, venue TEXT, endpoint TEXT, ok INTEGER, n_markets IN
 """
 
 
-def extract(dest):
-    """Copy what the analysis needs into a scratch file. Store read-only."""
+def extract(dest, pairs_db=None, weeks=None):
+    """Copy what the analysis needs into a scratch file. Store read-only.
+
+    `pairs_db`: take the cross-venue pairs from this file's market_outcome /
+    outcomes instead of the store's (a re-mapped copy), fold off. `weeks`:
+    keep only pairs in these weeks."""
     if os.path.exists(dest):
         raise SystemExit(f"refusing to overwrite {dest}; remove it first")
     src = ro()
     out = sqlite3.connect(dest)
     out.executescript(SCRATCH_DDL)
     t0 = time.time()
-    pairs = cross_pairs(src)
+    if pairs_db:
+        pcon = sqlite3.connect(f"file:{pairs_db}?mode=ro", uri=True)
+        pairs = cross_pairs(pcon, fold=False)
+        pcon.close()
+    else:
+        pairs = cross_pairs(src)
+    if weeks:
+        pairs = [p for p in pairs if p[2] in set(weeks)]
+    if not pairs:
+        raise SystemExit("no cross-venue pairs selected - refusing to extract nothing")
     out.executemany("INSERT INTO pairs VALUES (?,?,?,?,?,?,?)", pairs)
     events = {p[3] for p in pairs if p[3]}
     for eid in events:
@@ -211,6 +237,7 @@ def extract(dest):
     out.executemany("INSERT INTO meta VALUES (?,?)", [
         ("extracted_ts", repr(time.time())), ("db_path", str(config.DB_PATH)),
         ("pairs", str(len(pairs))), ("quote_rows", str(n_q)),
+        ("pairs_db", str(pairs_db or "")), ("weeks", ",".join(map(str, weeks or []))),
         ("seconds", f"{time.time() - t0:.1f}")])
     out.commit()
     out.close()
@@ -677,8 +704,11 @@ def mapping_check(pairs, quotes):
     return sorted(out, key=lambda r: -abs(r["median_gap"])), checked
 
 
-def report(path, json_out=None):
+def report(path, json_out=None, weeks=None):
     meta, pairs, quotes, depth, polls = load(path)
+    if weeks:
+        pairs = {k: o for k, o in pairs.items() if o.get("week") in set(weeks)}
+        print(f"restricted to week(s) {weeks}: {len(pairs):,} claims")
     for oid, o in pairs.items():
         o["id"] = oid
     res = {"extract": meta, "definitions": {
@@ -834,11 +864,13 @@ def main():
     ap.add_argument("--extract")
     ap.add_argument("--cache")
     ap.add_argument("--json")
+    ap.add_argument("--pairs-db", help="take pairs from a re-mapped copy (fold off)")
+    ap.add_argument("--week", type=int, action="append")
     a = ap.parse_args()
     if a.extract:
-        extract(a.extract)
+        extract(a.extract, a.pairs_db, a.week)
     if a.cache:
-        report(a.cache, a.json)
+        report(a.cache, a.json, a.week)
 
 
 if __name__ == "__main__":
