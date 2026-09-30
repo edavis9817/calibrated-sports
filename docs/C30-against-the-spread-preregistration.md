@@ -160,3 +160,19 @@ Part 1: 4 strata + pooled = 5 cells × 2 comparisons (E−N0, E−N1) × 3 measu
 Part 2a: E−market 5 + N0−market 5 + E−N0 1 = 11. 2b: 5 cells × 2 arms = 10.
 2c: 3 arms × (away-from-keys pooled, half 1, half 2, key lines, pooled) = 15.
 **Total 72.** No correction is applied; the count is reported with the results.
+
+## Addendum, 2026-09-30 (after the first run; no registered rule changed)
+
+- **Two 20-draw smoke runs preceded the registered 2,000-draw run**, on the
+  same code and data, to find crashes. Their point estimates are identical to
+  the registered run's; only the intervals differ.
+- **A POST-HOC section was added between the first smoke run and the
+  registered run.** The first smoke run showed E LESS calibrated than N0 on 3.
+  To see why, the script now also reports (a) the standard deviation of each
+  arm's forecasts, and (b) every arm re-centred on the line itself
+  (mu = `spread_line`, p = Phi(L / sigma)), split by whether home is favoured.
+  Neither is registered, neither is in the interval count, and neither changes
+  a verdict. They are labelled post-hoc wherever they are quoted.
+- **d|CITL| is a difference of absolute values**, which is not smooth where a
+  CITL crosses zero, so its percentile intervals are unreliable. They are
+  reported, counted, and not read.
