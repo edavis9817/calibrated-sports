@@ -12,6 +12,9 @@ config.storage_path("logs", "weekly_refresh.log"):
   1b. headshots        jobs.ingest_headshots --season <season> (archive only;
                        failure: WARN)
   2. market mapping    jobs.map_markets --venue kalshi       (failure: WARN)
+  2a. polymarket       jobs.map_markets --venue polymarket   (failure: WARN; a-60).
+                       Player props LINK only, so nothing it writes adds a
+                       claim to the published prop history.
   2b. book-prop join   jobs.map_markets --venue oddsapi      (failure: WARN; a-53)
   3. export            jobs.export_web                       (failure: ERROR, stop)
   3a. analytics        analytics.export --write --dest web  (failure: WARN)
@@ -203,6 +206,11 @@ def _run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fet
     # Archive-only re-derivation, so it runs even with --skip-ingest.
     step("headshots", [py, "-m", "jobs.ingest_headshots", "--season", str(season)], fatal=False)
     step("map", [py, "-m", "jobs.map_markets", "--venue", "kalshi"], fatal=False)
+    # Polymarket was never re-mapped after 2026-09-09, so its mapped outcomes fell
+    # from 1,255 in week 1 to 1 in week 4 and every cross-venue read went empty
+    # (a-59). AFTER Kalshi, so a Kalshi rung's outcome exists for a Polymarket
+    # player line to link to; it creates none of its own.
+    step("map_poly", [py, "-m", "jobs.map_markets", "--venue", "polymarket"], fatal=False)
     # AFTER Kalshi, so an exchange rung's outcome exists before the book line
     # for the same claim looks for it. Links only - it creates no outcome, so
     # nothing it writes reaches the export (a-53).
