@@ -78,7 +78,11 @@ def head_commit(root=ROOT):
 
 
 def added_by(path, root=ROOT):
-    """The commit that added `path` and its author date -> (sha, iso)."""
+    """The commit that added `path` and its author date -> (sha, iso). Refuses in
+    a shallow clone: there the oldest commit on hand reads as the one that added
+    every file, which would stamp a pre-registration with a date it does not have."""
+    if _git("rev-parse", "--is-shallow-repository", root=root).strip() == "true":
+        raise R.RecordError("a shallow clone cannot date a pre-registration - fetch full history")
     out = _git("log", "--diff-filter=A", "--format=%H %aI", "--", path, root=root).split()
     if len(out) < 2:
         raise R.RecordError(f"{path} has no commit that added it")
