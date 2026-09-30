@@ -505,6 +505,30 @@ LEDGER_DTYPES.update({c: "int64" for c in ("season", "week", "mkt_books")})
 LEDGER_DTYPES.update({c: "float64" for c in ("line", "kickoff_ts", "mkt_p_over", "model_p_over",
                                              "gap_pp", "price", "lean_threshold_pp", "actual")})
 
+# THE HASH CHAIN (a-48). Every ledger row carries `prev_hash` (the row before's
+# `row_hash`, or CHAIN_GENESIS on row 0) and `row_hash` = sha256 over the row's
+# LEDGER_COLUMNS plus `prev_hash`. So editing or removing any row breaks its own
+# hash and every hash after it, and a reader who recorded the head (index, hash)
+# yesterday can check today's file still carries it at that index.
+#
+# WHAT IT COVERS: ALL of LEDGER_COLUMNS - the lean, line, side, price, gap, both
+# probabilities, the threshold, the result and the void reason. Nothing in the
+# ledger legitimately changes after it is written, because the ledger is EVENTS:
+# grading appends a `graded` row and never touches the `published` one
+# (`assert_append_only`). The fields that DO change on grading - a row's
+# status / result / lean_result - live on the READ files, which are not chained.
+# A column added to LEDGER_COLUMNS is covered by construction; tests pin that.
+CHAIN_COLUMNS = ("prev_hash", "row_hash")
+LEDGER_DTYPES.update({c: "string" for c in CHAIN_COLUMNS})
+CHAIN_TAG = "cs-board-ledger-chain-v1"
+CHAIN_GENESIS = "0" * 64
+
+
+def ledger_file_columns():
+    """The ledger FILE's columns: the event columns, then the chain. A function,
+    not a constant, so it reads LEDGER_COLUMNS as it is when called."""
+    return tuple(LEDGER_COLUMNS) + CHAIN_COLUMNS
+
 
 def ledger_events(ledger, rows, read_at_iso, settle_lean, pulled_claims,
                   model_version, threshold):
@@ -586,6 +610,194 @@ def assert_append_only(old, new):
         if {k: a.get(k) for k in LEDGER_COLUMNS} != {k: b.get(k) for k in LEDGER_COLUMNS}:
             raise AssertionError(f"ledger row {i} was rewritten: {a.get('lean_id')}")
     return True
+
+
+# ------------------------------------------------------------------ the hash chain (a-48)
+
+def canon_float(x):
+    """A float as ECMAScript's Number.prototype.toString writes it - shortest
+    round-trip digits, `1790528400` not `1790528400.0`, `1e-7` not `1e-07` - so a
+    browser can recompute a row hash with `String(n)` and no Python in sight.
+    Python's repr gives the same shortest digits; only the layout differs."""
+    import decimal
+    x = float(x)
+    if not math.isfinite(x):
+        raise ValueError(f"the ledger chain cannot hash a non-finite float ({x!r})")
+    if x == 0:
+        return "0"                                  # -0 too, as String(-0) is "0"
+    sign = "-" if x < 0 else ""
+    t = decimal.Decimal(repr(abs(x))).as_tuple()
+    digits = "".join(map(str, t.digits))
+    stripped = digits.rstrip("0")
+    exp = t.exponent + (len(digits) - len(stripped))
+    s, k = stripped, len(stripped)
+    n = k + exp                                      # value = 0.s x 10^n
+    if k <= n <= 21:
+        out = s + "0" * (n - k)
+    elif 0 < n <= 21:
+        out = s[:n] + "." + s[n:]
+    elif -6 < n <= 0:
+        out = "0." + "0" * (-n) + s
+    else:
+        e = n - 1
+        out = (s if k == 1 else s[0] + "." + s[1:]) + "e" + ("+" if e >= 0 else "-") + str(abs(e))
+    return sign + out
+
+
+def canon_value(v, dtype):
+    """One cell as the chain hashes it. Accepts the parquet's typed value or the
+    CSV's text, so both files of the pair hash identically. Null and the empty
+    string are one value: CSV cannot tell them apart, and neither can the site's
+    reader (lib/ledger.ts `cellFrom`)."""
+    if v is None or (isinstance(v, str) and v == ""):
+        return None
+    if isinstance(v, float) and math.isnan(v):
+        return None
+    if dtype == "string":
+        return str(v)
+    if dtype == "int64":
+        if isinstance(v, float) and not v.is_integer():
+            raise ValueError(f"int64 cell holds {v!r}")
+        return str(int(v) if not isinstance(v, str) else int(v, 10))
+    if dtype == "float64":
+        return canon_float(v)
+    raise ValueError(f"no canonical form for dtype {dtype!r}")
+
+
+def chain_payload(row, prev_hash):
+    """The exact bytes a row hash is taken over: a JSON array, no whitespace -
+    [CHAIN_TAG, every LEDGER_COLUMNS cell in contract order (text or null),
+    prev_hash]."""
+    import json
+    cells = [canon_value(row.get(c), LEDGER_DTYPES[c]) for c in LEDGER_COLUMNS]
+    return json.dumps([CHAIN_TAG, *cells, prev_hash], ensure_ascii=False,
+                      separators=(",", ":")).encode("utf-8")
+
+
+def row_hash(row, prev_hash):
+    return hashlib.sha256(chain_payload(row, prev_hash)).hexdigest()
+
+
+def chain(rows, prev=CHAIN_GENESIS):
+    """`rows` with prev_hash / row_hash set, in order. Pure; any hash a row
+    already carries is overwritten - use `extend_chain` to append to a ledger."""
+    out = []
+    for r in rows:
+        h = row_hash(r, prev)
+        out.append(dict(r, prev_hash=prev, row_hash=h))
+        prev = h
+    return out
+
+
+def is_chained(rows):
+    """True if every row carries a chain, False if none does (a ledger written
+    before a-48). A ledger where SOME rows carry one is refused: no writer here
+    produces it, so it was edited."""
+    have = [bool(r.get("row_hash")) for r in rows]
+    if all(have):
+        return True
+    if not any(have):
+        return False
+    raise AssertionError(f"ledger is partly chained: {sum(have)} of {len(have)} rows carry a "
+                         "row_hash - no writer produces that; refusing")
+
+
+def extend_chain(old, new):
+    """old + new, chained. The OLD rows' chain is verified first and refused if it
+    is broken: extending a broken chain would re-hash the tampering into a valid
+    one. An unchained old ledger (pre-a-48) is chained from genesis, which
+    changes no LEDGER_COLUMNS cell - that is the one-time migration."""
+    if old and is_chained(old):
+        rep = verify_chain(old)
+        if not rep.holds:
+            raise AssertionError(f"refusing to extend a broken ledger chain: {rep.statement}")
+        prev = old[-1]["row_hash"]
+        return [dict(r) for r in old] + chain(new, prev)
+    return chain(list(old) + list(new))
+
+
+class ChainReport:
+    """What `verify_chain` found. `.holds` is the verdict and `.statement` the
+    one line to log. Refuses truth-testing, so `if verify_chain(x):` and
+    `assert verify_chain(x)` raise instead of passing on an object that is
+    always truthy (the proxy table's `__bool__` row)."""
+
+    def __init__(self, rows, first_break, broken, reason, head):
+        self.rows, self.first_break, self.broken = rows, first_break, broken
+        self.reason, self.head = reason, head
+        self.holds = first_break is None and reason is None
+
+    @property
+    def statement(self):
+        if self.reason and self.first_break is None:
+            return self.reason
+        if self.holds:
+            h = self.head
+            return (f"chain holds: {self.rows} rows, head #{h['index']} {h['row_hash']}"
+                    if h else "chain holds: empty ledger")
+        return (f"chain BROKEN at row {self.first_break} (0-based) of {self.rows}: {self.reason}; "
+                f"{self.broken} of the {self.rows - self.first_break} rows from there fail")
+
+    def __bool__(self):
+        raise TypeError("a ChainReport is not a boolean - read .holds for the verdict "
+                        "and .statement for what it found")
+
+    def __repr__(self):
+        return f"ChainReport({self.statement!r})"
+
+
+def verify_chain(rows, genesis=CHAIN_GENESIS):
+    """Walk the ledger recomputing every hash from the row's own cells and the
+    RECOMPUTED hash before it. -> ChainReport naming the first index that fails.
+    Because each recomputation feeds the next, one edited or removed row fails
+    itself and every row after it."""
+    if not rows:
+        return ChainReport(0, None, 0, None, None)
+    if not is_chained(rows):
+        return ChainReport(len(rows), None, 0,
+                           f"no chain: {len(rows)} rows carry no prev_hash / row_hash "
+                           "(a ledger written before a-48)", None)
+    prev, first, broken, reason = genesis, None, 0, None
+    for i, r in enumerate(rows):
+        h = row_hash(r, prev)
+        bad = None
+        if r.get("prev_hash") != prev:
+            bad = (f"prev_hash {str(r.get('prev_hash'))[:12]}... is not the hash of the row "
+                   f"before ({prev[:12]}...)")
+        elif r.get("row_hash") != h:
+            bad = f"row_hash {str(r.get('row_hash'))[:12]}... is not the hash of its cells ({h[:12]}...)"
+        if bad:
+            broken += 1
+            if first is None:
+                first, reason = i, bad
+        prev = h
+    head = {"index": len(rows) - 1, "rows": len(rows), "row_hash": rows[-1].get("row_hash"),
+            "event_at": rows[-1].get("event_at")}
+    return ChainReport(len(rows), first, broken, reason, head)
+
+
+def chain_head(rows):
+    """The head a reader records: the last row's index (0-based), the row
+    count, its row_hash and its event_at. None for an empty ledger."""
+    if not rows:
+        return None
+    last = rows[-1]
+    return {"index": len(rows) - 1, "rows": len(rows), "row_hash": last["row_hash"],
+            "event_at": last["event_at"]}
+
+
+def check_head(rows, index, recorded_hash):
+    """-> the statement it approved; raises otherwise. A head recorded earlier
+    must still be in the ledger at the same index. This is what catches a
+    ledger cut short from the END, which an internally valid chain cannot: drop
+    the last rows and what remains still verifies."""
+    if index >= len(rows):
+        raise AssertionError(f"recorded head #{index} is past the end of the ledger "
+                             f"({len(rows)} rows) - rows were removed")
+    got = rows[index].get("row_hash")
+    if got != recorded_hash:
+        raise AssertionError(f"row #{index} hashes {got} now, and {recorded_hash} was recorded")
+    return f"recorded head #{index} {recorded_hash[:12]}... is still row #{index}"
 
 
 def lean_states(ledger, now_ts):

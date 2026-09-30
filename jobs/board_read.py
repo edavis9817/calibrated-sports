@@ -6,6 +6,7 @@
     python -m jobs.board_read --tick [--upload]      # the scheduled entry point (a-31)
     python -m jobs.board_read --check --keys --dest ...   # validate a tree, list its keys
     python -m jobs.board_read --restore              # pull board/ back from the bucket
+    python -m jobs.board_read --verify-chain [--head 193:9f3c...]  # the ledger's hash chain (a-48)
 
 Writes, under `--dest` (or BOARD_EXPORT_DIR for --tick; there is NO default -
 config has no defaults and a job that can publish must be told where):
@@ -530,11 +531,17 @@ def ledger_schema():
     if entry is None:
         raise E.ContractError(f"the contract has no {LEDGER_KIND!r} table")
     cols = entry["columns"]
-    if tuple(cols) != tuple(B.LEDGER_COLUMNS):
-        raise E.ContractError(f"ledger columns drifted from the contract: job {B.LEDGER_COLUMNS}, "
+    if tuple(cols) != tuple(B.ledger_file_columns()):
+        raise E.ContractError(f"ledger columns drifted from the contract: job {B.ledger_file_columns()}, "
                               f"contract {tuple(cols)}")
-    if tuple(cols.values()) != tuple(B.LEDGER_DTYPES[c] for c in B.LEDGER_COLUMNS):
+    if tuple(cols.values()) != tuple(B.LEDGER_DTYPES[c] for c in B.ledger_file_columns()):
         raise E.ContractError("ledger column types drifted from the contract")
+    hc = entry.get("hash_chain") or {}
+    if (tuple(hc.get("covers") or ()) != tuple(B.LEDGER_COLUMNS) or hc.get("tag") != B.CHAIN_TAG
+            or hc.get("genesis") != B.CHAIN_GENESIS or hc.get("digest") != "sha256"
+            or (hc.get("prev"), hc.get("row")) != B.CHAIN_COLUMNS):
+        raise E.ContractError("the ledger's hash chain drifted from the contract's hash_chain "
+                              "(covers, tag, genesis, digest, column names)")
     return {c: getattr(pl, _POLARS_TYPES[t]) for c, t in cols.items()}
 
 
@@ -549,23 +556,35 @@ def write_ledger(dest, old, new_events, log=None):
     so the rewrite is CHECKED to be the old rows plus rows at the end, and it is
     atomic: a crash leaves the previous ledger, never half of a new one. No new
     events and a ledger on disk -> nothing is written, so the bytes (and the
-    upload record) do not move on a read that changed nothing."""
+    upload record) do not move on a read that changed nothing.
+
+    THE CHAIN (a-48). Every row is written with prev_hash / row_hash
+    (`core.board.extend_chain`), which refuses to extend a chain that does not
+    verify. A ledger on disk from before a-48 carries none: the first write
+    after it chains every existing row from genesis, changing no other cell, and
+    does so even when the read appends nothing - otherwise a quiet week would
+    publish an index with no head beside a ledger with no chain."""
     import polars as pl
-    if not new_events and os.path.exists(ledger_path(dest)):
+    if not new_events and os.path.exists(ledger_path(dest)) and B.is_chained(old):
         # a-35: a read that appends nothing still re-pairs the two files. The
         # parquet and CSV are replaced as two steps, and before this a CSV left
         # one step behind by a crash stayed behind until some later read
         # appended - through every upload in between (f-21's plant).
         pair_ledger(dest, log)
         return 0
-    rows = old + new_events
+    migrating = bool(old) and not B.is_chained(old)
+    rows = B.extend_chain(old, new_events)
     B.assert_append_only(old, rows)
     schema = ledger_schema()
-    df = pl.DataFrame([{c: r.get(c) for c in B.LEDGER_COLUMNS} for r in rows], schema=schema,
+    df = pl.DataFrame([{c: r.get(c) for c in B.ledger_file_columns()} for r in rows], schema=schema,
                       orient="row") if rows else pl.DataFrame(schema=schema)
     os.makedirs(os.path.dirname(ledger_path(dest)), exist_ok=True)
     _atomic(ledger_path(dest), df.write_parquet)
     _atomic(ledger_path(dest).replace(".parquet", ".csv"), df.write_csv)
+    if migrating:
+        (log or print)(f"ledger chained: {len(old)} existing row(s) given prev_hash / row_hash from "
+                       f"genesis, no other cell changed (a-48); head #{len(rows) - 1} "
+                       f"{rows[-1]['row_hash']}")
     return len(new_events)
 
 
@@ -595,18 +614,29 @@ def pair_ledger(dest, log=None):
     as_csv = pl.read_csv(io.BytesIO(pq.write_csv().encode("utf-8")), infer_schema_length=0)
     have = (pl.read_csv(csv_p, infer_schema_length=0) if os.path.exists(csv_p)
             else as_csv.head(0))
-    if have.height == pq.height:
+    # a-48: a CSV left UNCHAINED beside a chained parquet (a crash between the two
+    # writes of the migration) is a CSV that trails its parquet by two columns
+    # rather than by rows. Compared on the columns it has; healed the same way.
+    legacy = (have.columns == list(B.LEDGER_COLUMNS)
+              and as_csv.columns == list(B.ledger_file_columns()))
+    shared = as_csv.select(have.columns) if legacy else as_csv
+    if have.height == pq.height and not legacy:
+        if (all(c in have.columns for c in B.CHAIN_COLUMNS)
+                and have["row_hash"].to_list() != as_csv["row_hash"].to_list()):
+            raise E.ContractError("ledger.csv and ledger.parquet carry different row hashes on "
+                                  "the same row count - refusing to overwrite either")
         return f"ledger paired: parquet {pq.height} rows, csv {have.height} rows"
     if have.height > pq.height:
         raise E.ContractError(f"ledger.csv has {have.height} rows and ledger.parquet "
                               f"{pq.height} - a CSV ahead of its parquet is not a crash this "
                               "job can leave; refusing to shrink it")
-    if have.columns != as_csv.columns or have.to_dicts() != as_csv.head(have.height).to_dicts():
+    if have.columns != shared.columns or have.to_dicts() != shared.head(have.height).to_dicts():
         raise E.ContractError(f"ledger.csv's {have.height} rows are not the leading rows of "
                               f"ledger.parquet ({pq.height}) - refusing to overwrite either")
     _atomic(csv_p, pq.write_csv)
-    msg = (f"ledger re-paired: csv {have.height} -> {pq.height} rows, rewritten from the "
-           "parquet (a previous write stopped between the two files)")
+    msg = (f"ledger re-paired: csv {have.height} -> {pq.height} rows"
+           + (", chain columns added" if legacy else "")
+           + ", rewritten from the parquet (a previous write stopped between the two files)")
     (log or print)(msg)
     return msg
 
@@ -742,6 +772,9 @@ def run(season, week, dest, read_ts=None, db=None, log=print):
     # Every published lean of the week on this read, as one row, in its ledger
     # state - refused BEFORE any write (a-34: a moved line used to drop it).
     on_board = B.leans_on_board(old + new_ev, rows, season, week, read_ts)
+    # a-48: the head of the ledger as this read will leave it - computed here,
+    # before the gate, from the same rows write_ledger will write (it is pure).
+    head = B.chain_head(B.extend_chain(old, new_ev))
     generated_at = E.iso()
     doc = {**E.envelope("board_read", generated_at, "nfl"),
            "read_at": read_iso, "season": season, "week": week, "rows": rows}
@@ -753,6 +786,7 @@ def run(season, week, dest, read_ts=None, db=None, log=print):
              "lean_threshold_pp": T,
              "lean_threshold_log": [list(x) for x in config.BOARD_LEAN_THRESHOLD_LOG],
              "model_version": mv, "verdict": verdict(),
+             "ledger_head": None if head is None else dict(head, as_of=read_iso),
              "leans": {s: sum(1 for l in week_leans if states[l] == s)
                        for s in (B.S_GRADED, B.S_UPCOMING, B.S_LIVE, B.S_VOID)},
              "definitions": {
@@ -771,7 +805,13 @@ def run(season, week, dest, read_ts=None, db=None, log=print):
                                    "leaning that way at it, the row stays, frozen as priced at "
                                    "priced_at, flagged line_moved_after_publication or "
                                    "lean_changed_after_publication. So every published lean is on "
-                                   "every later read, as exactly one row."}}
+                                   "every later read, as exactly one row.",
+                 "ledger_head": "the Board ledger's last row as this read left it: index (0-based) "
+                                "and row count, its row_hash and event_at. Each row's row_hash is "
+                                "sha256 over its cells plus the previous row's hash, so a head "
+                                "recorded today must be at the same index with the same hash "
+                                "tomorrow; `python -m jobs.board_read --verify-chain --head "
+                                "INDEX:HASH` checks it."}}
     wanted = {read_key(season, week, read_iso): doc, index_key(season, week): index}
     # THE GATE, BEFORE ANY WRITE: contract and source declarations for both
     # files. The ledger is written only once both pass, and the JSON only after
@@ -988,6 +1028,7 @@ def check_tree(dest, show_keys=False, log=print):
         if csv.height != pq.height:
             raise E.ContractError(f"ledger.csv has {csv.height} rows, ledger.parquet {pq.height}")
         led = pq.to_dicts()
+        log(verify_pair_chain(pq, csv).statement)
         B.lean_states(led, time.time())
         # a-34: each week's LATEST read carries every lean the ledger had published
         # for it by then, in the state the ledger then gave it. Events after that
@@ -1013,6 +1054,75 @@ def check_tree(dest, show_keys=False, log=print):
     return {"keys": len(board), "bytes": total, "json": len(js), "tables": len(tables)}
 
 
+class ChainPair:
+    """Both files' chains, and whether they agree. Refuses truth-testing, like
+    core.board.ChainReport: read .holds and .statement."""
+
+    def __init__(self, pq, csv, same):
+        self.pq, self.csv = pq, csv
+        self.agree = same
+        self.holds = pq.holds and csv.holds and same
+
+    @property
+    def statement(self):
+        if self.holds:
+            return f"{self.pq.statement} - parquet and csv carry the same {self.pq.rows} hashes"
+        why = []
+        if not self.pq.holds:
+            why.append(f"parquet: {self.pq.statement}")
+        if not self.csv.holds:
+            why.append(f"csv: {self.csv.statement}")
+        if not self.agree:
+            why.append(f"parquet and csv carry different hashes ({self.pq.rows} / {self.csv.rows} "
+                       "rows)")
+        return "; ".join(why)
+
+    def __bool__(self):
+        raise TypeError("a ChainPair is not a boolean - read .holds and .statement")
+
+
+def verify_pair_chain(pq, csv, strict=True):
+    """Verify the chain on the parquet (typed) and on the CSV (text) separately -
+    the hash is over canonical cells, so both must reproduce the same hashes.
+    With `strict`, raises on anything but a holding, agreeing pair."""
+    def hashes(df):
+        return df["row_hash"].to_list() if "row_hash" in df.columns else None
+    rep = ChainPair(B.verify_chain(pq.to_dicts()), B.verify_chain(csv.to_dicts()),
+                    hashes(pq) == hashes(csv))
+    if strict and not rep.holds:
+        raise E.ContractError(f"ledger chain: {rep.statement}")
+    return rep
+
+
+def verify_chain_cli(dest, head=None, log=print):
+    """`--verify-chain`: read-only. Walks the ledger's parquet and CSV, reports the
+    first index where either breaks or that both hold with the same hashes, and
+    with `head` ("INDEX:HASH", recorded earlier) checks that head is still there.
+    -> exit code: 0 holds, 1 broken or disagreeing, 2 no ledger / no chain."""
+    import polars as pl
+    pq_p, csv_p = ledger_path(dest), ledger_csv_path(dest)
+    if not os.path.exists(pq_p) or not os.path.exists(csv_p):
+        log(f"no ledger pair under {dest} (parquet {os.path.exists(pq_p)}, csv {os.path.exists(csv_p)})")
+        return 2
+    pq, csv = pl.read_parquet(pq_p), pl.read_csv(csv_p, infer_schema_length=0)
+    rep = verify_pair_chain(pq, csv, strict=False)
+    log(f"parquet: {rep.pq.statement}")
+    log(f"csv:     {rep.csv.statement}")
+    if not B.is_chained(pq.to_dicts()):
+        return 2
+    log(rep.statement)
+    rc = 0 if rep.holds else 1
+    if head:
+        idx, _, h = head.partition(":")
+        try:
+            log(B.check_head(pq.to_dicts(), int(idx), h.strip()))
+        except AssertionError as e:
+            log(f"recorded head FAILS: {e}")
+            rc = 1
+    log(f"verify-chain exit={rc}")
+    return rc
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--season", type=int)
@@ -1029,6 +1139,10 @@ def main(argv=None):
     ap.add_argument("--keys", action="store_true", help="with --check: list every key and its bytes")
     ap.add_argument("--restore", action="store_true",
                     help="download board/ keys missing from the local tree; uploads nothing")
+    ap.add_argument("--verify-chain", action="store_true",
+                    help="read-only: verify the ledger's hash chain (parquet and csv) and exit; "
+                         "--dest defaults to BOARD_EXPORT_DIR")
+    ap.add_argument("--head", help="with --verify-chain: a head recorded earlier, INDEX:HASH")
     ap.add_argument("--log", action="store_true",
                     help="append output, any traceback and the exit code to "
                          "<STORAGE_DIR>/logs/board_tick.log (the scheduled task's record)")
@@ -1063,10 +1177,12 @@ def _logged(fn, path):
 def _main(a, ap):
     now = parse_iso(a.at) if a.at else time.time()
     dest = a.dest
-    if a.tick or a.restore:
+    if a.tick or a.restore or a.verify_chain:
         dest = dest or E.require_setting("BOARD_EXPORT_DIR")
     if not dest:
         ap.error("--dest is required (no default: a job that can publish must be told where)")
+    if a.verify_chain:
+        return verify_chain_cli(dest, a.head)
     if a.check:
         check_tree(dest, show_keys=a.keys)
         return 0
