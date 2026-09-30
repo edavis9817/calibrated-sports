@@ -19,6 +19,10 @@ config.storage_path("logs", "weekly_refresh.log"):
   3. export            jobs.export_web                       (failure: ERROR, stop)
   3a. analytics        analytics.export --write --dest web  (failure: WARN)
   3a'. season model    jobs.season_model --write --dest web (failure: WARN; a-42)
+  3a*. game forecast   jobs.game_export --write --dest web  (failure: WARN; a-63).
+                       game/nfl/forecast.json and record.json, each written only
+                       if it built and passed every gate; owns no prefix, so it
+                       declares nothing and can delete nothing.
   3a''. landing archive jobs.landing_backfill --auto --archive <A> (failure: WARN;
                        a-54). Every period the landing can walk to whose games
                        have kicked off, rebuilt at the closing read into the
@@ -259,6 +263,17 @@ def _run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fet
     if season_declared is None:
         log("WARN", "the season model declared nothing - season/ keys will NOT be removed from "
                     "R2 this run, and the division file served is the previous one")
+
+    # THE GAME FORECAST (a-63): the current week's P(home wins) and margin, and
+    # its settlement record beside it. Same non-fatal shape as the season model,
+    # but it OWNS NO PREFIX (sync_keys with prefixes []), so it prints no
+    # declaration and can delete nothing: a file that failed to build keeps its
+    # previous copy, locally and in the bucket. Reads the store mode=ro (~3 min).
+    game = step("game", [py, "-m", "jobs.game_export", "--write", "--dest", "web"],
+                fatal=False)
+    if game.returncode != 0:
+        log("WARN", "the game forecast did not publish every file - any file that failed "
+                    "is the previous one, and says when it was made")
 
     # THE LANDING (a-47) IS BUILT LAST, FROM THE FILES THE STEPS ABOVE JUST WROTE
     # (and the Board's own tree). It reads no store and owns no prefix - one key,

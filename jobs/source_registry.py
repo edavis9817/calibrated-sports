@@ -552,6 +552,11 @@ KIND_EXTRA = {
         "season_model": ("nflverse.schedule", "nflverse.teams"),
         # a-55: the projected final record, same job, same two tables.
         "season_projection": ("nflverse.schedule", "nflverse.teams"),
+        # a-63: jobs/game_export.py reads nfl_games alone (schedule, scores and the
+        # nflverse moneyline close the record stores and does not display), mode=ro,
+        # outside sync_keys. nfl_teams is loaded by the shared loader and not used.
+        "game.forecast": ("nflverse.schedule",),
+        "game.record": ("nflverse.schedule",),
         # a-45: jobs/lab_publish.py's catalogue. Its ranges also come from the
         # analytics column survey (analytics.metrics.derive_range, run by
         # lab.catalogue.ranges when the universe is built), which measures the

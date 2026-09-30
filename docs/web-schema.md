@@ -877,6 +877,38 @@ and its builder in `core/record.py` cannot see the other two.
 
 Each owns no prefix (`sync_keys(dest, files, [])`), so the job deletes nothing.
 
+## game/{sport}/... — kinds `game.forecast`, `game.record` (a-63)
+
+The game forecast c-28 lifted out of the season model (`models/game.py`) and
+scored (`docs/findings/game-forecast.md`), published with its settlement record.
+Built by `jobs/game_export.py`, run by the weekly refresh after the season model;
+reads `nfl_games` mode=ro.
+
+| key | carries |
+|---|---|
+| `game/{sport}/forecast.json` | the first week with a game still to kick off: per game `p_home_win`, the home margin's `mean` and central `bands` (50/80/95), and `as_of` |
+| `game/{sport}/record.json` | c-28 Part 1 re-run: three baselines, `d_brier` against each with its game-block interval, `population.games` and `seasons`, `by_stage` (weeks 1-4 / 5+), `covers`, `does_not_cover` — and `market_comparison`, withheld |
+
+- **As-of.** `as_of.instant` is the build instant. Every forecast game kicks off
+  after it; every result read kicked off before it (`results_through`), or no
+  file is built. A game already kicked off is not in `games`.
+- **`season_stage` is the one sentence the page must carry.** c-28 measured that
+  the margin-of-victory term adds nothing in weeks 1-4 (-0.0008 [-0.0024,
+  +0.0007] against plain Elo); the gain arrives from week 5. `season_stage.statement`
+  says which part of the record speaks for THIS week, worded from that part's
+  interval (`no better than` when it contains zero), so it can come out otherwise.
+  Its figures equal `record.json`'s `by_stage`; `stage_agrees` refuses both files
+  if not.
+- **`market_comparison` is computed, stored and NOT FOR DISPLAY** (Ethan,
+  2026-09-30). Figures and names only, no text; `withheld.display` is const
+  `false`; not in the metric registry, so the manifest never points a page at it.
+  Showing it later is a contract and rendering change, not a re-measurement.
+- No total and nothing from `KXNFLSPREAD` / `KXNFLTOTAL`: c-28's total is a
+  league-level placeholder, and c-30 / c-31 own the spread and the total.
+- Non-fatal per file: each is built and gated (contract, source gate, metric gate)
+  on its own and written only if it passes; a failed file keeps its previous copy.
+  Owns no prefix (`sync_keys(dest, files, [])`), so the job deletes nothing.
+
 ## Refresh
 
 `python -m jobs.weekly_refresh` logs to

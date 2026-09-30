@@ -103,6 +103,8 @@ class Runner:
             return "analytics"
         if "jobs.season_model" in s:
             return "season"
+        if "jobs.game_export" in s:
+            return "game"
         if "jobs.landing_export" in s:
             return "landing"
         if "jobs.landing_backfill" in s:
@@ -165,7 +167,7 @@ def test_steps_run_in_order_and_touch_git_only_for_the_slug_registry(env):
     # one uploader runs.
     assert py_steps == ["jobs.ingest_nflverse", "jobs.ingest_headshots", "jobs.map_markets",
                         "jobs.map_markets", "jobs.map_markets", "jobs.export_web", "analytics.export", "jobs.season_model",
-                        "jobs.landing_backfill", "jobs.landing_export", "jobs.export_web"]
+                        "jobs.game_export", "jobs.landing_backfill", "jobs.landing_export", "jobs.export_web"]
     git_calls = [c for c in r.calls if c and c[0] == "git"]
     assert git_calls, "the refresh should check the slug registry"
     assert all(c[-1] == W.SLUG_PATH and c[-2] == "--" for c in git_calls)
@@ -619,3 +621,24 @@ def test_a_failing_landing_degrades(env):
     assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
     assert "upload" in r.names()
     assert "landing file was not rebuilt" in read_log(tmp)
+
+
+# ------------------------------- the game forecast (a-63)
+
+def test_the_game_forecast_runs_after_the_season_model_and_before_the_upload(env):
+    tmp, _ = env
+    r = Runner()
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    names = r.names()
+    assert names.index("season") < names.index("game") < names.index("landing")
+    assert names.index("game") < names.index("upload")
+    cmd = r.cmd_for("game")
+    assert cmd[-3:] == ["--write", "--dest", "web"] and "jobs.game_export" in cmd
+
+
+def test_a_failing_game_forecast_degrades_and_the_refresh_still_uploads(env):
+    tmp, _ = env
+    r = Runner(fail={"game"})
+    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+    assert "upload" in r.names()
+    assert "game forecast did not publish" in read_log(tmp)

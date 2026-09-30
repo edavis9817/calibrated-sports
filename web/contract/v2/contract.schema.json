@@ -37,7 +37,9 @@
       "landing": "LandingFile",
       "record.published": "RecordPublishedFile",
       "record.research": "RecordResearchFile",
-      "record.backtest": "RecordBacktestFile"
+      "record.backtest": "RecordBacktestFile",
+      "game.forecast": "GameForecastFile",
+      "game.record": "GameRecordFile"
     },
     "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.market_calibration", "research.execution", "coverage", "landing", "record.research", "record.backtest"],
     "keys": [
@@ -70,7 +72,9 @@
       {"pattern": "^landing\\.json$", "kind": "landing"},
       {"pattern": "^record/[a-z0-9]+/published\\.json$", "kind": "record.published"},
       {"pattern": "^record/research\\.json$", "kind": "record.research"},
-      {"pattern": "^record/backtest\\.json$", "kind": "record.backtest"}
+      {"pattern": "^record/backtest\\.json$", "kind": "record.backtest"},
+      {"pattern": "^game/[a-z0-9]+/forecast\\.json$", "kind": "game.forecast"},
+      {"pattern": "^game/[a-z0-9]+/record\\.json$", "kind": "game.record"}
     ],
     "tables": {
       "comment": "Keys that are NOT JSON and are not validated by a $def: columnar files a producer appends to. Each entry names its pattern, its format and its columns with their types, and the producer asserts its own column list and types against this entry before it writes, so the two cannot drift. The uploader ships a non-JSON key only when it matches a pattern here, and NEVER deletes one by absence: an append-only file that vanished because one run did not re-declare it would destroy the only record of what was published.",
@@ -8754,6 +8758,903 @@
         "superseded",
         "statement",
         "statement_parts"
+      ],
+      "additionalProperties": false
+    },
+    "GameInterval": {
+      "type": "object",
+      "description": "A difference, model minus comparator, with its 95% game-block bootstrap interval. `verdict` is where the interval lies relative to zero - `below`, `above`, `contains_zero`, or `not_read` (too few games) - and nothing more: whether below is better depends on the quantity (lower is better for a Brier score and for miscalibration, higher is better for discrimination and AUC). The words a page may use are in the sibling `compared`, where there is one.",
+      "properties": {
+        "estimate": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "interval": {
+          "type": "array",
+          "items": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "se": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "verdict": {
+          "enum": [
+            "below",
+            "above",
+            "contains_zero",
+            "not_read"
+          ]
+        }
+      },
+      "required": [
+        "estimate",
+        "interval",
+        "se",
+        "verdict"
+      ],
+      "additionalProperties": false
+    },
+    "GameForecastFile": {
+      "description": "a-63. The game forecast for the current week (jobs/game_export.py): per game the chance the home team wins and the home margin's distribution, as of a named instant. c-28's model (models/game.py), fitted walk-forward. Its settlement record is `record` (game/{sport}/record.json) and ships beside it. `season_stage` says which part of that record speaks for THIS week - c-28 measured that the margin-of-victory term adds nothing in weeks 1-4 - and its `statement` is worded from that part's interval, so the page states it rather than a week-4 number carrying a record earned later. No pick, no total, nothing from any spread or total market.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "game.forecast"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "season": {
+          "type": "integer"
+        },
+        "week": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "game_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "as_of": {
+          "type": "object",
+          "description": "`instant` is when the forecast was made; every game forecast kicks off after it and every result it read kicked off before it. `results_through` is the kickoff of the latest result read.",
+          "properties": {
+            "instant": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "results_through": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "games_seen": {
+              "type": "integer"
+            },
+            "versions": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "instant",
+            "results_through",
+            "games_seen",
+            "versions"
+          ],
+          "additionalProperties": false
+        },
+        "games": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "game_id": {
+                "type": "string"
+              },
+              "kickoff": {
+                "$ref": "#/$defs/Timestamp"
+              },
+              "home": {
+                "type": "string"
+              },
+              "away": {
+                "type": "string"
+              },
+              "p_home_win": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "margin": {
+                "type": "object",
+                "description": "Home points minus away points. Normal; `mean` is sd x PhiInv(p_home_win), so the chance the margin is above zero is p_home_win. `bands` are central: `level` percent of the distribution lies between `lo` and `hi`.",
+                "properties": {
+                  "mean": {
+                    "type": "number"
+                  },
+                  "bands": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "level": {
+                          "type": "integer"
+                        },
+                        "lo": {
+                          "type": "number"
+                        },
+                        "hi": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "level",
+                        "lo",
+                        "hi"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "mean",
+                  "bands"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "game_id",
+              "kickoff",
+              "home",
+              "away",
+              "p_home_win",
+              "margin"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Why `games` is empty; null when it is not."
+        },
+        "method": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string"
+            },
+            "params": {
+              "type": "object",
+              "properties": {
+                "k": {
+                  "type": "number"
+                },
+                "hfa": {
+                  "type": "number"
+                },
+                "regress": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "k",
+                "hfa",
+                "regress"
+              ],
+              "additionalProperties": false
+            },
+            "fit_seasons": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "margin": {
+              "type": "object",
+              "properties": {
+                "family": {
+                  "const": "normal"
+                },
+                "sd": {
+                  "type": "number"
+                },
+                "mean_rule": {
+                  "type": "string"
+                },
+                "declared": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "family",
+                "sd",
+                "mean_rule",
+                "declared"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "model",
+            "params",
+            "fit_seasons",
+            "margin"
+          ],
+          "additionalProperties": false
+        },
+        "season_stage": {
+          "description": "Null only when `games` is empty. The part of the settlement record that applies to this week, against plain Elo, with the other part beside it. `statement` is the one string a page prints; it is worded from the intervals it quotes. The figures equal record.json's `by_stage` (or its plain-Elo baseline for `all`) - jobs/game_export.stage_agrees refuses both files otherwise.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "stage": {
+                  "enum": [
+                    "weeks_1_4",
+                    "weeks_5_plus",
+                    "all"
+                  ]
+                },
+                "week": {
+                  "type": "integer"
+                },
+                "game_type": {
+                  "type": "string"
+                },
+                "games": {
+                  "type": "integer"
+                },
+                "vs_elo_nomov": {
+                  "$ref": "#/$defs/GameInterval"
+                },
+                "compared": {
+                  "enum": [
+                    "better than",
+                    "worse than",
+                    "no better than"
+                  ],
+                  "description": "The words the interval licenses and nothing stronger: `better than` / `worse than` only when it excludes zero."
+                },
+                "other": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "stage": {
+                          "enum": [
+                            "weeks_1_4",
+                            "weeks_5_plus",
+                            "all"
+                          ]
+                        },
+                        "games": {
+                          "type": "integer"
+                        },
+                        "vs_elo_nomov": {
+                          "$ref": "#/$defs/GameInterval"
+                        },
+                        "compared": {
+                          "enum": [
+                            "better than",
+                            "worse than",
+                            "no better than"
+                          ],
+                          "description": "The words the interval licenses and nothing stronger: `better than` / `worse than` only when it excludes zero."
+                        }
+                      },
+                      "required": [
+                        "stage",
+                        "games",
+                        "vs_elo_nomov",
+                        "compared"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "statement": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "stage",
+                "week",
+                "game_type",
+                "games",
+                "vs_elo_nomov",
+                "compared",
+                "other",
+                "statement"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "record": {
+          "type": "string",
+          "description": "The key of this forecast's settlement record."
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "season",
+        "week",
+        "game_type",
+        "as_of",
+        "games",
+        "reason",
+        "method",
+        "season_stage",
+        "record"
+      ],
+      "additionalProperties": false
+    },
+    "GameRecordFile": {
+      "description": "a-63. The game forecast's settlement record: c-28's Part 1 (docs/findings/game-forecast.md), re-run on the store at export. Three baselines, the Brier difference against each with its interval, the game count and the seasons, the same differences split at week 4, and what the record does and does not cover. `market_comparison` is COMPUTED, STORED AND NOT FOR DISPLAY (Ethan, 2026-09-30): it carries names and figures and no text, and `withheld.display` is const false. Turning it on is a contract and rendering change, never a re-measurement.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "game.record"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "population": {
+          "type": "object",
+          "properties": {
+            "games": {
+              "type": "integer"
+            },
+            "seasons": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "game_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "ties_excluded": {
+              "type": "integer"
+            },
+            "blocks": {
+              "const": "game"
+            },
+            "fit_seasons_from": {
+              "type": "integer"
+            },
+            "held_out": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "games",
+            "seasons",
+            "game_types",
+            "ties_excluded",
+            "blocks",
+            "fit_seasons_from",
+            "held_out"
+          ],
+          "additionalProperties": false
+        },
+        "model": {
+          "type": "object",
+          "properties": {
+            "brier": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "auc": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "brier",
+            "auc"
+          ],
+          "additionalProperties": false
+        },
+        "baselines": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "enum": [
+                  "home",
+                  "record",
+                  "elo_nomov"
+                ]
+              },
+              "label": {
+                "type": "string"
+              },
+              "definition": {
+                "type": "string"
+              },
+              "brier": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "d_brier": {
+                "$ref": "#/$defs/GameInterval"
+              },
+              "compared": {
+                "enum": [
+                  "better than",
+                  "worse than",
+                  "no better than"
+                ],
+                "description": "The words the interval licenses and nothing stronger: `better than` / `worse than` only when it excludes zero."
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "definition",
+              "brier",
+              "d_brier",
+              "compared"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "beats_all_baselines": {
+          "type": "boolean",
+          "description": "True exactly when every baseline's d_brier interval lies below zero; computed, so it can be false."
+        },
+        "by_stage": {
+          "type": "object",
+          "properties": {
+            "weeks_1_4": {
+              "type": "object",
+              "properties": {
+                "games": {
+                  "type": "integer"
+                },
+                "vs": {
+                  "type": "object",
+                  "properties": {
+                    "home": {
+                      "type": "object",
+                      "properties": {
+                        "brier_model": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "brier_baseline": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "d_brier": {
+                          "$ref": "#/$defs/GameInterval"
+                        }
+                      },
+                      "required": [
+                        "brier_model",
+                        "brier_baseline",
+                        "d_brier"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "record": {
+                      "type": "object",
+                      "properties": {
+                        "brier_model": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "brier_baseline": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "d_brier": {
+                          "$ref": "#/$defs/GameInterval"
+                        }
+                      },
+                      "required": [
+                        "brier_model",
+                        "brier_baseline",
+                        "d_brier"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "elo_nomov": {
+                      "type": "object",
+                      "properties": {
+                        "brier_model": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "brier_baseline": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "d_brier": {
+                          "$ref": "#/$defs/GameInterval"
+                        }
+                      },
+                      "required": [
+                        "brier_model",
+                        "brier_baseline",
+                        "d_brier"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "home",
+                    "record",
+                    "elo_nomov"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "games",
+                "vs"
+              ],
+              "additionalProperties": false
+            },
+            "weeks_5_plus": {
+              "type": "object",
+              "properties": {
+                "games": {
+                  "type": "integer"
+                },
+                "vs": {
+                  "type": "object",
+                  "properties": {
+                    "home": {
+                      "type": "object",
+                      "properties": {
+                        "brier_model": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "brier_baseline": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "d_brier": {
+                          "$ref": "#/$defs/GameInterval"
+                        }
+                      },
+                      "required": [
+                        "brier_model",
+                        "brier_baseline",
+                        "d_brier"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "record": {
+                      "type": "object",
+                      "properties": {
+                        "brier_model": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "brier_baseline": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "d_brier": {
+                          "$ref": "#/$defs/GameInterval"
+                        }
+                      },
+                      "required": [
+                        "brier_model",
+                        "brier_baseline",
+                        "d_brier"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "elo_nomov": {
+                      "type": "object",
+                      "properties": {
+                        "brier_model": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "brier_baseline": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "d_brier": {
+                          "$ref": "#/$defs/GameInterval"
+                        }
+                      },
+                      "required": [
+                        "brier_model",
+                        "brier_baseline",
+                        "d_brier"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "home",
+                    "record",
+                    "elo_nomov"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "games",
+                "vs"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "weeks_1_4",
+            "weeks_5_plus"
+          ],
+          "additionalProperties": false
+        },
+        "interval_method": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "draws": {
+              "type": "integer"
+            },
+            "level": {
+              "type": "number"
+            },
+            "difference": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "draws",
+            "level",
+            "difference"
+          ],
+          "additionalProperties": false
+        },
+        "covers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "does_not_cover": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "market_comparison": {
+          "type": "object",
+          "description": "NOT FOR DISPLAY (Ethan, 2026-09-30). The model against the nflverse moneyline close, de-vigged two-way. Figures only, deliberately no string: there is nothing here a page could print by accident. Not in the metric registry either, so the manifest never points a page at it.",
+          "properties": {
+            "withheld": {
+              "type": "object",
+              "properties": {
+                "display": {
+                  "const": false
+                },
+                "decided_by": {
+                  "type": "string"
+                },
+                "decided_on": {
+                  "type": "string"
+                },
+                "unit": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "display",
+                "decided_by",
+                "decided_on",
+                "unit"
+              ],
+              "additionalProperties": false
+            },
+            "benchmark": {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "type": "string"
+                },
+                "devig": {
+                  "type": "string"
+                },
+                "provenance_recorded": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "source",
+                "devig",
+                "provenance_recorded"
+              ],
+              "additionalProperties": false
+            },
+            "seasons": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "games": {
+              "type": "integer"
+            },
+            "brier_model": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "brier_benchmark": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "d_brier": {
+              "$ref": "#/$defs/GameInterval"
+            },
+            "d_miscalibration": {
+              "$ref": "#/$defs/GameInterval"
+            },
+            "d_discrimination": {
+              "$ref": "#/$defs/GameInterval"
+            },
+            "d_auc": {
+              "$ref": "#/$defs/GameInterval"
+            }
+          },
+          "required": [
+            "withheld",
+            "benchmark",
+            "seasons",
+            "games",
+            "brier_model",
+            "brier_benchmark",
+            "d_brier",
+            "d_miscalibration",
+            "d_discrimination",
+            "d_auc"
+          ],
+          "additionalProperties": false
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "preregistration": {
+              "type": "string"
+            },
+            "findings": {
+              "type": "string"
+            },
+            "script": {
+              "type": "string"
+            },
+            "versions": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "preregistration",
+            "findings",
+            "script",
+            "versions"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "population",
+        "model",
+        "baselines",
+        "beats_all_baselines",
+        "by_stage",
+        "interval_method",
+        "covers",
+        "does_not_cover",
+        "market_comparison",
+        "source"
       ],
       "additionalProperties": false
     }
