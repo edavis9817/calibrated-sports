@@ -3633,6 +3633,9 @@ def check_append_only(client, bucket, key, data):
     if remote == data:
         return f"{key}: unchanged"
     old, new = _table_rows(key, remote), _table_rows(key, data)
+    chained = _chain_widening(key, old, new)
+    if chained:
+        new = [{c: r[c] for c in old[0]} for r in new]
     if len(new) < len(old):
         raise AppendOnlyError(f"{key}: the local copy has {len(new)} rows and the bucket's has "
                               f"{len(old)} - an append-only table may not shrink. Restore the "
@@ -3641,7 +3644,34 @@ def check_append_only(client, bucket, key, data):
         if a != b:
             raise AppendOnlyError(f"{key}: row {i} differs from the bucket's copy - an "
                                   "append-only table may only gain rows at the end")
-    return f"{key}: {len(old)} -> {len(new)} rows, every existing row unchanged"
+    return (f"{key}: {len(old)} -> {len(new)} rows, every existing row unchanged"
+            + (f"; {chained}" if chained else ""))
+
+
+def _chain_widening(key, old, new):
+    """The ONE widening an append-only table may make, and only once (a-48): a
+    bucket copy written before its table had a hash chain gains exactly the
+    chain's two columns, every other cell unchanged, and the chain it gains must
+    verify. -> the statement it approved, or None when this is not that case
+    (the ordinary row-for-row comparison then runs, and refuses a widening of
+    any other shape). Once the bucket's copy carries the chain this never fires
+    again, because the column sets then match."""
+    kind, entry = table_for_key(key)
+    hc = (entry or {}).get("hash_chain")
+    if not hc or not old or not new:
+        return None
+    chain_cols = (hc["prev"], hc["row"])
+    full = list(entry["columns"])
+    legacy = [c for c in full if c not in chain_cols]
+    if list(old[0]) != legacy or list(new[0]) != full:
+        return None
+    from core import board as B
+    rep = B.verify_chain(new)
+    if not rep.holds:
+        raise AppendOnlyError(f"{key}: adds the hash chain's columns, but the chain does not "
+                              f"verify ({rep.statement}) - refusing")
+    return (f"hash chain added to {len(old)} existing row(s), no other cell changed "
+            f"({rep.statement})")
 
 
 class TablePairError(RuntimeError):

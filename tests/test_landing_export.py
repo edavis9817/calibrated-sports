@@ -182,7 +182,11 @@ def test_the_current_period_wins_while_it_has_a_ladder(tree):
     # a-52: an earlier period inside the window IS read now (it is what a part
     # falls back to) - but only when the current period cannot satisfy the rule.
     # Before a-52 this asserted the week-2 file was never read at all.
+    # a-56: neither period here is broad, so this is the WIDEST-period branch -
+    # the current week's 3 players beat week 2's 1. The breadth branch has its
+    # own tests below.
     p, files = built(tree)
+    assert L.choose_period(files).broad is False
     assert "nfl/market/00-0000002/2026-2.json" in files
     assert p["featured_ladder"]["period"]["key"] == PKEY
     assert len(p["featured_ladder"]["rungs"]) == 10        # not the 12 of week 2
@@ -441,9 +445,9 @@ def _ledger(board, events):
             w.writerow(row)
 
 
-def fb(tree, archive=None, n=3):
+def fb(tree, archive=None, n=3, min_players=None, min_games=None):
     web, board, meta = tree
-    files, missing = L.load_inputs(web, board, meta, archive, n)
+    files, missing = L.load_inputs(web, board, meta, archive, n, min_players, min_games)
     return L.build(files, missing, generated_at="2026-09-28T22:00:00Z"), files
 
 
@@ -525,9 +529,11 @@ def test_distributions_fall_back_while_the_featured_ladder_does_not(tree):
     # The current period has a ladder with no fantasy distribution...
     _write(web, f"nfl/market/00-0000006/{PKEY}.json",
            _at("00-0000006", "F Six", 5, 3, ppr=False))
-    # ...and the previous one has distributions.
+    # ...and the previous one has distributions. Breadth 1/1 makes the current
+    # period the page's (a-56), so what is tested is the per-part fallback: the
+    # period is chosen once and a part leaves it only when it lacks the part.
     _write(web, "nfl/market/00-0000005/2026-2.json", _at("00-0000005", "E Five", 9, 2))
-    p, _ = fb(tree)
+    p, _ = fb(tree, min_players=1, min_games=1)
     assert p["featured_ladder"]["provenance"]["carried"] is False
     assert p["featured_ladder"]["player"]["id"] == "00-0000006"
     assert p["distributions"]["provenance"]["carried"] is True
@@ -725,3 +731,176 @@ def test_the_report_line_names_the_carried_period(tree):
 def test_scoring_rounds_half_up_like_the_site():
     assert L.score({"rec": 0.125}, {"rec": 1}) == 0.13          # round() would give 0.12
     assert L.score({"rec": 3, "rec_yds": None}, {"rec": 1, "rec_yds": 0.1}) == 3.0
+
+
+# ------------------------------------------------------------------ a-56: the period, by coverage
+
+def _slate(root, index, players, games, prefix="", rec=6, as_of="2026-09-20T21:00:00Z"):
+    """`players` market files for week `index`, spread round-robin over `games`
+    distinct games. `prefix` keeps two slates' player ids apart."""
+    for i in range(players):
+        pid = "00-%s%06d" % (prefix or str(index), i)
+        m = _at(pid, "P %s %d" % (index, i), rec + (i % 3), index, as_of=as_of)
+        g = i % games
+        m["game_id"] = "2026_%02d_G%02d" % (index, g)
+        m["identity"]["team"] = TEAMS[g % 2]["slug"]
+        _write(root, f"nfl/market/{pid}/2026-{index}.json", m)
+
+
+def _tuesday(tree):
+    """The page Ethan saw: week 3 current with one early slate (11 players, 1
+    game), week 2 settled and broad (60 players across 14 games)."""
+    web, _, _ = tree
+    _empty_current(web)
+    _slate(web, 3, 11, 1, prefix="3", as_of="2026-09-28T21:00:00Z")
+    _slate(web, 2, 60, 14, prefix="2")
+
+
+def test_one_early_slate_does_not_own_the_page_the_settled_week_does(tree):
+    _tuesday(tree)
+    p, files = fb(tree)
+    ch = L.choose_period(files)
+    assert ch.step[1] == "2026-2" and ch.broad is True
+    assert ch.coverage_of(PKEY) == {"players": 11, "games": 1}
+    assert ch.coverage_of("2026-2") == {"players": 60, "games": 14}
+    # Every showpiece from the ONE chosen period - never a mix.
+    for part in ("featured_ladder", "distributions", "fantasy"):
+        prov = p[part]["provenance"]
+        assert prov["period"]["key"] == "2026-2" and prov["carried"] and prov["walked"] == 1
+        assert "Week 3 has 11 players across 1 games" in prov["reason"]
+        assert "breadth of %d players and %d games" % (L.config.LANDING_MIN_PLAYERS,
+                                                         L.config.LANDING_MIN_GAMES) \
+            in prov["reason"]
+    assert p["distributions"]["published"] == L.N_DISTRIBUTIONS
+    assert "distributions" not in _parts(p)
+    assert {c["period"]["key"] for c in p["carried"]} == {"2026-2"}
+    # The file's own period and the week counters stay the current week.
+    assert p["period"]["key"] == PKEY
+    assert counters(p)["markets"]["span"]["period"]["key"] == PKEY
+    assert L.verify(p, files).clean
+
+
+def test_the_current_period_takes_the_page_once_it_is_broad(tree):
+    # The discriminating half: the same tree, the current week now broad. The
+    # settled week is still there and still broad; the current one wins.
+    _tuesday(tree)
+    _slate(tree[0], 3, 50, 12, prefix="4", as_of="2026-09-28T21:00:00Z")
+    p, files = fb(tree)
+    assert L.choose_period(files).step[1] == PKEY
+    for part in ("featured_ladder", "distributions", "fantasy"):
+        assert p[part]["provenance"]["period"]["key"] == PKEY
+        assert p[part]["provenance"]["carried"] is False
+    assert p["carried"] == []
+
+
+@pytest.mark.parametrize("players,games,broad", [
+    (60, 1, False),    # a deep single game is still one slate
+    (8, 8, False),     # every game, a handful of players
+    (40, 8, True),     # exactly at both thresholds
+    (39, 8, False),
+    (40, 7, False),
+])
+def test_breadth_needs_both_players_and_games(tree, players, games, broad):
+    web, _, _ = tree
+    _empty_current(web)
+    _slate(web, 3, players, games, prefix="3")
+    _slate(web, 2, 60, 14, prefix="2")
+    _, files = fb(tree, min_players=40, min_games=8)
+    assert (L.choose_period(files).step[1] == PKEY) is broad
+
+
+def test_the_thresholds_are_read_at_call_time_not_frozen(tree, monkeypatch):
+    # A constant bound into a default argument changes what you READ, not what
+    # RUNS (CLAUDE.md, proxy table). Lowering it in config must move the choice.
+    _tuesday(tree)
+    _, files = fb(tree)
+    assert L.choose_period(files).step[1] == "2026-2"
+    monkeypatch.setattr(L.config, "LANDING_MIN_PLAYERS", 5)
+    monkeypatch.setattr(L.config, "LANDING_MIN_GAMES", 1)
+    _, files = fb(tree)
+    assert L.choose_period(files).step[1] == PKEY
+
+
+def test_played_games_count_toward_the_current_week(tree, tmp_path):
+    # Sunday night: the served tree holds only the late games, the archive the
+    # rest. Coverage reads both, so the week keeps the page and a played game's
+    # ladder is carried at walked 0 - not the late slate alone, and not last week.
+    archive = str(tmp_path / "archive")
+    _tuesday(tree)
+    _slate(archive, 3, 50, 12, prefix="5", rec=11, as_of="2026-09-27T16:00:00Z")
+    p, files = fb(tree, archive=archive)
+    assert L.choose_period(files).step[1] == PKEY
+    fl = p["featured_ladder"]
+    assert fl["period"]["key"] == PKEY and fl["source"]["key"].startswith(L.ARCHIVE)
+    assert fl["provenance"]["carried"] is True and fl["provenance"]["walked"] == 0
+    assert "as read before its games were played" in fl["provenance"]["reason"]
+
+
+def test_the_choice_does_not_depend_on_the_day(tree):
+    # There is no calendar rule to find: the same files built on a Tuesday and
+    # on a Saturday choose the same period, and the module reads no weekday.
+    _tuesday(tree)
+    web, board, meta = tree
+    got = set()
+    for when in ("2026-09-29T16:00:00Z", "2026-10-03T16:00:00Z"):
+        files, missing = L.load_inputs(web, board, meta, None, 3)
+        got.add(L.build(files, missing, generated_at=when)["featured_ladder"]["period"]["key"])
+    assert got == {"2026-2"}
+    src = open(L.__file__, encoding="utf-8").read()
+    assert "weekday" not in src and ".isoweekday" not in src
+
+
+def test_nothing_broad_takes_the_widest_and_says_so(tree):
+    web, _, _ = tree
+    _empty_current(web)
+    _slate(web, 3, 11, 1, prefix="3")
+    _slate(web, 2, 20, 4, prefix="2")
+    p, files = fb(tree)
+    ch = L.choose_period(files)
+    assert ch.broad is False and ch.step[1] == "2026-2"
+    assert "the widest" in p["featured_ladder"]["provenance"]["reason"]
+    assert "the widest is used" in ch.statement
+
+
+def test_a_tie_on_width_goes_to_the_settled_week(tree):
+    web, _, _ = tree
+    _empty_current(web)
+    _slate(web, 3, 5, 1, prefix="3")
+    _slate(web, 2, 5, 1, prefix="2")
+    _, files = fb(tree)
+    assert L.choose_period(files).step[1] == "2026-2"
+    # ...and a strictly wider current week still beats it.
+    _slate(web, 3, 6, 1, prefix="3")
+    _, files = fb(tree)
+    assert L.choose_period(files).step[1] == PKEY
+
+
+def test_the_choice_refuses_truth_testing(tree):
+    _, files = built(tree)
+    with pytest.raises(TypeError):
+        bool(L.choose_period(files))
+
+
+def test_the_devig_comes_from_the_chosen_weeks_board_read(tree):
+    _tuesday(tree)
+    _, board, _ = tree
+    _, files = fb(tree)
+    fid = L.pick_featured(L.choose_period(files).step[2])[1]["identity"]["id"]
+    wk2 = board_read()
+    wk2.update(week=2, read_at="2026-09-20T16:00:00Z")
+    wk2["rows"][1].update(gsis_id=fid, row_id="2026-02:%s:receptions:5.5" % fid)
+    _write(board, "board/nfl/2026/wk02/index.json",
+           {"latest": "2026-09-20T16:00:00Z", "leans": {"graded": 3}})
+    _write(board, "board/nfl/2026/wk02/read-2026-09-20T160000Z.json", wk2)
+    p, files = fb(tree)
+    dv = p["devig"]
+    assert dv["basis"] == "book" and dv["source"]["key"].startswith("board/nfl/2026/wk02/")
+    assert dv["player"]["id"] == fid == p["featured_ladder"]["player"]["id"]
+    # The counters still read the CURRENT week's Board: they describe this week.
+    assert counters(p)["lines_posted"]["source"]["key"].startswith("board/nfl/2026/wk03/")
+    assert L.verify(p, files).clean
+    # Without a week-2 read the de-vig falls back to the current week's, and its
+    # source names the week it came from.
+    os.remove(os.path.join(board, "board", "nfl", "2026", "wk02", "index.json"))
+    p, _ = fb(tree)
+    assert p["devig"]["source"]["key"].startswith("board/nfl/2026/wk03/")
