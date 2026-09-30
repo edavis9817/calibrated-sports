@@ -197,7 +197,7 @@ def test_one_week_failing_does_not_stop_the_others_or_the_upload(env, creds, mon
     out = json.loads([line for line in logs if line.startswith('{"at"')][-1])
     assert [r["week"] for r in out["read"]] == [3] and out["failed"][0]["week"] == 2
     assert out["upload"]["uploaded"] == 4                               # and the upload ran
-    assert _put_keys(s3) and all(k.startswith("board/") for k in _put_keys(s3))
+    assert _put_keys(s3) and all(k.startswith(("board/", "record/")) for k in _put_keys(s3))
     assert any("!!! BOARD READ FAILED 2026 wk02" in line for line in logs)   # loudly
 
 

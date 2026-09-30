@@ -4,6 +4,10 @@
     python -m jobs.record_export --write --dest D:/scratch/web --board D:/x/board_export
     python -m jobs.record_export --write --dest D:/scratch/web --only research
 
+    Scheduled (a-61): `board_read --tick` runs `publish()` after the Board's own
+    upload, into the tree beside the Board's (config.record_export_dir), uploaded
+    as its own tree. Non-fatal; see there.
+
     record/nfl/published.json   <- the Board ledger (board/nfl/ledger.parquet) ONLY
     record/research.json        <- tracked docs/*preregistration*.md + docs/findings/*.md,
                                    at HEAD, with docs/record/research-verdicts.json
@@ -183,6 +187,57 @@ def build(parts, now_ts, board_dir=None, root=ROOT):
         files[KEYS["backtest"]] = envelope("record.backtest", None, now_ts,
                                            R.build_backtest(text, src))
     return files, unbuilt
+
+
+def publish(board_dir, dest=None, now_ts=None, upload=False, client=None, log=print,
+            root=ROOT):
+    """The step the Board tick runs after its own upload (a-61). -> summary dict.
+
+    NON-FATAL BY CONSTRUCTION, AND PER TIER. Each tier is built and validated on
+    its own, in memory; only a tier that built AND passed the contract is handed
+    to `sync_keys`, which replaces each file atomically. A tier that fails is
+    logged, listed under `failed`, and its PREVIOUSLY published file is left
+    exactly where it was - locally and in the bucket - because a half-written
+    record is worse than a stale one. The other tiers still publish. Nothing here
+    raises: the ledger is the thing that matters and the record is a view of it,
+    so a record that cannot be built must never take a Board tick down with it.
+    """
+    now_ts = time.time() if now_ts is None else now_ts
+    out = {"built": [], "unbuilt": [], "failed": [], "written": 0, "upload": None}
+    try:
+        from jobs import export_web as E
+        dest = dest or config.record_export_dir(board_dir)
+        good = {}
+        for tier in R.TIERS:
+            try:
+                files, unbuilt = build({tier}, now_ts, board_dir, root)
+                E.validate_contract(files)
+                good.update(files)
+                out["built"] += sorted(files)
+                out["unbuilt"] += unbuilt
+            except (Exception, SystemExit) as e:  # noqa: BLE001 - one tier's failure is that tier's
+                out["failed"].append({"tier": tier, "error": f"{type(e).__name__}: {e}"})
+        if good:
+            out["written"], _deleted = E.sync_keys(dest, good, [])
+        if upload:
+            # The tree exists even when nothing built yet: an upload with no tree
+            # cannot save its record, and a failed first build is the ordinary case.
+            os.makedirs(dest, exist_ok=True)
+            out["upload"] = E.upload(dest=dest, client=client, log=log, tree="record")
+    except (Exception, SystemExit) as e:  # noqa: BLE001 - the step, not the tick, failed
+        import traceback
+        out["failed"].append({"tier": "*", "error": f"{type(e).__name__}: {e}",
+                              "traceback": traceback.format_exc()})
+    for f in out["failed"]:
+        log(f"!!! RECORD STEP FAILED ({f['tier']}): {f['error']} - the previously published "
+            "file is left in place; the Board tick is unaffected")
+    up = out["upload"] or {}
+    log(f"record: built {len(out['built'])} {out['built']} wrote {out['written']} "
+        f"unbuilt {len(out['unbuilt'])} failed {len(out['failed'])} "
+        f"uploaded {up.get('uploaded', '-')} bytes {up.get('bytes', '-')}")
+    for u in out["unbuilt"]:
+        log(f"record: UNBUILT {u}")
+    return out
 
 
 def main(argv=None):

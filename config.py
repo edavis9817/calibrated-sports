@@ -524,6 +524,23 @@ BOARD_GRADE_EVERY_MIN = 60
 # record. `--tick` refuses when it is unset. The bucket is the site's
 # (WEB_R2_BUCKET, same keys); only the local tree and the upload record differ.
 BOARD_EXPORT_DIR = os.getenv("BOARD_EXPORT_DIR")
+# Where the record's tree lives (a-61): `record/`, rebuilt after every Board tick
+# and uploaded with its own record (export_web.RECORD_PREFIX). DERIVED from the
+# Board's tree it follows - `record_export` beside it - never set separately, so
+# a production clone that names BOARD_EXPORT_DIR needs no new setting, and a
+# tick run against a scratch Board tree (every test) writes its record beside
+# that scratch tree and nowhere else. A separate setting would let a test's tick
+# write into a real tree.
+
+
+def record_export_dir(board_dir=None):
+    """-> the record's tree, beside `board_dir` (default BOARD_EXPORT_DIR)."""
+    board_dir = board_dir or BOARD_EXPORT_DIR
+    if not board_dir:
+        raise SystemExit("BOARD_EXPORT_DIR is unset - the record's tree is derived from the "
+                         "Board's and has no default")
+    board = os.path.abspath(board_dir)
+    return os.path.join(os.path.dirname(board), "record_export")
 # The landing's showpieces fall back to the most recent period that has them
 # (a-52, DECISIONS-2026-09-28 §T), walking back at most this many periods from
 # the current one. Past it a part goes null: a month-old example is a stale page.

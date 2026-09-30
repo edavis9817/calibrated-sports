@@ -949,6 +949,14 @@ def _tick(season, dest, upload, now_ts, db, client, log):
         # uploader's pair check every five minutes until some read appends.
         out["ledger_pair"] = pair_ledger(dest, log)
         out["upload"] = E.upload(dest=dest, client=client, log=log, tree="board")
+    # a-61: the record is a view of the ledger, so it is rebuilt here, after the
+    # ledger is written and shipped. `publish` never raises and never replaces a
+    # published file with one that failed to build; its failures are in the log
+    # and in `record.failed`, and do not change this tick's exit code.
+    from jobs import record_export
+    rec = record_export.publish(dest, now_ts=now_ts, upload=upload, client=client, log=log)
+    out["record"] = {k: rec[k] for k in ("built", "written", "unbuilt", "failed")}
+    out["record"]["uploaded"] = (rec["upload"] or {}).get("uploaded")
     log(json.dumps(out, default=str))
     if out["failed"]:
         raise TickFailed(f"{len(out['failed'])} of {len(due)} due week(s) failed: "
