@@ -20,15 +20,18 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _calibration_fixture():
-    """Shaped like export_web.build_research's research/calibration.json, with the
-    values a-36 measured on 2026-09-26 (n=935, 14 games)."""
-    return {"kind": "research.calibration", "n": 935, "games": 14,
-            "series": [{"name": "model", "ece": 0.0666, "bins": []},
-                       {"name": "market", "ece": 0.0519, "bins": []}],
-            "ece": {"model": 0.0666, "market": 0.0519},
-            "brier": {"model": 0.1847, "market": 0.17, "naive": 0.1835,
-                      "model_minus_market": {"estimate": 0.0147, "interval": [0.0009, 0.0268]},
-                      "model_minus_naive": {"estimate": 0.0012, "interval": [-0.0098, 0.0136]}}}
+    """research/calibration.json as export_web.build_research builds it, with
+    research.score.load replaced by rows in the week-1 state a-58 measured: every
+    prediction priced only by a day-old Kalshi candle, so the market comparison
+    is withdrawn and R10 rides along as history."""
+    from research import score as SC
+    from tests.test_score import week1_rows
+    orig = SC.load
+    SC.load = lambda *a, **k: (week1_rows(),)
+    try:
+        return E.build_research("2026-09-29T00:00:00Z")[M.SCORE]
+    finally:
+        SC.load = orig
 
 
 @pytest.fixture
@@ -147,8 +150,9 @@ def test_the_committed_files_agree(files):
     assert rep.clean, rep.statement
     # it resolved every location, not a subset it understood
     assert rep.checked == sum(1 + len(m["copies"]) for m in M.METRICS)
-    # and R10 is the one declared disagreement, reported rather than hidden
-    assert rep.declared and all("R10" in d for d in rep.declared)
+    # a-58 retired the last declared disagreement (R10 against the candle-priced
+    # n=935): the file now carries R10 as a checked copy, so none remain
+    assert rep.declared == []
 
 
 def test_the_published_file_matches_the_register_figure(files):
@@ -187,10 +191,16 @@ def test_disagreement_inside_one_file_fails(files):
 
 
 def test_a_declared_copy_that_agrees_is_a_stale_declaration(files):
-    r10 = next(h for h in files[M.REGISTER]["hypotheses"] if h["id"] == "R10")
-    r10["n"] = files[M.SCORE]["n"]
-    rep = M.check(files)
+    # No production metric carries a declaration since a-58, so the mechanism is
+    # exercised on a declared copy built for the purpose - both answers.
+    decl = M._m("t.n", "t", "predictions", 0, (M.SCORE, "market_comparison.registered.n"),
+                [(M.REGISTER, "hypotheses[id=R10].n", "known to differ")])
+    rep = M.check(files, [decl])
     assert not rep.clean and "stale declaration" in rep.statement
+    r10 = next(h for h in files[M.REGISTER]["hypotheses"] if h["id"] == "R10")
+    r10["n"] = 935
+    rep = M.check(files, [decl])
+    assert rep.clean and len(rep.declared) == 1
 
 
 def test_a_missing_file_is_a_failure_not_a_skip(files):
@@ -230,6 +240,32 @@ def test_export_refuses_before_writing_anything(files, tmp_path, monkeypatch):
 
 def test_the_market_file_validates_against_the_contract(files):
     E.validate_contract({M.MARKET: files[M.MARKET]})
+
+
+def test_the_withdrawn_calibration_file_validates_and_carries_r10_as_history(files):
+    """a-58. The file keeps the model-only reliability, withdraws every market
+    figure, and carries the register's R10 figure - which must AGREE with R10,
+    since it is a copy, and must say it cannot be re-derived."""
+    cal = files[M.SCORE]
+    E.validate_contract({M.SCORE: cal})
+    assert [s["name"] for s in cal["series"]] == ["model"]
+    assert cal["brier"]["market"] is None and cal["brier"]["model_minus_market"] is None
+    assert cal["ece"]["market"] is None
+    mc = cal["market_comparison"]
+    assert mc["status"] == "withdrawn" and mc["scorable"] == 0
+    assert mc["registered"]["re_derivable"] is False
+    r10 = next(h for h in files[M.REGISTER]["hypotheses"] if h["id"] == "R10")
+    assert (mc["registered"]["estimate"], mc["registered"]["n"]) == (r10["estimate"], r10["n"])
+    rep = M.check(files)
+    assert rep.clean, rep.statement
+    assert not [d for d in rep.declared if "brier_minus_market" in d]
+
+
+def test_a_registered_copy_that_drifts_from_r10_fails_the_gate(files):
+    """The copy is checked, not decorative: edit it and the gate refuses."""
+    files[M.SCORE]["market_comparison"]["registered"]["estimate"] = 0.0147
+    rep = M.check(files)
+    assert not rep.clean and "model.brier_minus_market" in rep.statement
 
 
 # ------------------------------------------------------------------ the season gate (a-42)

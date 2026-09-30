@@ -1141,7 +1141,7 @@
         "sport": {"type": "null"},
         "source": {"type": "string"},
         "population": {"type": "string"},
-        "n": {"description": "Predictions in the common set every figure in this file is computed on (a-36).", "type": "integer"},
+        "n": {"description": "Predictions in the one set every figure in this file is computed on (a-36): the live-scorable common set when `market_comparison.status` is 'published', every settled prediction when it is 'withdrawn' (a-58).", "type": "integer"},
         "games": {"description": "Games in that set; the bootstrap blocks.", "type": "integer"},
         "ece": {
           "description": "Expected calibration error, 10 equal-width bins, on the SAME set as `brier` (a-36). The same values as `series[].ece`, published beside Brier so a page reads both from one place.",
@@ -1201,9 +1201,60 @@
           },
           "required": ["model", "market", "naive", "model_minus_market", "model_minus_naive"],
           "additionalProperties": false
+        },
+        "market_comparison": {
+          "description": "a-58. Whether the model-market comparison could be computed, and why not. The market price must be a LIVE Kalshi quote at entry (`entry_rule`); a row without one is excluded with its reason counted in `excluded`, never re-priced from a backfilled candle. `status` 'withdrawn' means no row was scorable: then `series` carries the model only, `brier.market`, `brier.model_minus_market` and `ece.market` are null, and `n` is every settled prediction. `registered` is the register's figure carried as history; `re_derivable` false means it cannot be reproduced from the store today, and `why` says so in words generated from the counts.",
+          "type": "object",
+          "properties": {
+            "status": {"enum": ["published", "withdrawn"]},
+            "entry_rule": {"type": "string"},
+            "settled": {"description": "Settled predictions for the week.", "type": "integer"},
+            "scorable": {"description": "Of those, the ones with a live two-sided Kalshi quote at entry.", "type": "integer"},
+            "excluded": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {"reason": {"type": "string"}, "n": {"type": "integer"}},
+                "required": ["reason", "n"],
+                "additionalProperties": false
+              }
+            },
+            "refused_quote_sources": {
+              "description": "quotes.source of the price that WAS on file at entry for each excluded row, where one was.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {"source": {"type": "string"}, "n": {"type": "integer"}},
+                "required": ["source", "n"],
+                "additionalProperties": false
+              }
+            },
+            "refused_quote_median_age_s": {"description": "Median seconds between a refused non-live or stale quote and the entry instant.", "type": ["number", "null"]},
+            "registered": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "estimate": {"type": "number"},
+                    "interval": {"$ref": "#/$defs/Interval"},
+                    "n": {"type": "integer"},
+                    "games": {"type": "integer"},
+                    "register_id": {"type": "string"},
+                    "re_derivable": {"type": "boolean"},
+                    "why": {"type": "string"}
+                  },
+                  "required": ["estimate", "interval", "n", "games", "register_id", "re_derivable", "why"],
+                  "additionalProperties": false
+                },
+                {"type": "null"}
+              ]
+            }
+          },
+          "required": ["status", "entry_rule", "settled", "scorable", "excluded", "refused_quote_sources", "refused_quote_median_age_s", "registered"],
+          "additionalProperties": false
         }
       },
-      "required": ["schema_version", "generated_at", "kind", "sport", "source", "population", "n", "games", "ece", "series", "brier"],
+      "required": ["schema_version", "generated_at", "kind", "sport", "source", "population", "n", "games", "ece", "series", "brier", "market_comparison"],
       "additionalProperties": false
     },
 

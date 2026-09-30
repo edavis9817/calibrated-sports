@@ -63,6 +63,18 @@ seeing a result.
 
   COUNT. Difference intervals: A2 3 pairs x (Brier, log loss) = 6, secondary 2,
   A4 cells. Reliability bin intervals are counted separately.
+
+AMENDMENT a-58 (2026-09-29) - what "the market at entry" admits. It changes no
+bucket, test or statistic above; it restores the meaning A2 always had.
+  The market price is a LIVE quote (quotes.source = 'live') no older than
+  ENTRY_MAX_AGE before the entry instant. Before a-58 the lookup took the last
+  quote of ANY source, so when retention pruned the week-1 live rows (14 days on
+  ingest_ts) it fell through to `backfill:kalshi_candles` - for all 935 rows, at
+  a median 61,424 s (~17 h) before entry - and the served file compared the
+  model with the previous day's price while calling it the market at entry.
+  `check_entry` now RAISES on a non-live or stale quote; `load` catches it per
+  row, so the row is excluded from every market figure with its reason counted
+  (`market_excluded`), and nothing is substituted.
 """
 import argparse
 import math
@@ -94,6 +106,31 @@ OPP_COL = {"receptions": "targets", "rush_attempts": "carries"}
 HISTORY = ((0, 8, "thin 0-8"), (9, 24, "medium 9-24"), (25, 10 ** 6, "thick 25+"))
 PRICE = ((0.0, 0.15, "<0.15"), (0.15, 0.35, "0.15-0.35"), (0.35, 0.65, "0.35-0.65"),
          (0.65, 0.85, "0.65-0.85"), (0.85, 1.0001, ">0.85"))
+
+# a-58. The only quote source that is a price AT an instant. Candles are
+# per-period summaries backfilled after the fact; a book snapshot from another
+# venue is a different claim. Neither is "Kalshi at entry".
+ENTRY_SOURCE = "live"
+# The slowest tier polls every POLL_COLD (600 s) and writes a row per poll.
+# Measured by a-58 on 25 week-3 KXNFLREC/KXNFLRSHATT markets, 17,593 consecutive
+# live rows: gap p50 302 s, p90 601 s, p99 601 s, max 712 s. 1.5 x POLL_COLD
+# admits every observed gap and refuses anything a poll cycle cannot explain.
+ENTRY_MAX_AGE = 1.5 * config.POLL_COLD
+
+# Exclusion reasons, published verbatim as counts.
+NO_QUOTE = "no quote at or before entry"
+NON_LIVE = "entry quote is not live capture"
+STALE = "live entry quote older than the age limit"
+ONE_SIDED = "live entry quote is one-sided (no mid)"
+
+
+class EntryQuoteRefused(ValueError):
+    """The entry quote is not the market at entry. `.reason` is one of the
+    exclusion reasons above; the row is excluded, never re-priced."""
+
+    def __init__(self, reason, detail=""):
+        super().__init__(f"{reason}{': ' + detail if detail else ''}")
+        self.reason = reason
 
 
 # =============================================================================
@@ -147,6 +184,37 @@ def ladder_position(market_id, listed_ids):
     rungs = [rung(m) for m in listed_ids if ladder_key(m) == ladder_key(market_id)]
     rungs = [r for r in rungs if r is not None] + [rung(market_id)]
     return "edge" if rung(market_id) in (min(rungs), max(rungs)) else "interior"
+
+
+def check_entry(q, entry_ts, max_age=None):
+    """The Kalshi mid at entry, or EntryQuoteRefused. `q` is (ts, best_bid,
+    best_ask, source) or None. Raises rather than warns and never substitutes:
+    a row with no live price at entry is not scorable against the market."""
+    max_age = ENTRY_MAX_AGE if max_age is None else max_age
+    if q is None:
+        raise EntryQuoteRefused(NO_QUOTE)
+    ts, bid, ask, source = q
+    if source != ENTRY_SOURCE:
+        raise EntryQuoteRefused(NON_LIVE, f"source {source!r}, {entry_ts - ts:.0f}s before entry")
+    if entry_ts - ts > max_age:
+        raise EntryQuoteRefused(STALE, f"{entry_ts - ts:.0f}s > {max_age:.0f}s")
+    if bid is None or ask is None:
+        raise EntryQuoteRefused(ONE_SIDED)
+    return (bid + ask) / 2
+
+
+def entry_quote(c, market_id, ts):
+    """The quote `check_entry` judges: the last LIVE quote with an ask at or
+    before `ts`; failing that, the last quote of any source, so the refusal can
+    name what was there instead of reporting a bare absence."""
+    q = c.execute(
+        "SELECT ts, best_bid, best_ask, source FROM quotes WHERE venue='kalshi' "
+        "AND market_id=? AND ts <= ? AND source=? AND best_ask IS NOT NULL "
+        "ORDER BY ts DESC LIMIT 1", (market_id, ts, ENTRY_SOURCE)).fetchone()
+    return q or c.execute(
+        "SELECT ts, best_bid, best_ask, source FROM quotes WHERE venue='kalshi' "
+        "AND market_id=? AND ts <= ? AND best_ask IS NOT NULL "
+        "ORDER BY ts DESC LIMIT 1", (market_id, ts)).fetchone()
 
 
 def by_game(rows):
@@ -238,7 +306,6 @@ def load(season=2026, week=1):
     from core import version_resolve
     from jobs.settle_outcomes import settle_one, UNSETTLED, OVER
     from models import baseline
-    from research import clv as S00
 
     mv, note = version_resolve.resolve(season, week, baseline.MODEL_VERSION)
     c = ro()
@@ -290,14 +357,20 @@ def load(season=2026, week=1):
             continue
         census["settled"] += 1
         y = 1.0 if result == OVER else 0.0
-        q = S00.quote_at(c, market_id, created, strict=False)
-        mid = (q[1] + q[2]) / 2 if q and q[1] is not None and q[2] is not None else None
+        q = entry_quote(c, market_id, created)
+        try:
+            mid, refused = check_entry(q, created), None
+        except EntryQuoteRefused as e:
+            mid, refused = None, e.reason
         pooled = pooled_rows[stat]
         np_, nsrc = naive_prob(hist.get((entity, stat), []),
                                (sum(1 for x in pooled if (x or 0) > line), len(pooled)), line)
         rows.append({"pid": pid, "game": game, "market": market_id, "stat": stat,
                      "series": STAT_SERIES[stat], "line": line, "y": y,
-                     "model": prob, "market_p": mid, "naive": np_, "naive_src": nsrc,
+                     "model": prob, "market_p": mid, "market_excluded": refused,
+                     "entry_quote_source": q[3] if q else None,
+                     "entry_quote_age": created - q[0] if q else None,
+                     "naive": np_, "naive_src": nsrc,
                      "prior_games": prior_games, "entry_ts": created,
                      "kickoff": kick.get(game)})
 
@@ -316,7 +389,7 @@ def load(season=2026, week=1):
     return rows, census, mv, note, versions, book_fields, sorted(fields)
 
 
-def published(rows):
+def published(rows, registered=None):
     """The block the site publishes as research/calibration.json (a-36).
 
     Brier and ECE are computed HERE, together, on ONE set - the common set of
@@ -329,20 +402,71 @@ def published(rows):
     metric-registry gate asserts the two agree.
 
     Values are full precision; rounding is the exporter's display decision.
+
+    a-58: the market comparison is PUBLISHED only when at least one row has a
+    live entry quote (`check_entry`), and then every figure is on that scorable
+    set, as before. Otherwise it is WITHDRAWN: the market series, the market
+    Brier and ECE and the model-market interval are None, and the model-only
+    figures - which need no price - stand on every settled row. Either way the
+    refusals are counted by reason in `market_comparison`. `registered` is the
+    register's R10 row, carried as history; it is compared, never substituted.
     """
-    common = [r for r in rows if r["market_p"] is not None]
-    series, ece = [], {}
-    for name, field in (("model", "model"), ("market", "market_p")):
-        table, e = reliability([r[field] for r in common], [r["y"] for r in common])
+    scorable = [r for r in rows if r["market_p"] is not None]
+    published_ = bool(scorable)
+    pop = scorable if published_ else rows
+    fields = (("model", "model"), ("market", "market_p")) if published_ else (("model", "model"),)
+    series, ece = [], {"model": None, "market": None}
+    for name, field in fields:
+        table, e = reliability([r[field] for r in pop], [r["y"] for r in pop])
         ece[name] = e
         series.append({"name": name, "ece": e, "bins": table})
-    br = {f: statistics.fmean(brier(r[k], r["y"]) for r in common)
-          for f, k in (("model", "model"), ("market", "market_p"), ("naive", "naive"))}
-    head = boot_mean(common, lambda r: brier(r["model"], r["y"]) - brier(r["market_p"], r["y"]))
-    # ON `common`, NOT on the full settled set - see export_web.build_research.
-    nv = boot_mean(common, lambda r: brier(r["model"], r["y"]) - brier(r["naive"], r["y"]))
-    return {"n": len(common), "games": len(by_game(common)), "series": series,
-            "brier": br, "ece": ece, "model_minus_market": head, "model_minus_naive": nv}
+    br = {f: statistics.fmean(brier(r[k], r["y"]) for r in pop) if pop else None
+          for f, k in (("model", "model"), ("naive", "naive"))}
+    br["market"] = (statistics.fmean(brier(r["market_p"], r["y"]) for r in pop)
+                    if published_ else None)
+    head = (boot_mean(pop, lambda r: brier(r["model"], r["y"]) - brier(r["market_p"], r["y"]))
+            if published_ else None)
+    # ON `pop`, NOT on a different set - see export_web.build_research.
+    nv = boot_mean(pop, lambda r: brier(r["model"], r["y"]) - brier(r["naive"], r["y"]))
+    return {"n": len(pop), "games": len(by_game(pop)), "series": series,
+            "brier": br, "ece": ece, "model_minus_market": head, "model_minus_naive": nv,
+            "market_comparison": market_comparison(rows, head, registered)}
+
+
+def market_comparison(rows, head, registered=None):
+    """What happened to the market comparison, in fields and in one sentence
+    generated from them. `head` is the model-market bootstrap on the scorable
+    set, or None when nothing was scorable."""
+    scorable = [r for r in rows if r["market_p"] is not None]
+    refused = [r for r in rows if r["market_p"] is None]
+    reasons = Counter(r["market_excluded"] for r in refused)
+    sources = Counter(r["entry_quote_source"] for r in refused if r["entry_quote_source"])
+    ages = [r["entry_quote_age"] for r in refused if r["entry_quote_age"] is not None
+            and r["market_excluded"] in (NON_LIVE, STALE)]
+    med_age = statistics.median(ages) if ages else None
+    out = {"status": "published" if scorable else "withdrawn",
+           "entry_rule": (f"a live Kalshi quote (quotes.source = '{ENTRY_SOURCE}') with both "
+                          f"sides, at most {ENTRY_MAX_AGE:.0f}s before the prediction instant"),
+           "settled": len(rows), "scorable": len(scorable),
+           "excluded": [{"reason": k, "n": v} for k, v in sorted(reasons.items())],
+           "refused_quote_sources": [{"source": k, "n": v} for k, v in sorted(sources.items())],
+           "refused_quote_median_age_s": med_age, "registered": None}
+    if registered:
+        same = bool(head) and len(scorable) == registered["n"] and \
+            round(head["est"], 4) == round(registered["estimate"], 4)
+        if same:
+            why = "re-derived from the live entry quotes at the registered n and estimate"
+        else:
+            src = ", ".join(f"{s['source']} {s['n']}" for s in out["refused_quote_sources"]) or "none"
+            why = (f"{len(refused)} of {len(rows)} settled predictions have no live Kalshi quote "
+                   f"at entry - live quotes are pruned {config.QUOTES_RETENTION_DAYS:g} days after "
+                   f"ingestion - so {len(scorable)} are scorable against the market, against "
+                   f"{registered['n']} when the figure was registered. What remains before entry "
+                   f"is not a live price (refused quote sources: {src}"
+                   + (f"; median {med_age:,.0f}s before entry" if med_age is not None else "")
+                   + ").")
+        out["registered"] = {**registered, "re_derivable": same, "why": why}
+    return out
 
 
 # =============================================================================
@@ -377,9 +501,24 @@ def report(season, week):
     for k, v in sorted(census.items()):
         print(f"    {k:<48}{v:>5}")
     common = [r for r in rows if r["market_p"] is not None]
-    print(f"    settled but one-sided at entry (no mid)         {len(rows) - len(common):>5}"
-          f"   -> common set {len(common)}, games {len(by_game(common))}, "
+    for reason, n in sorted(Counter(r["market_excluded"] for r in rows
+                                    if r["market_excluded"]).items()):
+        print(f"    settled, excluded from the market: {reason:<48}{n:>5}")
+    print(f"    -> common set {len(common)}, games {len(by_game(common))}, "
           f"(player, stat) fits {len({(ladder_key(r['market'])) for r in common})}")
+    if not common:
+        # a-58: nothing is scorable against the market at entry. Say so and stop
+        # rather than scoring a substitute price.
+        mc = market_comparison(rows, None)
+        print(f"\n  MARKET COMPARISON WITHDRAWN - {mc['entry_rule']} exists for 0 of "
+              f"{len(rows)} settled predictions. Refused quote sources: "
+              f"{mc['refused_quote_sources']}, median age {mc['refused_quote_median_age_s']}s.")
+        for metric, fn in (("Brier", brier), ("log loss", logloss)):
+            print(f"    {metric:<8} model-naive (full settled)  "
+                  f"{iv(boot_mean(rows, lambda r, fn=fn: fn(r['model'], r['y']) - fn(r['naive'], r['y'])))}")
+        table, ece = reliability([r["model"] for r in rows], [r["y"] for r in rows])
+        print(f"    model ECE on the full settled set {ece:.4f}")
+        return
     print(f"  naive source: {dict(Counter(r['naive_src'] for r in common))}")
     print(f"  base rate (common set): {statistics.fmean(r['y'] for r in common):.4f}")
 

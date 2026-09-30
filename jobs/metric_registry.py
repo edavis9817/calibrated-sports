@@ -52,17 +52,12 @@ NFL_TEAMS = ("ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN
              "GB", "HOU", "IND", "JAX", "KC", "LA", "LAC", "LV", "MIA", "MIN", "NE", "NO",
              "NYG", "NYJ", "PHI", "PIT", "SEA", "SF", "TB", "TEN", "WAS")
 
-# R10 was restated 2026-09-17 on the n=706 common set, when 229 week-1 Kalshi
-# books were one-sided at the prediction instant. The Kalshi candle backfill
-# (quotes.source 'backfill:kalshi_candles', ingested after 09-17) now supplies a
-# two-sided quote at or before entry for all 935, so score.py's common set is 935
-# and its figures moved. Which quote is the right entry price is a methodology
-# decision nobody has taken; until it is, the two are published as what they are
-# and this reason travels with them. Measured by a-36 on 2026-09-26.
-R10_DECLARED = ("R10 is the 2026-09-17 restatement on n=706 (229 books one-sided at entry); "
-                "research/calibration.json now scores n=935 because the Kalshi candle backfill "
-                "supplies a two-sided entry quote for every prediction. Unresolved: which entry "
-                "quote is correct (a-36).")
+# R10 is the 2026-09-17 restatement on n=706. a-36 found research/calibration.json
+# scoring n=935 against a Kalshi candle backfill and declared the disagreement;
+# a-58 settled it: the market at entry is a LIVE quote, the week-1 live quotes
+# are pruned, so the served comparison is withdrawn (null) and the register's
+# figure rides in the file as `market_comparison.registered` - a copy of R10 that
+# must AGREE with it, so no declaration remains.
 
 
 def _m(id, label, unit, decimals, source, copies=(), nullable=False):
@@ -145,27 +140,34 @@ METRICS = [
     *[_m(f"market.over_bias.by_season.{y}.estimate_pp", f"Over-side pricing gap, {y}", "pp", 2,
          (MARKET, f"by_season[season={y}].estimate_pp")) for y in SEASONS],
     # --- the model against Kalshi, 2026 week 1 (R10) ------------------------
-    _m("model.brier_minus_market", "Brier(model) - Brier(Kalshi mid), week 1", "Brier", 4,
-       (SCORE, "brier.model_minus_market.estimate"),
-       [(REGISTER, "hypotheses[id=R10].estimate", R10_DECLARED)]),
-    _m("model.brier_minus_market.interval", "Brier(model) - Brier(Kalshi mid), 95% interval",
-       "Brier", 4, (SCORE, "brier.model_minus_market.interval"),
-       [(REGISTER, "hypotheses[id=R10].interval", R10_DECLARED)]),
-    _m("model.brier_minus_market.n", "Predictions scored on the common set", "predictions", 0,
-       (SCORE, "n"), [(REGISTER, "hypotheses[id=R10].n", R10_DECLARED)]),
-    _m("model.brier_minus_market.games", "Games in the common set", "games", 0,
-       (SCORE, "games"), [(REGISTER, "hypotheses[id=R10].games")]),
+    _m("model.brier_minus_market", "Brier(model) - Brier(Kalshi mid), week 1, as registered",
+       "Brier", 4, (SCORE, "market_comparison.registered.estimate"),
+       [(REGISTER, "hypotheses[id=R10].estimate")]),
+    _m("model.brier_minus_market.interval",
+       "Brier(model) - Brier(Kalshi mid), 95% interval, as registered", "Brier", 4,
+       (SCORE, "market_comparison.registered.interval"), [(REGISTER, "hypotheses[id=R10].interval")]),
+    _m("model.brier_minus_market.n", "Predictions in the registered comparison", "predictions", 0,
+       (SCORE, "market_comparison.registered.n"), [(REGISTER, "hypotheses[id=R10].n")]),
+    _m("model.brier_minus_market.games", "Games in the registered comparison", "games", 0,
+       (SCORE, "market_comparison.registered.games"), [(REGISTER, "hypotheses[id=R10].games")]),
+    _m("model.brier_minus_market.scorable", "Predictions with a live Kalshi quote at entry",
+       "predictions", 0, (SCORE, "market_comparison.scorable")),
+    _m("model.scored.n", "Predictions every figure in the calibration file is on", "predictions",
+       0, (SCORE, "n")),
     _m("model.brier_minus_naive", "Brier(model) - Brier(naive prior), week 1", "Brier", 4,
        (SCORE, "brier.model_minus_naive.estimate")),
     _m("model.brier_minus_naive.interval", "Brier(model) - Brier(naive prior), 95% interval",
        "Brier", 4, (SCORE, "brier.model_minus_naive.interval")),
     _m("model.brier", "Brier score, model, week 1", "Brier", 4, (SCORE, "brier.model")),
-    _m("kalshi.brier", "Brier score, Kalshi mid, week 1", "Brier", 4, (SCORE, "brier.market")),
+    _m("kalshi.brier", "Brier score, Kalshi mid, week 1", "Brier", 4, (SCORE, "brier.market"),
+       nullable=True),
     _m("naive.brier", "Brier score, naive prior, week 1", "Brier", 4, (SCORE, "brier.naive")),
     _m("model.ece", "Calibration error, model, week 1", "ECE", 4,
        (SCORE, "ece.model"), [(SCORE, "series[name=model].ece")]),
+    # a-58: no series copy - the market series is absent when the comparison is
+    # withdrawn, and a copy that cannot resolve is a gate failure, not a check.
     _m("kalshi.ece", "Calibration error, Kalshi mid, week 1", "ECE", 4,
-       (SCORE, "ece.market"), [(SCORE, "series[name=market].ece")]),
+       (SCORE, "ece.market"), nullable=True),
     # --- walk-forward against the sportsbook close (R15) --------------------
     # Owned by the register until research/walkforward.py publishes a file; only
     # 2025 is a field today (2023 and 2024 live in R15's prose).

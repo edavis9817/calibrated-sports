@@ -2584,7 +2584,14 @@ def build_research(generated_at):
     # naive" on model == naive at four places. Same rows, or the page can show
     # 0.1916 = 0.1916 next to an interval that never saw those outcomes.
     # score.published() computes every figure below on that one set (a-36).
-    pub = SC.published(rows)
+    # a-58: the market figures exist only when some row has a LIVE entry quote;
+    # otherwise they are withdrawn (null) and the register's R10 figure rides
+    # along as history, read from the register rather than retyped.
+    r10 = next(h for h in src["hypotheses"] if h["id"] == "R10")
+    registered = {"estimate": r10["estimate"], "interval": r10["interval"], "n": r10["n"],
+                  "games": r10["games"], "register_id": r10["id"]}
+    pub = SC.published(rows, registered)
+    mc = pub["market_comparison"]
     series = [{"name": s["name"], "ece": rnd(s["ece"]), "bins": [
         {"lo": t["lo"], "hi": t["hi"], "n": t["n"],
          "mean_forecast": rnd(t.get("mean_p")), "realized": rnd(t.get("rate")),
@@ -2593,17 +2600,40 @@ def build_research(generated_at):
     brier = {f: rnd(v) for f, v in pub["brier"].items()}
     for name in ("model_minus_market", "model_minus_naive"):
         b = pub[name]
-        brier[name] = {"estimate": rnd(b["est"]), "interval": [rnd(b["lo"]), rnd(b["hi"])]}
+        brier[name] = ({"estimate": rnd(b["est"]), "interval": [rnd(b["lo"]), rnd(b["hi"])]}
+                       if b else None)
+    if mc["status"] == "published":
+        population = (f"NFL week 1 2026, KXNFLREC + KXNFLRSHATT, common set n={pub['n']}, "
+                      f"{pub['games']} games: settled predictions with a live Kalshi quote at "
+                      f"entry. Every figure in `brier` and `ece` - the three scores, both "
+                      f"intervals and both calibration errors - is computed on this one set.")
+    else:
+        population = (f"NFL week 1 2026, KXNFLREC + KXNFLRSHATT, every settled prediction, "
+                      f"n={pub['n']}, {pub['games']} games. Model-only figures: the model's "
+                      f"reliability, its Brier and the naive prior's, and the model-naive "
+                      f"interval, all on this one set. No figure here compares the model with "
+                      f"the market: {mc['scorable']} of {mc['settled']} predictions have a live "
+                      f"Kalshi quote at entry, so the market comparison is withdrawn "
+                      f"(`market_comparison`).")
+    reg = mc["registered"]
+    market_comparison = {
+        "status": mc["status"], "entry_rule": mc["entry_rule"],
+        "settled": mc["settled"], "scorable": mc["scorable"],
+        "excluded": mc["excluded"], "refused_quote_sources": mc["refused_quote_sources"],
+        "refused_quote_median_age_s": rnd(mc["refused_quote_median_age_s"], 0),
+        "registered": {"estimate": rnd(reg["estimate"]),
+                       "interval": [rnd(reg["interval"][0]), rnd(reg["interval"][1])],
+                       "n": reg["n"], "games": reg["games"],
+                       "register_id": reg["register_id"],
+                       "re_derivable": reg["re_derivable"], "why": reg["why"]}}
     out["research/calibration.json"] = {
         **envelope("research.calibration", generated_at, None),
-        "source": "research/score.py (brief 021)",
-        "population": (f"NFL week 1 2026, KXNFLREC + KXNFLRSHATT, common set n={pub['n']}, "
-                       f"{pub['games']} games. Every figure in `brier` and `ece` - the "
-                       f"three scores, both intervals and both calibration errors - is "
-                       f"computed on this one set."),
+        "source": "research/score.py (brief 021; entry rule a-58)",
+        "population": population,
         "n": pub["n"], "games": pub["games"],
         "series": series, "brier": brier,
-        "ece": {name: rnd(v) for name, v in pub["ece"].items()}}
+        "ece": {name: rnd(v) for name, v in pub["ece"].items()},
+        "market_comparison": market_comparison}
     out["research/market_calibration.json"] = build_market_calibration(generated_at)
 
     reg = os.path.join(ROOT, "research", "sweep", "results", "h3.jsonl")
