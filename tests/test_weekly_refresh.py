@@ -86,6 +86,8 @@ class Runner:
             return "headshots"
         if "map_markets" in s and "oddsapi" in s:
             return "map_books"
+        if "map_markets" in s and "polymarket" in s:
+            return "map_poly"
         if "map_markets" in s:
             return "map"
         if "export_web" in s and "--upload-only" in s:
@@ -162,7 +164,7 @@ def test_steps_run_in_order_and_touch_git_only_for_the_slug_registry(env):
     # SECOND PRODUCER into the same tree, and it has to have written before the
     # one uploader runs.
     assert py_steps == ["jobs.ingest_nflverse", "jobs.ingest_headshots", "jobs.map_markets",
-                        "jobs.map_markets", "jobs.export_web", "analytics.export", "jobs.season_model",
+                        "jobs.map_markets", "jobs.map_markets", "jobs.export_web", "analytics.export", "jobs.season_model",
                         "jobs.landing_backfill", "jobs.landing_export", "jobs.export_web"]
     git_calls = [c for c in r.calls if c and c[0] == "git"]
     assert git_calls, "the refresh should check the slug registry"
@@ -176,7 +178,7 @@ def test_export_failure_stops_before_upload(env):
     tmp, _ = env
     r = Runner(fail={"export"})
     assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 1
-    assert r.names() == ["ingest", "headshots", "map", "map_books", "export"]
+    assert r.names() == ["ingest", "headshots", "map", "map_poly", "map_books", "export"]
 
 
 def test_upload_failure_is_an_error(env):
@@ -188,7 +190,7 @@ def test_upload_failure_is_an_error(env):
 
 def test_ingest_headshot_and_map_failures_degrade_rather_than_die(env):
     tmp, _ = env
-    r = Runner(fail={"ingest", "headshots", "map", "map_books"})
+    r = Runner(fail={"ingest", "headshots", "map", "map_poly", "map_books"})
     assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
     assert "upload" in r.names()
 

@@ -747,6 +747,41 @@ def db():
         c.close()
 
 
+def hold_quotes(markets, until_ts: float, reason: str) -> int:
+    """Hold the quote history of `markets` ((venue, market_id) pairs) from the
+    prune until `until_ts`. Returns the number of hold rows written or renewed.
+
+    A hold EXTENDS and never shortens (a-60, the same rule a-58 gave the
+    export's renewal): an existing longer hold keeps its expiry. The reason is
+    replaced, because it answers "why does this row still exist" and the
+    longest-lived hold is the one that answers it. A hold always ends - there
+    is no forever - and a hold is reversible: delete the row and the quotes
+    prune at the normal window.
+
+    This is the only sanctioned write to quote_retention_hold outside the
+    export's own renewal; research that needs a week kept calls this rather
+    than writing SQL against the logger's database.
+    """
+    rows = sorted(set((str(v), str(m)) for v, m in markets))
+    if not reason or not reason.strip():
+        raise ValueError("a hold needs a reason in words")
+    if until_ts is None or until_ts <= time.time():
+        raise ValueError("a hold must end in the future")
+    if not rows:
+        return 0
+    now = time.time()
+    with db() as c:
+        c.executemany(
+            "INSERT INTO quote_retention_hold (venue, market_id, until_ts, reason, held_ts) "
+            "VALUES (?, ?, ?, ?, ?) ON CONFLICT(venue, market_id) DO UPDATE SET "
+            "until_ts = MAX(until_ts, excluded.until_ts), "
+            "reason = CASE WHEN excluded.until_ts >= until_ts "
+            "THEN excluded.reason ELSE reason END, "
+            "held_ts = excluded.held_ts",
+            [(v, m, float(until_ts), reason, now) for v, m in rows])
+    return len(rows)
+
+
 def record_health(source: str, ok: bool, detail: str = None,
                   watermark: float = None):
     """Upsert one source's health row. Never raises - a health write failing

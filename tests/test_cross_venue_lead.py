@@ -111,6 +111,25 @@ def test_the_store_join_misses_a_sign_flipped_spread_and_the_fold_pairs_it():
     assert sorted((r[4], r[5]) for r in got) == [("kalshi", "KXNFLSPREAD-X-BUF2"), ("polymarket", "tok1")]
 
 
+def test_after_the_sign_fix_the_store_pairs_spreads_and_the_fold_must_stay_off():
+    """a-60 negates the Polymarket line in the mapper. Against a re-mapped store
+    a NEGATIVE Polymarket line is an underdog '(+L)' claim, and folding it would
+    pair 'Bills +1.5' with 'Bills win by over 1.5' - a wrong pair."""
+    con = sqlite3.connect(":memory:")
+    con.executescript("""
+        CREATE TABLE outcomes (outcome_id TEXT, key TEXT, season INT, week INT, event_id TEXT);
+        CREATE TABLE market_outcome (venue TEXT, market_id TEXT, outcome_id TEXT);
+        INSERT INTO outcomes VALUES ('k', 'nfl|2026|wk2|spread|buf|na|1.5|over', 2026, 2, 'g'),
+                                    ('dog', 'nfl|2026|wk2|spread|buf|na|-1.5|over', 2026, 2, 'g');
+        INSERT INTO market_outcome VALUES ('kalshi', 'KXNFLSPREAD-X-BUF2', 'k'),
+                                          ('polymarket', 'fav', 'k'), ('polymarket', 'dog', 'dog');
+    """)
+    got = X.cross_pairs(con, fold=False)
+    assert {r[6] for r in got} == {"store"}
+    assert sorted((r[4], r[5]) for r in got) == [("kalshi", "KXNFLSPREAD-X-BUF2"), ("polymarket", "fav")]
+    assert any(r[5] == "dog" for r in X.cross_pairs(con, fold=True))   # what the fold would have done
+
+
 def test_release_half_life_times_the_departure_row_not_the_heartbeat():
     # flat at 0.30 with heartbeat rows 300s apart, then a move polled every 15s
     s = [(t, 0.30, 0.31) for t in (0, 300, 600)] + [(900, 0.33, 0.34), (915, 0.37, 0.38), (930, 0.45, 0.46)]

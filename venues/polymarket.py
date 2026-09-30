@@ -251,6 +251,13 @@ _TEAM_TOTAL = re.compile(r"^(?P<team>.+?)\s+Team Total:\s*O/U\s*(?P<line>[\d.]+)
 _GAME_TOTAL = re.compile(
     r"^(?:(?:Total|Game Total)|.+?\s+vs\.?\s+.+?):\s*O/U\s*(?P<line>[\d.]+)$", re.I)
 _MONEYLINE = re.compile(r"^Moneyline:\s*(?P<team>.+?)\s*$", re.I)
+# The game's moneyline is titled "Giants vs. Texans" - no colon, no market word.
+# Measured on the raw events payload (a-60, 61 of 61 markets): gamma's
+# sportsMarketType is "moneyline", outcomes are [first team, second team] in
+# title order, and the logged market_id is clobTokenIds[0] - so the row quotes
+# the FIRST-NAMED team winning. A title with a colon is some other claim about
+# the game ("Jets vs. Lions: Highest Scoring Quarter - Q4") and never matches.
+_HEAD_TO_HEAD = re.compile(r"^(?P<a>[^:]+?)\s+vs\.?\s+(?P<b>[^:]+?)\s*$", re.I)
 
 # Segment markets - quarters and halves. We have no outcome type for a partial
 # game, and silently mapping "1Q Spread" onto the full-game spread would be a
@@ -265,8 +272,35 @@ def _event_game(event_id: str):
     return mapping.game_for(m.group("a"), m.group("b"), m.group("date"))
 
 
-def map_market(row: dict):
-    """One logged Polymarket market -> (outcome_id, method, confidence)."""
+class PolyOnly(mapping.Unresolved):
+    """A player claim that resolved and has no outcome row - left unlinked.
+
+    The same rule as the book props (`oddsapi.BookOnly`, a-53): every player
+    outcome that exists gets settled, and every settled player outcome enters
+    the prop history `jobs/export_web.py` PUBLISHES. Creating one for a line
+    only Polymarket hangs (receiving yards, 2+ touchdowns) would put a new
+    claim on a player page from a mapping job. So a Polymarket player market
+    LINKS to an outcome another venue created, and otherwise records its full
+    identity here. `create_players=True` restores creation; that is a decision
+    about what the site shows (a-60).
+    """
+    PREFIX = "polymarket-only claim"
+
+
+def _player_outcome(o, game_id, create_players):
+    if not create_players:
+        with store.db() as c:
+            known = c.execute("SELECT 1 FROM outcomes WHERE outcome_id = ?",
+                              (o.outcome_id,)).fetchone()
+        if not known:
+            raise PolyOnly(f"{PolyOnly.PREFIX} {o.outcome_id} {o.key}")
+    return store.upsert_outcome(o, game_id)
+
+
+def map_market(row: dict, create_players: bool = False):
+    """One logged Polymarket market -> (outcome_id, method, confidence).
+
+    Player props link only, unless `create_players` - see PolyOnly."""
     title = (row.get("title") or "").strip()
     event_id = row.get("event_id") or ""
 
@@ -308,14 +342,14 @@ def map_market(row: dict):
         o = outcomes.player_prop(season, week, gsis, stat,
                                  float(m.group("line")), outcomes.Side.OVER,
                                  event_id=game_id)
-        return store.upsert_outcome(o, game_id), f"poly:ou+{how}", conf
+        return _player_outcome(o, game_id, create_players), f"poly:ou+{how}", conf
 
     m = _ANYTIME.match(title)
     if m:
         gsis, how, conf = mapping.resolve_player(m.group("name"), season)
         o = outcomes.player_prop(season, week, gsis, outcomes.Stat.ANYTIME_TD,
                                  0.5, outcomes.Side.OVER, event_id=game_id)
-        return store.upsert_outcome(o, game_id), f"poly:anytime+{how}", conf
+        return _player_outcome(o, game_id, create_players), f"poly:anytime+{how}", conf
 
     m = _NPLUS.match(title)
     if m:
@@ -328,16 +362,25 @@ def map_market(row: dict):
         o = outcomes.player_prop(season, week, gsis, stat,
                                  float(m.group("n")) - 0.5, outcomes.Side.OVER,
                                  event_id=game_id)
-        return store.upsert_outcome(o, game_id), f"poly:nplus+{how}", conf
+        return _player_outcome(o, game_id, create_players), f"poly:nplus+{how}", conf
 
     m = _SPREAD.match(title)
     if m:
         team = mapping.team_abbr(m.group("team"))
         if not team:
             raise mapping.Unresolved(f"unknown team {m.group('team')!r}")
+        # SIGN (a-60). Polymarket writes the BOOK form, "Bills (-1.5)": Bills
+        # give 1.5, i.e. win by more than 1.5. The canonical spread outcome is
+        # Kalshi's form, `spread|<team>|+L|over` = <team> wins by more than L,
+        # so the book line is NEGATED. Keyed on the raw sign, the same claim
+        # carried two outcome ids and the store join paired zero spreads
+        # (a-59); its research fold paired 122, and the price test passed on
+        # all 38 that had live quotes on both venues. Every spread title seen
+        # (558 of 558 in the raw events, a-60) carries a minus sign, and
+        # outcomes[0] - the logged token - is the named team on all of them.
         o = outcomes.Outcome(outcomes.Sport.NFL, season, week,
                              outcomes.MarketType.SPREAD, team, None,
-                             float(m.group("line")), outcomes.Side.OVER, game_id)
+                             -float(m.group("line")), outcomes.Side.OVER, game_id)
         return store.upsert_outcome(o, game_id), "poly:spread", 0.95
 
     m = _GAME_TOTAL.match(title)
@@ -356,5 +399,19 @@ def map_market(row: dict):
                              outcomes.MarketType.MONEYLINE, team, None, None,
                              outcomes.Side.YES, game_id)
         return store.upsert_outcome(o, game_id), "poly:moneyline", 1.0
+
+    m = _HEAD_TO_HEAD.match(title)
+    if m:
+        a, b = mapping.team_abbr(m.group("a")), mapping.team_abbr(m.group("b"))
+        if not a or not b:
+            raise mapping.Unresolved(
+                f"unknown team in head-to-head {m.group('a')!r} / {m.group('b')!r}")
+        playing = game_id.split("_")[2:]
+        if a not in playing or b not in playing or a == b:
+            raise mapping.Unresolved(f"head-to-head {a} vs {b} is not game {game_id}")
+        o = outcomes.Outcome(outcomes.Sport.NFL, season, week,
+                             outcomes.MarketType.MONEYLINE, a, None, None,
+                             outcomes.Side.YES, game_id)
+        return store.upsert_outcome(o, game_id), "poly:head_to_head", 1.0
 
     raise mapping.Unresolved(f"title shape not recognised: {title[:70]!r}")

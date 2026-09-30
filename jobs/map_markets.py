@@ -5,6 +5,7 @@
     python -m jobs.map_markets --coverage      # report only, no re-mapping
     python -m jobs.map_markets --unmapped 20   # a sample to work from
     python -m jobs.map_markets --venue oddsapi # the live book-prop join (a-53)
+    python -m jobs.map_markets --venue polymarket   # player props LINK only (a-60)
 
 EVERY market gets a market_outcome row. A market that could not be resolved is
 recorded WITH ITS REASON, never dropped: a coverage number computed over the
@@ -44,7 +45,8 @@ def _rows(venue=None, limit=None):
         con.close()
 
 
-def run(venue=None, limit=None, create_book_outcomes=False) -> dict:
+def run(venue=None, limit=None, create_book_outcomes=False,
+        create_poly_player_outcomes=False) -> dict:
     stats = Counter()
     reasons = Counter()
     t0 = time.time()
@@ -60,7 +62,11 @@ def run(venue=None, limit=None, create_book_outcomes=False) -> dict:
             stats["no_mapper"] += 1
             continue
         try:
-            outcome_id, method, conf = fn(row)
+            if v == "polymarket":
+                outcome_id, method, conf = fn(
+                    row, create_players=create_poly_player_outcomes)
+            else:
+                outcome_id, method, conf = fn(row)
             store.record_mapping(v, row["market_id"], outcome_id, method, conf)
             stats[f"{v}:mapped"] += 1
         except Unresolved as e:
@@ -189,6 +195,9 @@ def main():
     ap.add_argument("--create-book-outcomes", action="store_true",
                     help="create outcomes for book-only prop lines; these then "
                          "settle into the PUBLISHED prop history (a-53)")
+    ap.add_argument("--create-poly-player-outcomes", action="store_true",
+                    help="create outcomes for Polymarket-only player lines; these "
+                         "then settle into the PUBLISHED prop history (a-60)")
     args = ap.parse_args()
 
     store.init_db()
@@ -199,7 +208,8 @@ def main():
         unmapped(args.unmapped)
         return
 
-    res = run(args.venue, args.limit, args.create_book_outcomes)
+    res = run(args.venue, args.limit, args.create_book_outcomes,
+              args.create_poly_player_outcomes)
     print(f"mapped in {res['stats']['elapsed']}s\n")
     coverage()
     print()
