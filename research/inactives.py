@@ -1,6 +1,7 @@
 """Brief 023 Part 3 - the inactives reaction, NFL week 1 2026. A PROXY.
 
     python -m research.inactives
+    python -m research.inactives --release --week 2 --week 3    # a-59, see release_main
 
 Pre-registered at fd0a57b (docs/briefs/023-preregistration.md, Part 3).
 
@@ -139,29 +140,29 @@ def load_injuries():
     return out, list(df.columns)
 
 
-def load(con):
+def load(con, week=1):
     games = {}
     for gid, k, h, a in con.execute(
             "SELECT game_id, MAX(kickoff_ts), home_team, away_team FROM nfl_games "
-            "WHERE season=2026 AND week=1 GROUP BY game_id"):
+            "WHERE season=2026 AND week=? GROUP BY game_id", (week,)):
         games[gid] = {"game": gid, "kick": k, "teams": {h, a}}
     by_pair = {frozenset(g["teams"]): g for g in games.values()}
     players = defaultdict(lambda: {"markets": []})
-    for mid, gsis, stat in con.execute(
-            "SELECT mo.market_id, o.entity_id, o.stat FROM market_outcome mo JOIN outcomes o USING(outcome_id) "
+    for mid, gsis, stat, owk in con.execute(
+            "SELECT mo.market_id, o.entity_id, o.stat, o.week FROM market_outcome mo JOIN outcomes o USING(outcome_id) "
             "WHERE mo.venue='kalshi' AND o.entity_type='player' "
             "AND (mo.market_id LIKE 'KXNFLREC-%' OR mo.market_id LIKE 'KXNFLRSHATT-%')"):
-        if not WEEK1.search(mid):
+        if (not WEEK1.search(mid)) if week == 1 else owk != week:
             continue
         players[gsis]["markets"].append((mid, stat))
     # game and team per player come from the tickers, below
     xw ={g: (n, pos, pfr) for g, n, pos, pfr in
           con.execute("SELECT gsis_id, display_name, position, pfr_id FROM player_xwalk")}
     snaps = {pfr: off for pfr, off in con.execute(
-        "SELECT pfr_player_id, MAX(offense_snaps) FROM nfl_snap_counts WHERE season=2026 AND week=1 "
-        "GROUP BY pfr_player_id")}
+        "SELECT pfr_player_id, MAX(offense_snaps) FROM nfl_snap_counts WHERE season=2026 AND week=? "
+        "GROUP BY pfr_player_id", (week,))}
     pweek = {g for (g,) in con.execute(
-        "SELECT gsis_id FROM nfl_player_week WHERE season=2026 AND week=1 AND season_type='REG'")}
+        "SELECT gsis_id FROM nfl_player_week WHERE season=2026 AND week=? AND season_type='REG'", (week,))}
     for gsis, p in players.items():
         name, pos, pfr = xw.get(gsis, ("?", "?", None))
         p.update(gsis=gsis, name=name, pos=pos)
@@ -342,5 +343,179 @@ def main():
                                  for h in HORIZONS) + f"  quote rows {r['n_quote_rows']}")
 
 
+# =============================================================================
+# a-59: the inactive list as a timestamped release (kickoff - 90 min)
+# =============================================================================
+# The NFL requires inactive lists 90 minutes before kickoff. That is a
+# SCHEDULE, not a stamp: nothing on disk records when a given list was posted,
+# so t0 = kickoff - 90 min is the rule's time, and a list that circulated early
+# shows up as a move BEFORE t0 - which is reported, not hidden. What this
+# measures is the teammates' reprice after the release (who absorbs the
+# inactive's volume), on Kalshi at the hot tier's 15s poll, against a placebo
+# window of the same length an hour earlier, and the books across the only
+# brackets they have: their snapshots straddle t0 at kickoff - 180, - 90 and
+# - 40 (config ODDS_SNAPSHOTS_MIN in production), so a book reprice is placed
+# in a bracket, never timed.
+
+RELEASE_S = 90 * 60
+RELEASE_BASE = 1800.0           # the level at t0 - 30 min: news can precede the rule's time
+RELEASE_END = 50 * 60           # ... against the level at t0 + 50 min (kickoff - 40)
+PLACEBO_SHIFT = 120 * 60        # the same window two hours earlier, still inside the hot tier
+ONSET_TOL = 0.01                # the move has started once the mid leaves base by more than 1c
+MATERIAL = 0.03
+
+
+def half_life(series, t0, base, final, lo, hi):
+    """(half, onset) in seconds relative to t0. `half` is the first two-sided
+    mid in (lo, hi] covering half of (final - base); `onset` is the first ROW
+    of the run that reached it - the first row more than ONSET_TOL from base
+    after the last one within it. The adjustment half-life is half - onset.
+    Negative = before t0.
+
+    The onset is a departure row, never the last at-base row: rows are written
+    on a change or a 300s heartbeat, so the last at-base ROW can predate the
+    move by a whole heartbeat, while the first departure row is timed to the
+    poll that saw it."""
+    move = final - base
+    if move == 0:
+        return None, None
+    d = 1 if move > 0 else -1
+    onset = None
+    for ts, b, a in series:
+        if ts <= lo or b is None or a is None:
+            continue
+        if ts > hi:
+            break
+        gone = d * ((b + a) / 2 - base)
+        if gone <= ONSET_TOL:
+            onset = None
+        elif onset is None:
+            onset = ts
+        if gone >= abs(move) / 2:
+            return ts - t0, onset - t0
+    return None, None
+
+
+def release_rows(con, game, team, t0, exclude, players, arm):
+    rows = []
+    for gsis, p in players.items():
+        if gsis in exclude or p.get("team") != team or p.get("game") is not game:
+            continue
+        for mid, stat in p["markets"]:
+            s = series(con, mid, t0 - 1800 - MAX_STALE, t0 + RELEASE_END + 60)
+            base = two_sided_mid(s, t0 - RELEASE_BASE)
+            end = two_sided_mid(s, t0 + RELEASE_END)
+            if not base or not end:
+                continue
+            move = end[0] - base[0]
+            r = {"game": game["game"], "arm": arm, "market": mid, "player": p["name"], "stat": stat,
+                 "mid0": base[0], "spread0": base[1], "move": move, "abs": abs(move),
+                 "material": 1.0 if abs(move) >= MATERIAL else 0.0, "half_at": None, "onset": None}
+            if abs(move) >= MATERIAL:
+                r["half_at"], r["onset"] = half_life(s, t0, base[0], end[0], t0 - RELEASE_BASE, t0 + RELEASE_END)
+            rows.append(r)
+    return rows
+
+
+def book_brackets(con, game, gsis_team, markets):
+    """For each teammate Kalshi rung with a linked book line, the book's median
+    change across the snapshot brackets around t0 = kickoff - 90, beside
+    Kalshi's change across the SAME brackets. Books quote a line per snapshot
+    only, so this places a reprice in a bracket and cannot time it."""
+    out = []
+    for mid in markets:
+        oid = con.execute("SELECT outcome_id FROM market_outcome WHERE venue='kalshi' AND market_id=?",
+                          (mid,)).fetchone()
+        if not oid or not oid[0]:
+            continue
+        books = con.execute("SELECT venue, market_id FROM market_outcome WHERE outcome_id=? "
+                            "AND venue LIKE 'oddsapi:%'", (oid[0],)).fetchall()
+        snaps = defaultdict(dict)
+        for venue, bmid in books:
+            head, _sep, line = bmid.rpartition("|")
+            for ts, p in con.execute("SELECT ts, mid FROM quotes WHERE venue=? AND market_id=? AND line=? "
+                                     "AND source='live' AND ts BETWEEN ? AND ?",
+                                     (venue, head, float(line), game["kick"] - 4 * 3600, game["kick"])):
+                snaps[round(ts / 60)][venue] = p
+        if len(snaps) < 2:
+            continue
+        ks = series(con, mid, game["kick"] - 4 * 3600 - MAX_STALE, game["kick"])
+        instants = sorted(snaps)
+        for a, b in zip(instants, instants[1:]):
+            common = [snaps[b][v] - snaps[a][v] for v in snaps[a] if v in snaps[b]]
+            k0, k1 = two_sided_mid(ks, a * 60), two_sided_mid(ks, b * 60)
+            out.append({"market": mid, "from_min": round((game["kick"] - a * 60) / 60),
+                        "to_min": round((game["kick"] - b * 60) / 60),
+                        "book_move": statistics.median(common) if common else None,
+                        "kalshi_move": (k1[0] - k0[0]) if k0 and k1 else None})
+    return out
+
+
+def release_main(week):
+    con = ro()
+    games, players = load(con, week)
+    _hdr(f"RELEASE STUDY, week {week}: t0 = kickoff - 90 min (the rule's time, not a stamp)")
+    cands = [p for p in players.values() if p["inactive_by_rule"] and not p["played"]]
+    print(f"  players with a mapped week-{week} KXNFLREC/KXNFLRSHATT market: {len(players)}")
+    print(f"  inactive by rule and did not play: {len(cands)}")
+    live_at_release, treat, placebo, brackets = [], [], [], []
+    for p in sorted(cands, key=lambda p: p["name"]):
+        g = p["game"]
+        if not g:
+            print(f"   {p['name']:<22} no game mapped")
+            continue
+        last = max((last_quote(con, m) or 0) for m, _ in p["markets"])
+        t0 = g["kick"] - RELEASE_S
+        state = ("quoting at the release" if last >= t0 - MAX_STALE else
+                 f"markets stopped {(g['kick'] - last) / 3600:.1f}h before kickoff (known OUT: no release event)")
+        print(f"   {p['name']:<22} {p['pos']:<3} {p['team'] or '?':<4} reasons={p['reasons']} - {state}")
+        if last < t0 - MAX_STALE:
+            continue
+        live_at_release.append(p)
+        treat += release_rows(con, g, p["team"], t0, {p["gsis"]}, players, "release")
+        placebo += release_rows(con, g, p["team"], t0 - PLACEBO_SHIFT, {p["gsis"]}, players, "placebo")
+        mates = [m for q in players.values() if q.get("team") == p["team"] and q.get("game") is g
+                 and q["gsis"] != p["gsis"] for m, _ in q["markets"]]
+        brackets += book_brackets(con, g, p["team"], mates)
+    print(f"  surprise inactives (markets still quoting at t0): {len(live_at_release)}")
+    for label, rows in (("release", treat), ("placebo", placebo)):
+        games_n = len({r["game"] for r in rows})
+        m = S.boot(rows, S.mean_of("material")) if rows else None
+        a = S.boot(rows, S.mean_of("abs")) if rows else None
+        print(f"   {label:<8} teammate rungs {len(rows):>4} over {games_n} games: "
+              + ("share moving >= 3pp " + (f"{m['est']:.3f} [{m['lo']:.3f}, {m['hi']:.3f}]" if m else "n/a")
+                 + ", mean |move| " + (f"{100 * a['est']:.2f}pp [{100 * a['lo']:.2f}, {100 * a['hi']:.2f}]" if a else "n/a")
+                 + ("  (<5 games: not read)" if games_n < 5 else "")))
+    timed = [r for r in treat if r["half_at"] is not None]
+    for r in timed:
+        print(f"     {r['player']:<20} {r['market']:<44} move {100 * r['move']:+.1f}pp  onset t0{r['onset']:+.0f}s  "
+              f"half t0{r['half_at']:+.0f}s  half-life {r['half_at'] - r['onset']:.0f}s")
+    if timed:
+        hl = sorted(r["half_at"] - r["onset"] for r in timed)
+        print(f"   adjustment half-life over {len(hl)} material teammate moves: median {statistics.median(hl):.0f}s "
+              f"(15s hot-tier poll); onset before t0 in {sum(1 for r in timed if r['onset'] < 0)} of {len(timed)}")
+    else:
+        print("   adjustment half-life: no material teammate move to time")
+    moved = [b for b in brackets if b["book_move"] is not None and b["kalshi_move"] is not None
+             and max(abs(b["book_move"]), abs(b["kalshi_move"])) >= MATERIAL]
+    print(f"   book brackets around the release with a >= 3pp move on either side: {len(moved)} of {len(brackets)}")
+    for b in moved[:40]:
+        print(f"     {b['market']:<44} T-{b['from_min']:>4}..T-{b['to_min']:>4} min  "
+              f"book {100 * b['book_move']:+.1f}pp  kalshi {100 * b['kalshi_move']:+.1f}pp")
+    return {"week": week, "inactive": len(cands), "surprise": len(live_at_release),
+            "release": treat, "placebo": placebo, "brackets": brackets}
+
+
 if __name__ == "__main__":
-    main()
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--week", type=int, action="append",
+                    help="with --release: a week to study (repeatable)")
+    ap.add_argument("--release", action="store_true",
+                    help="a-59: teammates' reprice around kickoff - 90 min, on Kalshi and the books")
+    args = ap.parse_args()
+    if args.release:
+        for w in args.week or [2, 3]:
+            release_main(w)
+    else:
+        main()
