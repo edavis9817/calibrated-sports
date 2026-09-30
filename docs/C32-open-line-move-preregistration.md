@@ -160,3 +160,40 @@ would not say that taking the model's side at the open pays.
 ## Data safety
 
 `market_log.db` and `analytics.db` open `mode=ro`. The script writes only `--json-out`.
+
+---
+
+## Addendum 1 — 2026-09-30, after a 50-draw smoke run and before the real run
+
+**What I had seen.** The smoke run (50 bootstrap draws) printed moneyline and spread slopes
+of about +0.10, with intervals above zero, and a total slope that contains zero. This addendum
+is written after seeing that, so everything in it is **post hoc**. It does not change the
+registered measures or the verdict wording above. It adds checks, and the findings will say
+which of them were registered and which were added here.
+
+**Why.** The pre-registration missed a trap. `model_minus_open = m - o` and
+`close_minus_open = c - o` share the open `o` with opposite signs. Suppose the open is measured
+with transient noise `e`: a stale rung, bid-ask bounce, or a thin book four days out. Then
+`cov(x, y)` picks up `+var(e)` and the slope picks up `var(e) / var(x)`. That is a positive
+slope from pure mean reversion of a noisy open, with no information in the model at all.
+
+**Added checks (post hoc; none of them is the verdict):**
+
+1. **Open noise, measured.** A second open snapshot, B: each rung's first two-sided quote in
+   `[t0 + 2h, t0 + 3h)`, under the same implied-number rule. Measured:
+   - `sd(o_B - o_A)`;
+   - `var(e) ≈ var(o_B - o_A) / 2`;
+   - the artifact slope that this noise alone would produce, `var(e) / var(x)`, set beside
+     the observed slope.
+2. **Split-snapshot slope.** `x = m - o_A`, `y = c - o_B`. Noise in A and in B that is
+   independent does not enter both. Noise that persists for hours does, so this check bounds
+   the artifact rather than removing it.
+3. **Placebo model.** The same slope with the model replaced by a constant that knows nothing
+   about the teams:
+   - moneyline: the league home-win rate over decisive games 2000-2025;
+   - spread: `sigma_m * PhiInv(that rate)`;
+   - total: c-28's league-window mean `mu_t`.
+
+   If the constant draws a slope as large as the model's, then "the line moves toward the
+   model" means "the open reverts toward the middle", and the model adds nothing to it.
+   A game with no B snapshot drops out of checks 1 and 2 only, and is counted.
