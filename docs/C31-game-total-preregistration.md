@@ -344,3 +344,25 @@ multiplicity correction; the count is stated.
   therefore lack week-2 plays and points. This is a data gap, not look-ahead.
 - **Kalshi evidence** is one venue, one season, weeks 2-3, about 32 games.
   Whatever it says is stated with its MDE and is not generalised.
+
+---
+
+## Addendum 1 — 2026-09-30, after the 20-draw smoke run, before the 2,000-draw run
+
+Three implementation facts the text above did not settle. None changes a
+registered test, a population or a success condition.
+
+1. **Season-2000 training rows.** The stack for T = 2001 trains on season 2000,
+   but nothing is fitted before 2000, so season-2000 rows cannot have
+   out-of-sample Elo parameters, `sigma_m` or factor parameters. They use season
+   2001's (each fitted on 2000 alone). That is in-sample for those TRAINING rows
+   only; no scored forecast (2001+) sees a parameter fitted on its own season.
+2. **2026 unplayed games** are skipped when features are built. The rating walk
+   carries only played games; the Kalshi population is scored games anyway.
+3. **The plays shrinkage k sits on the top edge of its grid** (k_p = 16 in
+   every season from 2001). The grid is pre-registered and is not widened. It
+   means team plays want MORE shrinkage than the grid allows, which is itself
+   evidence about P1, and it is reported as such.
+
+The smoke run (20 draws, same code) was read. Its point estimates are the
+2,000-draw run's; only the intervals move.
