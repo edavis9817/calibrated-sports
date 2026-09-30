@@ -191,6 +191,14 @@ not yet measured and the retention arithmetic depends on it.**
   **7 thresholds per player-game**, max 12 - a genuine survival function, free.
   There is **no rushing-yards series and no anytime-TD series**; tickers
   matching "TD" are players named DMetcalf and DWashington.
+- **NFL pre-packs (`KXNFLPREPACK*`, `KXMVENFL*`, `KXNFLCOMBO`) are NOT on disk
+  and were NOT listed for 2026-27 as of 2026-09-30** (c-26,
+  `research/prepack_census.py`). Allowlisting `KXNFLPREPACKSGP*` keeps the series;
+  the fetch returns 0 open markets, so `market_log.db` holds 0 pack rows and the
+  `parlay` mapper branch has never fired. Every listed pack event is 2025-26
+  (Sep 2025 - Feb 2026); the 36 still-served SGP markets closed Dec 2025 at
+  volume 0. The SGP packs are GAME-LINE combos (spread/total, ML/total), not
+  player-prop parlays. Fee `quadratic`, M=1, maker-free.
 - **Kalshi prices fantasy points directly**: `KXNFLFFPTS` quotes
   P(fantasy points > X) per player per game (one threshold each, 185 open on
   the 2026 wk1 slate), alongside `KXNFLFFWEEKTOP` and `KXNFLFFPLAYERHIGH`.

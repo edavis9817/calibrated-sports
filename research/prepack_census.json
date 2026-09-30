@@ -1,0 +1,812 @@
+{
+ "run_ts": 1790740545.3621047,
+ "store": {
+  "markets_prefix": 0,
+  "markets_any_spelling": 0,
+  "markets_by_type": [
+   [
+    "kalshi",
+    "prop",
+    4789
+   ],
+   [
+    "kalshi",
+    "spread",
+    1698
+   ],
+   [
+    "kalshi",
+    "future",
+    1348
+   ],
+   [
+    "kalshi",
+    "total",
+    1258
+   ],
+   [
+    "kalshi",
+    "moneyline",
+    126
+   ]
+  ],
+  "kalshi_series_in_markets": [
+   [
+    "KXNFLREC",
+    3978
+   ],
+   [
+    "KXNFLSPREAD",
+    1698
+   ],
+   [
+    "KXNFLTOTAL",
+    1258
+   ],
+   [
+    "KXNFLRSHATT",
+    811
+   ],
+   [
+    "KXNFLWINSWEEK",
+    728
+   ],
+   [
+    "KXNFLWINS",
+    547
+   ],
+   [
+    "KXNFLGAME",
+    126
+   ],
+   [
+    "KXNFLNFCCHAMP",
+    16
+   ],
+   [
+    "KXNFLAFCCHAMP",
+    16
+   ],
+   [
+    "KXNFLWINSTREAK",
+    9
+   ],
+   [
+    "KXNFLNFCWEST",
+    4
+   ],
+   [
+    "KXNFLNFCSOUTH",
+    4
+   ],
+   [
+    "KXNFLNFCNORTH",
+    4
+   ],
+   [
+    "KXNFLNFCEAST",
+    4
+   ],
+   [
+    "KXNFLAFCWEST",
+    4
+   ],
+   [
+    "KXNFLAFCSOUTH",
+    4
+   ],
+   [
+    "KXNFLAFCNORTH",
+    4
+   ],
+   [
+    "KXNFLAFCEAST",
+    4
+   ]
+  ],
+  "quotes_prefix": 0,
+  "market_depth_prefix": 0,
+  "market_trades_prefix": 0,
+  "two_sided_packs": [
+   0,
+   0
+  ],
+  "unmapped_reasons_parlay": [],
+  "kalshi_quote_ts_span": [
+   1781236800.0,
+   1790740322.1443443
+  ],
+  "kalshi_markets_first_seen_span": [
+   1788928778.4882848,
+   1790740239.9612384
+  ]
+ },
+ "board": {
+  "series": [
+   {
+    "ticker": "KXNFLPREPACKSGP",
+    "title": "MVE NFL Pre Pack",
+    "frequency": "one_off",
+    "fee_type": "quadratic",
+    "fee_multiplier": 1.0,
+    "tracked": 1,
+    "snapshot_ts": 1789441710.3282413
+   },
+   {
+    "ticker": "KXMVENFLMULTIGAMEEXTENDED",
+    "title": "MVE NFL Multi Game Extended",
+    "frequency": "one_off",
+    "fee_type": "quadratic",
+    "fee_multiplier": 1.0,
+    "tracked": 0,
+    "snapshot_ts": 1789441710.3282413
+   },
+   {
+    "ticker": "KXNFLPREPACK3ML",
+    "title": "MVE NFL Pre Pack",
+    "frequency": "one_off",
+    "fee_type": "quadratic",
+    "fee_multiplier": 1.0,
+    "tracked": 0,
+    "snapshot_ts": 1789441710.3282413
+   },
+   {
+    "ticker": "KXMVENFLSINGLEGAME",
+    "title": "MVE NFL Single Game",
+    "frequency": "one_off",
+    "fee_type": "quadratic",
+    "fee_multiplier": 1.0,
+    "tracked": 0,
+    "snapshot_ts": 1789441710.3282413
+   },
+   {
+    "ticker": "KXNFLPREPACKSGPSPREAD",
+    "title": "MVE NFL Pre Pack",
+    "frequency": "custom",
+    "fee_type": "quadratic",
+    "fee_multiplier": 1.0,
+    "tracked": 1,
+    "snapshot_ts": 1789441710.3282413
+   },
+   {
+    "ticker": "KXNFLCOMBO",
+    "title": "NFL COMBO",
+    "frequency": "one_off",
+    "fee_type": "quadratic",
+    "fee_multiplier": 1.0,
+    "tracked": 0,
+    "snapshot_ts": 1789441710.3282413
+   },
+   {
+    "ticker": "KXNFLPREPACK2ML",
+    "title": "MVE NFL Pre Pack",
+    "frequency": "one_off",
+    "fee_type": "quadratic",
+    "fee_multiplier": 1.0,
+    "tracked": 0,
+    "snapshot_ts": 1789441710.3282413
+   },
+   {
+    "ticker": "KXNFLPREPACK",
+    "title": "MVE NFL Pre Pack",
+    "frequency": "one_off",
+    "fee_type": "quadratic",
+    "fee_multiplier": 1.0,
+    "tracked": 0,
+    "snapshot_ts": 1789441710.3282413
+   },
+   {
+    "ticker": "KXNFLPREPACK1Q1H",
+    "title": "MVE NFL Pre Pack",
+    "frequency": "custom",
+    "fee_type": "quadratic",
+    "fee_multiplier": 1.0,
+    "tracked": 0,
+    "snapshot_ts": 1789441710.3282413
+   },
+   {
+    "ticker": "KXMVENFLMULTIGAME",
+    "title": "MVE NFL Multi Game",
+    "frequency": "one_off",
+    "fee_type": "quadratic",
+    "fee_multiplier": 1.0,
+    "tracked": 0,
+    "snapshot_ts": 1789441710.3282413
+   },
+   {
+    "ticker": "KXNFLPREPACK1HFT",
+    "title": "MVE NFL Pre Pack",
+    "frequency": "custom",
+    "fee_type": "quadratic",
+    "fee_multiplier": 1.0,
+    "tracked": 0,
+    "snapshot_ts": 1789441710.3282413
+   }
+  ],
+  "fetch_log": {
+   "KXNFLPREPACKSGP": {
+    "series": "KXNFLPREPACKSGP",
+    "status": 200,
+    "pages": 1,
+    "n_events": 0,
+    "n_markets": 0,
+    "note": "",
+    "fetched_ts": 1789441713.7580914
+   },
+   "KXMVENFLMULTIGAMEEXTENDED": {
+    "series": "KXMVENFLMULTIGAMEEXTENDED",
+    "status": 200,
+    "pages": 1,
+    "n_events": 0,
+    "n_markets": 0,
+    "note": "",
+    "fetched_ts": 1789441730.7810085
+   },
+   "KXNFLPREPACK3ML": {
+    "series": "KXNFLPREPACK3ML",
+    "status": 200,
+    "pages": 1,
+    "n_events": 0,
+    "n_markets": 0,
+    "note": "",
+    "fetched_ts": 1789441761.425152
+   },
+   "KXMVENFLSINGLEGAME": {
+    "series": "KXMVENFLSINGLEGAME",
+    "status": 200,
+    "pages": 1,
+    "n_events": 0,
+    "n_markets": 0,
+    "note": "",
+    "fetched_ts": 1789441763.4298635
+   },
+   "KXNFLPREPACKSGPSPREAD": {
+    "series": "KXNFLPREPACKSGPSPREAD",
+    "status": 200,
+    "pages": 1,
+    "n_events": 0,
+    "n_markets": 0,
+    "note": "",
+    "fetched_ts": 1789441766.9291618
+   },
+   "KXNFLCOMBO": {
+    "series": "KXNFLCOMBO",
+    "status": 200,
+    "pages": 1,
+    "n_events": 0,
+    "n_markets": 0,
+    "note": "",
+    "fetched_ts": 1789441802.4743447
+   },
+   "KXNFLPREPACK2ML": {
+    "series": "KXNFLPREPACK2ML",
+    "status": 200,
+    "pages": 1,
+    "n_events": 0,
+    "n_markets": 0,
+    "note": "",
+    "fetched_ts": 1789441808.4696827
+   },
+   "KXNFLPREPACK": {
+    "series": "KXNFLPREPACK",
+    "status": 200,
+    "pages": 1,
+    "n_events": 0,
+    "n_markets": 0,
+    "note": "",
+    "fetched_ts": 1789441821.4876595
+   },
+   "KXNFLPREPACK1Q1H": {
+    "series": "KXNFLPREPACK1Q1H",
+    "status": 200,
+    "pages": 1,
+    "n_events": 0,
+    "n_markets": 0,
+    "note": "",
+    "fetched_ts": 1789441821.9894192
+   },
+   "KXMVENFLMULTIGAME": {
+    "series": "KXMVENFLMULTIGAME",
+    "status": 200,
+    "pages": 1,
+    "n_events": 0,
+    "n_markets": 0,
+    "note": "",
+    "fetched_ts": 1789441828.5183573
+   },
+   "KXNFLPREPACK1HFT": {
+    "series": "KXNFLPREPACK1HFT",
+    "status": 200,
+    "pages": 1,
+    "n_events": 0,
+    "n_markets": 0,
+    "note": "",
+    "fetched_ts": 1789441848.012222
+   }
+  },
+  "markets_rows": 0
+ },
+ "raw": {
+  "shards": 172,
+  "days": [
+   "2026-09-23",
+   "2026-09-24",
+   "2026-09-25",
+   "2026-09-26",
+   "2026-09-27",
+   "2026-09-28",
+   "2026-09-29",
+   "2026-09-30"
+  ],
+  "lines_by_endpoint": {
+   "orderbooks": 89009,
+   "markets": 61558,
+   "series": 7
+  },
+  "lines_mentioning_pack_by_endpoint": {
+   "series": 7
+  },
+  "pack_market_tickers_seen": [],
+  "torn_members": 0,
+  "latest_series_ts": 1790659716.0274959,
+  "latest_series_pack_fees": [
+   {
+    "ticker": "KXNFLPREPACK",
+    "title": "MVE NFL Pre Pack",
+    "frequency": "one_off",
+    "fee_type": "quadratic",
+    "fee_multiplier": 1
+   },
+   {
+    "ticker": "KXNFLPREPACKSGPSPREAD",
+    "title": "MVE NFL Pre Pack",
+    "frequency": "custom",
+    "fee_type": "quadratic",
+    "fee_multiplier": 1
+   },
+   {
+    "ticker": "KXNFLCOMBO",
+    "title": "NFL COMBO",
+    "frequency": "one_off",
+    "fee_type": "quadratic",
+    "fee_multiplier": 1
+   },
+   {
+    "ticker": "KXNFLPREPACK1HFT",
+    "title": "MVE NFL Pre Pack",
+    "frequency": "custom",
+    "fee_type": "quadratic",
+    "fee_multiplier": 1
+   },
+   {
+    "ticker": "KXNFLPREPACK1Q1H",
+    "title": "MVE NFL Pre Pack",
+    "frequency": "custom",
+    "fee_type": "quadratic",
+    "fee_multiplier": 1
+   },
+   {
+    "ticker": "KXNFLPREPACK2ML",
+    "title": "MVE NFL Pre Pack",
+    "frequency": "one_off",
+    "fee_type": "quadratic",
+    "fee_multiplier": 1
+   },
+   {
+    "ticker": "KXNFLPREPACK3ML",
+    "title": "MVE NFL Pre Pack",
+    "frequency": "one_off",
+    "fee_type": "quadratic",
+    "fee_multiplier": 1
+   }
+  ]
+ },
+ "probe": {
+  "all_markets_KXNFLPREPACKSGP": {
+   "pages": 1,
+   "hit_page_cap": false,
+   "n_markets": 36,
+   "n_events": 2,
+   "status": {
+    "closed": 36
+   },
+   "close_min": "2025-12-08T03:25:00Z",
+   "close_max": "2025-12-09T07:15:00Z",
+   "n_volume_gt0": 0,
+   "volume_total": 0.0,
+   "volume_median": 0.0,
+   "volume_p90": 0.0,
+   "volume_max": 0.0
+  },
+  "all_markets_KXMVENFLMULTIGAMEEXTENDED": {
+   "pages": 1,
+   "hit_page_cap": false,
+   "n_markets": 0,
+   "n_events": 0,
+   "status": {},
+   "close_min": null,
+   "close_max": null,
+   "n_volume_gt0": 0,
+   "volume_total": 0,
+   "volume_median": null,
+   "volume_p90": null,
+   "volume_max": null
+  },
+  "all_markets_KXNFLPREPACK3ML": {
+   "pages": 1,
+   "hit_page_cap": false,
+   "n_markets": 0,
+   "n_events": 0,
+   "status": {},
+   "close_min": null,
+   "close_max": null,
+   "n_volume_gt0": 0,
+   "volume_total": 0,
+   "volume_median": null,
+   "volume_p90": null,
+   "volume_max": null
+  },
+  "all_markets_KXMVENFLSINGLEGAME": {
+   "pages": 1,
+   "hit_page_cap": false,
+   "n_markets": 0,
+   "n_events": 0,
+   "status": {},
+   "close_min": null,
+   "close_max": null,
+   "n_volume_gt0": 0,
+   "volume_total": 0,
+   "volume_median": null,
+   "volume_p90": null,
+   "volume_max": null
+  },
+  "all_markets_KXNFLPREPACKSGPSPREAD": {
+   "pages": 1,
+   "hit_page_cap": false,
+   "n_markets": 0,
+   "n_events": 0,
+   "status": {},
+   "close_min": null,
+   "close_max": null,
+   "n_volume_gt0": 0,
+   "volume_total": 0,
+   "volume_median": null,
+   "volume_p90": null,
+   "volume_max": null
+  },
+  "all_markets_KXNFLCOMBO": {
+   "pages": 1,
+   "hit_page_cap": false,
+   "n_markets": 0,
+   "n_events": 0,
+   "status": {},
+   "close_min": null,
+   "close_max": null,
+   "n_volume_gt0": 0,
+   "volume_total": 0,
+   "volume_median": null,
+   "volume_p90": null,
+   "volume_max": null
+  },
+  "all_markets_KXNFLPREPACK2ML": {
+   "pages": 1,
+   "hit_page_cap": false,
+   "n_markets": 0,
+   "n_events": 0,
+   "status": {},
+   "close_min": null,
+   "close_max": null,
+   "n_volume_gt0": 0,
+   "volume_total": 0,
+   "volume_median": null,
+   "volume_p90": null,
+   "volume_max": null
+  },
+  "all_markets_KXNFLPREPACK": {
+   "pages": 1,
+   "hit_page_cap": false,
+   "n_markets": 0,
+   "n_events": 0,
+   "status": {},
+   "close_min": null,
+   "close_max": null,
+   "n_volume_gt0": 0,
+   "volume_total": 0,
+   "volume_median": null,
+   "volume_p90": null,
+   "volume_max": null
+  },
+  "all_markets_KXNFLPREPACK1Q1H": {
+   "pages": 1,
+   "hit_page_cap": false,
+   "n_markets": 0,
+   "n_events": 0,
+   "status": {},
+   "close_min": null,
+   "close_max": null,
+   "n_volume_gt0": 0,
+   "volume_total": 0,
+   "volume_median": null,
+   "volume_p90": null,
+   "volume_max": null
+  },
+  "all_markets_KXMVENFLMULTIGAME": {
+   "pages": 1,
+   "hit_page_cap": false,
+   "n_markets": 0,
+   "n_events": 0,
+   "status": {},
+   "close_min": null,
+   "close_max": null,
+   "n_volume_gt0": 0,
+   "volume_total": 0,
+   "volume_median": null,
+   "volume_p90": null,
+   "volume_max": null
+  },
+  "all_markets_KXNFLPREPACK1HFT": {
+   "pages": 1,
+   "hit_page_cap": false,
+   "n_markets": 0,
+   "n_events": 0,
+   "status": {},
+   "close_min": null,
+   "close_max": null,
+   "n_volume_gt0": 0,
+   "volume_total": 0,
+   "volume_median": null,
+   "volume_p90": null,
+   "volume_max": null
+  },
+  "series_KXNFLPREPACKSGP": {
+   "status": 200,
+   "bytes": 809,
+   "fee_type": "quadratic",
+   "fee_multiplier": 1
+  },
+  "markets_KXNFLPREPACKSGP": {
+   "status": 200,
+   "bytes": 72206,
+   "n_markets": 36
+  },
+  "events_KXNFLPREPACKSGP": {
+   "status": 200,
+   "bytes": 47006,
+   "n_events": 92
+  },
+  "open_markets_KXNFLPREPACKSGP": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "series_KXMVENFLMULTIGAMEEXTENDED": {
+   "status": 200,
+   "bytes": 892,
+   "fee_type": "quadratic",
+   "fee_multiplier": 1
+  },
+  "markets_KXMVENFLMULTIGAMEEXTENDED": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "events_KXMVENFLMULTIGAMEEXTENDED": {
+   "status": 200,
+   "bytes": 42,
+   "n_events": 0
+  },
+  "open_markets_KXMVENFLMULTIGAMEEXTENDED": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "series_KXNFLPREPACK3ML": {
+   "status": 200,
+   "bytes": 1488,
+   "fee_type": "quadratic",
+   "fee_multiplier": 1
+  },
+  "markets_KXNFLPREPACK3ML": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "events_KXNFLPREPACK3ML": {
+   "status": 200,
+   "bytes": 9782,
+   "n_events": 16
+  },
+  "open_markets_KXNFLPREPACK3ML": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "series_KXMVENFLSINGLEGAME": {
+   "status": 200,
+   "bytes": 877,
+   "fee_type": "quadratic",
+   "fee_multiplier": 1
+  },
+  "markets_KXMVENFLSINGLEGAME": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "events_KXMVENFLSINGLEGAME": {
+   "status": 200,
+   "bytes": 42,
+   "n_events": 0
+  },
+  "open_markets_KXMVENFLSINGLEGAME": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "series_KXNFLPREPACKSGPSPREAD": {
+   "status": 200,
+   "bytes": 1493,
+   "fee_type": "quadratic",
+   "fee_multiplier": 1
+  },
+  "markets_KXNFLPREPACKSGPSPREAD": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "events_KXNFLPREPACKSGPSPREAD": {
+   "status": 200,
+   "bytes": 42,
+   "n_events": 0
+  },
+  "open_markets_KXNFLPREPACKSGPSPREAD": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "series_KXNFLCOMBO": {
+   "status": 200,
+   "bytes": 1540,
+   "fee_type": "quadratic",
+   "fee_multiplier": 1
+  },
+  "markets_KXNFLCOMBO": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "events_KXNFLCOMBO": {
+   "status": 200,
+   "bytes": 3467,
+   "n_events": 6
+  },
+  "open_markets_KXNFLCOMBO": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "series_KXNFLPREPACK2ML": {
+   "status": 200,
+   "bytes": 1488,
+   "fee_type": "quadratic",
+   "fee_multiplier": 1
+  },
+  "markets_KXNFLPREPACK2ML": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "events_KXNFLPREPACK2ML": {
+   "status": 200,
+   "bytes": 13066,
+   "n_events": 22
+  },
+  "open_markets_KXNFLPREPACK2ML": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "series_KXNFLPREPACK": {
+   "status": 200,
+   "bytes": 1493,
+   "fee_type": "quadratic",
+   "fee_multiplier": 1
+  },
+  "markets_KXNFLPREPACK": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "events_KXNFLPREPACK": {
+   "status": 200,
+   "bytes": 8602,
+   "n_events": 17
+  },
+  "open_markets_KXNFLPREPACK": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "series_KXNFLPREPACK1Q1H": {
+   "status": 200,
+   "bytes": 1488,
+   "fee_type": "quadratic",
+   "fee_multiplier": 1
+  },
+  "markets_KXNFLPREPACK1Q1H": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "events_KXNFLPREPACK1Q1H": {
+   "status": 200,
+   "bytes": 42,
+   "n_events": 0
+  },
+  "open_markets_KXNFLPREPACK1Q1H": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "series_KXMVENFLMULTIGAME": {
+   "status": 200,
+   "bytes": 875,
+   "fee_type": "quadratic",
+   "fee_multiplier": 1
+  },
+  "markets_KXMVENFLMULTIGAME": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "events_KXMVENFLMULTIGAME": {
+   "status": 200,
+   "bytes": 42,
+   "n_events": 0
+  },
+  "open_markets_KXMVENFLMULTIGAME": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "series_KXNFLPREPACK1HFT": {
+   "status": 200,
+   "bytes": 1525,
+   "fee_type": "quadratic",
+   "fee_multiplier": 1
+  },
+  "markets_KXNFLPREPACK1HFT": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "events_KXNFLPREPACK1HFT": {
+   "status": 200,
+   "bytes": 1563,
+   "n_events": 3
+  },
+  "open_markets_KXNFLPREPACK1HFT": {
+   "status": 200,
+   "bytes": 27,
+   "n_markets": 0
+  },
+  "mve_collections_nfl": {
+   "status": 200,
+   "bytes": 998363,
+   "n_multivariate_contracts": 200,
+   "n_nfl_collections": 4,
+   "nfl_collection_tickers": [
+    "KXMVESPORTSMULTIGAMEEXTENDED-R",
+    "KXMVECROSSCATEGORY-SHARD1-R",
+    "KXMVECROSSCATEGORY-R",
+    "KXMVENFLSINGLEGAME-26AUG06CARARI"
+   ]
+  }
+ },
+ "hard_exit": {
+  "two_sided_packs": 0,
+  "two_sided_events": 0,
+  "min_packs": 50,
+  "min_games": 8,
+  "fires": true
+ }
+}
