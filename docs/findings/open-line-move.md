@@ -127,14 +127,19 @@ four-day-out price shows no relationship either.
 - **Nothing about the true opening number.** Two things set the open on disk:
   - For week 3 it is the logger's discovery horizon (`KALSHI_CLOSE_HORIZON_DAYS` = 7, counted
     from each market's close_ts), which gives a lead of about 119.8h.
-  - For week 2 it is the 14-day retention edge, which gives about 108.5h. That edge moves
-    forward in real time, so **a re-run tomorrow will read later opens for week 2**, and
-    around 10-02 onward week 2 leaves the store altogether.
+  - For week 2 it is where the 14-day retention prune had reached (earliest live quote
+    09-16 04:31 UTC), which gives about 108.5h. **That edge is now frozen.** a-60 placed a
+    `quote_retention_hold` on weeks 2-3 to 2027-03-01, and all 96 pivot markets used here
+    carry it (checked in `market_log.db`, mode=ro). So a re-run reads the same opens. What
+    was pruned before the hold, the first ~12h of week 2's listing, is gone from the store;
+    it is re-derivable only from the R2 raw archive.
 - **Nothing about weeks 1 or 4.**
   - Week 1's live quotes were pruned. Its only early prices are candles, and it has no close.
   - Week 4 has not been played. Its opens are on disk now, and its closes arrive 10-01 to
     10-05.
-  - Its opens will be pruned about 14 days after ingest (from about 10-10), unless held.
+  - Its opens will be pruned about 14 days after ingest (from about 10-10) unless week 4 is
+    held the way a-60 held weeks 2-3 (`jobs.hold_weeks --week 4`). That is a write to
+    `market_log.db`, so it is track A's step, not this unit's.
 - **Nothing about 2023-2025**, where only closes were stored.
 - **Nothing about sportsbooks.** Kalshi is the only 2026 venue with a history on disk; Odds
   API 2026 rows are event markers and props only.

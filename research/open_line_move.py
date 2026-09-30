@@ -124,8 +124,9 @@ def slope_r(x, y):
     return b, float(np.corrcoef(x, y)[0, 1])
 
 
-def boot(fn, n, draws, seed=rc.SEED):
+def boot(fn, n, draws, seed=None):
     """Rows are games: resample rows. fn(idx) -> float|None."""
+    seed = rc.SEED if seed is None else seed
     est = fn(np.arange(n))
     rng = np.random.default_rng(seed)
     v = [fn(rng.integers(0, n, n)) for _ in range(draws)]

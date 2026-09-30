@@ -197,3 +197,12 @@ slope from pure mean reversion of a noisy open, with no information in the model
    If the constant draws a slope as large as the model's, then "the line moves toward the
    model" means "the open reverts toward the middle", and the model adds nothing to it.
    A game with no B snapshot drops out of checks 1 and 2 only, and is counted.
+
+## Correction 1 — 2026-09-30, after the real run
+
+The section *What was done before this file* says week 2's retention edge "moves forward in
+real time as the logger prunes". **That was true when I counted and is no longer true.** a-60
+(track A, the same day) holds 2026 weeks 2-3 Kalshi game/spread/total markets to 2027-03-01 in
+`quote_retention_hold`. The findings verify the hold on all 96 pivot markets. Week 2's open
+stays where the prune had reached before the hold (about 108.5h lead), and a re-run reads the
+same opens. No measure changes.
