@@ -34,9 +34,12 @@
       "lab_catalogue": "LabCatalogueFile",
       "season_model": "SeasonModelFile",
       "season_projection": "SeasonProjectionFile",
-      "landing": "LandingFile"
+      "landing": "LandingFile",
+      "record.published": "RecordPublishedFile",
+      "record.research": "RecordResearchFile",
+      "record.backtest": "RecordBacktestFile"
     },
-    "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.market_calibration", "research.execution", "coverage", "landing"],
+    "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.market_calibration", "research.execution", "coverage", "landing", "record.research", "record.backtest"],
     "keys": [
       {"pattern": "^sports\\.json$", "kind": "sports"},
       {"pattern": "^[a-z0-9]+/manifest\\.json$", "kind": "sport_manifest"},
@@ -64,7 +67,10 @@
       {"pattern": "^lab/[a-z0-9]+/catalogue\\.json$", "kind": "lab_catalogue"},
       {"pattern": "^season/[a-z0-9]+/division\\.json$", "kind": "season_model"},
       {"pattern": "^season/[a-z0-9]+/projection\\.json$", "kind": "season_projection"},
-      {"pattern": "^landing\\.json$", "kind": "landing"}
+      {"pattern": "^landing\\.json$", "kind": "landing"},
+      {"pattern": "^record/[a-z0-9]+/published\\.json$", "kind": "record.published"},
+      {"pattern": "^record/research\\.json$", "kind": "record.research"},
+      {"pattern": "^record/backtest\\.json$", "kind": "record.backtest"}
     ],
     "tables": {
       "comment": "Keys that are NOT JSON and are not validated by a $def: columnar files a producer appends to. Each entry names its pattern, its format and its columns with their types, and the producer asserts its own column list and types against this entry before it writes, so the two cannot drift. The uploader ships a non-JSON key only when it matches a pattern here, and NEVER deletes one by absence: an append-only file that vanished because one run did not re-declare it would destroy the only record of what was published.",
@@ -7545,6 +7551,1171 @@
         "freshness",
         "carried",
         "unavailable"
+      ],
+      "additionalProperties": false
+    },
+
+    "RecordInterval": {
+      "type": "object",
+      "description": "A week-block bootstrap, blocking on week and on nothing finer. Null bounds when n_blocks < 2 (one block has no variance to estimate). informative is false while n_blocks < 3: a page reads it and says so in words.",
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "block": {
+          "const": "week"
+        },
+        "n_blocks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "draws": {
+          "type": "integer"
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "hit_rate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Interval"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "margin_pp": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Interval"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "informative": {
+          "type": "boolean"
+        },
+        "why": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "block",
+        "n_blocks",
+        "draws",
+        "seed",
+        "hit_rate",
+        "margin_pp",
+        "informative",
+        "why"
+      ],
+      "additionalProperties": false
+    },
+    "RecordWeek": {
+      "type": "object",
+      "description": "One week of published leans. hit_rate is cleared / (cleared + missed); margin_pp is 100 x (hit_rate_priced - breakeven) over the n_priced leans with a valid ledgered price, i.e. the record measured against break-even at the price published, never against 50%.",
+      "properties": {
+        "season": {
+          "type": "integer"
+        },
+        "week": {
+          "type": "integer"
+        },
+        "n": {
+          "type": "integer"
+        },
+        "cleared": {
+          "type": "integer"
+        },
+        "missed": {
+          "type": "integer"
+        },
+        "push": {
+          "type": "integer"
+        },
+        "void": {
+          "type": "integer"
+        },
+        "graded": {
+          "type": "integer"
+        },
+        "ungraded": {
+          "type": "integer"
+        },
+        "n_priced": {
+          "type": "integer"
+        },
+        "n_price_invalid": {
+          "type": "integer"
+        },
+        "hit_rate": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "hit_rate_priced": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "breakeven": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "margin_pp": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "units": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "roi": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "season",
+        "week",
+        "n",
+        "cleared",
+        "missed",
+        "push",
+        "void",
+        "graded",
+        "ungraded",
+        "n_priced",
+        "n_price_invalid",
+        "hit_rate",
+        "hit_rate_priced",
+        "breakeven",
+        "margin_pp",
+        "units",
+        "roi"
+      ],
+      "additionalProperties": false
+    },
+    "RecordLean": {
+      "type": "object",
+      "description": "One published lean as the ledger holds it: what a reader can check, row by row, against board/nfl/ledger.csv.",
+      "properties": {
+        "lean_id": {
+          "type": "string"
+        },
+        "season": {
+          "type": "integer"
+        },
+        "week": {
+          "type": "integer"
+        },
+        "game_id": {
+          "type": "string"
+        },
+        "gsis_id": {
+          "type": "string"
+        },
+        "market": {
+          "type": "string"
+        },
+        "line": {
+          "type": "number"
+        },
+        "side": {
+          "enum": [
+            "over",
+            "under"
+          ]
+        },
+        "read_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kickoff_ts": {
+          "type": "number"
+        },
+        "price": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "The lean-side American price the ledger published, or null when the ledgered value is not a valid American price (see price_ledgered)."
+        },
+        "price_ledgered": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "The ledger's price column as written. The Board takes a median of American odds, which lands inside (-100, 100) when an even number of books straddles even money."
+        },
+        "breakeven": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mkt_p_over": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "model_p_over": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "model_p_side": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "gap_pp": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "band": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "state": {
+          "enum": [
+            "graded",
+            "void",
+            "upcoming",
+            "live"
+          ]
+        },
+        "result": {
+          "enum": [
+            "cleared",
+            "missed",
+            "push",
+            null
+          ]
+        },
+        "actual": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "void_reason": {
+          "enum": [
+            "market_pulled",
+            "inactive",
+            "no_snap",
+            null
+          ]
+        },
+        "settled_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "lean_id",
+        "season",
+        "week",
+        "game_id",
+        "gsis_id",
+        "market",
+        "line",
+        "side",
+        "read_at",
+        "kickoff_ts",
+        "price",
+        "price_ledgered",
+        "breakeven",
+        "mkt_p_over",
+        "model_p_over",
+        "model_p_side",
+        "gap_pp",
+        "band",
+        "model_version",
+        "state",
+        "result",
+        "actual",
+        "void_reason",
+        "settled_at"
+      ],
+      "additionalProperties": false
+    },
+    "RecordPublishedFile": {
+      "type": "object",
+      "description": "THE PUBLISHED TIER (a-57): leans written to the Board ledger before kickoff, graded after. A projection of the ledger alone - never re-derived from anything else, never combined with the research or backtest tier. It supports 'these were our calls' and nothing wider.",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "record.published"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "tier": {
+          "const": "published"
+        },
+        "supports": {
+          "type": "string"
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "table": {
+              "const": "board_ledger"
+            },
+            "key": {
+              "type": "string"
+            },
+            "rows": {
+              "type": "integer"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "table",
+            "key",
+            "rows",
+            "sha256"
+          ],
+          "additionalProperties": false
+        },
+        "chain": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "head": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "rows_verified": {
+                  "type": "integer"
+                },
+                "verified_at": {
+                  "$ref": "#/$defs/Timestamp"
+                }
+              },
+              "required": [
+                "head",
+                "rows_verified",
+                "verified_at"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "description": "a-48's ledger hash chain, verified at build: its head, the rows it verified and when. null when the chain is not in the producer's tree or the ledger predates it - chain_note says which. No substitute integrity figure is ever published here."
+        },
+        "chain_note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "n_published": {
+          "type": "integer"
+        },
+        "n_graded": {
+          "type": "integer"
+        },
+        "n_void": {
+          "type": "integer"
+        },
+        "n_ungraded": {
+          "type": "integer"
+        },
+        "weeks_published": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "season": {
+                "type": "integer"
+              },
+              "week": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "season",
+              "week"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "weeks_graded": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "season": {
+                "type": "integer"
+              },
+              "week": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "season",
+              "week"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "excluded_not_pre_kickoff": {
+          "type": "object",
+          "description": "Leans whose publication cannot be shown to predate their own kickoff. They are not published calls and are in no count above.",
+          "properties": {
+            "n": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rule": {
+              "type": "string"
+            },
+            "rows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "lean_id": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "terminal_event": {
+                    "enum": [
+                      "graded",
+                      "void",
+                      null
+                    ]
+                  }
+                },
+                "required": [
+                  "lean_id",
+                  "reason",
+                  "terminal_event"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "n",
+            "rule",
+            "rows"
+          ],
+          "additionalProperties": false
+        },
+        "record": {
+          "type": "object",
+          "properties": {
+            "cleared": {
+              "type": "integer"
+            },
+            "missed": {
+              "type": "integer"
+            },
+            "push": {
+              "type": "integer"
+            },
+            "void": {
+              "type": "integer"
+            },
+            "n_priced": {
+              "type": "integer"
+            },
+            "n_price_invalid": {
+              "type": "integer"
+            },
+            "hit_rate": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "hit_rate_priced": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "breakeven": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "margin_pp": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "units": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "roi": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "price_rule": {
+              "type": "string"
+            },
+            "interval": {
+              "$ref": "#/$defs/RecordInterval"
+            }
+          },
+          "required": [
+            "cleared",
+            "missed",
+            "push",
+            "void",
+            "n_priced",
+            "n_price_invalid",
+            "hit_rate",
+            "hit_rate_priced",
+            "breakeven",
+            "margin_pp",
+            "units",
+            "roi",
+            "price_rule",
+            "interval"
+          ],
+          "additionalProperties": false
+        },
+        "weeks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecordWeek"
+          }
+        },
+        "leans": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecordLean"
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "tier",
+        "supports",
+        "source",
+        "chain",
+        "chain_note",
+        "n_published",
+        "n_graded",
+        "n_void",
+        "n_ungraded",
+        "weeks_published",
+        "weeks_graded",
+        "excluded_not_pre_kickoff",
+        "record",
+        "weeks",
+        "leans"
+      ],
+      "additionalProperties": false
+    },
+    "RecordHeadline": {
+      "type": "object",
+      "description": "Parsed from `quote`, which appears verbatim in the row's pre-registration or findings document.",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "estimate": {
+          "type": "number"
+        },
+        "lo": {
+          "type": "number"
+        },
+        "hi": {
+          "type": "number"
+        },
+        "unit": {
+          "enum": [
+            "pp",
+            "brier",
+            "auc",
+            "slope"
+          ]
+        },
+        "quote": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "estimate",
+        "lo",
+        "hi",
+        "unit",
+        "quote"
+      ],
+      "additionalProperties": false
+    },
+    "RecordResearchRow": {
+      "type": "object",
+      "description": "One pre-registered hypothesis. registered_at is the commit that ADDED the pre-registration, with its author date.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "prereg": {
+          "type": "string"
+        },
+        "findings": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "question": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "registered_at": {
+          "type": "object",
+          "properties": {
+            "commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "author_date": {
+              "$ref": "#/$defs/Timestamp"
+            }
+          },
+          "required": [
+            "commit",
+            "author_date"
+          ],
+          "additionalProperties": false
+        },
+        "verdict": {
+          "enum": [
+            "supported",
+            "retired",
+            "open",
+            "stopped_by_gate"
+          ]
+        },
+        "headline": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecordHeadline"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "power": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "What a retirement was retired ON - venue, window, sample and interval. Never empty on a retired row (the producer refuses one): a bare 'retired' is a stronger claim than the data makes."
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "classified": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "prereg",
+        "findings",
+        "question",
+        "registered_at",
+        "verdict",
+        "headline",
+        "power",
+        "note",
+        "classified"
+      ],
+      "additionalProperties": false
+    },
+    "RecordResearchFile": {
+      "type": "object",
+      "description": "THE RESEARCH TIER (a-57): one row per tracked pre-registration, read at the producer's HEAD. It supports 'this is what we tested and what failed'. No row is pooled with the published or backtest tier.",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "record.research"
+        },
+        "sport": {
+          "type": "null"
+        },
+        "tier": {
+          "const": "research"
+        },
+        "supports": {
+          "type": "string"
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "preregistrations": {
+              "type": "string"
+            },
+            "findings": {
+              "type": "string"
+            },
+            "verdicts": {
+              "type": "string"
+            },
+            "read_at_commit": {
+              "type": "string"
+            },
+            "tracked_only": {
+              "const": true
+            }
+          },
+          "required": [
+            "preregistrations",
+            "findings",
+            "verdicts",
+            "read_at_commit",
+            "tracked_only"
+          ],
+          "additionalProperties": false
+        },
+        "n_rows": {
+          "type": "integer"
+        },
+        "by_verdict": {
+          "type": "object",
+          "properties": {
+            "supported": {
+              "type": "integer"
+            },
+            "retired": {
+              "type": "integer"
+            },
+            "open": {
+              "type": "integer"
+            },
+            "stopped_by_gate": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "supported",
+            "retired",
+            "open",
+            "stopped_by_gate"
+          ],
+          "additionalProperties": false
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecordResearchRow"
+          }
+        },
+        "unclassified": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "findings_unlinked": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "tier",
+        "supports",
+        "source",
+        "n_rows",
+        "by_verdict",
+        "rows",
+        "unclassified",
+        "findings_unlinked"
+      ],
+      "additionalProperties": false
+    },
+    "RecordFigures": {
+      "type": "object",
+      "properties": {
+        "calibration_share": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "by_season": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "season": {
+                "type": "integer"
+              },
+              "model_recal_minus_constant": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 3,
+                "maxItems": 3
+              },
+              "close_minus_constant": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 3,
+                "maxItems": 3
+              }
+            },
+            "required": [
+              "season",
+              "model_recal_minus_constant",
+              "close_minus_constant"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "auc_model_minus_close": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "RecordBacktestFile": {
+      "type": "object",
+      "description": "THE BACKTEST TIER (a-57): the walk-forward against the book close, at scale, with the counts that bound it. It supports 'the method was checked at scale'. Never combined with the published or research tier.",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "record.backtest"
+        },
+        "sport": {
+          "type": "null"
+        },
+        "tier": {
+          "const": "backtest"
+        },
+        "supports": {
+          "type": "string"
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "doc": {
+              "type": "string"
+            },
+            "commit": {
+              "type": "string"
+            },
+            "author_date": {
+              "$ref": "#/$defs/Timestamp"
+            }
+          },
+          "required": [
+            "doc",
+            "commit",
+            "author_date"
+          ],
+          "additionalProperties": false
+        },
+        "population": {
+          "type": "object",
+          "properties": {
+            "sport": {
+              "type": "string"
+            },
+            "markets": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "side": {
+              "type": "string"
+            },
+            "benchmark": {
+              "type": "string"
+            },
+            "seasons": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            },
+            "out_of_sample_outcomes": {
+              "type": "integer"
+            },
+            "games": {
+              "type": "integer"
+            },
+            "held_out": {
+              "type": "object",
+              "properties": {
+                "rule": {
+                  "type": "string"
+                },
+                "final_season": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "rule",
+                "final_season"
+              ],
+              "additionalProperties": false
+            },
+            "replay_rows": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "settled_props": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "not_in_source": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "sport",
+            "markets",
+            "side",
+            "benchmark",
+            "seasons",
+            "out_of_sample_outcomes",
+            "games",
+            "held_out",
+            "replay_rows",
+            "settled_props",
+            "not_in_source"
+          ],
+          "additionalProperties": false
+        },
+        "seasons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "season": {
+                "type": "integer"
+              },
+              "n": {
+                "type": "integer"
+              },
+              "brier_model_minus_close": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "season",
+              "n",
+              "brier_model_minus_close"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "register_figure": {
+          "type": "object",
+          "properties": {
+            "lo": {
+              "type": "number"
+            },
+            "hi": {
+              "type": "number"
+            },
+            "n": {
+              "type": "integer"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "lo",
+            "hi",
+            "n",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "superseded": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "lo": {
+                "type": "number"
+              },
+              "hi": {
+                "type": "number"
+              },
+              "n": {
+                "type": "integer"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "last_stated": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "lo",
+              "hi",
+              "n",
+              "reason",
+              "last_stated"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The one string a page prints. It carries all three clauses - the loss is mostly over-confidence, a corrected model and the close both barely beat a constant base rate, the close still orders outcomes better - so no consumer can render the first alone. Each clause is worded from its figures."
+        },
+        "statement_parts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "clause": {
+                "enum": [
+                  "over_confidence",
+                  "constant_base_rate",
+                  "ordering"
+                ]
+              },
+              "text": {
+                "type": "string"
+              },
+              "figures": {
+                "$ref": "#/$defs/RecordFigures"
+              }
+            },
+            "required": [
+              "clause",
+              "text",
+              "figures"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "tier",
+        "supports",
+        "source",
+        "population",
+        "seasons",
+        "register_figure",
+        "superseded",
+        "statement",
+        "statement_parts"
       ],
       "additionalProperties": false
     }

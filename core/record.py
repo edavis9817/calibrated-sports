@@ -144,7 +144,7 @@ def _summ(leans):
     units = sum(_units(x["price"], x["_bucket"]) for x in staked) if staked else None
     invalid = sum(1 for x in leans if x["price"] is None and x["price_ledgered"] is not None)
     return dict(c, graded=c["cleared"] + c["missed"] + c["push"], n_price_invalid=invalid,
-                hit_rate=_r(hit), breakeven=_r(be),
+                hit_rate=_r(hit), hit_rate_priced=_r(hit_p), breakeven=_r(be),
                 margin_pp=_r(100 * (hit_p - be), 2) if priced else None,
                 n_priced=len(priced), units=_r(units, 3),
                 roi=_r(units / len(staked)) if staked else None)
@@ -262,8 +262,8 @@ def build_published(ledger, now_ts, chain=None, source=None):
                                               "its event_at are strictly before its own kickoff_ts"),
                                      "rows": sorted(excluded, key=lambda e: e["lean_id"])},
         "record": {**{k: total[k] for k in ("cleared", "missed", "push", "void", "hit_rate",
-                                             "breakeven", "margin_pp", "n_priced",
-                                             "n_price_invalid", "units", "roi")},
+                                             "hit_rate_priced", "breakeven", "margin_pp",
+                                             "n_priced", "n_price_invalid", "units", "roi")},
                    "price_rule": ("break-even is the vig-inclusive probability of the lean-side "
                                   "price the ledger published; a ledgered price inside (-100, 100) "
                                   "is not an American price and is left out of break-even and "

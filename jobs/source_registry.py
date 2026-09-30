@@ -506,6 +506,9 @@ KIND_INPUTS = {
         "landing": ("sport_manifest", "market", "research.calibration",
                     "research.hypotheses", "research.market_calibration", "lab_index",
                     "board_read", "board_index", "player_season"),
+        # a-57: record/{sport}/published.json is a projection of the Board's lean
+        # ledger alone, which board_read's producer writes.
+        "record.published": ("board_read",),
     },
     "cfb": {},
     "mlb": {},
@@ -563,6 +566,19 @@ KIND_EXTRA = {
         # (walk-forward bands) and the hard-coded R15 verdict - and the model it fits
         # at every read. F11's next-game rates are nflverse stats, already derived.
         "board_read": ("calibrated.walkforward", "calibrated.model"),
+        # a-57, the record. jobs/record_export.py reads committed documents, not the
+        # store; these are what the scripts behind them read, taken from a grep of
+        # their FROM/JOIN clauses (venue_spread, over_bias_exchange, live_exit_value,
+        # bias_by_moneyness, ranking_calibration, cfb_p1_markets): Odds API quotes and
+        # closes, Kalshi quotes / depth / the trades tape, nflverse player-weeks,
+        # games and snaps, and the walk-forward and model predictions.
+        "record.research": ("oddsapi", "kalshi.ladders", "kalshi.trades", "nflverse.stats",
+                            "nflverse.schedule", "nflverse.snap_counts",
+                            "calibrated.walkforward", "calibrated.model"),
+        # docs/findings/ranking-versus-calibration.md P1: brief 023's walk-forward
+        # against the de-vigged Odds API close, settled on nflverse stats and snaps.
+        "record.backtest": ("oddsapi", "nflverse.stats", "nflverse.schedule",
+                            "nflverse.snap_counts", "calibrated.walkforward"),
         # read nothing upstream: a static list, and this registry itself
         "sports": (),
         "sources": (),
