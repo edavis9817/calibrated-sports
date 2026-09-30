@@ -9014,7 +9014,7 @@
         },
         "season_stage": {
           "description": "Null only when `games` is empty. The part of the settlement record that applies to this week, against plain Elo, with the other part beside it. `statement` is the one string a page prints; it is worded from the intervals it quotes. The figures equal record.json's `by_stage` (or its plain-Elo baseline for `all`) - jobs/game_export.stage_agrees refuses both files otherwise.",
-          "oneOf": [
+          "anyOf": [
             {
               "type": "null"
             },
@@ -9049,7 +9049,7 @@
                   "description": "The words the interval licenses and nothing stronger: `better than` / `worse than` only when it excludes zero."
                 },
                 "other": {
-                  "oneOf": [
+                  "anyOf": [
                     {
                       "type": "null"
                     },
@@ -9516,7 +9516,7 @@
         },
         "market_comparison": {
           "type": "object",
-          "description": "NOT FOR DISPLAY (Ethan, 2026-09-30). The model against the nflverse moneyline close, de-vigged two-way. Figures only, deliberately no string: there is nothing here a page could print by accident. Not in the metric registry either, so the manifest never points a page at it.",
+          "description": "NOT FOR DISPLAY (Ethan, 2026-09-30). The model against the sport's published moneyline close, de-vigged two-way. Figures only, deliberately no string: there is nothing here a page could print by accident. Not in the metric registry either, so the manifest never points a page at it.",
           "properties": {
             "withheld": {
               "type": "object",
