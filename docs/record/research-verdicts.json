@@ -1,0 +1,109 @@
+{
+  "comment": "Unit a-57. The verdict of each pre-registered hypothesis, as its own findings document states it. The ROWS are not listed here: core.record.build_research makes one per tracked docs/*preregistration*.md, and a pre-registration with no entry here is published as `open`, unclassified. What this file holds is the one judgement prose cannot supply mechanically - which of supported / retired / open / stopped_by_gate the document says - plus sentences, and nothing here may type a figure: each headline is PARSED from `quote`, which must appear verbatim in the pre-registration or its findings document, and every number in question, power and note must appear in those documents too. A retired row with no power is refused.",
+  "rows": [
+    {
+      "id": "C03",
+      "prereg": "docs/C03-cfb-prop-preregistration.md",
+      "findings": null,
+      "question": "Can a record of college football player props yield an honest hit rate?",
+      "verdict": "stopped_by_gate",
+      "headline": null,
+      "power": null,
+      "note": "Stopped before any data was bought. The gate is the appearance gap: no public source records whether a college player dressed for a game, so a hit rate cannot be graded at any price. Nothing was measured, so this row says nothing about whether college props are fairly priced."
+    },
+    {
+      "id": "C19",
+      "prereg": "docs/C19-venue-spread-preregistration.md",
+      "findings": "docs/findings/venue-spread-2026-09-28.md",
+      "question": "Does the model forecast Kalshi's player-prop rungs better than the Kalshi mid it would trade against?",
+      "verdict": "retired",
+      "headline": {
+        "label": "Brier(model) minus Brier(Kalshi mid), lower is better for the model",
+        "quote": "**+0.0121 [+0.0049, +0.0198]**, MDE 0.0106",
+        "unit": "brier"
+      },
+      "power": "Retired on Kalshi KXNFLREC and KXNFLRSHATT, NFL 2026 weeks 2-3, before kickoff: 2,513 rungs over 31 games, minimum detectable difference 0.0106. The interval lies entirely above zero, so the model is measurably worse, not merely unproven.",
+      "note": "A replication: brief 021 had already found the model worse than the Kalshi mid on week 1."
+    },
+    {
+      "id": "C20",
+      "prereg": "docs/C20-over-bias-on-the-exchange-preregistration.md",
+      "findings": "docs/findings/over-bias-on-the-exchange.md",
+      "question": "Can the sportsbooks' overpriced over be collected on Kalshi by resting a bid on the under?",
+      "verdict": "retired",
+      "headline": {
+        "label": "a resting under bid at the NO touch, filled, per contract",
+        "quote": "**−0.60pp per contract [−9.18, +8.54]**",
+        "unit": "pp"
+      },
+      "power": "Retired on Kalshi REC/RSHATT weeks 2 and 3, 16 games, primary interval plus or minus 8.9pp.",
+      "note": "Retired means the rule fired on a point estimate at or below zero. It does not mean an edge of 1-2pp was shown not to exist: the primary interval is too wide to see one. The premise did not show on Kalshi's own prices either - the over is not measurably overpriced against its own mid, -0.40pp [-2.67, +2.07] over 2,513 rungs and 31 games."
+    },
+    {
+      "id": "C21",
+      "prereg": "docs/C21-live-exit-value-preregistration.md",
+      "findings": "docs/findings/live-exit-value.md",
+      "question": "Does the live Kalshi price of a player prop over-react to early in-game production?",
+      "verdict": "retired",
+      "headline": {
+        "label": "over-reaction slope: realised minus live mid, against how far the mid moved from pre-game",
+        "quote": "The pre-registered over-reaction slope is **+0.036 [−0.055, +0.120]**",
+        "unit": "slope"
+      },
+      "power": "Retired on Kalshi KXNFLREC and KXNFLRSHATT in-game, NFL 2026, 17 games and 1,592 settled rungs; the minimum detectable slope at 80% power is 0.13, so a smaller over-reaction could not have been seen.",
+      "note": "No over-reaction detected at this sample size; the point estimate leans toward under-reaction."
+    },
+    {
+      "id": "C21-endQ3",
+      "prereg": "docs/C21-live-exit-value-preregistration.md",
+      "findings": "docs/findings/live-exit-value.md",
+      "question": "At the end of the third quarter, is the live Kalshi over priced too high?",
+      "verdict": "open",
+      "headline": {
+        "label": "realised minus priced over at the end of Q3",
+        "quote": "at the end of Q3, the over is priced too high: −4.02pp [−6.92, −0.83]",
+        "unit": "pp"
+      },
+      "power": "One of four bias intervals, 17 games from essentially one week, with no multiplicity correction.",
+      "note": "Open, not a finding: a thing to re-measure, not to believe."
+    },
+    {
+      "id": "C22",
+      "prereg": "docs/C22-bias-by-moneyness-preregistration.md",
+      "findings": "docs/findings/bias-by-moneyness.md",
+      "question": "Does the sportsbooks' over bias flip deep in the money, so that heavily favoured overs are underpriced?",
+      "verdict": "retired",
+      "headline": {
+        "label": "realised minus priced over, overs priced 0.60 or higher, every book",
+        "quote": "−0.41 [−1.81, +0.93]",
+        "unit": "pp"
+      },
+      "power": "Retired on settled NFL player-prop overs, 2023-2025 regular season, every book's de-vigged close: 10,159 overs priced 0.60 or higher over 725 games. The interval spans zero, so a favourite underpricing of about 1pp cannot be excluded.",
+      "note": "The over bias does not flip deep in the money and does not deepen there either; it is a near-the-money effect. The deep tail is not the market's: 90% of those outcomes were priced by Kambi books (BetRivers/Unibet) alone, and 2025 contributes few of them."
+    },
+    {
+      "id": "C23",
+      "prereg": "docs/C23-the-joint-preregistration.md",
+      "findings": "docs/findings/the-joint.md",
+      "question": "Are low-threshold two-leg multiples underpriced?",
+      "verdict": "stopped_by_gate",
+      "headline": null,
+      "power": null,
+      "note": "The joint was never measured. The unit's own gate required c-22 to find the deep in-the-money over underpriced first, and it did not, so the unit stopped. This row does not say multiples are fairly priced; it says nobody looked."
+    },
+    {
+      "id": "C24",
+      "prereg": "docs/C24-ranking-versus-calibration-preregistration.md",
+      "findings": "docs/findings/ranking-versus-calibration.md",
+      "question": "Does the model order outcomes as well as the market, so that its loss is only a calibration problem?",
+      "verdict": "retired",
+      "headline": {
+        "label": "AUC of the model minus AUC of the book close, 2023-2025 walk-forward, pooled",
+        "quote": "| P1 pooled | 0.530 | 0.573 | **−0.043 [−0.054, −0.033]**",
+        "unit": "auc"
+      },
+      "power": "Retired in all five registered populations: the 2023, 2024 and 2025 walk-forward against the book close (16,041 outcomes over 852 games) and pooled, and Kalshi REC/RSHATT weeks 2-3 of 2026 (2,513 rungs, 31 games). Every AUC-difference interval excludes zero below.",
+      "note": "The model orders outcomes worse than the market in every registered population. Against the book close most of its loss is over-confidence; against the Kalshi ladder the loss is ordering and calibration is not at fault."
+    }
+  ]
+}
