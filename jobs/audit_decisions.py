@@ -28,10 +28,30 @@ The decision column is the claim itself, normalised (bold stripped, case folded,
 whitespace collapsed, trailing punctuation dropped) so formatting churn does not
 read as a missing decision.
 
-HISTORY IS READ FROM `git log --all`, not from the current branch, so a row that
-existed on any reachable commit must still be present. That is the property that
-matters: not "did main change" but "did anything ever recorded stop being
-recorded".
+HISTORY IS READ FROM THE ANCESTRY OF HEAD, EVERY PARENT OF EVERY MERGE (a-61).
+A row that existed on ANY commit this tree descends from must still be present -
+not "did main change" but "did anything this tree ever recorded stop being
+recorded". Merges are diffed against each parent (`-m`), so a row that only ever
+existed inside a merge resolution is history too, and `--full-history` stops a
+path-limited log from pruning a merged side branch whose resolution dropped the
+row - without it, exactly that merge was invisible (a-61's tests drive both).
+
+It used to read `git log --all`, and that asked a different question: "is every
+row on every branch in THIS tree". A row on an unmerged branch has not been lost
+from here; it has not arrived. Under `--all` every unit that wrote a
+DECISIONS row and pushed its branch made the audit fail on `main` and on every
+other branch until it merged - measured 2026-09-30: all 7 "LOST" rows on
+`a-57-record-three-tiers` sat on unmerged branches (c-18-flip, a-38, a-49, a-58,
+a-60) or on a `main` commit newer than the branch, and 0 had ever been in the
+branch's own ancestry. Five units (c-20..c-24) reported the failure as
+pre-existing, which is what a guard that always fires teaches.
+
+NOTHING THE OLD SCOPE CAUGHT ESCAPES THIS ONE. A row dropped on branch B is caught
+on B, where it is in B's ancestry. When B merges, the commit that added the row
+becomes an ancestor of the merge, so a resolution that drops it is caught there.
+The only rows no longer demanded are ones on branches this tree never merged -
+which were never recorded here. They are still COUNTED, as `pending`, so a
+decision stranded on an abandoned branch stays visible without failing anyone.
 """
 import argparse
 import re
@@ -68,14 +88,13 @@ def rows_in(text):
     return out
 
 
-def historical_rows():
-    """Every row that has EVER appeared, from every commit reachable anywhere.
+def _added_rows(*revs):
+    """Rows on '+' lines of `git log -m -p <revs> -- DECISIONS.md`.
 
-    Read from `git log --all -p`, whose added lines carry a leading '+'. A
-    conflict marker or a diff header can never parse as a row, so they drop out
+    A conflict marker or a diff header can never parse as a row, so they drop out
     without special handling.
     """
-    patch = _git("log", "--all", "-p", "--format=", "--", PATH)
+    patch = _git("log", *revs, "--full-history", "-m", "-p", "--format=", "--", PATH)
     seen = {}
     for line in patch.splitlines():
         if not line.startswith("+") or line.startswith("+++"):
@@ -84,6 +103,17 @@ def historical_rows():
         if ident:
             seen.setdefault(ident, line[1:].strip())
     return seen
+
+
+def historical_rows(rev="HEAD"):
+    """Every row that has EVER appeared on a commit `rev` descends from."""
+    return _added_rows(rev)
+
+
+def pending_rows(rev="HEAD"):
+    """Rows on some ref this tree has not merged. Reported, never a failure."""
+    here = historical_rows(rev)
+    return {k: v for k, v in _added_rows("--all").items() if k not in here}
 
 
 def current_rows():
@@ -116,8 +146,10 @@ def main(argv=None):
         print("FAILED: %s has no rows" % PATH)
         return 1
 
-    print(f"  rows ever recorded (git log --all): {len(hist)}")
+    pending = pending_rows()
+    print(f"  rows ever recorded (HEAD ancestry): {len(hist)}")
     print(f"  rows on disk now:                   {len(now)}")
+    print(f"  pending (other refs, not merged):   {len(pending)}")
     print(f"  MISSING:                            {len(gone)}")
     for ident, line in gone:
         print(f"    LOST {ident[0]}: {line[:150]}")
