@@ -6,6 +6,7 @@
     python research/clv.py --clv         # mean CLV, mid and executable
     python research/clv.py --strata      # liquidity, lead time, stat
     python research/clv.py --stake 500
+    python research/clv.py --weeks       # c-29: which weeks in the store are scorable
 
 READ-ONLY. The logger is running; nothing here writes.
 
@@ -704,10 +705,82 @@ def report_verdict(mid, ex, rows, conv=None):
   number was worth reading, and they can now be re-run every week at no cost.""")
 
 
+# =============================================================================
+# c-29: every week in the store, under the a-58 entry rule
+# =============================================================================
+
+# a-58 (branch a-58-calibration-population, d43ad1d) made research/score.py
+# refuse a non-live or stale Kalshi entry quote rather than read a backfilled
+# candle as "the market at entry". Re-stated here because a-58 is not on main.
+# `build()` above is S00 as registered and is NOT changed: its `quote_at` takes
+# any source. This census says, week by week, how much of S00 would survive the
+# a-58 rule if re-run today - which is the question "extend to every week" has
+# to answer before any CLV is computed.
+LIVE = "live"
+ENTRY_MAX_AGE = 1.5 * config.POLL_COLD
+
+
+def week_census(c=None):
+    """-> [{season, week, model_version, predictions, live_entry, stale_entry,
+    non_live_entry, no_entry, live_close}] for every (season, week, version) in
+    `predictions` with a Kalshi mapping. Counts only; no CLV."""
+    c = c or db()
+    kick = {g: k for g, k in c.execute(
+        "SELECT game_id, MAX(kickoff_ts) FROM nfl_games GROUP BY game_id")}
+    out = []
+    for season, week, mv in c.execute(
+            "SELECT DISTINCT o.season, o.week, p.model_version FROM predictions p "
+            "JOIN outcomes o USING (outcome_id) ORDER BY 1, 2, 3").fetchall():
+        n = Counter()
+        for _pid, _oid, _p, created, event_id, *_rest, market_id, _k in c.execute(
+                PRED_SQL, (season, week, mv)).fetchall():
+            n["predictions"] += 1
+            q = c.execute(
+                "SELECT ts, source FROM quotes WHERE venue='kalshi' AND market_id=? "
+                "AND ts <= ? AND best_ask IS NOT NULL ORDER BY (source = ?) DESC, ts DESC "
+                "LIMIT 1", (market_id, created, LIVE)).fetchone()
+            if q is None:
+                n["no_entry"] += 1
+            elif q[1] != LIVE:
+                n["non_live_entry"] += 1
+            elif created - q[0] > ENTRY_MAX_AGE:
+                n["stale_entry"] += 1
+            else:
+                n["live_entry"] += 1
+            k = kick.get(event_id)
+            if k is not None and c.execute(
+                    "SELECT 1 FROM quotes WHERE venue='kalshi' AND market_id=? AND ts < ? "
+                    "AND source = ? AND best_ask IS NOT NULL LIMIT 1",
+                    (market_id, k, LIVE)).fetchone():
+                n["live_close"] += 1
+        out.append({"season": season, "week": week, "model_version": mv,
+                    **{f: n[f] for f in ("predictions", "live_entry", "stale_entry",
+                                         "non_live_entry", "no_entry", "live_close")}})
+    if not out:
+        raise SystemExit("predictions holds no rows - nothing to census")
+    return out
+
+
+def report_weeks():
+    _hdr("EVERY WEEK IN THE STORE - a-58 entry rule (live, <= "
+         f"{ENTRY_MAX_AGE:.0f}s), live close strictly before kickoff")
+    rows = week_census()
+    print(f"  {'season':>6} {'wk':>3} {'model_version':<34}{'preds':>6}{'live':>6}"
+          f"{'stale':>6}{'nonlive':>8}{'none':>6}{'close':>7}")
+    for r in rows:
+        print(f"  {r['season']:>6} {r['week']:>3} {r['model_version']:<34}{r['predictions']:>6}"
+              f"{r['live_entry']:>6}{r['stale_entry']:>6}{r['non_live_entry']:>8}"
+              f"{r['no_entry']:>6}{r['live_close']:>7}")
+    print()
+    print("  The multi-week population is the Board ledger's published leans, priced on")
+    print("  sportsbooks: see research/clv_record.py (c-29).")
+    return rows
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     for f in ("census", "placebo", "clv", "convention", "capacity",
-              "strata", "all"):
+              "strata", "all", "weeks"):
         ap.add_argument(f"--{f}", action="store_true")
     ap.add_argument("--stake", type=int, default=1000,
                     choices=sorted(STAKE_COL))
@@ -717,6 +790,9 @@ def main():
                     help="analyse this version explicitly; the resolver "
                          "RAISES rather than falling back without it")
     a = ap.parse_args()
+    if a.weeks:
+        report_weeks()
+        return
     if not (a.census or a.placebo or a.clv or a.convention or a.capacity
             or a.strata):
         a.all = True
