@@ -265,8 +265,9 @@ def mean_of(arm, fits, feat, games, i):
 # bootstrap helpers (game blocks, c-24's draw rule)
 # =============================================================================
 
-def boot_rows(fn, n, draws, seed=rc.SEED):
+def boot_rows(fn, n, draws, seed=None):
     """One row per game: resample rows. -> {est, lo, hi, se, games, n}."""
+    seed = rc.SEED if seed is None else seed
     est = fn(np.arange(n))
     rng = np.random.default_rng(seed)
     v = np.array([fn(rng.integers(0, n, n)) for _ in range(draws)])
