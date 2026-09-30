@@ -909,6 +909,52 @@ reads `nfl_games` mode=ro.
   on its own and written only if it passes; a failed file keeps its previous copy.
   Owns no prefix (`sync_keys(dest, files, [])`), so the job deletes nothing.
 
+## game/{sport}/matchup/... — kinds `game.matchup`, `game.matchup_index`, `game.model_record` (a-64)
+
+Everything the store holds about each game of the forecast week, built in the same
+run as the forecast (`jobs/game_matchup.py`, called by `jobs/game_export.py`), so the
+matchup and the forecast can never describe different walks.
+
+| key | carries |
+|---|---|
+| `game/{sport}/matchup/{game_id}.json` | `numbers` (moneyline, spread, total: the model's number, the market's, the difference, and the `record` that scores each), `margin`, `teams` (both sides), `head_to_head`, `situation`, `season_stage`, `model_notes` |
+| `game/{sport}/matchup/index.json` | the week's matchups that built and passed every gate, each with its three differences |
+| `game/{sport}/record_spread.json` | c-30's record: cover of the closing spread against the result, the push rates on 3 and 7, and `vs_close` |
+| `game/{sport}/record_total.json` | c-31's record: over/under on eight lines against the result, the two naive baselines, `wind_per_mph`, and `vs_close` |
+
+- **The market's number is the nflverse schedule's line** at
+  `as_of.market_line_version`, de-vigged two-way where it is a price. The record
+  scores against the same source. Its book and capture time are not recorded
+  (`market_source.provenance_recorded: false`).
+- **Every model number carries its record, and every record says it loses to the
+  closing price** (`vs_close.compared` is `worse than` for all three). `display` is
+  one switch, `jobs.game_matchup.SHOW_CLOSE`; a-64 set it `true` against a-63's
+  withheld moneyline comparison, which record.json still stores withheld. See the
+  DECISIONS row.
+- **What is not scored is marked unscored.** The spread's mean margin
+  (`scored.home_margin_mean: false`) and the margin bands are c-28's and unscored;
+  only the chance of covering is scored.
+- **The total is null, with its reason, until track F's team pace covers every
+  game played this season.** c-31's factors drop a team-game with no pace row
+  (plays AND points), so a missing week would be a stale forecast rather than a
+  smaller sample. Efficiency (`points_per_play_*`, `plays_per_game_*`) follows
+  the same rule, per team.
+- **Wind.** Not-yet-played games have no recorded wind and no forecast is captured,
+  so the total is computed at `total_assumes_wind_mph` (the 2000..T-1 mean recorded
+  outdoor wind) and `wind_effect_on_total` carries c-31's -0.24 points per mph. The
+  total's record was scored with the RECORDED wind, which a pre-game forecast does not
+  have; `record_total.json`'s `does_not_cover` says so.
+- **Copies are checked.** A matchup's moneyline figure, margin and stage must equal
+  the forecast's, and each `record` copy must equal its owner's
+  (`jobs.game_export.matchup_agrees`); a matchup that differs is refused and left
+  out of the index.
+- **As-of.** Every team figure, head-to-head meeting and common-opponent result
+  kicked off before `as_of.instant` and has a final score. The spread's and the
+  total's constants are the committed season-T fits (seasons 2000..T-1) and are
+  refused for any other season.
+- **Not in the store, so null with a reason:** time zones crossed, international
+  venue (no venue country), and forecast weather. See `docs/findings/a64-data-inventory.md`.
+
 ## Refresh
 
 `python -m jobs.weekly_refresh` logs to

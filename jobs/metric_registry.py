@@ -48,6 +48,9 @@ PROJECTION = "season/nfl/projection.json"
 # a-63: the game forecast and its settlement record (jobs.game_export).
 GAME_RECORD = "game/nfl/record.json"
 GAME_FORECAST = "game/nfl/forecast.json"
+# a-64: the spread's and the total's scoring records (jobs.game_matchup).
+GAME_RECORD_SPREAD = "game/nfl/record_spread.json"
+GAME_RECORD_TOTAL = "game/nfl/record_total.json"
 # a-55: the projection's per-team rows are keyed by team, so the registry names
 # the 32 published abbreviations (nflverse's, the site's team keys). A relocation
 # or a renamed code fails the season gate loudly rather than dropping a team.
@@ -308,6 +311,25 @@ METRICS = [
                     ("weeks_5_plus", "regular-season weeks 5+"))
       for sfx, fld, lab in (("", "estimate", ""),
                             (".interval", "interval", ", game-block 95% interval"))],
+    # --- the spread's and the total's records (a-64) ---------------------------
+    # Registered, `vs_close` included: a-64 asks each model number to travel with
+    # the fact that it loses to the close. The matchup files copy these figures and
+    # jobs.game_export.matchup_agrees refuses a copy that differs.
+    _m("game.record_spread.games", "Games scored against the closing spread, spread model",
+       "games", 0, (GAME_RECORD_SPREAD, "population.games")),
+    _m("game.record_total.games", "Games scored against settlement, total model", "games", 0,
+       (GAME_RECORD_TOTAL, "population.games")),
+    *[_m(f"game.record_{mk}.vs_close{sfx}", f"Brier(model) - Brier(closing price), {w}{lab}",
+         "Brier", 4, (f, f"vs_close.d_brier.{fld}"))
+      for mk, w, f in (("spread", "spread model", GAME_RECORD_SPREAD),
+                       ("total", "total model", GAME_RECORD_TOTAL))
+      for sfx, fld, lab in (("", "estimate", ""),
+                            (".interval", "interval", ", game-block 95% interval"))],
+    *[_m(f"game.record_total.vs_{b}{sfx}", f"Brier(model) - Brier({w}), total model{lab}",
+         "Brier", 4, (GAME_RECORD_TOTAL, f"against_baselines[id={b}].d_brier.{fld}"))
+      for b, w in (("league", "league average total"), ("season_avg", "season averages"))
+      for sfx, fld, lab in (("", "estimate", ""),
+                            (".interval", "interval", ", game-block 95% interval"))],
 ]
 
 
@@ -326,7 +348,8 @@ RESEARCH_METRICS = [m for m in METRICS if _files_of(m) <= RESEARCH_FILES]
 MANIFEST_METRICS = [m for m in METRICS if _files_of(m) <= {MANIFEST}]
 SEASON_METRICS = [m for m in METRICS if _files_of(m) <= {SEASON, PROJECTION}]
 # a-63: the fifth gate, run by `jobs.game_export` on the built files before any write.
-GAME_METRICS = [m for m in METRICS if _files_of(m) <= {GAME_RECORD, GAME_FORECAST}]
+GAME_METRICS = [m for m in METRICS if _files_of(m) <= {GAME_RECORD, GAME_FORECAST,
+                                                       GAME_RECORD_SPREAD, GAME_RECORD_TOTAL}]
 # a-51: the fourth gate, `analytics.export.gate`, on the built analytics tree
 # before `--dest web` writes it (and in jobs.publish_preflight).
 ANALYTICS_METRICS = [m for m in METRICS if all(f.startswith("analytics/") for f in _files_of(m))]

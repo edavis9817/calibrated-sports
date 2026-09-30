@@ -72,10 +72,24 @@ def synthetic_measure(tmp_dir):
 
 
 def synthetic_files(tmp_dir):
-    """Both files, as the metric registry's tests need them."""
+    """Both files, and a-64's spread and total records (read from the committed
+    result files), as the metric registry's tests need them."""
+    from jobs import game_matchup as GM
     m = synthetic_measure(tmp_dir)
     return {X.RECORD_KEY: X.envelope(X.RECORD_KIND, NOW, X.build_record(m)),
-            X.FORECAST_KEY: X.envelope(X.FORECAST_KIND, NOW, X.build_forecast(m, NOW))}
+            X.FORECAST_KEY: X.envelope(X.FORECAST_KIND, NOW, X.build_forecast(m, NOW)),
+            GM.RECORD_SPREAD_KEY: X.envelope(GM.MODEL_RECORD_KIND, NOW, GM.build_record_spread(
+                GM.load_result(GM.C30_RESULT))),
+            GM.RECORD_TOTAL_KEY: X.envelope(GM.MODEL_RECORD_KIND, NOW, GM.build_record_total(
+                GM.load_result(GM.C31_RESULT)))}
+
+
+@pytest.fixture(autouse=True)
+def _no_matchups(monkeypatch):
+    """a-63's tests cover the forecast and its record. The matchup step (a-64) reads
+    the stores unless it is handed a context, so it is off here and driven over a
+    synthetic context in tests/test_game_matchup.py."""
+    monkeypatch.setattr(X, "add_matchups", lambda *a, **k: None)
 
 
 @pytest.fixture(scope="module")
@@ -94,7 +108,8 @@ def files(measured):
 def test_both_files_pass_the_contract_the_source_gate_and_the_metric_gate(files):
     st = X.gate(files)
     assert "0 undeclared disagreements" in st and "agree with the record" in st
-    assert len([m for m in MR.GAME_METRICS]) == 12
+    assert len([m for m in MR.GAME_METRICS
+                if MR._files_of(m) <= {X.RECORD_KEY, X.FORECAST_KEY}]) == 12
 
 
 def test_the_contract_refuses_a_wrong_kind_and_an_extra_field(files):

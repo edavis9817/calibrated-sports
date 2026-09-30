@@ -437,7 +437,84 @@ def build(now_ts, log=print, draws=None):
         except Exception as e:  # noqa: BLE001 - the two disagree: publish neither
             failed.append({"file": "*", "error": f"{type(e).__name__}: {e}"})
             files = {}
+    if len(files) == 2:
+        add_matchups(m, files, failed, now_ts, log)
     return files, failed
+
+
+def add_matchups(m, files, failed, now_ts, log=print):
+    """a-64: the matchup files and the spread and total records, from the same
+    measurement. Each file is gated on its own and a matchup that disagrees with
+    the forecast or a record it copies is dropped; the index lists only matchups
+    that survived, and is gated last."""
+    from jobs import game_matchup as GM
+    try:
+        built, bad = GM.build(m, files[FORECAST_KEY], files[RECORD_KEY], now_ts, log=log)
+    except Exception as e:  # noqa: BLE001 - the matchup step failed; the forecast stands
+        failed.append({"file": GM.MATCHUP_DIR + "*", "error": f"{type(e).__name__}: {e}"})
+        return
+    failed += [{"file": k, "error": v} for k, v in bad.items()]
+    index = built.pop(GM.INDEX_KEY, None)
+    order = [GM.RECORD_SPREAD_KEY, GM.RECORD_TOTAL_KEY] + sorted(
+        k for k in built if k.startswith(GM.MATCHUP_DIR))
+    for key in order:
+        if key not in built:
+            continue
+        kind = GM.MODEL_RECORD_KIND if key.startswith("game/nfl/record_") else GM.MATCHUP_KIND
+        try:
+            payload = {key: envelope(kind, now_ts, built[key])}
+            gate(payload)
+            if kind == GM.MATCHUP_KIND:
+                matchup_agrees(key, payload[key], files)
+            files.update(payload)
+        except Exception as e:  # noqa: BLE001 - that file's failure is that file's
+            failed.append({"file": key, "error": f"{type(e).__name__}: {e}"})
+    if index is None:
+        return
+    index["games"] = [r for r in index["games"] if r["key"] in files]
+    try:
+        payload = {GM.INDEX_KEY: envelope(GM.INDEX_KIND, now_ts, index)}
+        gate(payload)
+        files.update(payload)
+    except Exception as e:  # noqa: BLE001
+        failed.append({"file": GM.INDEX_KEY, "error": f"{type(e).__name__}: {e}"})
+
+
+def matchup_agrees(key, mu, files):
+    """A matchup repeats figures other files own: the forecast's probability, margin
+    and stage, and each record's figures. It must carry exactly theirs, or it is
+    refused - a copy that can drift is a second, unchecked claim."""
+    from jobs import game_matchup as GM
+    from jobs import metric_registry as MR
+    fc = files[FORECAST_KEY]
+    row = next((g for g in fc["games"] if g["game_id"] == mu["game_id"]), None)
+    problems = []
+    if row is None:
+        problems.append("not in the forecast")
+    else:
+        if mu["numbers"]["moneyline"]["model"]["p_home_win"] != row["p_home_win"]:
+            problems.append("p_home_win differs from the forecast")
+        if mu["margin"] != row["margin"]:
+            problems.append("margin differs from the forecast")
+    if mu["season_stage"] != fc["season_stage"]:
+        problems.append("season_stage differs from the forecast")
+    for market in ("moneyline", "spread", "total"):
+        rec = mu["numbers"][market]["record"]
+        owner = files.get(rec["file"])
+        if owner is None:
+            problems.append(f"{market}: {rec['file']} did not build")
+            continue
+        vc = rec["vs_close"]
+        if MR.resolve(owner, vc["path"]) != vc["d_brier"]:
+            problems.append(f"{market}: vs_close differs from {rec['file']}")
+        mine = {b["id"]: b["d_brier"] for b in rec["beats"]}
+        src = ({b["id"]: b["d_brier"] for b in owner["baselines"]} if market == "moneyline"
+               else {b["id"]: b["d_brier"] for b in owner["against_baselines"]})
+        if mine != src:
+            problems.append(f"{market}: beats differs from {rec['file']}")
+    if problems:
+        raise RuntimeError(f"{key}: " + "; ".join(problems) + " - refusing it")
+    return f"{key}: agrees with {FORECAST_KEY} and its three records"
 
 
 def publish(dest, now_ts=None, log=print, draws=None, dry_run=False):

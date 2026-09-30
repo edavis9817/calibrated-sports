@@ -23,6 +23,9 @@ config.storage_path("logs", "weekly_refresh.log"):
                        game/nfl/forecast.json and record.json, each written only
                        if it built and passed every gate; owns no prefix, so it
                        declares nothing and can delete nothing.
+                       a-64: the same step writes game/nfl/matchup/ (one file per
+                       game and an index) and game/nfl/record_spread.json and
+                       record_total.json, each gated on its own.
   3a''. landing archive jobs.landing_backfill --auto --archive <A> (failure: WARN;
                        a-54). Every period the landing can walk to whose games
                        have kicked off, rebuilt at the closing read into the

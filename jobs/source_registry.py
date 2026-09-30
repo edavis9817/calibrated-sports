@@ -260,6 +260,26 @@ SOURCES = {
                   "that size (research/board_bands.py), never a forecast of the lean"),
         last_read=("committed", "research/results/board_bands.json")),
 
+    # a-64: the fitted constants and scoring records of the two game models the
+    # matchup files quote beside the forecast - c-30's key-number spread and c-31's
+    # two-team total - read from the units' committed result files, never refitted
+    # at export. A season-T fit uses seasons 2000..T-1 only.
+    "calibrated.game_models": dict(
+        name="Calibrated Sports", sports=("nfl",), layer="BELIEFS",
+        provides=("The spread model's key-number weights and the total model's fitted "
+                  "constants, with each one's walk-forward scoring record, 2001-2025"),
+        used_for=("The model's spread and total beside the market's on each matchup, and the "
+                  "record each one carries"),
+        last_read=("committed", "research/results/c30_against_the_spread.json, "
+                                "research/results/c31_game_total.json")),
+    # a-64: stadium coordinates (Wikidata P625, checked against the OpenStreetMap
+    # footprint by research/nfl_stadium_coords.py) - the travel distance on a matchup.
+    "wikidata.stadiums": dict(
+        name="Wikidata", sports=("nfl",), layer="CONTEXT",
+        provides="Stadium coordinates, each with its measured distance from the venue",
+        used_for="The travel distance from each team's home stadium to the game's stadium",
+        last_read=("committed", "feeds/nfl_stadium_points.csv")),
+
     # --- held in other stores; registered because `coverage` counts them
     "sportsdataverse.cfb": dict(
         name="sportsdataverse", sports=("cfb",), layer="FACTS",
@@ -557,6 +577,14 @@ KIND_EXTRA = {
         # outside sync_keys. nfl_teams is loaded by the shared loader and not used.
         "game.forecast": ("nflverse.schedule",),
         "game.record": ("nflverse.schedule",),
+        # a-64: the matchup files, built in the same run. The schedule (lines, venue,
+        # rest, scores), weekly player stats (passing and rushing by unit), team pace
+        # built from play-by-play by the analytics store (points per play, plays per
+        # game), the two game models' committed fits and records, and stadium points.
+        "game.matchup": ("nflverse.schedule", "nflverse.stats", "nflverse.pbp",
+                         "calibrated.game_models", "wikidata.stadiums"),
+        "game.matchup_index": ("nflverse.schedule", "calibrated.game_models"),
+        "game.model_record": ("calibrated.game_models",),
         # a-45: jobs/lab_publish.py's catalogue. Its ranges also come from the
         # analytics column survey (analytics.metrics.derive_range, run by
         # lab.catalogue.ranges when the universe is built), which measures the
