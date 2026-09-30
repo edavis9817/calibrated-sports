@@ -246,6 +246,25 @@ def test_the_hold_writer_reports_on_every_run_including_a_dry_one(db):
                      "written": 0, "would_write": 0}
 
 
+def test_a_renewal_never_shortens_a_longer_hold(db):
+    """a-58. A hold written for its own reason (say, the only in-game week on
+    disk) outlasts the export's rolling window. Renewing must extend, never clip,
+    and must leave that hold's reason alone."""
+    now = 1_789_500_000.0
+    long_until = now + 200 * 86400
+    with store.db() as c:
+        c.execute("INSERT INTO quote_retention_hold (venue, market_id, until_ts, reason, held_ts) "
+                  "VALUES ('kalshi', 'KXNFLREC-X-1.5', ?, 'in-game week 3', ?)", (long_until, now))
+    E.hold_published_markets({("kalshi", "KXNFLREC-X-1.5"), ("kalshi", "KXNFLREC-X-2.5")},
+                             now + 3600)
+    with store.db() as c:
+        got = dict(c.execute("SELECT market_id, until_ts FROM quote_retention_hold"))
+        reason = c.execute("SELECT reason FROM quote_retention_hold "
+                           "WHERE market_id='KXNFLREC-X-1.5'").fetchone()[0]
+    assert got["KXNFLREC-X-1.5"] == long_until and reason == "in-game week 3"
+    assert got["KXNFLREC-X-2.5"] == now + 3600 + config.QUOTES_RETENTION_DAYS * 86400
+
+
 def test_a_period_row_with_no_team_is_kept_but_left_out_of_the_display_list(db):
     c = sqlite3.connect(config.DB_PATH)
     c.execute("UPDATE nfl_player_week SET team = NULL WHERE gsis_id = '00-A' AND season = 2025 "

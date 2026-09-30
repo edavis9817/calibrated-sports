@@ -3134,7 +3134,11 @@ def hold_published_markets(published, now_ts, dry_run=False):
         c.executemany(
             "INSERT INTO quote_retention_hold (venue, market_id, until_ts, reason, held_ts) "
             "VALUES (?, ?, ?, ?, ?) ON CONFLICT(venue, market_id) DO UPDATE SET "
-            "until_ts = excluded.until_ts, held_ts = excluded.held_ts",
+            # MAX, not replace (a-58): a renewal EXTENDS a hold and never cuts
+            # one short. A hold written for another reason - keeping the only
+            # in-game week on disk - would otherwise be clipped to one window by
+            # the next export and then lapse when the market leaves the site.
+            "until_ts = MAX(until_ts, excluded.until_ts), held_ts = excluded.held_ts",
             [(v, m, until, HOLD_REASON, now_ts) for v, m in sorted(published)])
     out["written"] = len(published)
     return out
