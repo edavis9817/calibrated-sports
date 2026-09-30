@@ -195,8 +195,10 @@ def test_a_null_share_passes_the_gate_only_because_it_is_declared_nullable():
         x.pop("nullable", None)
     rep = M.check({M.MANIFEST: m}, strict)
     assert not rep.clean and "share_priced" in rep.statement and "is null" in rep.statement
+    # a-58 added the two Kalshi-at-entry figures: null is their published state
+    # when no prediction has a live entry quote (market_comparison 'withdrawn').
     assert [x["id"] for x in M.METRICS if x.get("nullable")] == [
-        "coverage.players.week.share_priced"]
+        "coverage.players.week.share_priced", "kalshi.brier", "kalshi.ece"]
 
 
 def test_every_metric_has_exactly_one_gate():
