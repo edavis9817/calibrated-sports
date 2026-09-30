@@ -142,7 +142,8 @@ def _summ(leans):
     # break-even describe the same rows
     hit_p = (sum(1 for x in priced if x["_bucket"] == "cleared") / len(priced)) if priced else None
     units = sum(_units(x["price"], x["_bucket"]) for x in staked) if staked else None
-    return dict(c, graded=c["cleared"] + c["missed"] + c["push"],
+    invalid = sum(1 for x in leans if x["price"] is None and x["price_ledgered"] is not None)
+    return dict(c, graded=c["cleared"] + c["missed"] + c["push"], n_price_invalid=invalid,
                 hit_rate=_r(hit), breakeven=_r(be),
                 margin_pp=_r(100 * (hit_p - be), 2) if priced else None,
                 n_priced=len(priced), units=_r(units, 3),
@@ -213,14 +214,19 @@ def build_published(ledger, now_ts, chain=None, source=None):
             bucket = "void"
         else:
             bucket = "ungraded"
-        price = p.get("price")
-        price = None if price is None or price != price else float(price)
+        raw = p.get("price")
+        raw = None if raw is None or raw != raw else float(raw)
+        # The ledger's price is a MEDIAN OF AMERICAN ODDS (jobs/board_read.py), and
+        # with an even number of books straddling even money the median lands in
+        # (-100, 100), which is not a price: -2.5 read as American odds is a 41x
+        # payout. Such a row is published with its ledgered value and no price.
+        price = raw if B.american_to_prob(raw) is not None else None
         mp = p.get("model_p_over")
         leans.append({
             "lean_id": lid, "season": int(p["season"]), "week": int(p["week"]),
             "game_id": p["game_id"], "gsis_id": p["gsis_id"], "market": p["market"],
             "line": float(p["line"]), "side": p["side"], "read_at": p["read_at"],
-            "kickoff_ts": float(p["kickoff_ts"]), "price": price,
+            "kickoff_ts": float(p["kickoff_ts"]), "price": price, "price_ledgered": raw,
             "breakeven": _r(B.american_to_prob(price)) if price is not None else None,
             "mkt_p_over": _r(p.get("mkt_p_over")), "model_p_over": _r(mp),
             "model_p_side": _r(mp if p["side"] == "over" else 1 - mp) if mp is not None else None,
@@ -256,7 +262,12 @@ def build_published(ledger, now_ts, chain=None, source=None):
                                               "its event_at are strictly before its own kickoff_ts"),
                                      "rows": sorted(excluded, key=lambda e: e["lean_id"])},
         "record": {**{k: total[k] for k in ("cleared", "missed", "push", "void", "hit_rate",
-                                             "breakeven", "margin_pp", "n_priced", "units", "roi")},
+                                             "breakeven", "margin_pp", "n_priced",
+                                             "n_price_invalid", "units", "roi")},
+                   "price_rule": ("break-even is the vig-inclusive probability of the lean-side "
+                                  "price the ledger published; a ledgered price inside (-100, 100) "
+                                  "is not an American price and is left out of break-even and "
+                                  "units, counted in n_price_invalid"),
                    "interval": week_block_interval(leans)},
         "weeks": [{k: v for k, v in x.items() if k != "ungraded"} | {"ungraded": x["ungraded"]}
                   for x in weeks],
@@ -285,13 +296,16 @@ def numbers_in(s):
 
 
 def parse_figure(quote):
-    """'−0.60pp per contract [−9.18, +8.54]' -> (est, lo, hi). The estimate is
-    the first signed number, the interval the bracketed pair after it."""
+    """'−0.60pp per contract [−9.18, +8.54]' -> (est, lo, hi). The interval is
+    the first bracketed pair; the estimate is the LAST number before it, so a
+    label's own digits ("end of Q3", "P1 pooled") are never read as the value."""
     q = norm_text(quote)
-    m = re.search(r"([+-]?\d[\d,]*\.?\d*)[^\[\]]*?\[\s*([+-]?\d[\d,]*\.?\d*)\s*,\s*([+-]?\d[\d,]*\.?\d*)\s*\]", q)
-    if not m:
+    m = re.search(r"\[\s*([+-]?\d[\d,]*\.?\d*)\s*,\s*([+-]?\d[\d,]*\.?\d*)\s*\]", q)
+    before = re.findall(r"[+-]?\d[\d,]*\.?\d*", q[:m.start()]) if m else []
+    if not m or not before:
         raise RecordError(f"no 'estimate [lo, hi]' figure in the quote {quote!r}")
-    est, lo, hi = (float(g.replace(",", "")) for g in m.groups())
+    est = float(before[-1].replace(",", ""))
+    lo, hi = (float(g.replace(",", "")) for g in m.groups())
     if not lo <= hi:
         raise RecordError(f"interval out of order in {quote!r}")
     return est, lo, hi
