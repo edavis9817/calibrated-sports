@@ -19,6 +19,9 @@ config.storage_path("logs", "weekly_refresh.log"):
   3. export            jobs.export_web                       (failure: ERROR, stop)
   3a. analytics        analytics.export --write --dest web  (failure: WARN)
   3a'. season model    jobs.season_model --write --dest web (failure: WARN; a-42)
+  3a+. nfl weather     jobs.ingest_feeds --nfl-weather --days 6 (failure: WARN; a-66).
+                       The pre-game forecast the matchup files read; writes
+                       feeds.db only.
   3a*. game forecast   jobs.game_export --write --dest web  (failure: WARN; a-63).
                        game/nfl/forecast.json and record.json, each written only
                        if it built and passed every gate; owns no prefix, so it
@@ -272,6 +275,19 @@ def _run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fet
     # but it OWNS NO PREFIX (sync_keys with prefixes []), so it prints no
     # declaration and can delete nothing: a file that failed to build keeps its
     # previous copy, locally and in the bucket. Reads the store mode=ro (~3 min).
+    #
+    # a-66: THE NFL WEATHER FORECAST IS TAKEN FIRST, in the same run, so the matchup
+    # files read a forecast made before their kickoffs. Free and keyless (Open-Meteo),
+    # writes feeds.db and never the logger's database, and is non-fatal: a failure
+    # leaves the matchup's forecast fields null with the reason. `--days 6` takes
+    # whole UTC dates either side of now - last week's games as the record, this
+    # week's as the forecast. Without this step the forecast is whatever one manual
+    # run captured, and the next week's files go back to null.
+    weather = step("weather", [py, "-m", "jobs.ingest_feeds", "--nfl-weather", "--days", "6"],
+                   fatal=False)
+    if weather.returncode != 0:
+        log("WARN", "the NFL weather forecast was not captured - this run's matchup files "
+                    "carry no forecast newer than the last successful capture")
     game = step("game", [py, "-m", "jobs.game_export", "--write", "--dest", "web"],
                 fatal=False)
     if game.returncode != 0:

@@ -103,6 +103,8 @@ class Runner:
             return "analytics"
         if "jobs.season_model" in s:
             return "season"
+        if "jobs.ingest_feeds" in s:
+            return "weather"
         if "jobs.game_export" in s:
             return "game"
         if "jobs.landing_export" in s:
@@ -167,6 +169,7 @@ def test_steps_run_in_order_and_touch_git_only_for_the_slug_registry(env):
     # one uploader runs.
     assert py_steps == ["jobs.ingest_nflverse", "jobs.ingest_headshots", "jobs.map_markets",
                         "jobs.map_markets", "jobs.map_markets", "jobs.export_web", "analytics.export", "jobs.season_model",
+                        "jobs.ingest_feeds",       # a-66: the forecast, before the matchups
                         "jobs.game_export", "jobs.landing_backfill", "jobs.landing_export", "jobs.export_web"]
     git_calls = [c for c in r.calls if c and c[0] == "git"]
     assert git_calls, "the refresh should check the slug registry"

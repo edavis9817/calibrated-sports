@@ -27,6 +27,43 @@ import config
 # The full defensive set from stats_player_week. Defined once: the CREATE TABLE
 # below and the ALTER TABLE migrations are both generated from this list, so the
 # two cannot drift apart.
+# nfl_team_week's stat columns, in DDL order - nflverse's own names (a-66).
+TEAM_WEEK_COLS = (
+    "completions",
+    "attempts",
+    "passing_yards",
+    "passing_tds",
+    "passing_interceptions",
+    "sacks_suffered",
+    "sack_yards_lost",
+    "passing_air_yards",
+    "passing_yards_after_catch",
+    "passing_first_downs",
+    "passing_epa",
+    "passing_cpoe",
+    "carries",
+    "rushing_yards",
+    "rushing_tds",
+    "rushing_first_downs",
+    "rushing_epa",
+    "penalties",
+    "penalty_yards",
+    "fumbles_lost_total",
+    "def_sacks",
+    "def_qb_hits",
+    "def_interceptions",
+    "def_pass_defended",
+    "def_tackles_for_loss",
+    "def_fumbles_forced",
+    "def_tds",
+    "def_safeties",
+    "special_teams_tds",
+    "fg_made",
+    "fg_att",
+    "pat_made",
+    "pat_att",
+)
+
 DEF_COLS = (
     "def_tackles_solo", "def_tackles_with_assist", "def_tackle_assists",
     "def_tackles_for_loss", "def_tackles_for_loss_yards",
@@ -312,6 +349,65 @@ CREATE TABLE IF NOT EXISTS nfl_pbp_looks (
     PRIMARY KEY (gsis_id, season, week, season_type, data_version)
 );
 CREATE INDEX IF NOT EXISTS ix_looks_season ON nfl_pbp_looks(season, week);
+
+-- nflverse stats_team_week (a-66): one row per team-game, the SOURCE's own team
+-- totals rather than a sum over player rows. Column names are nflverse's,
+-- verbatim, so nothing here can be mis-mapped the way pt_return_tds once was.
+-- `opponent` is opponent_team. Defence against a team is the OPPONENT's row for
+-- the same game_id read from the other side - never a second stored copy.
+--
+-- SEVERAL COLUMNS ARE NOT COLLECTED IN EARLY SEASONS AND ARRIVE AS ZERO OR NULL
+-- (the silent-zero class). The store keeps what the file says; a reader goes
+-- through nflverse.team_stat_collected(), which is measured by
+-- research/stats_team_audit.py. fumbles_lost_total does NOT reconcile with the
+-- player rows and is stored, not published.
+CREATE TABLE IF NOT EXISTS nfl_team_week (
+    sport         TEXT NOT NULL DEFAULT 'nfl',
+    team          TEXT NOT NULL,
+    season        INTEGER NOT NULL,
+    week          INTEGER NOT NULL,
+    season_type   TEXT NOT NULL,
+    data_version  TEXT NOT NULL,
+    game_id       TEXT,
+    opponent      TEXT,
+    completions                 REAL,
+    attempts                    REAL,
+    passing_yards               REAL,
+    passing_tds                 REAL,
+    passing_interceptions       REAL,
+    sacks_suffered              REAL,
+    sack_yards_lost             REAL,
+    passing_air_yards           REAL,
+    passing_yards_after_catch   REAL,
+    passing_first_downs         REAL,
+    passing_epa                 REAL,
+    passing_cpoe                REAL,
+    carries                     REAL,
+    rushing_yards               REAL,
+    rushing_tds                 REAL,
+    rushing_first_downs         REAL,
+    rushing_epa                 REAL,
+    penalties                   REAL,
+    penalty_yards               REAL,
+    fumbles_lost_total          REAL,
+    def_sacks                   REAL,
+    def_qb_hits                 REAL,
+    def_interceptions           REAL,
+    def_pass_defended           REAL,
+    def_tackles_for_loss        REAL,
+    def_fumbles_forced          REAL,
+    def_tds                     REAL,
+    def_safeties                REAL,
+    special_teams_tds           REAL,
+    fg_made                     REAL,
+    fg_att                      REAL,
+    pat_made                    REAL,
+    pat_att                     REAL,
+    source        TEXT NOT NULL,
+    ingested_ts   REAL NOT NULL,
+    PRIMARY KEY (team, season, week, season_type, data_version)
+);
+CREATE INDEX IF NOT EXISTS ix_team_week_game ON nfl_team_week(game_id);
 
 -- Schedules AND closing game lines back to 1999 - free backtest data for the
 -- game markets, ingested deliberately rather than as a side effect.

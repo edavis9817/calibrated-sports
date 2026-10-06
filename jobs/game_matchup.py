@@ -74,6 +74,7 @@ C31_RESULT = "research/results/c31_game_total.json"
 SHOW_CLOSE = True
 
 RECENT_MEETINGS = 10
+HOME_COUNTRY = "US"          # ISO 3166-1 alpha-2; a venue anywhere else is international
 SHORT_WEEK_DAYS = 6          # fewer days of rest than this is a short week
 BYE_GAP_WEEKS = 2            # the previous game was at least this many weeks ago
 
@@ -265,7 +266,50 @@ def read_context(con, year, versions):
             "WHERE p.season = ? GROUP BY 1, 2, 3", (year, year)):
         units[(wk, G.franchise(team))] = {"opp": G.franchise(opp), "pass": py or 0.0,
                                           "rush": ry or 0.0, "int": ints or 0.0}
-    return {"lines": lines, "sched": sched, "units": units, "rel": rel[0]}
+    team_week, tw_why = read_team_week(con, year)
+    return {"lines": lines, "sched": sched, "units": units, "rel": rel[0],
+            "team_week": team_week, "team_week_reason": tw_why}
+
+
+TEAM_WEEK_READ = ("passing_yards", "rushing_yards", "passing_interceptions", "passing_epa",
+                  "rushing_epa", "carries")
+
+
+def read_team_week(con, year):
+    """-> ({(game_id, franchise): row}, reason). nflverse's own team-game totals
+    (stats_team, a-66), newest data_version per team-game. A store without the
+    table, or without this season in it, returns nothing AND SAYS SO: the units
+    then fall back to the player rows and the EPA figures are absent with the
+    reason, never zero."""
+    import sqlite3
+    try:
+        rows = con.execute(
+            "SELECT t.game_id, t.team, " + ", ".join("t." + c for c in TEAM_WEEK_READ) +
+            " FROM nfl_team_week t JOIN (SELECT team, season, week, season_type, "
+            "MAX(data_version) dv FROM nfl_team_week WHERE season = ? GROUP BY 1, 2, 3, 4) v "
+            "ON v.team = t.team AND v.season = t.season AND v.week = t.week AND "
+            "v.season_type = t.season_type AND v.dv = t.data_version WHERE t.season = ?",
+            (year, year)).fetchall()
+    except sqlite3.OperationalError as e:
+        return {}, f"the store holds no team-game totals ({e})"
+    out = {(r[0], G.franchise(r[1])): dict(zip(TEAM_WEEK_READ, r[2:])) for r in rows
+           if r[0] is not None}
+    return out, (None if out else f"the store holds no team-game totals for {year}")
+
+
+def read_forecasts(as_of_ts, game_ids):
+    """-> ({game_id: forecast row}, reason). ONLY forecasts taken before each kickoff
+    and before `as_of_ts` (feeds.weather_read.pregame_forecasts): recorded weather has
+    no path into a file built before a game."""
+    from feeds import weather_read as W
+    try:
+        con = W.connect_ro()
+        try:
+            return W.pregame_forecasts(con, as_of_ts, game_ids), None
+        finally:
+            con.close()
+    except Exception as e:  # noqa: BLE001 - no feeds store: the forecast is absent
+        return {}, f"the weather store could not be read ({type(e).__name__})"
 
 
 def read_pace(by_id):
@@ -338,19 +382,7 @@ def team_block(games, team, year, week, cutoff, snaps, ctx, pace, pace_err):
                "plays_per_game_for": None, "plays_per_game_against": None,
                "reason": why if n else "no game played yet this season"}
     eff["games_with_pace"] = covered
-    u_for = [ctx["units"].get((r["week"], team)) for r in res]
-    u_ag = [ctx["units"].get((r["week"], r["opponent"])) for r in res]
-    ok = n and all(u_for) and all(u_ag)
-    units = {"passing_yards_per_game_for": r1(sum(u["pass"] for u in u_for) / n) if ok else None,
-             "rushing_yards_per_game_for": r1(sum(u["rush"] for u in u_for) / n) if ok else None,
-             "passing_yards_per_game_against": r1(sum(u["pass"] for u in u_ag) / n) if ok else None,
-             "rushing_yards_per_game_against": r1(sum(u["rush"] for u in u_ag) / n) if ok else None,
-             "interceptions_thrown": int(sum(u["int"] for u in u_for)) if ok else None,
-             "interceptions_made": int(sum(u["int"] for u in u_ag)) if ok else None,
-             "definition": ("summed from player rows: passing yards are gross (before sacks), "
-                            "as credited to passers"),
-             "reason": None if ok else ("no game played yet this season" if not n else
-                                        "a played game has no player rows for one side")}
+    units = units_block(res, team, n, ctx)
     return {"team": team, "games": n,
             "record": {"wins": rec["win"], "losses": rec["loss"], "ties": rec["tie"]},
             "rating": {"current": r1(rating), "path": path, "league_mean": G.MEAN},
@@ -361,6 +393,78 @@ def team_block(games, team, year, week, cutoff, snaps, ctx, pace, pace_err):
                                   "definition": ("the mean of the current ratings of the "
                                                  "opponents played so far this season")},
             "results": res}
+
+
+def _complete(rows, cols):
+    return bool(rows) and all(r is not None and all(r.get(c) is not None for c in cols)
+                              for r in rows)
+
+
+def units_block(res, team, n, ctx):
+    """Passing and rushing by unit. From nflverse's team-game totals where they cover
+    EVERY game this team has played (both sides of each), else from the player rows;
+    `source` says which. The EPA figures exist only on the team rows. Fumbles are in
+    neither: the team total and the player rows disagree on them."""
+    tw = ctx.get("team_week") or {}
+    t_for = [tw.get((r["game_id"], team)) for r in res]
+    t_ag = [tw.get((r["game_id"], r["opponent"])) for r in res]
+    yards = ("passing_yards", "rushing_yards", "passing_interceptions")
+    epa = ("passing_epa", "rushing_epa", "carries")
+    out = {"epa_definition": ("expected points added, as nflverse sums it per team-game: "
+                              "rushing over every carry, passing over its own set of pass "
+                              "plays, which is why passing has no per-play figure here")}
+    if n and _complete(t_for, yards) and _complete(t_ag, yards):
+        out.update({
+            "source": "team_rows",
+            "passing_yards_per_game_for": r1(sum(t["passing_yards"] for t in t_for) / n),
+            "rushing_yards_per_game_for": r1(sum(t["rushing_yards"] for t in t_for) / n),
+            "passing_yards_per_game_against": r1(sum(t["passing_yards"] for t in t_ag) / n),
+            "rushing_yards_per_game_against": r1(sum(t["rushing_yards"] for t in t_ag) / n),
+            "interceptions_thrown": int(sum(t["passing_interceptions"] for t in t_for)),
+            "interceptions_made": int(sum(t["passing_interceptions"] for t in t_ag)),
+            "definition": ("nflverse's team-game totals: passing yards are gross (before "
+                           "sacks)"),
+            "reason": None})
+    else:
+        u_for = [ctx["units"].get((r["week"], team)) for r in res]
+        u_ag = [ctx["units"].get((r["week"], r["opponent"])) for r in res]
+        ok = n and all(u_for) and all(u_ag)
+        out.update({
+            "source": "player_rows" if ok else None,
+            "passing_yards_per_game_for": r1(sum(u["pass"] for u in u_for) / n) if ok else None,
+            "rushing_yards_per_game_for": r1(sum(u["rush"] for u in u_for) / n) if ok else None,
+            "passing_yards_per_game_against": r1(sum(u["pass"] for u in u_ag) / n) if ok else None,
+            "rushing_yards_per_game_against": r1(sum(u["rush"] for u in u_ag) / n) if ok else None,
+            "interceptions_thrown": int(sum(u["int"] for u in u_for)) if ok else None,
+            "interceptions_made": int(sum(u["int"] for u in u_ag)) if ok else None,
+            "definition": ("summed from player rows: passing yards are gross (before sacks), "
+                           "as credited to passers"),
+            "reason": None if ok else ("no game played yet this season" if not n else
+                                       "a played game has no player rows for one side")})
+    if n and _complete(t_for, epa) and _complete(t_ag, epa):
+        car_for, car_ag = sum(t["carries"] for t in t_for), sum(t["carries"] for t in t_ag)
+        out.update({
+            "passing_epa_per_game_for": r4(sum(t["passing_epa"] for t in t_for) / n),
+            "passing_epa_per_game_against": r4(sum(t["passing_epa"] for t in t_ag) / n),
+            "rushing_epa_per_game_for": r4(sum(t["rushing_epa"] for t in t_for) / n),
+            "rushing_epa_per_game_against": r4(sum(t["rushing_epa"] for t in t_ag) / n),
+            "rushing_epa_per_carry_for": r4(sum(t["rushing_epa"] for t in t_for) / car_for)
+            if car_for else None,
+            "rushing_epa_per_carry_against": r4(sum(t["rushing_epa"] for t in t_ag) / car_ag)
+            if car_ag else None,
+            "epa_reason": None})
+    else:
+        covered = sum(1 for a, b in zip(t_for, t_ag)
+                      if _complete([a], epa) and _complete([b], epa))
+        out.update({
+            "passing_epa_per_game_for": None, "passing_epa_per_game_against": None,
+            "rushing_epa_per_game_for": None, "rushing_epa_per_game_against": None,
+            "rushing_epa_per_carry_for": None, "rushing_epa_per_carry_against": None,
+            "epa_reason": ("no game played yet this season" if not n else
+                           ctx.get("team_week_reason") or
+                           f"team-game totals cover {covered} of the {n} games this team has "
+                           f"played this season, and a partial season is not published")})
+    return out
 
 
 def head_to_head(games, stadium, home, away, cutoff, year):
@@ -440,34 +544,46 @@ def situation(games, g, year, ctx, cross, points, wind_fit, assumed_wind):
                      "roof_this_game": (row["roof"] or None) if row else None,
                      "open_to_sky": (V.playing_conditions(venue["roof_type"], row["roof"])
                                      if venue and row else None),
-                     "international": None,
-                     "international_reason": ("the store holds no venue country; the site "
-                                              "is named, and neutral_site says whether it is "
-                                              "either team's home")},
+                     "country_code": venue["country_code"] if venue else None,
+                     "international": (venue["country_code"] != HOME_COUNTRY)
+                     if venue and venue["country_code"] else None,
+                     "international_reason": None if venue and venue["country_code"] else (
+                         "the venue has no sourced country; the site is named, and "
+                         "neutral_site says whether it is either team's home")},
            "teams": {}}
     for side in ("home", "away"):
         t = G.franchise(g[side])
         rest = rest_of(games, t, g, year)
         hv = home_venue(games, t, year, ctx["sched"])
-        km, kwhy = None, None
+        km, kwhy, tz, tzwhy = None, None, None, None
         if venue is None:
-            kwhy = f"the game's venue has no sourced coordinate ({why})"
+            kwhy = tzwhy = f"the game's venue has no sourced coordinate ({why})"
         elif hv is None:
-            kwhy = "no home venue in this season's schedule"
+            kwhy = tzwhy = "no home venue in this season's schedule"
         else:
             base, bwhy = V.resolve(hv[0], hv[1], cross, points)
             if base is None:
-                kwhy = f"the team's home venue has no sourced coordinate ({bwhy})"
+                kwhy = tzwhy = f"the team's home venue has no sourced coordinate ({bwhy})"
             else:
                 km = round(V.haversine_km(base["latitude"], base["longitude"],
                                           venue["latitude"], venue["longitude"]))
+                z = V.zones_crossed(base["timezone"], venue["timezone"], g["kickoff_ts"])
+                if z is None:
+                    tzwhy = "one of the two venues has no sourced time zone"
+                elif not float(z).is_integer():
+                    tzwhy = f"local time at the two venues differs by {z} hours, not a whole number"
+                else:
+                    tz = int(z)
         out["teams"][side] = {"team": t, "rest": rest,
                               "travel_km": km, "travel_definition":
                                   "great-circle distance from the team's home stadium to "
                                   "this game's stadium; not the route travelled",
                               "travel_reason": kwhy,
-                              "time_zones_crossed": None,
-                              "time_zones_reason": "the store holds no stadium time zone"}
+                              "time_zones_crossed": tz,
+                              "time_zones_definition":
+                                  "hours between local time at the team's home stadium and local "
+                                  "time at this game's stadium at kickoff, the short way round",
+                              "time_zones_reason": tzwhy}
     rec_wind = row["wind"] if row else None
     rec_temp = row["temp"] if row else None
     out["weather"] = {
@@ -475,13 +591,35 @@ def situation(games, g, year, ctx, cross, points, wind_fit, assumed_wind):
         "recorded_temp_f": None if rec_temp is None else float(rec_temp),
         "recorded_reason": None if rec_wind is not None else
         "nflverse records wind and temperature after the game",
-        "forecast_wind_mph": None, "forecast_temp_f": None,
-        "forecast_reason": ("no NFL weather forecast is captured: jobs.ingest_feeds "
-                            "--nfl-weather exists and has not been run into the store"),
+        **forecast_fields(g, venue, ctx),
         "wind_effect_on_total": {"per_mph": wind_fit,
                                  "measured_on": "recorded game-day wind, 2001 to 2025 (c-31)"},
         "total_assumes_wind_mph": assumed_wind,
     }
+    return out
+
+
+def forecast_fields(g, venue, ctx):
+    """The pre-game forecast for this kickoff, with how far ahead it was taken - or
+    nulls and the reason. ctx["forecast"] holds only rows feeds.weather_read let
+    through: kind forecast, taken before the kickoff and before the build."""
+    from jobs.game_export import iso
+    f = (ctx.get("forecast") or {}).get(g["game_id"])
+    out = {"forecast_wind_mph": None, "forecast_temp_f": None, "forecast_lead_hours": None,
+           "forecast_taken": None,
+           "forecast_source": ("Open-Meteo's forecast model for the grid cell holding the "
+                               "stadium, at the kickoff hour; not a measurement at the "
+                               "stadium"),
+           "forecast_reason": None}
+    if f is None:
+        out["forecast_reason"] = (
+            ctx.get("forecast_reason")
+            or ("the venue has a fixed roof, so no forecast is read for it"
+                if venue and venue["roof_type"] == "fixed" else
+                "the store holds no forecast taken before this kickoff"))
+        return out
+    out.update(forecast_wind_mph=r1(f["wind_speed_mph"]), forecast_temp_f=r1(f["temperature_f"]),
+               forecast_lead_hours=r1(f["lead_hours"]), forecast_taken=iso(f["fetched_ts"]))
     return out
 
 
@@ -627,6 +765,9 @@ def build(m, forecast, record, now_ts, con=None, log=print, ctx=None, pace=None,
         finally:
             if own:
                 con.close()
+    if "forecast" not in ctx:
+        ctx["forecast"], ctx["forecast_reason"] = read_forecasts(
+            now_ts, [r["game_id"] for r in forecast["games"]])
     by_id = {g["game_id"]: g for g in games}
     if pace is None:
         pace, pace_err = read_pace(by_id)

@@ -10753,6 +10753,58 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "source": {
+                      "enum": [
+                        "team_rows",
+                        "player_rows",
+                        null
+                      ]
+                    },
+                    "passing_epa_per_game_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "passing_epa_per_game_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_epa_per_game_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_epa_per_game_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_epa_per_carry_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_epa_per_carry_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "epa_definition": {
+                      "type": "string"
+                    },
+                    "epa_reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -10763,9 +10815,19 @@
                     "interceptions_thrown",
                     "interceptions_made",
                     "definition",
-                    "reason"
+                    "reason",
+                    "source",
+                    "passing_epa_per_game_for",
+                    "passing_epa_per_game_against",
+                    "rushing_epa_per_game_for",
+                    "rushing_epa_per_game_against",
+                    "rushing_epa_per_carry_for",
+                    "rushing_epa_per_carry_against",
+                    "epa_definition",
+                    "epa_reason"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Passing and rushing by unit. `source` is team_rows where the source's own team-game totals cover every game the team has played, else player_rows (summed player rows). The EPA figures exist only on the team rows and are null with epa_reason otherwise. Passing EPA has no per-play figure: the play set the source sums it over is not reproduced by attempts plus sacks."
                 },
                 "schedule_strength": {
                   "type": "object",
@@ -11026,6 +11088,58 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "source": {
+                      "enum": [
+                        "team_rows",
+                        "player_rows",
+                        null
+                      ]
+                    },
+                    "passing_epa_per_game_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "passing_epa_per_game_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_epa_per_game_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_epa_per_game_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_epa_per_carry_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_epa_per_carry_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "epa_definition": {
+                      "type": "string"
+                    },
+                    "epa_reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -11036,9 +11150,19 @@
                     "interceptions_thrown",
                     "interceptions_made",
                     "definition",
-                    "reason"
+                    "reason",
+                    "source",
+                    "passing_epa_per_game_for",
+                    "passing_epa_per_game_against",
+                    "rushing_epa_per_game_for",
+                    "rushing_epa_per_game_against",
+                    "rushing_epa_per_carry_for",
+                    "rushing_epa_per_carry_against",
+                    "epa_definition",
+                    "epa_reason"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Passing and rushing by unit. `source` is team_rows where the source's own team-game totals cover every game the team has played, else player_rows (summed player rows). The EPA figures exist only on the team rows and are null with epa_reason otherwise. Passing EPA has no per-play figure: the play set the source sums it over is not reproduced by attempts plus sacks."
                 },
                 "schedule_strength": {
                   "type": "object",
@@ -11415,6 +11539,13 @@
                     "string",
                     "null"
                   ]
+                },
+                "country_code": {
+                  "description": "ISO 3166-1 alpha-2, from Wikidata P17 on the venue's own item.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
               "required": [
@@ -11425,7 +11556,8 @@
                 "roof_this_game",
                 "open_to_sky",
                 "international",
-                "international_reason"
+                "international_reason",
+                "country_code"
               ],
               "additionalProperties": false
             },
@@ -11500,6 +11632,9 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "time_zones_definition": {
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -11509,7 +11644,8 @@
                     "travel_definition",
                     "travel_reason",
                     "time_zones_crossed",
-                    "time_zones_reason"
+                    "time_zones_reason",
+                    "time_zones_definition"
                   ],
                   "additionalProperties": false
                 },
@@ -11581,6 +11717,9 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "time_zones_definition": {
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -11590,7 +11729,8 @@
                     "travel_definition",
                     "travel_reason",
                     "time_zones_crossed",
-                    "time_zones_reason"
+                    "time_zones_reason",
+                    "time_zones_definition"
                   ],
                   "additionalProperties": false
                 }
@@ -11661,6 +11801,22 @@
                     "number",
                     "null"
                   ]
+                },
+                "forecast_lead_hours": {
+                  "description": "Kickoff minus the instant the forecast was taken, in hours. Always positive.",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "forecast_taken": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "forecast_source": {
+                  "type": "string"
                 }
               },
               "required": [
@@ -11671,9 +11827,13 @@
                 "forecast_temp_f",
                 "forecast_reason",
                 "wind_effect_on_total",
-                "total_assumes_wind_mph"
+                "total_assumes_wind_mph",
+                "forecast_lead_hours",
+                "forecast_taken",
+                "forecast_source"
               ],
-              "additionalProperties": false
+              "additionalProperties": false,
+              "description": "recorded_* is what the schedule's source recorded after the game. forecast_* is a FORECAST taken before kickoff and before the build, with how far ahead it was taken; a record never appears in a forecast field."
             }
           },
           "required": [

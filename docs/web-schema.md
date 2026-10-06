@@ -952,8 +952,30 @@ matchup and the forecast can never describe different walks.
   kicked off before `as_of.instant` and has a final score. The spread's and the
   total's constants are the committed season-T fits (seasons 2000..T-1) and are
   refused for any other season.
-- **Not in the store, so null with a reason:** time zones crossed, international
-  venue (no venue country), and forecast weather. See `docs/findings/a64-data-inventory.md`.
+- **Units come from the source's team rows where they cover the season (a-66).**
+  `teams.*.units.source` is `team_rows` when nflverse's `stats_team` totals
+  (`nfl_team_week`) hold both sides of every game the team has played, else
+  `player_rows` (a-64's sum over player rows). Six EPA fields ride the team rows only:
+  `passing_epa_per_game_*`, `rushing_epa_per_game_*`, `rushing_epa_per_carry_*`, null
+  with `epa_reason` otherwise. **There is no passing EPA per play**: `rushing_epa`
+  equals the sum of play-by-play `epa` over carries on every team-game checked, and no
+  candidate play set reproduces `passing_epa` (88-89% of team-games). Fumbles are
+  published from neither source. `research/stats_team_audit.py`.
+- **The forecast is a forecast (a-66).** `situation.weather.forecast_wind_mph` and
+  `forecast_temp_f` are read through `feeds.weather_read.pregame_forecasts`, which
+  returns only rows of kind `forecast` taken BEFORE the kickoff and before the build,
+  with `forecast_lead_hours` and `forecast_taken`. `recorded_*` is nflverse's value
+  after the game. The forecast does NOT feed the total: `total_assumes_wind_mph` is
+  unchanged, because c-31's wind term was fitted on nflverse's recorded wind and the
+  reanalysis of the same games correlates 0.71 with it
+  (`research/nfl_weather_coverage.py`).
+- **Country and time zones (a-66).** `situation.venue.country_code` is Wikidata P17 on
+  the venue's item and `international` is "not US". `time_zones_crossed` is the hours
+  between local time at the team's home stadium and at this game's stadium at kickoff,
+  the short way round; the zone is Open-Meteo's for the stadium's coordinate, because
+  Wikidata P421 is on none of the 47 items.
+- **Still null with a reason:** a fixed-roof venue has no forecast, and a kickoff more
+  than 15 days out is past the forecast endpoint's horizon.
 
 ## Refresh
 
