@@ -906,10 +906,18 @@ def main():
     result["arms"] = {}
     names = {"arm1": "arm 1 injury status", "arm2": "arm 2 depth rank", "arm3": "arm 3 teammate absence"}
     for arm in ARMS:
-        if not tested[arm]:
-            out(f"\n== {names[arm]}: NOT TESTED (stop rule)")
-            continue
         rows = arm_rows(arm, p1)
+        if not tested[arm]:
+            # addendum 1: shown, never read - no verdict, not among the registered intervals
+            out(f"\n== {names[arm]}: NOT TESTED (stop rule). DESCRIPTIVE ONLY, no verdict is read:")
+            if rows:
+                moved = predict(rows, arm, arm)
+                dump = []
+                d = score_pair(f"{arm} P1 descriptive", du.week_rows(rows), arm, "week", dump, out, a.draws,
+                               ("dDSC", "dAUC", "dMCB"))
+                d.update({"moved": moved, "levels": levels(rows, arm)})
+                result["arms"][arm + "_descriptive_not_tested"] = d
+            continue
         moved = predict(rows, arm, arm)
         wk = du.week_rows(rows)
         res = {"n": len(rows), "moved": moved, "share_moved": moved / len(rows), "levels": levels(rows, arm)}
