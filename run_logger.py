@@ -53,6 +53,36 @@ def log(msg):
     print(f"{datetime.now(timezone.utc).strftime('%H:%M:%S')}Z {msg}", flush=True)
 
 
+def _bookkeep(what, fn, *args, **kwargs) -> bool:
+    """Write one bookkeeping row (poll_log, source_health). NEVER raises.
+
+    On 2026-10-04 and again on 2026-10-06 the logger died on a row that records
+    a poll, not on a poll: the hourly prune held the write lock past the 30 s
+    busy timeout, `store.log_poll` raised "database is locked" on the success
+    path, and the SAME call inside poll_venue's own except block raised again
+    and left the process (a-65, a-67). A failure to write a log row must cost
+    one log row. It is said out loud here so the gap in poll_log has a line in
+    logger.log beside it.
+    """
+    try:
+        fn(*args, **kwargs)
+        return True
+    except Exception as e:                        # noqa: BLE001 - never fatal
+        try:
+            log(f"bookkeeping  {what} NOT WRITTEN {type(e).__name__}: {e}")
+        except Exception:                         # noqa: BLE001
+            pass
+        return False
+
+
+def _log_poll(*args, **kwargs) -> bool:
+    return _bookkeep("poll_log", store.log_poll, *args, **kwargs)
+
+
+def _record_health(*args, **kwargs) -> bool:
+    return _bookkeep("source_health", store.record_health, *args, **kwargs)
+
+
 def tier_for(market: dict, kickoffs: dict = None, now: float = None) -> str:
     """Which cadence bucket a market belongs to right now.
 
@@ -120,11 +150,11 @@ async def poll_venue(client, markets, tier, kickoffs=None, every_s=None):
             except Exception as e:                # noqa: BLE001
                 log(f"{client.name:11s} live book ERROR {type(e).__name__}: {e}")
         n = store.write_quotes(rows)
-        store.log_poll(client.name, f"quotes:{tier}", len(subset), n, True, None,
+        _log_poll(client.name, f"quotes:{tier}", len(subset), n, True, None,
                        time.time() - t0)
         log(f"{client.name:11s} {tier:7s} {len(subset):4d} markets -> {n:4d} quotes")
     except Exception as e:
-        store.log_poll(client.name, f"quotes:{tier}", len(subset), 0, False, e,
+        _log_poll(client.name, f"quotes:{tier}", len(subset), 0, False, e,
                        time.time() - t0)
         log(f"{client.name:11s} {tier:7s} ERROR {type(e).__name__}: {e}")
 
@@ -181,7 +211,14 @@ async def venue_worker(client):
 
         for tier, every in cadence.items():
             if now >= next_run[tier]:
-                await poll_venue(client, markets, tier, kickoffs, every)
+                # poll_venue handles its own failures. This is the second
+                # line: whatever escapes it costs one tier one cycle, never
+                # the venue and never the process.
+                try:
+                    await poll_venue(client, markets, tier, kickoffs, every)
+                except Exception as e:            # noqa: BLE001
+                    log(f"{client.name:11s} {tier:7s} POLL ESCAPED "
+                        f"{type(e).__name__}: {e}")
                 next_run[tier] = now + every
 
         try:
@@ -203,13 +240,13 @@ async def _discover(client):
         # 3,255 kalshi markets) and still off the loop, for the same reason the
         # kickoff map is: the poll loop must never block on the database.
         await asyncio.to_thread(store.upsert_markets, markets)
-        store.log_poll(client.name, "discovery", len(markets), 0, True, None,
+        _log_poll(client.name, "discovery", len(markets), 0, True, None,
                        time.time() - t0)
         log(f"{client.name:11s} discovery -> {len(markets)} NFL markets "
             f"({time.time()-t0:.1f}s)")
         return markets
     except Exception as e:
-        store.log_poll(client.name, "discovery", 0, 0, False, e,
+        _log_poll(client.name, "discovery", 0, 0, False, e,
                        time.time() - t0)
         log(f"{client.name:11s} discovery ERROR {type(e).__name__}: {e}")
         return None
@@ -240,12 +277,12 @@ async def snapshot_worker(client):
             try:
                 rows = await client.fetch_halftime()
                 n = store.write_quotes(rows)
-                store.log_poll(client.name, "halftime", len(ids), n, True, None,
+                _log_poll(client.name, "halftime", len(ids), n, True, None,
                                time.time() - t0)
                 log(f"{client.name:11s} halftime {len(ids):4d} games -> {n:4d} quotes "
                     f"(cost {client.last_cost}, left {client.remaining})")
             except Exception as e:
-                store.log_poll(client.name, "halftime", len(ids), 0, False, e,
+                _log_poll(client.name, "halftime", len(ids), 0, False, e,
                                time.time() - t0)
                 log(f"{client.name:11s} halftime ERROR {type(e).__name__}: {e}")
 
@@ -255,11 +292,11 @@ async def snapshot_worker(client):
             try:
                 rows = await client.fetch_quotes(markets)
                 n = store.write_quotes(rows)
-                store.log_poll(client.name, "snapshot", len(due), n, True, None,
+                _log_poll(client.name, "snapshot", len(due), n, True, None,
                                time.time() - t0)
                 log(f"{client.name:11s} snapshot {len(due):4d} due -> {n:4d} quotes")
             except Exception as e:
-                store.log_poll(client.name, "snapshot", len(due), 0, False, e,
+                _log_poll(client.name, "snapshot", len(due), 0, False, e,
                                time.time() - t0)
                 log(f"{client.name:11s} snapshot ERROR {type(e).__name__}: {e}")
 
@@ -343,12 +380,12 @@ async def send_healthcheck(client) -> bool:
         r = await client.get(config.HEALTHCHECK_URL,
                              timeout=config.HEALTHCHECK_TIMEOUT)
         ok = r.status_code < 400
-        store.record_health("healthcheck", ok,
+        _record_health("healthcheck", ok,
                             f"pinged, HTTP {r.status_code}" if ok
                             else f"ping rejected, HTTP {r.status_code}")
         return ok
     except Exception as e:
-        store.record_health("healthcheck", False, f"{type(e).__name__}: {e}")
+        _record_health("healthcheck", False, f"{type(e).__name__}: {e}")
         return False
 
 
@@ -396,7 +433,7 @@ async def watchdog_tick(client=None, venues=None) -> bool:
         log("HEALTHCHECK PING SUPPRESSED - external monitor will fire on its "
             "own timer")
         log("!" * 68)
-        store.record_health("liveness", False,
+        _record_health("liveness", False,
                             f"no successful poll in {config.DEADMAN_MIN:g} min "
                             f"(last {age})", watermark=newest)
         return False
@@ -404,7 +441,7 @@ async def watchdog_tick(client=None, venues=None) -> bool:
     if stale:
         log(f"WARNING: no successful poll from {', '.join(stale)} in "
             f"{config.DEADMAN_MIN:g} min - healthcheck ping suppressed")
-    store.record_health(
+    _record_health(
         "liveness", not stale,
         f"last poll {(now - newest)/60:.1f} min ago"
         + (f"; STALE: {', '.join(stale)}" if stale else ""),
@@ -467,7 +504,7 @@ async def maintenance():
                     f"{stats['failed']} failed")
         except Exception as e:
             log(f"maintenance  rotate ERROR {type(e).__name__}: {e}")
-            store.record_health("rotate_raw", False, f"{type(e).__name__}: {e}")
+            _record_health("rotate_raw", False, f"{type(e).__name__}: {e}")
         try:
             # Hash every shard whose hour has closed. Rotation's own hash is
             # taken seven days later and proves the transfer, not the content.
@@ -477,15 +514,19 @@ async def maintenance():
                     f"({sealed['bytes']/1e6:.0f}MB), {sealed['failed']} failed")
         except Exception as e:
             log(f"maintenance  seal ERROR {type(e).__name__}: {e}")
-            store.record_health("seal_shards", False, f"{type(e).__name__}: {e}")
+            _record_health("seal_shards", False, f"{type(e).__name__}: {e}")
         try:
             stats = await asyncio.to_thread(prune_quotes.run)
-            if stats["deleted"]:
+            if stats["deleted"] or stats.get("unfinished"):
                 log(f"maintenance  prune: {stats['deleted']} quote rows older than "
-                    f"{config.QUOTES_RETENTION_DAYS:g}d, {stats['remaining']} remain")
+                    f"{config.QUOTES_RETENTION_DAYS:g}d, {stats['remaining']} remain"
+                    f" | {stats.get('batches', 0)} batches, longest write lock "
+                    f"{stats.get('max_batch_s', 0.0):.2f}s"
+                    + (f", {stats['unfinished']} left for the next pass"
+                       if stats.get("unfinished") else ""))
         except Exception as e:
             log(f"maintenance  prune ERROR {type(e).__name__}: {e}")
-            store.record_health("prune_quotes", False, f"{type(e).__name__}: {e}")
+            _record_health("prune_quotes", False, f"{type(e).__name__}: {e}")
 
         await _refresh_nflverse()
 
@@ -521,7 +562,7 @@ async def _refresh_nflverse():
             f"not published, {stats['failed']} failed, {stats['rows']} rows")
     except Exception as e:
         log(f"maintenance  nflverse ERROR {type(e).__name__}: {e}")
-        store.record_health("nflverse", False, f"{type(e).__name__}: {e}")
+        _record_health("nflverse", False, f"{type(e).__name__}: {e}")
 
 
 async def depth_worker():
@@ -545,7 +586,7 @@ async def depth_worker():
                 f"{s['elapsed']:.0f}s")
         except Exception as e:
             log(f"depth        ERROR {type(e).__name__}: {e}")
-            store.record_health("depth_capture", False, f"{type(e).__name__}: {e}")
+            _record_health("depth_capture", False, f"{type(e).__name__}: {e}")
         try:
             await asyncio.wait_for(_stop.wait(),
                                    timeout=config.DEPTH_CAPTURE_EVERY)
@@ -567,7 +608,7 @@ async def live_prices_worker(publisher=None):
         return
     if publisher is None and not publish_live_prices.configured():
         log("live prices publish ENABLED but WEB_R2_* is not configured - not publishing")
-        store.record_health("live_prices", False, "enabled, WEB_R2_* not configured")
+        _record_health("live_prices", False, "enabled, WEB_R2_* not configured")
         return
     pub = publisher or publish_live_prices.Publisher(live_book)
     log(f"live prices -> {pub.key}: check every {pub.every_s:g}s, heartbeat "
@@ -577,14 +618,14 @@ async def live_prices_worker(publisher=None):
         if why:
             try:
                 r = await asyncio.to_thread(pub.publish)
-                store.record_health("live_prices", True,
+                _record_health("live_prices", True,
                                     f"{r['markets']} markets, {r['two_sided']} two-sided, "
                                     f"{r['bytes']} bytes ({why})",
                                     watermark=pub.last_newest_read or None)
             except Exception as e:                # noqa: BLE001 - never fatal
                 log(f"live prices ERROR {type(e).__name__}: {e}")
                 try:
-                    store.record_health("live_prices", False, f"{type(e).__name__}: {e}")
+                    _record_health("live_prices", False, f"{type(e).__name__}: {e}")
                 except Exception:                 # noqa: BLE001
                     pass
                 # Back off one cycle before trying again, rather than
@@ -634,7 +675,7 @@ async def main():
         # reading a log tail - a restart time inferred from file mtimes has
         # been wrong before. It also gives anything checking behaviour a clean
         # anchor: rows older than this watermark belong to the previous build.
-        store.record_health("logger_start", True,
+        _record_health("logger_start", True,
                             logger_start_detail(fingerprint, os.getpid()),
                             watermark=time.time())
         log(f"logging {[c.name for c in clients]} -> {config.DB_PATH}")

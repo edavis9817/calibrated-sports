@@ -71,18 +71,56 @@ CREATE INDEX IF NOT EXISTS ix_depth_outcome ON market_depth(outcome_id, ts);
 PRIORITY_STATS = ("receptions", "targets", "rush_attempts")
 
 
-def allowlist(con):
-    """Markets whose RAW book is worth keeping, not just the VWAP ladder."""
-    rows = con.execute(
-        """SELECT DISTINCT mo.venue, mo.market_id
-             FROM market_outcome mo
-             JOIN outcomes o USING (outcome_id)
-            WHERE o.stat IN (?, ?, ?) AND o.season = 2026
-              AND o.week = (SELECT MIN(week) FROM outcomes
-                             WHERE season = 2026 AND week IS NOT NULL)
-            UNION
-           SELECT DISTINCT venue, market_id FROM paper_ledger""",
-        PRIORITY_STATS).fetchall()
+def current_week(con, now=None):
+    """(season, week) of the slate in play or next up, or None.
+
+    The week of the earliest game that has not finished: kickoff later than
+    `now` minus the live window, which is the same horizon the polling tiers
+    use to call a game over. With no game ahead (the offseason, or a schedule
+    that stops early) it is the last week that has a kickoff - a week that is
+    over, so its books are closed and the allowlist keeps nothing, which is
+    the honest answer. None only when there is no schedule at all.
+    """
+    now = time.time() if now is None else now
+    horizon = now - config.LIVE_WINDOW_MIN * 60
+    try:
+        row = con.execute(
+            """SELECT season, week FROM nfl_games
+                WHERE week IS NOT NULL AND kickoff_ts IS NOT NULL
+                  AND kickoff_ts > ?
+                ORDER BY kickoff_ts LIMIT 1""", (horizon,)).fetchone()
+        if row is None:
+            row = con.execute(
+                """SELECT season, week FROM nfl_games
+                    WHERE week IS NOT NULL AND kickoff_ts IS NOT NULL
+                    ORDER BY kickoff_ts DESC LIMIT 1""").fetchone()
+    except sqlite3.OperationalError:          # a store with no schedule table
+        return None
+    return (row[0], row[1]) if row else None
+
+
+def allowlist(con, now=None):
+    """Markets whose RAW book is worth keeping, not just the VWAP ladder.
+
+    Priority props of the CURRENT week, plus anything in the paper ledger. This
+    read `o.week = (SELECT MIN(week) ...)` with the season typed in, and
+    MIN(week) of a season is week 1 for the whole season (measured 2026-10-06:
+    MIN 1, MAX 7) - so from the moment week 1 closed on 2026-09-15 it selected
+    books that no longer existed, and no raw L2 was archived for three weeks.
+    Polymarket depth went to zero at the same instant for the same reason: it
+    has no batched book endpoint, so it is captured for the allowlist ONLY.
+    """
+    wk = current_week(con, now)
+    rows = []
+    if wk is not None:
+        rows = con.execute(
+            """SELECT DISTINCT mo.venue, mo.market_id
+                 FROM market_outcome mo
+                 JOIN outcomes o USING (outcome_id)
+                WHERE o.stat IN (?, ?, ?) AND o.season = ? AND o.week = ?""",
+            (*PRIORITY_STATS, *wk)).fetchall()
+    rows += con.execute(
+        "SELECT DISTINCT venue, market_id FROM paper_ledger").fetchall()
     return {(v, m) for v, m in rows}
 
 
@@ -201,6 +239,8 @@ def run_once(kickoffs=None):
         c.executescript(SCHEMA)
     con = sqlite3.connect(f"file:{config.DB_PATH}?mode=ro", uri=True)
     allow = allowlist(con)
+    wk = current_week(con)
+    week = f"{wk[0]}-wk{wk[1]}" if wk else "none"
     if kickoffs is None and config.DEPTH_TIER_ENABLED:
         kickoffs = store.kickoff_map(("kalshi", "polymarket"))
     t0 = time.time()
@@ -216,6 +256,7 @@ def run_once(kickoffs=None):
     n = store.replace_rows("market_depth", COLS, krows + prows)
     stats = {"kalshi_rows": len(krows), "poly_rows": len(prows),
              "raw_books_kept": kraw + praw, "allowlist": len(allow),
+             "allowlist_week": week,
              "tiered": bool(config.DEPTH_TIER_ENABLED and kickoffs),
              "written": n, "elapsed": round(time.time() - t0, 1)}
     store.record_health("depth_capture", True,

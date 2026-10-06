@@ -216,6 +216,13 @@ QUOTES_RETENTION_DAYS = float(os.getenv("QUOTES_RETENTION_DAYS", 14))
 QUOTES_PRUNE_SOURCES = tuple(
     x for x in os.getenv("QUOTES_PRUNE_SOURCES", "live").split(",") if x)
 QUOTES_PRUNE_VACUUM = os.getenv("QUOTES_PRUNE_VACUUM", "0") == "1"
+# The prune deletes in committed batches so the write lock is never held for
+# long (a-67: one DELETE held it for over a minute and killed the logger). Rows
+# per transaction, the pause after each commit that lets a waiting writer in,
+# and a ceiling on one pass - what is left over is re-read by the next pass.
+QUOTES_PRUNE_BATCH = int(os.getenv("QUOTES_PRUNE_BATCH", 500))
+QUOTES_PRUNE_PAUSE_S = float(os.getenv("QUOTES_PRUNE_PAUSE_S", 0.05))
+QUOTES_PRUNE_MAX_SECONDS = float(os.getenv("QUOTES_PRUNE_MAX_SECONDS", 1500))
 
 # --- nflverse -------------------------------------------------------------
 # The reference corpus. Mirrored, never fetched on demand: nflverse applies NFL

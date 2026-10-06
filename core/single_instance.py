@@ -271,3 +271,52 @@ def acquire(name: str, argv=None) -> Lock:
     lock._stamp(argv)
     _held[name] = lock
     return lock
+
+
+def is_held(name: str) -> bool:
+    """Is a live process holding this lock right now? Asks the OS, not a list.
+
+    `start_logger.ps1 -Status` answered "is the logger running?" by scanning
+    process command lines, and from a shell that cannot read another session's
+    command line that scan is empty - so it printed NOT RUNNING beside a logger
+    that was capturing (a-65). The lock is the one thing that is true of a
+    running logger from every shell: the kernel holds it for exactly as long
+    as the process lives.
+
+    Takes the byte for an instant when nobody holds it, and releases it without
+    restamping, so the last holder's record survives for the next reader. A
+    logger starting inside that instant is refused once and exits 3; the
+    watchdog task starts it again on its next pass.
+    """
+    try:
+        fd = os.open(lock_path(name), os.O_RDWR)
+    except OSError:
+        return False                    # no lock file: nothing ever held it
+    try:
+        if _try_lock(fd):
+            _unlock(fd)
+            return False
+        return True
+    finally:
+        os.close(fd)
+
+
+def _main(argv=None) -> int:
+    """`python -m core.single_instance --held run_logger`
+
+    Exit 0 and the holder's record when the lock is held, exit 1 and the LAST
+    holder's record (marked stale) when it is not. One JSON line either way.
+    """
+    import argparse
+    ap = argparse.ArgumentParser(description="Is a capture process running?")
+    ap.add_argument("--held", required=True, metavar="NAME")
+    args = ap.parse_args(argv)
+    held = is_held(args.held)
+    rec = dict(holder(args.held) or {})
+    rec["held"] = held
+    print(json.dumps(rec, separators=(",", ":")))
+    return 0 if held else 1
+
+
+if __name__ == "__main__":
+    sys.exit(_main())

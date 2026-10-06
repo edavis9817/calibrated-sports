@@ -38,6 +38,7 @@ shrink - which is usually the behaviour you want on a box that is still logging.
 import argparse
 import os
 import time
+from array import array
 
 import config
 import store
@@ -50,9 +51,33 @@ def cutoff_ts(days: float = None, now: float = None) -> float:
     return (now or time.time()) - days * 86400
 
 
-def run(days: float = None, dry_run: bool = False, vacuum: bool = None) -> dict:
+def _candidate_ids(c, cutoff, srcs, held_sql, held_args):
+    """Ids of every prunable row, read WITHOUT the write lock.
+
+    Two index-shaped branches rather than `COALESCE(ingest_ts, ts) < ?`: the
+    COALESCE form cannot use `ix_quotes_ingest (source, ingest_ts)`, so it
+    walks the whole table, and inside a DELETE it did that walk while HOLDING
+    the write lock. Same rows, same rule: a row with an ingest_ts is aged on
+    it, and a row from before the column existed is aged on ts.
+    """
+    ph = ",".join("?" for _ in srcs)
+    ids = array("q")
+    for age_sql in ("ingest_ts < ?", "ingest_ts IS NULL AND ts < ?"):
+        for (i,) in c.execute(
+                f"SELECT id FROM quotes WHERE source IN ({ph}) AND {age_sql} "
+                f"{held_sql}", (*srcs, cutoff, *held_args)):
+            ids.append(i)
+    return ids
+
+
+def run(days: float = None, dry_run: bool = False, vacuum: bool = None,
+        batch: int = None, pause_s: float = None, max_seconds: float = None) -> dict:
     cutoff = cutoff_ts(days)
     vacuum = config.QUOTES_PRUNE_VACUUM if vacuum is None else vacuum
+    batch = config.QUOTES_PRUNE_BATCH if batch is None else batch
+    pause_s = config.QUOTES_PRUNE_PAUSE_S if pause_s is None else pause_s
+    max_seconds = (config.QUOTES_PRUNE_MAX_SECONDS if max_seconds is None
+                   else max_seconds)
     before = os.path.getsize(config.DB_PATH) if os.path.exists(config.DB_PATH) else 0
 
     # ONLY live capture is prunable. See config.QUOTES_PRUNE_SOURCES.
@@ -69,20 +94,24 @@ def run(days: float = None, dry_run: bool = False, vacuum: bool = None) -> dict:
     # row store with 1M stale rows, NOT EXISTS 5.98s and LEFT JOIN 5.66s are a
     # wash while NOT IN builds a bloom filter and scans the hold table (13.02s)
     # - and NOT EXISTS is the only one of the three expressible directly in the
-    # DELETE, which keeps this a single statement.
+    # DELETE.
     held_sql = ("AND NOT EXISTS (SELECT 1 FROM quote_retention_hold h "
                 "WHERE h.venue = quotes.venue AND h.market_id = quotes.market_id "
                 "AND h.until_ts > ?)")
     held_args = (time.time(),)
+
+    # --- 1. READ. Nothing in this block takes the write lock, and the
+    # connection is closed before the first delete so no read snapshot is held
+    # open across the batches (an open reader pins the WAL).
+    t_read = time.time()
     with store.db() as c:
         # Degrade, never die: this runs inside the logger's maintenance loop, so
         # a store predating the table must not take the loop down with it.
         if not c.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
                          "AND name='quote_retention_hold'").fetchone():
             held_sql, held_args = "", ()
-        stale = c.execute(
-            f"SELECT COUNT(*) FROM quotes WHERE {age} < ? "
-            f"AND source IN ({ph}) {held_sql}", (cutoff, *srcs, *held_args)).fetchone()[0]
+        ids = _candidate_ids(c, cutoff, srcs, held_sql, held_args)
+        stale = len(ids)
         held = 0
         if held_sql:
             held = c.execute(
@@ -104,16 +133,55 @@ def run(days: float = None, dry_run: bool = False, vacuum: bool = None) -> dict:
         reparsed = c.execute(
             f"SELECT COUNT(*) FROM quotes WHERE ts < ? AND {age} >= ? "
             f"AND source IN ({ph})", (cutoff, cutoff, *srcs)).fetchone()[0]
-        if stale and not dry_run:
-            c.execute(f"DELETE FROM quotes WHERE {age} < ? "
-                      f"AND source IN ({ph}) {held_sql}", (cutoff, *srcs, *held_args))
+    read_s = time.time() - t_read
 
-    stats = {"deleted": 0 if dry_run else stale, "candidates": stale,
+    # --- 2. DELETE, in small committed batches (a-67). One DELETE in one
+    # transaction held the write lock for over a minute (61-84 s of stalled
+    # polling beside five consecutive prunes on 2026-10-04) and the 30 s busy
+    # timeout of every other writer expired inside it; that is what killed the
+    # logger twice. A batch is `batch` rows by PRIMARY KEY, its own transaction,
+    # and a pause after the commit so a waiting writer gets in.
+    #
+    # The id list only says WHERE to look. Every batch re-applies the whole
+    # rule - source, age, hold - so a row that gained a hold, or that is not
+    # what the read saw, is not deleted on the strength of a stale list.
+    deleted, batches, max_batch_s, delete_s = 0, 0, 0.0, 0.0
+    unfinished = 0
+    if stale and not dry_run:
+        t_del = time.time()
+        conn = store._conn()
+        try:
+            for i in range(0, stale, batch):
+                if max_seconds and time.time() - t_del > max_seconds:
+                    unfinished = stale - i        # the next pass re-reads them
+                    break
+                chunk = ids[i:i + batch].tolist()
+                marks = ",".join("?" for _ in chunk)
+                t0 = time.time()
+                cur = conn.execute(
+                    f"DELETE FROM quotes WHERE id IN ({marks}) "
+                    f"AND {age} < ? AND source IN ({ph}) {held_sql}",
+                    (*chunk, cutoff, *srcs, *held_args))
+                conn.commit()
+                took = time.time() - t0
+                deleted += cur.rowcount
+                batches += 1
+                max_batch_s = max(max_batch_s, took)
+                if pause_s:
+                    time.sleep(pause_s)
+        finally:
+            conn.close()
+        delete_s = time.time() - t_del
+
+    stats = {"deleted": deleted, "candidates": stale,
              "protected": protected, "held": held, "saved_by_ingest_ts": reparsed,
-             "remaining": total - (0 if dry_run else stale),
-             "cutoff": cutoff, "bytes_before": before, "bytes_after": before}
+             "remaining": total - deleted,
+             "cutoff": cutoff, "bytes_before": before, "bytes_after": before,
+             "batches": batches, "batch_size": batch,
+             "max_batch_s": round(max_batch_s, 3), "read_s": round(read_s, 2),
+             "delete_s": round(delete_s, 2), "unfinished": unfinished}
 
-    if vacuum and stale and not dry_run:
+    if vacuum and deleted and not dry_run:
         # Separate connection: VACUUM cannot run inside a transaction.
         conn = store._conn()
         try:
@@ -128,7 +196,9 @@ def run(days: float = None, dry_run: bool = False, vacuum: bool = None) -> dict:
         f"pruned {stats['deleted']} live quotes ({protected} historical rows "
         f"protected, {held} held for the site) older than "
         f"{config.QUOTES_RETENTION_DAYS if days is None else days:g}d, "
-        f"{stats['remaining']} remain",
+        f"{stats['remaining']} remain; {batches} batches of <= {batch}, "
+        f"longest write lock {stats['max_batch_s']}s, read {stats['read_s']}s"
+        + (f"; {unfinished} left for the next pass" if unfinished else ""),
         watermark=time.time())
     return stats
 
@@ -147,9 +217,14 @@ def main():
     s = run(days=args.days, dry_run=args.dry_run,
             vacuum=True if args.vacuum else None)
     verb = "would delete" if args.dry_run else "deleted"
-    print(f"{verb} {s['candidates']} quotes older than "
+    n = s['candidates'] if args.dry_run else s['deleted']
+    print(f"{verb} {n} quotes older than "
           f"{time.strftime('%Y-%m-%d', time.gmtime(s['cutoff']))}, "
           f"{s['remaining']} remain")
+    if not args.dry_run:
+        print(f"{s['batches']} batches of <= {s['batch_size']}, longest write "
+              f"lock {s['max_batch_s']}s, total delete {s['delete_s']}s, "
+              f"read {s['read_s']}s, {s['unfinished']} left for the next pass")
     if s["bytes_after"] != s["bytes_before"]:
         print(f"db {s['bytes_before']/1e6:.1f}MB -> {s['bytes_after']/1e6:.1f}MB")
 
