@@ -359,8 +359,10 @@ CREATE INDEX IF NOT EXISTS ix_looks_season ON nfl_pbp_looks(season, week);
 -- SEVERAL COLUMNS ARE NOT COLLECTED IN EARLY SEASONS AND ARRIVE AS ZERO OR NULL
 -- (the silent-zero class). The store keeps what the file says; a reader goes
 -- through nflverse.team_stat_collected(), which is measured by
--- research/stats_team_audit.py. fumbles_lost_total does NOT reconcile with the
--- player rows and is stored, not published.
+-- research/stats_team_audit.py. fumbles_lost_total is stored and NOT published:
+-- a-64 left fumbles out and this unit did not reopen it. Measured, it equals the
+-- player rows' fumbles_lost_total on all but 6 team-games (all in 2000-2001); it
+-- does NOT equal the sum of the three component columns, which undercount.
 CREATE TABLE IF NOT EXISTS nfl_team_week (
     sport         TEXT NOT NULL DEFAULT 'nfl',
     team          TEXT NOT NULL,

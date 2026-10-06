@@ -137,8 +137,10 @@ def test_the_audit_supports_what_the_matchup_publishes_and_withholds():
     # published from the team rows: interceptions exact, yards off on a handful
     assert rec["passing_interceptions"]["unequal"] == 0
     assert rec["passing_yards"]["unequal"] <= 5 and rec["rushing_yards"]["unequal"] <= 5
-    # NOT published: fumbles lost disagree with the player rows
-    assert rec["fumbles_lost_total"]["unequal"] > 0
+    # NOT published - carried forward from a-64, not a measured failure: the totals
+    # agree everywhere but a handful of team-games, all before 2002
+    assert 0 < rec["fumbles_lost_total"]["unequal"] <= 10
+    assert all(int(s) < 2002 for s in rec["fumbles_lost_total"]["by_season_unequal"])
     assert "fumbles" not in " ".join(GM.TEAM_WEEK_READ)
     for season, res in audit["epa_definition"].items():
         rush = res["rushing_epa"]["epa on play_type run or qb_kneel with a named rusher"]

@@ -960,7 +960,9 @@ matchup and the forecast can never describe different walks.
   with `epa_reason` otherwise. **There is no passing EPA per play**: `rushing_epa`
   equals the sum of play-by-play `epa` over carries on every team-game checked, and no
   candidate play set reproduces `passing_epa` (88-89% of team-games). Fumbles are
-  published from neither source. `research/stats_team_audit.py`.
+  published from neither source, as a-64 left them; measured, the team total equals
+  the player rows' `fumbles_lost_total` on all but 6 team-games, all in 2000-2001, so
+  that is a choice to revisit and not a defect. `research/stats_team_audit.py`.
 - **The forecast is a forecast (a-66).** `situation.weather.forecast_wind_mph` and
   `forecast_temp_f` are read through `feeds.weather_read.pregame_forecasts`, which
   returns only rows of kind `forecast` taken BEFORE the kickoff and before the build,

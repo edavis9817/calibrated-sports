@@ -403,8 +403,10 @@ def _complete(rows, cols):
 def units_block(res, team, n, ctx):
     """Passing and rushing by unit. From nflverse's team-game totals where they cover
     EVERY game this team has played (both sides of each), else from the player rows;
-    `source` says which. The EPA figures exist only on the team rows. Fumbles are in
-    neither: the team total and the player rows disagree on them."""
+    `source` says which. The EPA figures exist only on the team rows. Fumbles are
+    published from neither, as a-64 left them. That is a choice carried forward, not
+    a measured defect: the team's fumbles_lost_total equals the player rows' on all
+    but 6 team-games in 28 seasons (research/stats_team_audit.py)."""
     tw = ctx.get("team_week") or {}
     t_for = [tw.get((r["game_id"], team)) for r in res]
     t_ag = [tw.get((r["game_id"], r["opponent"])) for r in res]
