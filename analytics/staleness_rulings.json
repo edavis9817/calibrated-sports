@@ -1,0 +1,4 @@
+{
+  "_comment": "Human rulings for analytics.staleness. Each entry: check, key, ruled_by, ruled_on, reason; optional tolerance_weeks (freshness only). An agent does not add a row here. Ships empty.",
+  "rulings": []
+}
