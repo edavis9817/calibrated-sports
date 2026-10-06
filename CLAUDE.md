@@ -1082,6 +1082,51 @@ Scripts in `research/`. Verified 2026-09-09 against the maintained
   refuses a duplicate (verified). An AT-STARTUP task needs an elevated shell and
   was refused - after an unattended Windows Update reboot nothing starts until
   someone logs in.
+- **THE LOGGER DIED TWICE ON A LOG ROW, AND "RUNNING" IS ASKED OF THE LOCK** (a-65,
+  a-67; 2026-10-04 14:50Z for 37.7 min, 2026-10-06 03:24Z for 83.8 min). The hourly
+  prune held the write lock past the 30 s busy timeout, `store.log_poll` raised
+  "database is locked", and the same call inside `poll_venue`'s own except block
+  raised again and left the process. Four rules came out of it:
+  - **A bookkeeping write never raises.** Every `poll_log` / `source_health` write in
+    `run_logger.py` goes through `_bookkeep`; `tests/test_logger_survives_lock.py`
+    asserts by AST that no unguarded call site exists.
+  - **The prune deletes by PRIMARY KEY in committed batches** (`QUOTES_PRUNE_BATCH`
+    500). Measured on the live store with the logger polling: longest write lock
+    **0.055 s**, 1.6 s for 9,465 rows. **The first batched version was wrong and every
+    test passed**: a bare `source IN (...)` beside the id list sent the planner down
+    `ix_quotes_ingest`, each batch walked every live row, and the lock was held 4.1 s a
+    batch (5.9 s worst, 376.9 s for 45,254 rows). Same rows deleted, so only
+    `EXPLAIN QUERY PLAN` on the 30M-row store could tell them apart. `+source` fixes it.
+  - **The prune's READ is still slow** - 77 s warm, 262-388 s cold - because checking
+    a hold needs a row lookup for each of ~5.6M aged rows. It takes no write lock. A
+    covering index `(source, ingest_ts, venue, market_id)` would end it and is a
+    multi-minute write on a 21 GB file, so it is not built.
+  - **`start_logger.ps1 -Status` asks the single-instance lock**
+    (`python -m core.single_instance --held run_logger`, exit 0 held / 1 not), then the
+    process scan, then the age of `logger.log`, and prints which one answered.
+    `Win32_Process.CommandLine` is empty for a logger in another session, so the old
+    scan printed NOT RUNNING beside a healthy logger.
+  - **Restart is automatic.** Task `CalibratedSports Logger (watchdog)` runs
+    `start_logger.ps1 -Ensure` every 2 minutes (S4U): silent when the lock is held,
+    starts the logger when it is not, and writes `<STORAGE_DIR>\logs\logger_watchdog.log`
+    only when it acts. It does NOT restart a logger that holds the lock but is wedged -
+    that is still the dead-man's job to report.
+  - **The logger runs from `code\prod\calibrated-sports`** since 2026-10-06 04:47Z;
+    both logger tasks and the watchdog point there. Before/after task XML is in
+    `code\prod\task-backup-2026-10-06\`.
+- **Outage windows are RECONSTRUCTED from Kalshi 1-minute candles, under
+  `source = 'reconstructed:kalshi_candles_1m'`** (`jobs/backfill_outage.py`). A candle
+  is a minute's closing bid/ask and that minute's volume, not a tick, and carries no
+  depth. 12,675 rows cover 2026-10-04 14:50-15:28Z and 290 cover 2026-10-06
+  03:24-03:35Z, on `KXNFLGAME` / `KXNFLSPREAD` / `KXNFLTOTAL` only - the markets with a
+  mapped kickoff. **No player prop was reconstructed.** Anything that needs ticks filters
+  `source = 'live'`.
+- **Raw L2 books follow the CURRENT week** (`capture_depth.current_week`, from
+  `nfl_games`). The allowlist read `MIN(week)` of the season, which is 1 all season, so
+  no raw book was archived from 2026-09-15 to 2026-10-06 and Polymarket depth (allowlist
+  only) was zero for the same reason. **The fix does not by itself produce a book**: the
+  allowlist is priority props WITH A `market_outcome` ROW, and on 2026-10-06 week 5 had
+  none mapped and week 4 had 87 Kalshi markets against ~1,500 in weeks 2-3.
 
 - **THE SWEEP FOUND NOTHING THAT CLEARS THE BAR** (brief 022, `research/sweep/`,
   pre-registered at `ae3895b`, candidates frozen at `7e18ce3` before any CFB

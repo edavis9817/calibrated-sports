@@ -113,7 +113,34 @@ fast-forward over it. To carry it to origin:
 The push names the URL explicitly because the clone's push URL is disabled. Pushing a slug-only
 commit straight to `main` is what happened to `8986d8d` from the old arrangement.
 
-## Cutover (Ethan's to run; nothing below has been done)
+## State on 2026-10-06 (a-67): the logger is cut over; three tasks are not
+
+Read from Task Scheduler at 05:10Z, not from this file:
+
+| Task | Runs from |
+|---|---|
+| CalibratedSports Logger (boot), (logon) | `code\prod\calibrated-sports\start_logger.ps1` - repointed by a-67 |
+| CalibratedSports Logger (watchdog) | same script with `-Ensure`, every 2 minutes, S4U - new in a-67 |
+| CalibratedSports Board Tick, Live Snapshot | `code\prod\calibrated-sports` (already) |
+| CalibratedSports Weekly Refresh | **still `code\calibrated-sports`** |
+| CalibratedSports CFB Odds Forward, CFB Weekly | **still `code\cs-cfb`** |
+
+Before/after XML of the logger tasks is in `code\prod\task-backup-2026-10-06\`. To undo:
+`Register-ScheduledTask -TaskName "<name>" -Xml (Get-Content <file>.before.xml -Raw) -Force`,
+and `Unregister-ScheduledTask "CalibratedSports Logger (watchdog)"`.
+
+- **`start_logger.ps1 -Restart` now works from any elevated shell** and `-Status` is true from
+  any shell: both ask the single-instance lock. Section 2 below ("will not stop it") describes
+  the script before a-67.
+- **No sync task exists.** `prod_sync.ps1 -Update` has never been scheduled, and it would defer
+  for ever as written: it will not fast-forward while a non-logger process runs from the clone,
+  and Live Snapshot is a permanent loop there. The clone was brought to `origin/main` by hand
+  on 2026-10-06 (it was 12 commits behind; its one local slug commit was already upstream and
+  the rebase dropped it as applied).
+- **`check_fit.py` sits untracked in the clone**, so `prod_sync.ps1` reports DRIFT. It was left
+  alone: it is not a-67's file.
+
+## Cutover (the remaining three tasks; nothing below has been done for them)
 
 Do it outside Tue/Wed/Thu 09:00 (weekly refresh) and outside any CFB kickoff hour. The forward
 tick buys a snapshot within 40 minutes of a first kickoff; `jobs.ingest_cfb --odds-week` lists
