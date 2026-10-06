@@ -279,3 +279,28 @@ Two definitions above are tightened. Neither has been run in either form.
    ranks 1-3, then 4-6), so depth rank is the player's ordinal **within his
    slot**, which is what `depth_team` meant to 2024. A row whose 2001-2024
    `depth_position` is FB is not an RB rank.
+
+## Addendum 1 — 2026-10-06, after the Step 0 audit ran and before any model was fitted
+
+The audit (`--audit`) has run once. No coefficient has been fitted and no
+probability has been moved. Two things it showed, and what is done about each.
+
+1. **Arm 2 fails my own stop rule and is NOT TESTED.** Its strict population is
+   P1 2025: 5,690 rows over **18** season-weeks, and the rule requires 20. I set
+   20 without checking that P1's 22 weeks of 2025 include four postseason weeks,
+   which the audit is REG-only and cannot use. The rule stands as written: arm 2
+   has **no primary and no verdict**, and its P1 intervals are not among the
+   registered tests. The same computation is printed, labelled DESCRIPTIVE, so
+   the number is on the record without being read. Arm 2's P2 intervals and the
+   three-arm P2 interval stay registered. Registered count is therefore
+   3 − 1 primaries and 44 − 10 secondaries: **36 intervals**.
+2. **The depth-copy check compared the wrong thing.** It hashed every column and
+   reported 3,224 of 4,994 past snapshots "changed" between our daily copies.
+   Row-level comparison shows the difference is `gsis_id` alone: upstream
+   back-fills player ids into old snapshots (null, or an Elias-style id, becomes
+   a gsis id); row counts per `dt` are identical. The check now hashes the chart
+   itself (team, position, slot, rank, espn_id) separately from the id column
+   and reports both. This is a correction to the audit's instrument, not to a
+   rule. What it leaves true and is reported: **a past snapshot's player ids are
+   not immutable**, so a chart read today can name a player that the same
+   snapshot, read on its own day, could not have joined.
