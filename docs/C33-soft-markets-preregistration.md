@@ -209,3 +209,92 @@ no movement).
 `research/soft_markets.py` (reads `LOGGER_DB` `mode=ro`, writes only `--json-out` and an
 extract cache under a scratch path), `tests/test_soft_markets.py`,
 `docs/findings/soft-markets.md`. Nothing is published and no site file is touched.
+
+---
+
+## Addendum 1 — 2026-10-06, written after the smoke run and before the real run
+
+The script was run once end to end (output kept at
+`_relay/archive/reports/c-33-soft-markets-smoke-run.txt`). I have therefore SEEN a full set of
+figures under the definitions above. One of those definitions is broken, and the break decides
+the ranking, so it is corrected here before any figure is reported. Nothing above is edited.
+
+### 1. The registered `kappa` estimator measures the wrong thing on yards markets
+
+Registered: `kappa` = minus the median of `(p_i - p_j)/(ln L_i - ln L_j)` over cross-book pairs
+on different lines. That identifies the slope of P(over) in the line **only if the two books
+hold the same belief**. They do not, and the way they express a different belief depends on
+the market:
+
+- on a yards market a book that thinks higher **moves the line** and keeps the price near
+  even, so two books on different lines both sit at p ~ 0.5 and the ratio is ~0;
+- on a count market the line cannot move by less than a whole unit, so the book moves the
+  price instead.
+
+Seen in the smoke run: cross-book `kappa` 0.019 (reception yards), 0.044 (rush yards),
+negative (pass yards), against 0.59-1.01 on the count keys; and the share of book pairs on
+different lines is 57-81% on the three yards keys against 4-28% on the count keys. A `kappa`
+of 0.02 says a 10% higher receiving-yards line is worth 0.2pp of probability, which is false
+by an order of magnitude. Under it every yards key's "combined" disagreement and movement
+collapses to its same-line figure — and the same-line figure is selected on the books having
+agreed about the line. **The registered figure would have ranked the yards markets tightest
+because of the unit they adjust in, not because of how much they agree.**
+
+Correction. `kappa` is the slope of ONE book's own prices across lines at ONE instant, where
+that can be observed:
+
+    ladder kappa   per (book, event, subject) at the close read, from the book's own
+                   `_alternate` ladder: the nearest alternate line below the main line and the
+                   nearest above it, each Over price divided by (1 + that book's main-line
+                   hold), kappa_i = -(p_above - p_below)/(ln L_above - ln L_below).
+                   kappa_key = median over claims; needs >= 30 claims and a positive value.
+
+- A key with a ladder in panel L (`player_receptions`, `player_reception_yds`,
+  `player_rush_yds`, `player_pass_yds`) uses its ladder `kappa`, in both panels (panel H has
+  no ladders; it borrows 2026's, and says so).
+- A key with no ladder keeps the registered cross-book `kappa`. `player_receptions` has both,
+  so it is the measured check on how far the cross-book figure is biased on a count market;
+  both are printed for every key that has both.
+- A third, independent figure is printed for every key and used for nothing: the empirical
+  slope `[P(y > x e^-h) - P(y > x e^h)] / 2h`, h = 0.25, over the forecastability population
+  with `x` the trailing mean. It will read low (a trailing mean is a worse centre than a book
+  line); it is there to show the ladder figure is the right order of magnitude.
+- The registered cross-book figures are still printed for every key, labelled, so the size of
+  this correction is visible rather than asserted.
+
+`kappa` is estimated once on the full sample and held fixed across bootstrap draws. The
+intervals therefore do not carry `kappa`'s own uncertainty; the ladder `kappa`'s interquartile
+range is printed.
+
+### 2. `player_sacks` disagreement is not read (panel H)
+
+The smoke run showed zero same-line book pairs for sacks in 507 games: the books quoting it
+use different line formats (quarter lines against half lines), which are not the same
+instrument at different thresholds. Its "combined" figure is a line-format gap, not a
+disagreement. Sacks keeps its hold figure, its disagreement is printed and flagged not
+comparable, and it is left out of panel H's composite.
+
+### 3. Hold: the bench books do not all quote every key
+
+Seen in the smoke run: fanduel quotes no `player_rush_attempts`, `player_pass_attempts` or
+`player_tackles_assists` in 2026, and tackles+assists has draftkings as its only bench book.
+The registered equal-weight bench mean therefore still mixes book sets. It stays the primary
+as registered. **draftkings alone is the only book quoting all 8 keys**, so a third composite
+is added as a sensitivity and labelled as such: `composite B-DK` = mean rank over
+(draftkings-alone hold, disagreement). The shortlist rule is unchanged (A and B).
+
+### 4. Gaps the registration left open, filled before the real run
+
+- `player_anytime_td` has no line, so the forecastability screen cannot use one. Its
+  population is players passing the receptions screen OR the rush-attempts screen.
+- `player_tackles_assists` in panel L is quoted by two books and its movement rests on 14
+  games. It is ranked (>= 10 games) and flagged thin wherever it appears.
+
+### What I saw, stated so it can be held against the result
+
+Under the broken `kappa`: hold orders the count keys (receptions, rush attempts, pass
+attempts, pass TDs) above the yards keys by ~0.3-0.5pp; disagreement and movement did the
+same; all three proxies correlated at about +0.7; the shortlist read receptions and rush
+attempts. The correction can only RAISE the yards keys' disagreement and movement. It was not
+chosen for the direction it moves the answer — the answer it moves away from is "the two
+markets we already price are the softest", which is the convenient one for nobody.
