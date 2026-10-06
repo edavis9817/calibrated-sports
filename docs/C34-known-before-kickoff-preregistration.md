@@ -255,3 +255,27 @@ P1 2023-24 with lagged-label charts.
   aggregates and intervals only.
 - Nothing publishes, nothing tunes `models/baseline.py`, no credits are spent.
 - Findings: `docs/findings/known-before-kickoff.md`.
+
+## Addendum 0 — 2026-10-06, written before the script exists and before any feature met an outcome
+
+Two definitions above are tightened. Neither has been run in either form.
+
+1. **E0's shrinkage prior is the (family, usage-rank bucket 1/2/3+) training
+   mean, not the bare position mean.** Reason: shrinking a starter toward the
+   bare position mean biases E0 low for starters and high for backups, and that
+   bias is correlated with exactly the arm 2 features (depth rank). The
+   coefficients would then partly be repairing my offset rather than measuring
+   the chart, and applying them to a baseline that already shrinks toward
+   position and role would double-count. Shrinking toward role removes the
+   mechanical part.
+2. **"Lagged one week" means the team's last labelled REG chart with week < w
+   in the same season**, so a game after a bye uses the chart from two weeks
+   back rather than none. Still label-dated, still training-only (and the
+   descriptive 2023-24 run).
+3. **P1 postseason rows are outside every arm's population**: the audit is REG
+   only and the panel holds REG history. They are counted, not scored.
+4. The format difference found while reading the files (no outcome involved):
+   from 2025 `pos_rank` runs ACROSS a position's slots (three WR slots carry
+   ranks 1-3, then 4-6), so depth rank is the player's ordinal **within his
+   slot**, which is what `depth_team` meant to 2024. A row whose 2001-2024
+   `depth_position` is FB is not an RB rank.
