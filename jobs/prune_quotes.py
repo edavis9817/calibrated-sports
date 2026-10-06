@@ -70,6 +70,21 @@ def _candidate_ids(c, cutoff, srcs, held_sql, held_args):
     return ids
 
 
+def delete_sql(marks: str, ph: str, held_sql: str) -> str:
+    """One batch: these ids, and only those of them the rule still condemns.
+
+    `+source` is not decoration. Written as a bare `source IN (...)` the planner
+    takes `ix_quotes_ingest (source=?)` and walks EVERY live row to test it
+    against the id list - measured on the live store 2026-10-06: 91 batches of
+    500 held the write lock for 4.1 s each on average and 5.9 s at worst,
+    376.9 s in all for 45,254 rows. The unary plus takes that index off the
+    table for this term, COALESCE already cannot use one, and what is left is
+    the primary key. tests/test_logger_survives_lock.py reads the plan.
+    """
+    return (f"DELETE FROM quotes WHERE id IN ({marks}) "
+            f"AND COALESCE(ingest_ts, ts) < ? AND +source IN ({ph}) {held_sql}")
+
+
 def run(days: float = None, dry_run: bool = False, vacuum: bool = None,
         batch: int = None, pause_s: float = None, max_seconds: float = None) -> dict:
     cutoff = cutoff_ts(days)
@@ -112,13 +127,15 @@ def run(days: float = None, dry_run: bool = False, vacuum: bool = None,
             held_sql, held_args = "", ()
         ids = _candidate_ids(c, cutoff, srcs, held_sql, held_args)
         stale = len(ids)
-        held = 0
-        if held_sql:
-            held = c.execute(
-                f"SELECT COUNT(*) FROM quotes WHERE {age} < ? AND source IN ({ph}) "
-                f"AND EXISTS (SELECT 1 FROM quote_retention_hold h "
-                f"WHERE h.venue = quotes.venue AND h.market_id = quotes.market_id "
-                f"AND h.until_ts > ?)", (cutoff, *srcs, *held_args)).fetchone()[0]
+        # Held = aged rows the read above did NOT return: they are exact
+        # complements, so this is a subtraction. Counting them with their own
+        # EXISTS walked every aged row a second time - 5.58M row lookups on the
+        # live store - and the two counts below are answered from the index.
+        aged = sum(c.execute(
+            f"SELECT COUNT(*) FROM quotes WHERE source IN ({ph}) AND {a}",
+            (*srcs, cutoff)).fetchone()[0]
+            for a in ("ingest_ts < ?", "ingest_ts IS NULL AND ts < ?"))
+        held = aged - stale
         total = c.execute("SELECT COUNT(*) FROM quotes").fetchone()[0]
         # Deliberately keyed on `ts`, not on age: this is the count of rows a
         # naive ts-keyed window WOULD have destroyed, which is the number worth
@@ -158,10 +175,8 @@ def run(days: float = None, dry_run: bool = False, vacuum: bool = None,
                 chunk = ids[i:i + batch].tolist()
                 marks = ",".join("?" for _ in chunk)
                 t0 = time.time()
-                cur = conn.execute(
-                    f"DELETE FROM quotes WHERE id IN ({marks}) "
-                    f"AND {age} < ? AND source IN ({ph}) {held_sql}",
-                    (*chunk, cutoff, *srcs, *held_args))
+                cur = conn.execute(delete_sql(marks, ph, held_sql),
+                                   (*chunk, cutoff, *srcs, *held_args))
                 conn.commit()
                 took = time.time() - t0
                 deleted += cur.rowcount

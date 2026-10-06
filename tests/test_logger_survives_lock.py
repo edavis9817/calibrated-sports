@@ -344,3 +344,41 @@ def test_the_cli_exit_code_is_the_answer(env, capsys):
         assert '"held":true' in capsys.readouterr().out
     finally:
         lock.release()
+
+
+def test_a_batch_is_a_primary_key_lookup_not_a_walk_of_every_live_row(env):
+    """The first version of the batch passed every test above and was wrong
+    where it mattered: with a bare `source IN (...)` SQLite planned the delete
+    through ix_quotes_ingest and walked every live row per batch, holding the
+    write lock 4.1 s a batch on the live store (EXPLAIN QUERY PLAN there read
+    `SEARCH quotes USING INDEX ix_quotes_ingest (source=?)`). The same rows are
+    deleted either way, so only the PLAN tells the two apart.
+
+    What this can and cannot show: on a fixture this small the planner may pick
+    the primary key for the bare form too, so the bad plan is NOT reproduced
+    here - it was read off the 30M-row store. What is pinned is that the
+    shipped statement cannot use that index at all (`+source`), and that its
+    plan is the primary key."""
+    seed()
+    held = ("AND NOT EXISTS (SELECT 1 FROM quote_retention_hold h WHERE h.venue = "
+            "quotes.venue AND h.market_id = quotes.market_id AND h.until_ts > ?)")
+    sql = prune_quotes.delete_sql("?,?,?", "?", held)
+    assert "+source IN" in sql and " source IN" not in sql
+    with store.db() as c:
+        c.execute("ANALYZE")
+        plan = " | ".join(r[3] for r in c.execute(
+            "EXPLAIN QUERY PLAN " + sql,
+            (1, 2, 3, time.time(), "live", time.time())))
+    assert "PRIMARY KEY" in plan, plan
+    assert "ix_quotes_ingest" not in plan, plan
+
+
+def test_held_is_the_complement_of_the_candidates(env):
+    seed()
+    with store.db() as c:
+        c.executemany("INSERT INTO quotes (ts, venue, market_id, source, ingest_ts) "
+                      "VALUES (?,?,?,?,?)",
+                      [(time.time() - 30 * DAY, "kalshi", "HELD", "live",
+                        time.time() - 30 * DAY)] * 4)
+    s = prune_quotes.run(dry_run=True)
+    assert s["held"] == 5 and s["candidates"] == 1201
