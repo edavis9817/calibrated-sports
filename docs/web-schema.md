@@ -840,3 +840,29 @@ so it deletes nothing and declares nothing to the uploader.
 
 **A data refresh commits nothing and triggers no build.** When nflverse is late,
 the export still runs and sets `current.stale`.
+
+## board/{sport}/logger.json — kind `logger_activity` (a-74)
+
+What the market logger did, read from its own bookkeeping by
+`jobs/logger_activity.py` (`poll_log`, `source_health`, `market_depth`,
+`raw_shards`, and the restart watchdog's log). An operations record, not a
+market figure. The Board's tick rebuilds it at most hourly as a reporting step
+that cannot fail the tick; it owns no prefix and deletes nothing.
+
+- **Uptime is computed from successful-poll gaps, not process liveness.** A gap
+  is more than `thresholds.gap_s` between consecutive successful polls; minutes
+  up is the window minus the gaps in it. `uptime.gaps` lists every one with its
+  start and end. `cadence_floor` is a post hoc label for a gap no longer than
+  `thresholds.cadence_floor_s`; a flagged gap still counts as down.
+- **`cadence.weeks[].rows`** carries a row for every (venue, endpoint) ever
+  seen. One with no successful poll that week has null figures and is named in
+  `silent`; a venue with none at all is in `venues_without_success`.
+- **`coverage`** counts markets the catalogue held, markets quoted and markets
+  mapped per week and venue. `markets_mapped` is as of the read.
+  `props_mapped_before_kickoff` dates the OUTCOME, not the market's link to it.
+  `quoted_is_floor` marks a week older than the quote retention window.
+- **`watchdog.restart`** is the scheduled restart task, from the log it writes
+  only when it acts. `fires_recorded_in_source_health` is what that table holds;
+  it keeps one row per source and cannot count.
+- **`definitions`** states every rule above in the file itself. A page words
+  nothing about these figures that is not there.

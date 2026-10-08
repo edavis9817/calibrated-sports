@@ -34,7 +34,8 @@
       "lab_catalogue": "LabCatalogueFile",
       "season_model": "SeasonModelFile",
       "season_projection": "SeasonProjectionFile",
-      "landing": "LandingFile"
+      "landing": "LandingFile",
+      "logger_activity": "LoggerActivityFile"
     },
     "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.market_calibration", "research.execution", "coverage", "landing"],
     "keys": [
@@ -64,7 +65,8 @@
       {"pattern": "^lab/[a-z0-9]+/catalogue\\.json$", "kind": "lab_catalogue"},
       {"pattern": "^season/[a-z0-9]+/division\\.json$", "kind": "season_model"},
       {"pattern": "^season/[a-z0-9]+/projection\\.json$", "kind": "season_projection"},
-      {"pattern": "^landing\\.json$", "kind": "landing"}
+      {"pattern": "^landing\\.json$", "kind": "landing"},
+      {"pattern": "^board/[a-z0-9]+/logger\\.json$", "kind": "logger_activity"}
     ],
     "tables": {
       "comment": "Keys that are NOT JSON and are not validated by a $def: columnar files a producer appends to. Each entry names its pattern, its format and its columns with their types, and the producer asserts its own column list and types against this entry before it writes, so the two cannot drift. The uploader ships a non-JSON key only when it matches a pattern here, and NEVER deletes one by absence: an append-only file that vanished because one run did not re-declare it would destroy the only record of what was published.",
@@ -7573,6 +7575,1073 @@
         "freshness",
         "carried",
         "unavailable"
+      ],
+      "additionalProperties": false
+    },
+
+    "LoggerActivityFile": {
+      "description": "What the market logger did, read from its own bookkeeping (poll_log, source_health, market_depth, raw_shards, the restart watchdog's log). An operations record, not a market figure. UPTIME IS COMPUTED FROM SUCCESSFUL-POLL GAPS, NOT PROCESS LIVENESS: the logger's bookkeeping writes never raise, so a live process that records nothing leaves only a gap. `definitions` states every rule a figure here depends on, and a page words nothing about this file that is not in it.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "logger_activity"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "read_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "definitions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "thresholds": {
+          "type": "object",
+          "properties": {
+            "gap_s": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cadence_floor_s": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "retention_days": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "gap_s",
+            "cadence_floor_s",
+            "retention_days"
+          ],
+          "additionalProperties": false
+        },
+        "polls": {
+          "description": "poll_log rows up to the read.",
+          "type": "object",
+          "properties": {
+            "rows": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "ok": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "rows",
+            "ok",
+            "failed"
+          ],
+          "additionalProperties": false
+        },
+        "uptime": {
+          "$ref": "#/$defs/LoggerUptime"
+        },
+        "cadence": {
+          "$ref": "#/$defs/LoggerCadence"
+        },
+        "coverage": {
+          "$ref": "#/$defs/LoggerCoverage"
+        },
+        "depth": {
+          "$ref": "#/$defs/LoggerDepth"
+        },
+        "health": {
+          "$ref": "#/$defs/LoggerHealth"
+        },
+        "watchdog": {
+          "$ref": "#/$defs/LoggerWatchdog"
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "read_at",
+        "definitions",
+        "thresholds",
+        "polls",
+        "uptime",
+        "cadence",
+        "coverage",
+        "depth",
+        "health",
+        "watchdog"
+      ],
+      "additionalProperties": false
+    },
+
+    "LoggerWindow": {
+      "description": "Uptime of one window. `longest_gap_min` is the FULL length of the longest gap touching the window, so a gap crossing midnight is one gap on both days.",
+      "type": "object",
+      "properties": {
+        "window_min": {
+          "type": "number"
+        },
+        "up_min": {
+          "type": "number"
+        },
+        "down_min": {
+          "type": "number"
+        },
+        "up_share": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "gaps": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "longest_gap_min": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "window_min",
+        "up_min",
+        "down_min",
+        "up_share",
+        "gaps",
+        "longest_gap_min"
+      ],
+      "additionalProperties": false
+    },
+
+    "LoggerGap": {
+      "description": "One gap over thresholds.gap_s between consecutive successful polls. `open` is the gap from the last poll to the read. `cadence_floor` is a post hoc label (no longer than thresholds.cadence_floor_s); a flagged gap still counts as down.",
+      "type": "object",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "end": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "minutes": {
+          "type": "number"
+        },
+        "open": {
+          "type": "boolean"
+        },
+        "cadence_floor": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "minutes",
+        "open",
+        "cadence_floor"
+      ],
+      "additionalProperties": false
+    },
+
+    "LoggerUptime": {
+      "type": "object",
+      "properties": {
+        "first_poll_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "last_poll_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "total": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LoggerWindow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "gaps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LoggerGap"
+          }
+        },
+        "days": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "day": {
+                "type": "string"
+              },
+              "window_min": {
+                "type": "number"
+              },
+              "up_min": {
+                "type": "number"
+              },
+              "down_min": {
+                "type": "number"
+              },
+              "up_share": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "gaps": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "longest_gap_min": {
+                "type": "number"
+              },
+              "polls_ok": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "polls_failed": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "day",
+              "window_min",
+              "up_min",
+              "down_min",
+              "up_share",
+              "gaps",
+              "longest_gap_min",
+              "polls_ok",
+              "polls_failed"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "weeks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "week": {
+                "type": "string"
+              },
+              "start": {
+                "$ref": "#/$defs/Timestamp"
+              },
+              "end": {
+                "$ref": "#/$defs/Timestamp"
+              },
+              "complete": {
+                "type": "boolean"
+              },
+              "window_min": {
+                "type": "number"
+              },
+              "up_min": {
+                "type": "number"
+              },
+              "down_min": {
+                "type": "number"
+              },
+              "up_share": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "gaps": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "longest_gap_min": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "week",
+              "start",
+              "end",
+              "complete",
+              "window_min",
+              "up_min",
+              "down_min",
+              "up_share",
+              "gaps",
+              "longest_gap_min"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "first_poll_at",
+        "last_poll_at",
+        "total",
+        "gaps",
+        "days",
+        "weeks"
+      ],
+      "additionalProperties": false
+    },
+
+    "LoggerCadence": {
+      "description": "Seconds between consecutive successful polls of one venue and one endpoint inside one week. Every (venue, endpoint) ever seen has a row in every week; one with no successful poll carries nulls and is named in `silent`.",
+      "type": "object",
+      "properties": {
+        "tiers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "venue": {
+                "type": "string"
+              },
+              "endpoint": {
+                "type": "string"
+              },
+              "configured_s": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "last_ok_at": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/Timestamp"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "venue",
+              "endpoint",
+              "configured_s",
+              "last_ok_at"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "weeks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "week": {
+                "type": "string"
+              },
+              "rows": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "venue": {
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "type": "string"
+                    },
+                    "polls_ok": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "polls_failed": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "median_s": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "p95_s": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "max_s": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "venue",
+                    "endpoint",
+                    "polls_ok",
+                    "polls_failed",
+                    "median_s",
+                    "p95_s",
+                    "max_s"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "venues_without_success": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "silent": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "week",
+              "rows",
+              "venues_without_success",
+              "silent"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "tiers",
+        "weeks"
+      ],
+      "additionalProperties": false
+    },
+
+    "LoggerCoverage": {
+      "description": "Per week and venue: markets the catalogue held, markets quoted, markets mapped, and props mapped before their own kickoff. `markets_mapped` is as of the read. `quoted_is_floor` marks a week older than the quote retention window.",
+      "type": "object",
+      "properties": {
+        "venues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "not_measured": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "venue": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "venue",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "weeks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "week": {
+                "type": "string"
+              },
+              "complete": {
+                "type": "boolean"
+              },
+              "venues": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "venue": {
+                      "type": "string"
+                    },
+                    "markets_polled": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "markets_quoted": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "markets_mapped": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "props_listed": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "props_with_row": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "props_mapped": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "props_mapped_before_kickoff": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "props_undated": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "quoted_is_floor": {
+                      "type": "boolean"
+                    },
+                    "props_before_kickoff_share": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "priority_props": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "listed": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "mapped": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "mapped_before_kickoff": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          },
+                          "required": [
+                            "listed",
+                            "mapped",
+                            "mapped_before_kickoff"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "venue",
+                    "markets_polled",
+                    "markets_quoted",
+                    "markets_mapped",
+                    "props_listed",
+                    "props_with_row",
+                    "props_mapped",
+                    "props_mapped_before_kickoff",
+                    "props_undated",
+                    "quoted_is_floor",
+                    "props_before_kickoff_share",
+                    "priority_props"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "week",
+              "complete",
+              "venues"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "venues",
+        "not_measured",
+        "weeks"
+      ],
+      "additionalProperties": false
+    },
+
+    "LoggerDepth": {
+      "description": "Order-book depth capture: the latest cycle's counters from source_health, the last day each series was non-zero, and rows per week. Days are whole UTC days touching the week.",
+      "type": "object",
+      "properties": {
+        "latest_cycle": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean"
+                },
+                "read_at": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/Timestamp"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "last_fail_at": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/Timestamp"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "counters": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "required": [
+                "ok",
+                "read_at",
+                "last_fail_at",
+                "counters"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "last_seen": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "venue": {
+                "type": "string"
+              },
+              "last_depth_row_day": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "last_raw_book_day": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "venue",
+              "last_depth_row_day",
+              "last_raw_book_day"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "weeks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "week": {
+                "type": "string"
+              },
+              "venues": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "venue": {
+                      "type": "string"
+                    },
+                    "depth_rows": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "days_without_depth_rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "raw_book_shards": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "days_without_raw_books": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "venue",
+                    "depth_rows",
+                    "days_without_depth_rows",
+                    "raw_book_shards",
+                    "days_without_raw_books"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "week",
+              "venues"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "latest_cycle",
+        "last_seen",
+        "weeks"
+      ],
+      "additionalProperties": false
+    },
+
+    "LoggerHealth": {
+      "description": "Every source_health row as it stood at the read. One row per source: a latest state, never a history.",
+      "type": "object",
+      "properties": {
+        "rows": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failing": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "ok": {
+                "type": "boolean"
+              },
+              "detail": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "last_ok_at": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/Timestamp"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "last_fail_at": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/Timestamp"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "updated_at": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/Timestamp"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "source",
+              "ok",
+              "detail",
+              "last_ok_at",
+              "last_fail_at",
+              "updated_at"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "rows",
+        "failing",
+        "sources"
+      ],
+      "additionalProperties": false
+    },
+
+    "LoggerWatchdog": {
+      "description": "`restart` is the scheduled task that starts a logger that is not running, read from the log it writes only when it acts. `deadman` is the in-process switch behind the liveness row; source_health cannot count its fires (`fires_countable` is false by construction of the table).",
+      "type": "object",
+      "properties": {
+        "restart": {
+          "type": "object",
+          "properties": {
+            "log_readable": {
+              "type": "boolean"
+            },
+            "log_lines_unread": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "fires": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "uncertain": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "events": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "fired_at": {
+                    "$ref": "#/$defs/Timestamp"
+                  },
+                  "outcome": {
+                    "type": "string",
+                    "enum": [
+                      "started",
+                      "failed",
+                      "unknown"
+                    ]
+                  },
+                  "restart_s": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "log_idle_s_at_fire": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  },
+                  "first_poll_after_s": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "outage_min": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "outage_start": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/Timestamp"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "fired_at",
+                  "outcome",
+                  "restart_s",
+                  "log_idle_s_at_fire",
+                  "first_poll_after_s",
+                  "outage_min",
+                  "outage_start"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "fires_recorded_in_source_health": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "source_health_rows": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "gaps_over_floor": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "gaps_over_floor_with_a_fire": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "log_readable",
+            "log_lines_unread",
+            "fires",
+            "uncertain",
+            "events",
+            "fires_recorded_in_source_health",
+            "source_health_rows",
+            "gaps_over_floor",
+            "gaps_over_floor_with_a_fire"
+          ],
+          "additionalProperties": false
+        },
+        "deadman": {
+          "type": "object",
+          "properties": {
+            "ok": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "detail": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "last_ok_at": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Timestamp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "last_fail_at": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Timestamp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "updated_at": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Timestamp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "fires_countable": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "ok",
+            "detail",
+            "last_ok_at",
+            "last_fail_at",
+            "updated_at",
+            "fires_countable"
+          ],
+          "additionalProperties": false
+        },
+        "logger_start": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "detail": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "at": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/Timestamp"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "detail",
+                "at"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "restart",
+        "deadman",
+        "logger_start"
       ],
       "additionalProperties": false
     }

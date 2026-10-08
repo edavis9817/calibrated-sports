@@ -369,7 +369,11 @@ SIDE_PRODUCERS = {"nfl": ("jobs.board_read", "lab.universe"), "cfb": (), "mlb": 
 # Modules the scan does not follow into, each with why. The registry's own reads
 # (last_read over source_health and quotes) describe sources; they carry no row of
 # any source into a file, and `sources` declares that with ().
-NOT_FOLLOWED = {"jobs.source_registry": "the sources kind's own metadata reads"}
+NOT_FOLLOWED = {"jobs.source_registry": "the sources kind's own metadata reads",
+                # a-74: the Board tick calls its report step; that module writes its own
+                # kind (logger_activity, declared in KIND_EXTRA) and no row of it reaches
+                # a Board file, so the Board's attribution must not inherit its reads.
+                "jobs.logger_activity": "writes its own kind, declared in KIND_EXTRA"}
 
 # producer function -> the kinds its SQL's rows reach. EVERY function whose SQL
 # (its own, or a called module's) reads a table must be here, and nothing that
@@ -535,6 +539,11 @@ KIND_EXTRA = {
         "analytics.metric": ("nflverse.pbp", "nflverse.participation", "nflverse.ngs",
                              "nflverse.stats"),
         "live.prices": ("kalshi.ladders",),
+        # a-74: jobs/logger_activity.py reads the logger's own bookkeeping (poll_log,
+        # source_health, market_depth, raw_shards) and counts markets, quotes and
+        # outcomes per venue against the schedule's weeks - mode=ro on its own
+        # connection, which the gate does not watch, so declared here by hand.
+        "logger_activity": ("kalshi.ladders", "polymarket", "oddsapi", "nflverse.schedule"),
         # a-23's Live snapshot (jobs/live_snapshot.py, written straight to R2 under
         # live/): the schedule skeleton from the store, the scoreboard overlay, the
         # exchange's game-winner quotes and the injury report held in feeds.db.

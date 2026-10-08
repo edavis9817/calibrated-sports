@@ -983,6 +983,10 @@ def _tick(season, dest, upload, now_ts, db, client, log):
             log(f"!!! BOARD READ FAILED {season} wk{w:02d}: {type(e).__name__}: {e}\n"
                 + traceback.format_exc() + "!!! the other due weeks continue; this tick will exit 1")
             out["failed"].append({"week": w, "error": f"{type(e).__name__}: {e}"})
+    # a-74: what the logger did, rebuilt at most hourly. A REPORTING step: it
+    # returns a sentence and never raises, so it cannot fail the tick or the upload.
+    from jobs import logger_activity
+    out["logger_activity"] = logger_activity.report_step(dest, db=db, log=log, now=now_ts)
     if upload:
         # a-35: re-pair the ledger before shipping it, so a tick with no read due
         # heals a CSV a crash left behind rather than being refused by the
