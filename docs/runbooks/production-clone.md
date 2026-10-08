@@ -132,13 +132,91 @@ and `Unregister-ScheduledTask "CalibratedSports Logger (watchdog)"`.
 - **`start_logger.ps1 -Restart` now works from any elevated shell** and `-Status` is true from
   any shell: both ask the single-instance lock. Section 2 below ("will not stop it") describes
   the script before a-67.
-- **No sync task exists.** `prod_sync.ps1 -Update` has never been scheduled, and it would defer
+- **No sync task exists** (true on 2026-10-06; a-69 added one, see the next section). `prod_sync.ps1 -Update` has never been scheduled, and it would defer
   for ever as written: it will not fast-forward while a non-logger process runs from the clone,
   and Live Snapshot is a permanent loop there. The clone was brought to `origin/main` by hand
   on 2026-10-06 (it was 12 commits behind; its one local slug commit was already upstream and
   the rebase dropped it as applied).
 - **`check_fit.py` sits untracked in the clone**, so `prod_sync.ps1` reports DRIFT. It was left
   alone: it is not a-67's file.
+
+## State on 2026-10-08 (a-69): the sync is scheduled, and it can run beside Live Snapshot
+
+Read from Task Scheduler and from the clone at 06:10Z, not from this file.
+
+| | Before a-69 | After |
+|---|---|---|
+| Clone position | `9518b1e` = `origin/main`, 0 ahead, 0 behind | the same |
+| `prod_sync.ps1` verdict | DRIFT (`?? check_fit.py`) | OK |
+| Sync task | none | `CalibratedSports Prod Sync`, hourly at :20, S4U, first run exit 0 |
+| Logger | pid 38140, build `f52148b4c2b7` | pid 31540, the same build (restarted around the task change) |
+
+The brief said 12 behind and 1 ahead. That was the clone on 2026-10-06 before a-67 synced it by
+hand; by 2026-10-08 it was level. The one local commit it had carried (`ac67895`, a slug append of
+2026-09-29) is on `origin/main`: all 1 of its slugs, and all 7 from the three slug commits the
+reflog shows being reset away on 09-28 and 09-29, are in `origin/main:web/slugs/nfl.json`.
+
+**The commit that IS stranded is in the dev clone, not this one.** `Weekly Refresh` still runs
+from `code\calibrated-sports`, so its slug append of 2026-10-06 (`52c9454`, 8 players) was
+committed to whatever branch a unit had left checked out there (`a-66-close-data-gaps`), and was
+on no remote. a-69 cherry-picked it onto its own branch so it is on `origin`; it reaches `main`
+when that branch is merged. Until `Weekly Refresh` is repointed this recurs every week a slug is
+appended.
+
+### What the task runs
+
+    powershell -File code\prod\prod_sync_task.ps1 -Root code\prod\calibrated-sports -ExpectLogger
+
+`prod_sync_task.ps1` is a bootstrap written by `install_prod_sync_task.ps1`, and it lives outside
+the clone. It fetches, writes **`origin/main`'s** `prod_sync.ps1` to `code\prod\.prod_sync\`, and
+runs that with `-Update`. So the script that decides whether the clone may move is never the
+clone's own, possibly stale, copy - a defect in the sync cannot block the fast-forward that
+would repair it. To install or re-install (elevated shell, from any checkout):
+
+    .\install_prod_sync_task.ps1 -Root "C:\Users\Ethan Davis\code\prod\calibrated-sports" -ExpectLogger
+
+Task XML as registered: `code\prod\task-backup-2026-10-08\`. To undo:
+`.\install_prod_sync_task.ps1 -Root <clone> -Remove`.
+
+### Loops, short jobs, and the bound
+
+| Running from the clone | The fast-forward | Why |
+|---|---|---|
+| A permanent loop: the logger, `jobs.live_snapshot --loop` (`$Permanent` in the script) | proceeds | it never exits, so waiting for it is waiting for ever; it has loaded its code and takes new code only on restart |
+| A short job: Board tick, a refresh, anything else | waits `-WaitSec` (120 s), then defers | it imports modules as it goes and could load two revisions |
+| A deferral older than `-MaxDeferHours` (6) | does not happen, and the run is **DRIFT, exit 1** | a deferral that can last for ever is a sync that does not exist |
+
+The start of a run of deferrals is kept in `<STORAGE_DIR>\logs\prod_sync.<clone>.deferred_since`
+and removed by the first run that is not behind. A new loop nobody added to `$Permanent` turns
+the task red within six hours, with its pid in the line.
+
+**The sync restarts nothing.** Every run names each loop that started before main last moved
+here: `loop pid 57488 started 2026-09-28T21:27:48Z, BEFORE main last moved here (...): it runs the
+older code until restarted`. That line is true today. Live Snapshot has run the 2026-09-28 code
+for ten days, and `jobs/live_snapshot.py` changed under it (a-43, possession). Restarting it is:
+
+    Stop-ScheduledTask "CalibratedSports Live Snapshot"; Start-ScheduledTask "CalibratedSports Live Snapshot"
+
+Restarting the logger for new code is `start_logger.ps1 -Restart` from the clone; it costs one
+60 s poll cycle (measured 2026-10-08: process down 2 s, 119 s between Kalshi game-tier polls
+because a start re-runs discovery).
+
+### Until a-69 is merged
+
+The task is registered and runs, but `origin/main` still carries the FIRST `prod_sync.ps1`. With
+the clone level it reports OK. The next time `main` moves, that script defers behind Live Snapshot
+and exits 0, exactly as before. Merging a-69 is what makes the sync real, and needs no hand step:
+the task reads the script from `origin/main`, so the first run after the merge uses the new one
+and fast-forwards with it.
+
+### What still blocks it, by design
+
+- **A slug commit made in the clone.** Still DRIFT, still never fast-forwarded over, still carried
+  by hand (below). It does not happen today because `Weekly Refresh` runs from the dev clone; the
+  day that task is repointed, every slug append stops the sync until someone pushes it. Decide
+  that before repointing.
+- **Any untracked file.** `check_fit.py` (a 234-byte read-only probe someone ran in the clone on
+  2026-09-28) was moved, not deleted, to `code\prod\_set-aside\calibrated-sports\`.
 
 ## Cutover (the remaining three tasks; nothing below has been done for them)
 

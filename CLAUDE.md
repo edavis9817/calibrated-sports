@@ -2197,3 +2197,13 @@ while three writer tasks launched from it). a-10 built two production clones pin
   the cutover and the one commit production makes itself (the slug registry).
 - **Once they do, merging to `origin/main` is deploying.** The sync fast-forwards within the
   hour.
+- **The sync is task `CalibratedSports Prod Sync`, and it runs `origin/main`'s `prod_sync.ps1`,
+  not the clone's** (a-69, 2026-10-08). The first script deferred behind any non-logger process
+  with exit 0, and Live Snapshot is a permanent loop in the clone, so it deferred on every run
+  and nothing was red. Now a loop named in `$Permanent` does not hold the fast-forward back, a
+  short job is waited for and then deferred to, and a deferral older than 6 hours is DRIFT.
+  - **A fast-forward restarts nothing.** A loop keeps the code it started with: Live Snapshot,
+    started 2026-09-28, had never loaded a-43's possession change ten days later. The sync log
+    names every such loop on every run. "It is merged" and "it is running" are different facts.
+  - **A slug commit made in the clone still stops the sync** until a person pushes it, and
+    `Weekly Refresh` still commits slugs in the DEV clone, on whatever branch a unit left there.
