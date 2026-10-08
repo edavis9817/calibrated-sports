@@ -1,0 +1,662 @@
+{
+ "shape": [
+  725,
+  3987,
+  48
+ ],
+ "sims": 2000,
+ "seed": 43,
+ "note": "no outcome read",
+ "family": {
+  "receptions|w=1|<0.05": {
+   "n": 607,
+   "ladders": 432,
+   "games": 48,
+   "implied": 0.030296540362438222,
+   "null_se": 0.006929019527048511,
+   "mde": 0.01940125467573583
+  },
+  "receptions|w=1|0.05-0.10": {
+   "n": 569,
+   "ladders": 442,
+   "games": 48,
+   "implied": 0.07409490333919155,
+   "null_se": 0.010902942592323129,
+   "mde": 0.030528239258504758
+  },
+  "receptions|w=1|0.10-0.20": {
+   "n": 1333,
+   "ladders": 512,
+   "games": 48,
+   "implied": 0.14934358589647412,
+   "null_se": 0.007404187063186559,
+   "mde": 0.020731723776922364
+  },
+  "receptions|w=1|0.20-0.30": {
+   "n": 406,
+   "ladders": 335,
+   "games": 48,
+   "implied": 0.22492610837438426,
+   "null_se": 0.0196003097116981,
+   "mde": 0.05488086719275467
+  },
+  "receptions|w=1|0.30-0.45": {
+   "n": 18,
+   "ladders": 18,
+   "games": 15,
+   "implied": 0.3461111111111111,
+   "null_se": 0.11182006807124019,
+   "mde": 0.3130961905994725
+  },
+  "receptions|w=1|0.45-0.60": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "receptions|w=1|>=0.60": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "receptions|w=1|all": {
+   "n": 2933,
+   "ladders": 537,
+   "games": 48,
+   "implied": 0.12177804295942721,
+   "null_se": 0.0035175043182669712,
+   "mde": 0.009849012091147519
+  },
+  "receptions|w=2|<0.05": {
+   "n": 42,
+   "ladders": 39,
+   "games": 26,
+   "implied": 0.03940476190476191,
+   "null_se": 0.030490835394982214,
+   "mde": 0.0853743391059502
+  },
+  "receptions|w=2|0.05-0.10": {
+   "n": 273,
+   "ladders": 256,
+   "games": 48,
+   "implied": 0.07397435897435899,
+   "null_se": 0.016516219492153126,
+   "mde": 0.04624541457802875
+  },
+  "receptions|w=2|0.10-0.20": {
+   "n": 569,
+   "ladders": 457,
+   "games": 48,
+   "implied": 0.14750439367311075,
+   "null_se": 0.01588759108108208,
+   "mde": 0.044485255027029824
+  },
+  "receptions|w=2|0.20-0.30": {
+   "n": 600,
+   "ladders": 401,
+   "games": 48,
+   "implied": 0.25133333333333335,
+   "null_se": 0.017114121017289916,
+   "mde": 0.04791953884841176
+  },
+  "receptions|w=2|0.30-0.45": {
+   "n": 891,
+   "ladders": 480,
+   "games": 48,
+   "implied": 0.36130190796857464,
+   "null_se": 0.016975470034757908,
+   "mde": 0.04753131609732214
+  },
+  "receptions|w=2|0.45-0.60": {
+   "n": 22,
+   "ladders": 22,
+   "games": 18,
+   "implied": 0.504090909090909,
+   "null_se": 0.10865642407025705,
+   "mde": 0.3042379873967197
+  },
+  "receptions|w=2|>=0.60": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "receptions|w=2|all": {
+   "n": 2397,
+   "ladders": 535,
+   "games": 48,
+   "implied": 0.24596996245306635,
+   "null_se": 0.0075921540710061275,
+   "mde": 0.021258031398817157
+  },
+  "receptions|w=3|<0.05": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "receptions|w=3|0.05-0.10": {
+   "n": 22,
+   "ladders": 21,
+   "games": 18,
+   "implied": 0.08318181818181819,
+   "null_se": 0.06102458520956943,
+   "mde": 0.17086883858679439
+  },
+  "receptions|w=3|0.10-0.20": {
+   "n": 249,
+   "ladders": 226,
+   "games": 48,
+   "implied": 0.1555421686746988,
+   "null_se": 0.023985089694827256,
+   "mde": 0.06715825114551631
+  },
+  "receptions|w=3|0.20-0.30": {
+   "n": 330,
+   "ladders": 315,
+   "games": 48,
+   "implied": 0.24883333333333335,
+   "null_se": 0.024567301117658272,
+   "mde": 0.06878844312944316
+  },
+  "receptions|w=3|0.30-0.45": {
+   "n": 609,
+   "ladders": 414,
+   "games": 48,
+   "implied": 0.3811247947454844,
+   "null_se": 0.02111724594967182,
+   "mde": 0.05912828865908109
+  },
+  "receptions|w=3|0.45-0.60": {
+   "n": 648,
+   "ladders": 398,
+   "games": 48,
+   "implied": 0.5119753086419753,
+   "null_se": 0.02217761725757652,
+   "mde": 0.06209732832121425
+  },
+  "receptions|w=3|>=0.60": {
+   "n": 4,
+   "ladders": 4,
+   "games": 4,
+   "implied": 0.61,
+   "null_se": 0.24963723680572977,
+   "mde": 0.6989842630560433
+  },
+  "receptions|w=3|all": {
+   "n": 1862,
+   "ladders": 500,
+   "games": 48,
+   "implied": 0.3700214822771214,
+   "null_se": 0.012181761468546536,
+   "mde": 0.0341089321119303
+  },
+  "receptions|w=4|<0.05": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "receptions|w=4|0.05-0.10": {
+   "n": 1,
+   "ladders": 1,
+   "games": 1,
+   "implied": 0.095,
+   "null_se": 0.2861817604250837,
+   "mde": 0.8013089291902343
+  },
+  "receptions|w=4|0.10-0.20": {
+   "n": 26,
+   "ladders": 23,
+   "games": 19,
+   "implied": 0.1707692307692308,
+   "null_se": 0.07947474571900555,
+   "mde": 0.22252928801321553
+  },
+  "receptions|w=4|0.20-0.30": {
+   "n": 134,
+   "ladders": 132,
+   "games": 44,
+   "implied": 0.2542537313432836,
+   "null_se": 0.03740160031265872,
+   "mde": 0.1047244808754444
+  },
+  "receptions|w=4|0.30-0.45": {
+   "n": 319,
+   "ladders": 292,
+   "games": 48,
+   "implied": 0.3754545454545455,
+   "null_se": 0.02824685688689206,
+   "mde": 0.07909119928329776
+  },
+  "receptions|w=4|0.45-0.60": {
+   "n": 504,
+   "ladders": 367,
+   "games": 48,
+   "implied": 0.5264682539682539,
+   "null_se": 0.025579483257924533,
+   "mde": 0.07162255312218868
+  },
+  "receptions|w=4|>=0.60": {
+   "n": 379,
+   "ladders": 296,
+   "games": 48,
+   "implied": 0.6436279683377308,
+   "null_se": 0.026906004043428286,
+   "mde": 0.0753368113215992
+  },
+  "receptions|w=4|all": {
+   "n": 1363,
+   "ladders": 413,
+   "games": 48,
+   "implied": 0.48983859134262664,
+   "null_se": 0.017065909203593372,
+   "mde": 0.047784545770061436
+  },
+  "receptions|w=5|<0.05": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "receptions|w=5|0.05-0.10": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "receptions|w=5|0.10-0.20": {
+   "n": 3,
+   "ladders": 3,
+   "games": 3,
+   "implied": 0.19333333333333336,
+   "null_se": 0.23030022675725798,
+   "mde": 0.6448406349203223
+  },
+  "receptions|w=5|0.20-0.30": {
+   "n": 12,
+   "ladders": 11,
+   "games": 11,
+   "implied": 0.2625,
+   "null_se": 0.1340374895732948,
+   "mde": 0.37530497080522546
+  },
+  "receptions|w=5|0.30-0.45": {
+   "n": 123,
+   "ladders": 116,
+   "games": 44,
+   "implied": 0.38589430894308935,
+   "null_se": 0.04444545968088259,
+   "mde": 0.12444728710647125
+  },
+  "receptions|w=5|0.45-0.60": {
+   "n": 260,
+   "ladders": 234,
+   "games": 48,
+   "implied": 0.5345192307692308,
+   "null_se": 0.033395711057137775,
+   "mde": 0.09350799095998577
+  },
+  "receptions|w=5|>=0.60": {
+   "n": 552,
+   "ladders": 332,
+   "games": 48,
+   "implied": 0.688695652173913,
+   "null_se": 0.024448802794222534,
+   "mde": 0.06845664782382309
+  },
+  "receptions|w=5|all": {
+   "n": 950,
+   "ladders": 346,
+   "games": 48,
+   "implied": 0.6003473684210526,
+   "null_se": 0.02148583556478308,
+   "mde": 0.06016033958139262
+  },
+  "receptions|w=6|<0.05": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "receptions|w=6|0.05-0.10": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "receptions|w=6|0.10-0.20": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "receptions|w=6|0.20-0.30": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "receptions|w=6|0.30-0.45": {
+   "n": 20,
+   "ladders": 17,
+   "games": 16,
+   "implied": 0.387,
+   "null_se": 0.11660939070246445,
+   "mde": 0.32650629396690045
+  },
+  "receptions|w=6|0.45-0.60": {
+   "n": 86,
+   "ladders": 85,
+   "games": 41,
+   "implied": 0.5380232558139535,
+   "null_se": 0.05509630562438758,
+   "mde": 0.15426965574828522
+  },
+  "receptions|w=6|>=0.60": {
+   "n": 498,
+   "ladders": 269,
+   "games": 48,
+   "implied": 0.7330220883534135,
+   "null_se": 0.02520317113949204,
+   "mde": 0.07056887919057771
+  },
+  "receptions|w=6|all": {
+   "n": 604,
+   "ladders": 269,
+   "games": 48,
+   "implied": 0.6937996688741721,
+   "null_se": 0.025359002915736104,
+   "mde": 0.07100520816406108
+  },
+  "receptions|w=7|<0.05": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "receptions|w=7|0.05-0.10": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "receptions|w=7|0.10-0.20": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "receptions|w=7|0.20-0.30": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "receptions|w=7|0.30-0.45": {
+   "n": 3,
+   "ladders": 3,
+   "games": 3,
+   "implied": 0.445,
+   "null_se": 0.28294242641687134,
+   "mde": 0.7922387939672397
+  },
+  "receptions|w=7|0.45-0.60": {
+   "n": 15,
+   "ladders": 15,
+   "games": 14,
+   "implied": 0.5376666666666666,
+   "null_se": 0.12947085043016868,
+   "mde": 0.3625183812044723
+  },
+  "receptions|w=7|>=0.60": {
+   "n": 317,
+   "ladders": 178,
+   "games": 48,
+   "implied": 0.7781388012618297,
+   "null_se": 0.029581793161340453,
+   "mde": 0.08282902085175327
+  },
+  "receptions|w=7|all": {
+   "n": 335,
+   "ladders": 178,
+   "games": 48,
+   "implied": 0.7643880597014925,
+   "null_se": 0.03032652935489485,
+   "mde": 0.08491428219370557
+  },
+  "rush_attempts|w=3|<0.05": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "rush_attempts|w=3|0.05-0.10": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "rush_attempts|w=3|0.10-0.20": {
+   "n": 32,
+   "ladders": 31,
+   "games": 27,
+   "implied": 0.18062499999999998,
+   "null_se": 0.06702975486386158,
+   "mde": 0.1876833136188124
+  },
+  "rush_attempts|w=3|0.20-0.30": {
+   "n": 184,
+   "ladders": 118,
+   "games": 48,
+   "implied": 0.24032608695652175,
+   "null_se": 0.02781467369535059,
+   "mde": 0.07788108634698165
+  },
+  "rush_attempts|w=3|0.30-0.45": {
+   "n": 104,
+   "ladders": 72,
+   "games": 38,
+   "implied": 0.35697115384615385,
+   "null_se": 0.037745830082400726,
+   "mde": 0.10568832423072202
+  },
+  "rush_attempts|w=3|0.45-0.60": {
+   "n": 8,
+   "ladders": 8,
+   "games": 7,
+   "implied": 0.48,
+   "null_se": 0.18005935436335985,
+   "mde": 0.5041661922174075
+  },
+  "rush_attempts|w=3|>=0.60": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "rush_attempts|w=3|all": {
+   "n": 328,
+   "ladders": 172,
+   "games": 48,
+   "implied": 0.27733231707317074,
+   "null_se": 0.01900915881040919,
+   "mde": 0.05322564466914573
+  },
+  "rush_attempts|w=6|<0.05": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "rush_attempts|w=6|0.05-0.10": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "rush_attempts|w=6|0.10-0.20": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "rush_attempts|w=6|0.20-0.30": {
+   "n": 0,
+   "ladders": 0,
+   "games": 0,
+   "implied": null,
+   "null_se": null,
+   "mde": null
+  },
+  "rush_attempts|w=6|0.30-0.45": {
+   "n": 46,
+   "ladders": 46,
+   "games": 32,
+   "implied": 0.4222826086956522,
+   "null_se": 0.07455640000471801,
+   "mde": 0.20875792001321042
+  },
+  "rush_attempts|w=6|0.45-0.60": {
+   "n": 65,
+   "ladders": 65,
+   "games": 33,
+   "implied": 0.5083846153846154,
+   "null_se": 0.060596842146324,
+   "mde": 0.1696711580097072
+  },
+  "rush_attempts|w=6|>=0.60": {
+   "n": 45,
+   "ladders": 45,
+   "games": 33,
+   "implied": 0.7228888888888889,
+   "null_se": 0.0659992134259152,
+   "mde": 0.18479779759256257
+  },
+  "rush_attempts|w=6|all": {
+   "n": 156,
+   "ladders": 156,
+   "games": 48,
+   "implied": 0.5448717948717948,
+   "null_se": 0.03833621408865105,
+   "mde": 0.10734139944822293
+  }
+ },
+ "precheck": {
+  "S_2": {
+   "n": 350,
+   "ladders": 350,
+   "games": 48,
+   "implied": 0.37475714285714284,
+   "null_se": 0.025565806085792144,
+   "mde": 0.071584257040218
+  },
+  "S_3": {
+   "n": 581,
+   "ladders": 350,
+   "games": 48,
+   "implied": 0.5051549053356282,
+   "null_se": 0.02364380981932517,
+   "mde": 0.06620266749411047
+  },
+  "S_4": {
+   "n": 669,
+   "ladders": 350,
+   "games": 48,
+   "implied": 0.6010239162929746,
+   "null_se": 0.023407930671342458,
+   "mde": 0.06554220587975888
+  },
+  "S_5": {
+   "n": 660,
+   "ladders": 335,
+   "games": 48,
+   "implied": 0.6689090909090909,
+   "null_se": 0.023744235006658423,
+   "mde": 0.06648385801864358
+  },
+  "S_6": {
+   "n": 535,
+   "ladders": 269,
+   "games": 48,
+   "implied": 0.7220841121495327,
+   "null_se": 0.025181419891754913,
+   "mde": 0.07050797569691375
+  },
+  "S_7": {
+   "n": 324,
+   "ladders": 178,
+   "games": 48,
+   "implied": 0.7737499999999999,
+   "null_se": 0.029822194430568418,
+   "mde": 0.08350214440559156
+  },
+  "S_all": {
+   "n": 3336,
+   "ladders": 350,
+   "games": 48,
+   "implied": 0.6245353717026378,
+   "null_se": 0.0217373645757541,
+   "mde": 0.060864620812111477
+  },
+  "U": {
+   "n": 2242,
+   "ladders": 500,
+   "games": 48,
+   "implied": 0.08729259589652097,
+   "null_se": 0.011014956370185328,
+   "mde": 0.030841877836518917
+  },
+  "Lo": {
+   "n": 102,
+   "ladders": 88,
+   "games": 44,
+   "implied": 0.10916666666666668,
+   "null_se": 0.03313395389057748,
+   "mde": 0.09277507089361695
+  }
+ }
+}
