@@ -252,3 +252,36 @@ figure is reported, with what had been seen.
 
 Everything printed is an aggregate or an interval. Per-outcome predictions go to a
 scratch directory and are never committed.
+
+## Addendum 1 — 2026-10-08, written with the script and BEFORE any run of it
+
+No figure has been produced: the script has not been executed, not even on the smoke
+season. These are definitions that writing the code showed to be broken or
+under-specified. Nothing above is edited.
+
+1. **Coverage is read from the randomised PIT, not from integer quantiles.** As
+   registered ("share of outcomes at or below the model's q10...") the figure is
+   mechanically above nominal for every player whose hurdle mass exceeds `q`: his q10 is
+   0 and the share at or below 0 is `pi0`, not 0.10. On the full frame, which is mostly
+   low-usage players, the registered verdict would fail on q10 and q25 by construction
+   and say nothing about the shape. Coverage at `q` is therefore the share of randomised
+   PIT values `<= q` - the standard treatment for a distribution with point masses. The
+   bars (KS `<= 0.03`, every coverage within 0.02) are unchanged.
+2. **Part 2 is regular-season games only.** c-27's `Panel` holds REG player-games, so a
+   playoff game has no as-of frame row. c-24's P1 included the 11-13 playoff games a
+   season that carry closes; this unit drops them and prints the count. "The same
+   populations c-24 used" is therefore true of the query and the settlement rule and
+   false of those games.
+3. **Every rung is settled through `jobs.settle_outcomes.settle_one`**, not a 2,000-row
+   sample of them; the in-memory `Panel` actual is then asserted against it on every
+   scored rung and the run refuses on any disagreement. Stronger than registered.
+4. **Rungs whose player is not WR / TE / RB in the frame are dropped** and counted (the
+   model has no position prior for them).
+5. **`S0` is queried with the same integer discretisation as the other arms** (its gamma
+   parameters come from the shipped `ZeroInflatedGamma.from_overall_moments`). On a half
+   line this is identical to the shipped class's own `prob_over`; it differs only on
+   integer lines, where the shipped class assigns a push zero mass.
+6. **`E[X]` is treated as `(1 - pi0) * mu+`**, which ignores negative yards inside the
+   hurdle mass. The bias is small and one-directional (mu+ slightly low) and `Y`'s
+   recalibration intercept absorbs it; `S0` and `S1` carry it.
+7. **`RM` picks the modal rung among settled, non-push rungs** with `p_all` present.
