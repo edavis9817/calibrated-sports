@@ -5,7 +5,12 @@ research/results/win_total_drift.json -> team_weeks). No store, no target code:
 
     python research/f26_reliability/attack_rows.py --rows <json> --key team_weeks \
         --y move_w --x dmodel --fe week --block team --alt-blocks game,week \
-        --published 0.724,0.652,0.803 --dp 3 --k 3 --null 1.0 --out D:/temp/f26/c36_t2b.json
+        --published 0.724,0.652,0.803 --dp 3 --k 3 --null 1.0 --out D:/temp/f26/c36_t2b.json         --src D:/temp/f27/c36src --boot research.win_total_drift:boot_ols
+
+--src/--boot hand the rows to the TARGET's own bootstrap for the duplication test
+(f-27). The function must have c-36's rows-form signature,
+`fn(rows, ycol, xcols, fe, block, n_boot=) -> {x: {lo, hi}}`; anything else needs
+its own adapter. Without them the blocks step says NOT RUN - it does not pass.
 
 WHAT THIS CANNOT DO, and the verdict must say so: it reproduces the ARITHMETIC
 from rows the unit wrote. It does not re-run the unit's pipeline, so it cannot
@@ -32,9 +37,11 @@ def main():
     ap.add_argument("--alt-blocks", default="")
     ap.add_argument("--published", required=True, help="est,lo,hi")
     ap.add_argument("--dp", type=int, default=3)
-    ap.add_argument("--k", type=int, default=1, help="specifications the unit itself counted")
+    ap.add_argument("--k", type=int, required=True, help="specifications the unit itself counted (no default)")
     ap.add_argument("--null", type=float, default=0.0, help="the value the claim is read against")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--src", default=None, help="detached worktree of the target's branch")
+    ap.add_argument("--boot", default=None, help="module:function of the target's rows-form OLS bootstrap")
     a = ap.parse_args()
     sys.path.insert(0, HERE)
     import f26lib as L
@@ -75,24 +82,44 @@ def main():
             % (nm, r["measured"], a.dp, r["published"], "consistent" if r["consistent"] else "NOT CONSISTENT",
                r["abs_diff"], r["tolerance"]))
     out("== 2. BLOCKS (statistic is coefficient minus %g)" % a.null)
-    du = L.duplication(stat, n, lab, seed=52)
-    R["duplication"] = du
-    out("   rows x5 inside their %s: blocked width x%.3f (%s); iid width x%.3f (expected %.3f; check %s)"
-        % (a.block, du["width_ratio_blocked"], "passes" if du["passes"] else "NARROWED", du["width_ratio_iid"],
-           du["expected_iid_ratio"], "discriminates" if du["discriminates"] else "DOES NOT DISCRIMINATE"))
+    if a.src and a.boot:
+        import importlib
+        sys.path.insert(0, os.path.abspath(a.src))
+        modname, fname = a.boot.split(":")
+        mod = importlib.import_module(modname)
+        if not os.path.abspath(mod.__file__).startswith(os.path.abspath(a.src)):
+            raise SystemExit("%s resolved outside --src: %s" % (modname, mod.__file__))
+        tfn = getattr(mod, fname)
+
+        def width_of(rws):
+            r = tfn(rws, a.y, xs, a.fe, a.block, n_boot=600)[xs[0]]
+            return r["hi"] - r["lo"]
+        th = L.duplication_through(width_of, rows, a.block, fn_name=a.boot, units=len(set(lab)))
+        R["duplication_through_target_bootstrap"] = th
+        out("   " + L.through_line(th))
+    else:
+        R["duplication_through_target_bootstrap"] = None
+        out("   THROUGH THE TARGET'S BOOTSTRAP: NOT RUN (no --src/--boot). The blocks step has NOT been passed.")
+    ic = L.iid_contrast(stat, n, lab, seed=52)
+    R["iid_contrast"] = ic
+    out("   descriptive: an unblocked row interval would be x%.2f the width of the %s-blocked one"
+        % (ic["iid_over_blocked_width"], a.block))
     R["alt_blocks"] = {a.block: dict(reg, n_blocks=len(set(lab)))}
     for b in [b for b in a.alt_blocks.split(",") if b]:
         lb = [str(r[b]) for r in rows]
         R["alt_blocks"][b] = dict(boot(lb, 53), n_blocks=len(set(lb)))
     for b, r in R["alt_blocks"].items():
-        out("   %-8s (%3d blocks) %s%s" % (b, r["n_blocks"], L.fmt(r, 3), "   (<5 blocks: not read)" if r["n_blocks"] < 5 else ""))
+        r["read"] = r["n_blocks"] >= L.MIN_BLOCKS
+        if not r["read"]:
+            r["excludes_zero"] = None
+        out("   %-8s (%3d blocks) %s" % (b, r["n_blocks"], L.fmt(r, 3)))
     R["seeds"] = L.seeds(stat, n, lab, n_seeds=10)
     out("   10 seeds: share excluding the null %.2f" % R["seeds"]["share_excluding_zero"])
-    R["multiplicity"] = L.multiplicity(reg["est"], reg["se"], (max(a.k, 1),))
+    R["multiplicity"] = L.multiplicity(reg["est"], reg["se"], (a.k,), n_blocks=len(set(lab)))
     R["mde"] = L.mde_ratio(reg["est"], reg["se"])
     out("== 4. z %+.2f against %g; Bonferroni over the unit's own %d: p %.4f -> %s"
-        % (R["multiplicity"]["z"], a.null, a.k, R["multiplicity"]["bonferroni"][max(a.k, 1)]["p_adj"],
-           "survives" if R["multiplicity"]["bonferroni"][max(a.k, 1)]["survives_0.05"] else "does not survive"))
+        % (R["multiplicity"]["z"], a.null, a.k, R["multiplicity"]["bonferroni"][a.k]["p_adj"],
+           "survives" if R["multiplicity"]["bonferroni"][a.k]["survives_0.05"] else "does not survive"))
     out("== 5. |estimate - null| / MDE = %.2f -> %s its MDE" % (R["mde"]["ratio"], R["mde"]["reading"].upper()))
     out("== 3. LEAKAGE: NOT RUN. Rows only; the unit's pipeline was not re-executed.")
     with open(a.out, "w", encoding="utf-8") as f:

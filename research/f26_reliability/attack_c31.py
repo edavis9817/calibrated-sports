@@ -10,7 +10,8 @@ origin/c-31-team-total with its scoring calls replaced by a capture, so the
 forecasts are c-31's own code end to end and the arithmetic is this file's:
 
     LOGGER_DB=<market_log.db> python research/f26_reliability/attack_c31.py \
-        --src D:/temp/f26/c31src --recorded D:/temp/c31/result.json --out D:/temp/f26/c31.json
+        --src D:/temp/f26/c31src --recorded D:/temp/c31/result.json --out D:/temp/f26/c31.json \
+        --served-json <record_total.json fetched from /data/game/nfl/record_total.json>
 
 LOGGER_DB must be in the environment: c-31 reads it through `config`, and opens
 market_log.db and analytics.db mode=ro itself.
@@ -52,6 +53,9 @@ def main():
     ap.add_argument("--recorded", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--cutoffs", type=int, default=3)
+    ap.add_argument("--served-json", default=None,
+                    help="game/nfl/record_total.json AS SERVED (fetched over HTTP): its vs_close is attacked too")
+    ap.add_argument("--served-only", action="store_true", help="run only the served-figure section")
     a = ap.parse_args()
     if not os.environ.get("LOGGER_DB"):
         raise SystemExit("LOGGER_DB is not set - c-31's config would fall back to a relative path")
@@ -110,7 +114,129 @@ def main():
             raise SystemExit("captured %d of 3 P-b populations - c-31's main() did not reach them" % len(got))
         return got, keep["games"]
 
+    def capture_s2(no_wind=False, draws=20):
+        """c-31's OWN rows for 'S2 over the book close' - the comparison record_total.json serves as
+        vs_close. main() runs for real up to that call (few draws), so nothing before it is stubbed."""
+        got = {}
+
+        def cmp(name, rows, *aa, **kk):
+            if name.startswith("S2 over the book close"):
+                got["rows"] = rows
+                raise _Stop()
+            return orig["compare"](name, rows, *aa, **kk)
+
+        GTR.design = (lambda arm, raw, eam, wx: orig["design"]("NO_WIND" if arm == "FULL" else arm, raw, eam, wx)) \
+            if no_wind else orig["design"]
+        def mse(name, *aa, **kk):
+            # with wind out, c-31's own "FULL vs NO_WIND" ablation is a zero difference: SE 0, MDE None,
+            # and its print line raises. That diagnostic is not what is being captured.
+            try:
+                return orig["mse"](name, *aa, **kk)
+            except TypeError:
+                return {"dMSE": {"est": 0.0, "lo": 0.0, "hi": 0.0, "se": 0.0, "mde": None, "games": 0, "n": 0}}
+        def rows_boot(fn, n, *aa, **kk):
+            # c-31's D4 reads the wind coefficient by position; with wind out of the design it is not there
+            try:
+                return orig_rows(fn, n, *aa, **kk)
+            except IndexError:
+                return {"est": 0.0, "lo": 0.0, "hi": 0.0, "se": 0.0, "games": n, "n": n}
+        orig_rows = GTR.boot_rows
+        GF.compare, GF.mse_compare = cmp, mse
+        if no_wind:
+            GTR.boot_rows = rows_boot
+        saved = sys.stdout
+        try:
+            sys.stdout = open(os.devnull, "w")
+            try:
+                GTR.main(["--json-out", os.devnull, "--draws", str(draws)])
+            finally:
+                sys.stdout.close()
+                sys.stdout = saved
+        except _Stop:
+            pass
+        finally:
+            GTR.design, GF.compare, GF.mse_compare = orig["design"], orig["compare"], orig["mse"]
+            GTR.boot_rows = orig_rows
+        if "rows" not in got:
+            raise SystemExit("c-31's main() never reached 'S2 over the book close'")
+        return got["rows"]
+
+    def served_section():
+        """f-27: run 1 attacked the P-b ladder against the closing total (+0.0044, 54,064 rungs) and filed
+        it under record_total.json. The file serves a DIFFERENT comparison there: S2, the over at the
+        closing line against the de-vigged book price, one row a game. This attacks the figure served."""
+        sv = json.load(open(a.served_json, encoding="utf-8"))["vs_close"]
+        pub = (sv["d_brier"]["estimate"], sv["d_brier"]["interval"][0], sv["d_brier"]["interval"][1])
+        out("\n== SERVED vs_close (record_total.json, as fetched): %+.4f [%+.4f, %+.4f] over %d games"
+            % (pub[0], pub[1], pub[2], sv["games"]))
+        rws = capture_s2()
+        g2 = [r["game"] for r in rws]
+        yy = np.array([r["y"] for r in rws])
+        mm = np.array([r["m"] for r in rws])
+        kk = np.array([r["k"] for r in rws])
+        dd = (mm - yy) ** 2 - (kk - yy) ** 2
+        st = lambda idx: float(dd[idx].mean())  # noqa: E731
+        reg = L.summ(st(np.arange(len(rws))), L.block_boot(st, L.blocks_of(g2), draws=rc.BOOT, seed=rc.SEED))
+        S = {"published": pub, "n": len(rws), "games": len(set(g2)), "redrawn": reg,
+             "reproduce": [L.reproduce("rows", len(rws), sv["games"], 0)]
+             + [L.reproduce("vs_close %s" % nm, got_, pv, 4) for nm, got_, pv in
+                zip(("est", "lo", "hi"), (reg["est"], reg["lo"], reg["hi"]), pub)]}
+        for r in S["reproduce"]:
+            out("   %-14s measured %+.5f  served %+.4f  -> %s"
+                % (r["name"], r["measured"], r["published"], "REPRODUCES" if r["reproduces"] else "DOES NOT REPRODUCE"))
+
+        def w_many(rr):
+            pp = rc.Pop("dup", rr, "m", "k")
+            r = GF.boot_many(pp, lambda i: {"d": rc.brier(pp.m[i], pp.y[i]) - rc.brier(pp.k[i], pp.y[i])}, draws=400)["d"]
+            return r["hi"] - r["lo"]
+        S["through"] = L.duplication_through(w_many, rws, "game", fn_name="GF.boot_many", units=len(set(g2)))
+        out("   " + L.through_line(S["through"]))
+        byg = {g["game_id"]: g for g in GTR_games[0]} if GTR_games else {}
+        if byg:
+            S["alt_blocks"] = L.alt_blocks(st, len(rws), {
+                "game": g2, "season-week": ["%d-%02d" % (byg[g]["season"], byg[g]["week"]) for g in g2],
+                "season": [byg[g]["season"] for g in g2]}, seed=32)
+            for nm, r in S["alt_blocks"].items():
+                out("   %-12s (%4d blocks) %s" % (nm, r["n_blocks"], L.fmt(r)))
+        try:
+            nw = capture_s2(no_wind=True)
+        except Exception as e:                                # noqa: BLE001
+            S["no_wind"] = {"error": repr(e)[:300]}
+            out("   no wind: NOT MEASURED - c-31's main() does not reach S2 with wind out of the design: %r" % (e,))
+            return S
+        if [r["game"] for r in nw] != g2:
+            raise SystemExit("the NO_WIND S2 capture is not row-aligned with the registered one")
+        mn = np.array([r["m"] for r in nw])
+        dn = (mn - yy) ** 2 - (kk - yy) ** 2
+        sn = lambda idx: float(dn[idx].mean())  # noqa: E731
+        S["no_wind"] = L.summ(sn(np.arange(len(nw))), L.block_boot(sn, L.blocks_of(g2), seed=33))
+        dw = dd - dn
+        sw = lambda idx: float(dw[idx].mean())  # noqa: E731
+        S["wind_worth"] = L.summ(sw(np.arange(len(nw))), L.block_boot(sw, L.blocks_of(g2), seed=34))
+        out("   no wind: %s   | recorded wind is worth %s Brier on this comparison"
+            % (L.fmt(S["no_wind"]), L.fmt(S["wind_worth"], 5)))
+        k_reg = L.registered_count(json.load(open(a.recorded, encoding="utf-8")), "c-31")
+        S["multiplicity"] = L.multiplicity(reg["est"], reg["se"], (k_reg,), n_blocks=len(set(g2)))
+        S["mde"] = L.mde_ratio(reg["est"], reg["se"])
+        out("   z %+.1f; Bonferroni over c-31's own %d intervals: p %.4f -> %s;  |est|/MDE %.2f (%s)"
+            % (S["multiplicity"]["z"], k_reg, S["multiplicity"]["bonferroni"][k_reg]["p_adj"],
+               "survives" if S["multiplicity"]["bonferroni"][k_reg]["survives_0.05"] else "DOES NOT SURVIVE",
+               S["mde"]["ratio"], S["mde"]["reading"]))
+        return S
+
+    GTR_games = []
+    if a.served_only:
+        if not a.served_json:
+            raise SystemExit("--served-only needs --served-json")
+        _b, _games = capture()
+        GTR_games.append(_games)
+        R["served_vs_close"] = served_section()
+        with open(a.out, "w", encoding="utf-8") as f:
+            json.dump(R, f, indent=1, default=str)
+        out("\nwrote %s (%.0fs)" % (a.out, time.time() - t0))
+        return
     base, games = capture()
+    GTR_games.append(games)
     by_id = {g["game_id"]: g for g in games}
     rows = base["league"]
     n = len(rows)
@@ -145,34 +271,55 @@ def main():
     R["recorded_versions"] = rec.get("versions")
 
     # ------------------------------------------------------------ 2 blocks
-    out("\n== 2. BLOCKS: 8 rungs settle off ONE final score; rows x5 inside their game must not narrow")
-    R["duplication"], R["alt_blocks"] = {}, {}
+    out("\n== 2. BLOCKS: 8 rungs settle off ONE final score; every arm THROUGH c-31's own bootstrap functions")
+    R["iid_contrast"], R["alt_blocks"], R["through"] = {}, {}, {}
+
+    def w_many(rws):          # GF.boot_many: what GF.compare (the P-b ladder intervals) calls
+        pp = rc.Pop("dup", rws, "m", "k")
+        r = GF.boot_many(pp, lambda i: {"dBrier": rc.brier(pp.m[i], pp.y[i]) - rc.brier(pp.k[i], pp.y[i])},
+                         draws=300)["dBrier"]
+        return r["hi"] - r["lo"]
+
+    def w_pop(rws):           # rc.Pop.boot: c-31's per-season / per-rung call sites
+        pp = rc.Pop("dup", rws, "m", "k")
+        r = pp.boot(lambda i: rc.brier(pp.m[i], pp.y[i]) - rc.brier(pp.k[i], pp.y[i]), draws=300)
+        return r["hi"] - r["lo"]
+
+    def w_rows(rws):          # GTR.boot_rows: c-31's ROW bootstrap (D4 wind, S3 ROI) - "one row per game"
+        mm = np.array([r["m"] for r in rws])
+        kk = np.array([r["k"] for r in rws])
+        yy = np.array([r["y"] for r in rws])
+        r = GTR.boot_rows(lambda ix: float(((mm[ix] - yy[ix]) ** 2 - (kk[ix] - yy[ix]) ** 2).mean()), len(rws), 300)
+        return r["hi"] - r["lo"]
+    for b in base:
+        for fn_name, fn in (("GF.boot_many", w_many), ("rc.Pop.boot", w_pop)):
+            t = L.duplication_through(fn, base[b], "game", fn_name=fn_name, units=n_games)
+            R["through"]["%s|%s" % (b, fn_name)] = t
+            out("   %-10s %s" % (b, L.through_line(t)))
+    R["through_verdicts"] = L.require_through(
+        ["%s|%s" % (b, f) for b in ("league", "season_avg", "close") for f in ("GF.boot_many", "rc.Pop.boot")], R["through"])
+    # the row bootstrap, shown on the LADDER rows it must never be given (8 rungs a game) and on one rung a game
+    t = L.duplication_through(w_rows, base["close"], "game", fn_name="GTR.boot_rows", units=n_games)
+    R["through"]["CONTROL ladder rows|GTR.boot_rows (not a call c-31 makes)"] = t
+    out("   CONTROL    %s   <- the verdict had c-31 given its ladder to its row bootstrap" % L.through_line(t))
+    first = {}
+    for r in base["close"]:
+        first.setdefault(r["game"], r)
+    t = L.duplication_through(w_rows, list(first.values()), "game", fn_name="GTR.boot_rows", units=len(first))
+    R["through"]["one rung per game|GTR.boot_rows"] = t
+    out("   one/game   %s" % L.through_line(t))
     season = [by_id[g]["season"] for g in gid]
     week = ["%d-%02d" % (by_id[g]["season"], by_id[g]["week"]) for g in gid]
     for b, d in D.items():
         st = lambda idx, d=d: float(d[idx].mean())  # noqa: E731
-        du = L.duplication(st, n, gid, seed=31, draws=1000)
-        R["duplication"][b] = du
-        out("   %-10s blocked width x%.3f (%s)   iid-rung width x%.3f (expected %.3f; check %s)"
-            % (b, du["width_ratio_blocked"], "passes" if du["passes"] else "NARROWED", du["width_ratio_iid"],
-               du["expected_iid_ratio"], "discriminates" if du["discriminates"] else "DOES NOT DISCRIMINATE"))
-        out("              an iid-rung interval would be x%.2f the width of the game-blocked one"
-            % (du["iid"]["width"] / du["blocked"]["width"]))
+        ic = L.iid_contrast(st, n, gid, seed=31, draws=1000)
+        R["iid_contrast"][b] = ic
+        out("   %-10s descriptive: %d rungs in %d games; an iid-rung interval would be x%.2f the width of the game-blocked one"
+            % (b, ic["rows"], ic["blocks"], ic["iid_over_blocked_width"]))
         R["alt_blocks"][b] = L.alt_blocks(st, n, {"game": gid, "season-week": week, "season": season}, seed=32)
         for nm, r in R["alt_blocks"][b].items():
             out("   %-10s %-12s (%4d blocks) %s" % (b, nm, r["n_blocks"], L.fmt(r)))
 
-    # the same test THROUGH the target's own bootstrap (GF.boot_many, behind every interval it published)
-    def width_of(rws):
-        pp = rc.Pop("dup", rws, "m", "k")
-        r = GF.boot_many(pp, lambda i: {"dBrier": rc.brier(pp.m[i], pp.y[i]) - rc.brier(pp.k[i], pp.y[i])},
-                         draws=400)["dBrier"]
-        return r["hi"] - r["lo"]
-    dt_ = L.duplication_through(width_of, base["close"], "game")
-    R["duplication_through_target_bootstrap"] = dt_
-    out("   THROUGH GF.boot_many: copies inside their game x%.3f (%s); copies as new games x%.3f (expected %.3f; check %s)"
-        % (dt_["ratio_copies_in_block"], "passes" if dt_["passes"] else "NARROWED", dt_["ratio_copies_as_new_blocks"],
-           dt_["expected_new_blocks"], "discriminates" if dt_["discriminates"] else "DOES NOT DISCRIMINATE"))
 
     # ------------------------------------------------------------ 3 leakage
     out("\n== 3. LEAKAGE: scramble every input dated at or after a cutoff; earlier forecasts may not move")
@@ -236,6 +383,40 @@ def main():
         "(this is the audit firing on a real look-ahead, so it is not blind)"
         % (R["leak_summary"]["results_and_pace_clean"], R["leak_summary"]["own_game_wind_moves_forecast"]))
 
+    # f-27: a PLANTED LEAK into EARLIER rungs. The wind firing above is on the game AT the cutoff; nothing
+    # so far showed `moved_before` can be non-zero. One late-2019 game is filed under week 1 (kickoff
+    # untouched) and results at/after a mid-2019 cutoff are scrambled: earlier rungs MUST move.
+    late = max((g for g in games if g["season"] == 2019 and g["week"] == 12 and g["home_score"] is not None),
+               key=lambda g: g["kickoff_ts"])
+    c_p = min(g["kickoff_ts"] for g in games if g["season"] == 2019 and g["week"] == 8)
+
+    def plant(gs):
+        g2 = copy.deepcopy(gs)
+        for g in g2:
+            if g["game_id"] == late["game_id"]:
+                g["week"] = 1
+        return g2
+
+    def plant_scr(gs):
+        g2 = plant(gs)
+        for g in g2:
+            if g["kickoff_ts"] is not None and g["kickoff_ts"] >= c_p and g["home_score"] is not None:
+                g["home_score"], g["away_score"] = g["away_score"] + 7, g["home_score"]
+        return g2
+    try:
+        pb, _g = capture(mut_games=plant)
+        ps, _g = capture(mut_games=plant_scr)
+        ref = {(r["game"], r["line"]): r["m"] for r in pb["league"]}
+        pm = sum(1 for r in ps["league"] if (r["game"], r["line"]) in ref and by_id[r["game"]]["kickoff_ts"] < c_p
+                 and abs(r["m"] - ref[(r["game"], r["line"])]) > 1e-12)
+        R["leak_planted"] = {"plant": "game %s (2019 wk 12) filed under week 1; results at/after 2019 wk 8 scrambled"
+                                      % late["game_id"], "earlier_rungs_moved": pm, "fires": bool(pm)}
+        out("   PLANTED LEAK (%s): %d EARLIER rungs moved -> %s"
+            % (R["leak_planted"]["plant"], pm, "FIRES" if pm else "DID NOT FIRE - the check is blind to this leak"))
+    except (SystemExit, Exception) as e:                     # noqa: BLE001 - the plant failing to run is a result
+        R["leak_planted"] = {"fires": None, "error": repr(e)[:300]}
+        out("   PLANTED LEAK could not be run through c-31's main(): %r" % (e,))
+
     # what the record is without the look-ahead input
     nw, _g = capture(no_wind=True)
     if [(r["game"], r["line"]) for r in nw["league"]] != key:
@@ -253,7 +434,7 @@ def main():
 
     # ------------------------------------------------------------ 4/5 specifications, MDE
     out("\n== 4/5. SPECIFICATIONS AND MDE")
-    k_reg = (rec.get("registered_intervals") or {}).get("count") or 0
+    k_reg = L.registered_count(rec, "c-31")
     R["registered_intervals_c31"] = k_reg
     R["multiplicity"] = {}
     for b, d in D.items():
@@ -271,6 +452,12 @@ def main():
         "(c-31 disclosed the first)" % (list(GTR.K_GRID), R["grid_edge"]["plays_k_at_max"], len(fp),
                                         R["grid_edge"]["ppp_k_at_max"]))
 
+    if a.served_json:
+        R["served_vs_close"] = served_section()
+    else:
+        R["served_vs_close"] = None
+        out("\n== SERVED vs_close: NOT ATTACKED (no --served-json). The +0.0044 above is the ladder comparison; "
+            "record_total.json serves a different one.")
     R["seconds"] = time.time() - t0
     with open(a.out, "w", encoding="utf-8") as f:
         json.dump(R, f, indent=1, default=str)

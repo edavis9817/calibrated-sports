@@ -1,0 +1,59 @@
+captured 54064 rungs in 6758 games in 40s (c-31's identity check on c-28's moneyline passed)
+
+== 1. REPRODUCE (c-31's code, today's stores, own Brier arithmetic)
+   rungs                        measured +54064.00000  published +54064.0000  -> REPRODUCES
+   games                        measured +6758.00000  published +6758.0000  -> REPRODUCES
+   dBrier vs league est         measured -0.00746  published -0.0075  -> REPRODUCES
+   dBrier vs league lo          measured -0.00901  published -0.0090  -> REPRODUCES
+   dBrier vs league hi          measured -0.00597  published -0.0060  -> REPRODUCES
+   dBrier vs season_avg est     measured -0.00628  published -0.0063  -> REPRODUCES
+   dBrier vs season_avg lo      measured -0.00781  published -0.0078  -> REPRODUCES
+   dBrier vs season_avg hi      measured -0.00476  published -0.0048  -> REPRODUCES
+   dBrier vs close est          measured +0.00445  published +0.0044  -> REPRODUCES
+   dBrier vs close lo           measured +0.00323  published +0.0032  -> REPRODUCES
+   dBrier vs close hi           measured +0.00567  published +0.0057  -> REPRODUCES
+
+== 2. BLOCKS: 8 rungs settle off ONE final score; every arm THROUGH c-31's own bootstrap functions
+   league     THROUGH GF.boot_many (54064 rows, 6758 units): copies inside their block x1.000, copies as new blocks x0.470 (expected 0.447) -> honours_blocks
+   league     THROUGH rc.Pop.boot (54064 rows, 6758 units): copies inside their block x1.000, copies as new blocks x0.470 (expected 0.447) -> honours_blocks
+   season_avg THROUGH GF.boot_many (54064 rows, 6758 units): copies inside their block x1.000, copies as new blocks x0.387 (expected 0.447) -> honours_blocks
+   season_avg THROUGH rc.Pop.boot (54064 rows, 6758 units): copies inside their block x1.000, copies as new blocks x0.387 (expected 0.447) -> honours_blocks
+   close      THROUGH GF.boot_many (54064 rows, 6758 units): copies inside their block x1.000, copies as new blocks x0.415 (expected 0.447) -> honours_blocks
+   close      THROUGH rc.Pop.boot (54064 rows, 6758 units): copies inside their block x1.000, copies as new blocks x0.415 (expected 0.447) -> honours_blocks
+   CONTROL    THROUGH GTR.boot_rows (54064 rows, 6758 units): copies inside their block x0.559, copies as new blocks x0.559 (expected 0.447) -> NARROWS   <- the verdict had c-31 given its ladder to its row bootstrap
+   one/game   THROUGH GTR.boot_rows (6758 rows, 6758 units): copies inside their block x0.390, copies as new blocks x0.390 (expected 0.447) -> row_bootstrap_one_per_unit
+   league     descriptive: 54064 rungs in 6758 games; an iid-rung interval would be x0.43 the width of the game-blocked one
+   league     game         (6758 blocks) -0.0075 [-0.0089, -0.0060] SE 0.00075 *
+   league     season-week  ( 530 blocks) -0.0075 [-0.0090, -0.0060] SE 0.00076 *
+   league     season       (  25 blocks) -0.0075 [-0.0091, -0.0059] SE 0.00084 *
+   season_avg descriptive: 54064 rungs in 6758 games; an iid-rung interval would be x0.47 the width of the game-blocked one
+   season_avg game         (6758 blocks) -0.0063 [-0.0079, -0.0047] SE 0.00081 *
+   season_avg season-week  ( 530 blocks) -0.0063 [-0.0081, -0.0045] SE 0.00092 *
+   season_avg season       (  25 blocks) -0.0063 [-0.0078, -0.0049] SE 0.00073 *
+   close      descriptive: 54064 rungs in 6758 games; an iid-rung interval would be x0.46 the width of the game-blocked one
+   close      game         (6758 blocks) +0.0044 [+0.0032, +0.0057] SE 0.00063 *
+   close      season-week  ( 530 blocks) +0.0044 [+0.0033, +0.0056] SE 0.00061 *
+   close      season       (  25 blocks) +0.0044 [+0.0030, +0.0057] SE 0.00069 *
+
+== 3. LEAKAGE: scramble every input dated at or after a cutoff; earlier forecasts may not move
+   cutoff 1200859200, results+pace               :  14864 earlier rungs, 0 moved | 8 rungs AT the cutoff, 0 moved | baselines moved 0
+   cutoff 1200859200, results+pace+recorded wind :  14864 earlier rungs, 0 moved | 8 rungs AT the cutoff, 8 moved | baselines moved 0
+   cutoff 1477873800, results+pace               :  32920 earlier rungs, 0 moved | 8 rungs AT the cutoff, 0 moved | baselines moved 0
+   cutoff 1477873800, results+pace+recorded wind :  32920 earlier rungs, 0 moved | 8 rungs AT the cutoff, 0 moved | baselines moved 0
+   cutoff 1705267800, results+pace               :  49416 earlier rungs, 0 moved | 8 rungs AT the cutoff, 0 moved | baselines moved 0
+   cutoff 1705267800, results+pace+recorded wind :  49416 earlier rungs, 0 moved | 8 rungs AT the cutoff, 0 moved | baselines moved 0
+   -> results and pace are as-of: True; the forecast reads its OWN game's recorded wind: True (this is the audit firing on a real look-ahead, so it is not blind)
+   PLANTED LEAK (game 2019_12_BAL_LA (2019 wk 12) filed under week 1; results at/after 2019 wk 8 scrambled): 352 EARLIER rungs moved -> FIRES
+
+   the same record with wind removed from the model (a forecast that could exist before kickoff):
+   league     registered (recorded wind) -0.0075 | no wind -0.0065 [-0.0078, -0.0052] SE 0.00067 *
+   season_avg registered (recorded wind) -0.0063 | no wind -0.0053 [-0.0067, -0.0040] SE 0.00066 *
+   close      registered (recorded wind) +0.0044 | no wind +0.0054 [+0.0043, +0.0067] SE 0.00060 *
+
+== 4/5. SPECIFICATIONS AND MDE
+   league     z -9.7  Bonferroni survives k=3 True, k=41 True, k=1000 True   |est|/MDE 3.46
+   season_avg z -8.0  Bonferroni survives k=3 True, k=41 True, k=1000 True   |est|/MDE 2.86
+   close      z +7.2  Bonferroni survives k=3 True, k=41 True, k=1000 True   |est|/MDE 2.56
+   shrinkage grid [2, 4, 6, 8, 12, 16]: plays k at the maximum in 26 of 26 fitted seasons, points-per-play k in 0 (c-31 disclosed the first)
+
+wrote D:/temp/f27/c31.json (522s)

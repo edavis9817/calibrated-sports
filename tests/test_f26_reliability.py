@@ -41,11 +41,26 @@ def test_block_bootstrap_is_wider_than_iid_on_clustered_rows():
     assert iid["width"] < 0.6 * blocked["width"]
 
 
-def test_duplication_passes_blocked_and_the_iid_twin_narrows():
+def test_the_vacuous_duplication_is_retired_and_every_call_site_is_gone():
+    """f-27. It resampled with the attacker's own bootstrap, so it could not fail. The
+    name raises, and no adapter may call it or print a pass off the descriptive ratio."""
+    import ast
     v, lab = clustered()
-    du = L.duplication(lambda idx: float(v[idx].mean()), len(v), lab, draws=400, seed=2)
-    assert du["passes"] and du["discriminates"]
-    assert du["width_ratio_iid"] == pytest.approx(du["expected_iid_ratio"], abs=0.12)
+    with pytest.raises(L.VacuousCheck):
+        L.duplication(lambda idx: float(v[idx].mean()), len(v), lab)
+    ic = L.iid_contrast(lambda idx: float(v[idx].mean()), len(v), lab, draws=400, seed=2)
+    assert "passes" not in ic and ic["iid_over_blocked_width"] < 0.6
+    adapters = [f for f in os.listdir(HERE) if f.startswith("attack_") and f.endswith(".py")]
+    assert len(adapters) >= 5
+    for f in adapters:
+        tree = ast.parse(open(os.path.join(HERE, f), encoding="utf-8").read())
+        calls = {n.func.attr for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+        assert "duplication" not in calls, f                 # by AST: the docstrings name it on purpose
+        assert "duplication_through" in calls, f             # every adapter runs the real one
+
+
+def test_selfcheck_every_step_rejects_its_plant():
+    assert _load("selfcheck").main() == 0
 
 
 def test_duplication_through_catches_a_bootstrap_that_ignores_blocks():
@@ -63,10 +78,20 @@ def test_duplication_through_catches_a_bootstrap_that_ignores_blocks():
         d = L.iid_boot(lambda idx: float(vv[idx].mean()), len(vv), 300, 3)
         return float(np.percentile(d, 97.5) - np.percentile(d, 2.5))
 
-    good = L.duplication_through(honours_blocks, rows, "game")
-    bad = L.duplication_through(ignores_blocks, rows, "game")
-    assert good["passes"] and good["discriminates"]
-    assert not bad["passes"]                      # copies inside a block narrowed it: the finding
+    units = len(set(lab))
+    good = L.duplication_through(honours_blocks, rows, "game", fn_name="blocked", units=units)
+    bad = L.duplication_through(ignores_blocks, rows, "game", fn_name="rows", units=units)
+    assert good["passes"] and good["discriminates"] and good["verdict"] == "honours_blocks" and good["survives"]
+    assert not bad["passes"] and bad["verdict"] == "NARROWS" and not bad["survives"]
+    # a row bootstrap is a game bootstrap when there is one row a game - and only then
+    one = rows[::8]
+    solo = L.duplication_through(ignores_blocks, one, "game", fn_name="rows", units=len(one))
+    assert solo["verdict"] == "row_bootstrap_one_per_unit" and solo["survives"]
+    with pytest.raises(ValueError):
+        L.duplication_through(honours_blocks, rows, "game")              # no fn_name, no units: refused
+    assert L.require_through(["a"], {"a": good}) == {"a": "honours_blocks"}
+    with pytest.raises(SystemExit):
+        L.require_through(["a", "b"], {"a": good})                       # a claim with no through result
 
 
 def test_reproduce_is_at_the_stated_precision_and_can_fail():
@@ -79,6 +104,31 @@ def test_reproduce_is_at_the_stated_precision_and_can_fail():
 def test_multiplicity_survives_and_does_not():
     assert L.multiplicity(0.0010, 0.00024, (72,))["bonferroni"][72]["survives_0.05"]      # c-30 on 3
     assert not L.multiplicity(0.0009, 0.00033, (72,))["bonferroni"][72]["survives_0.05"]  # c-30 pooled
+
+
+def test_multiplicity_degenerate_intervals_enter_at_p_one_and_k_is_a_real_count():
+    assert not L.multiplicity(0.05, 0.0, (1,))["bonferroni"][1]["survives_0.05"]
+    assert not L.multiplicity(0.05, 1e-9, (1,), n_blocks=4)["bonferroni"][1]["survives_0.05"]
+    assert L.multiplicity(0.05, 0.01, (1,), n_blocks=32)["bonferroni"][1]["survives_0.05"]
+    with pytest.raises(ValueError):
+        L.multiplicity(0.05, 0.01, (0,))
+    assert L.registered_count({"registered_intervals": {"count": 72}}, "t") == 72
+    with pytest.raises(SystemExit):
+        L.registered_count({}, "t")
+
+
+def test_alt_blocks_does_not_read_fewer_than_five_blocks():
+    v, lab = clustered()
+    r = L.alt_blocks(lambda idx: float(v[idx].mean()), len(v), {"four": [g % 4 for g in lab], "game": lab}, draws=200)
+    assert r["four"]["excludes_zero"] is None and not r["four"]["read"]
+    assert r["game"]["read"] and r["game"]["excludes_zero"] in (True, False)
+    assert "NOT READ" in L.fmt(r["four"])
+
+
+def test_mde_claim_can_contradict_the_target():
+    assert L.mde_claim(0.203, 0.0725)["consistent"]
+    assert not L.mde_claim(0.10, 0.0725)["consistent"]
+    assert not L.mde_claim(None, 0.0725)["consistent"]
 
 
 def test_mde_has_three_readings_and_a_null_is_not_called_at_its_mde():

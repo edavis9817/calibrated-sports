@@ -1,0 +1,35 @@
+step               plant                                                                                           must fire  fired  ok   note
+2 blocks           the retired f-26 duplication() is still callable                                                True       True   ok   it raises VacuousCheck
+2 blocks           target resamples ROWS on 8 rungs a game                                                         True       True   ok   copies x0.415 -> NARROWS
+2 blocks           target honours game blocks (must NOT fire)                                                      False      False  ok   copies x1.000, twin x0.362 -> honours_blocks
+2 blocks           row bootstrap on ONE row a game (must NOT fire)                                                 False      False  ok   row_bootstrap_one_per_unit
+2 blocks           BLIND SPOT: target labels every rung its own game, attacker counts units from the same label    False      False  ok   passes - the duplication cannot see a wrong LABEL; `units` must be counted independently (here it was not) and alt_blocks() run
+2 blocks           same wrong label, units counted independently (80 games)                                        False      False  ok   STILL passes: verdict honours_blocks with rows 640 != units 80 - read rows vs units, not the verdict alone
+2 blocks           alt_blocks on the mislabelled rungs: game blocks must be wider than rung blocks                 True       True   ok   rung x1.00, game x3.02
+2 blocks           an interval over 4 blocks is NOT READ                                                           True       True   ok   
+1 reproduce        figure off by one unit in the last stated digit                                                 True       True   ok   
+1 reproduce        a figure moved by a rebuilt input (c-32's total, -0.019 vs -0.026)                              True       True   ok   
+1 reproduce        published GAME-block bound, re-measured with a row bootstrap (8 rungs a game)                   True       True   ok   row interval is x0.38 the width
+1 reproduce        same seed re-draw of the true interval (must NOT fire)                                          False      False  ok   
+1 reproduce        BLIND SPOT: wrongly blocked interval when the design effect is small (width ratio 0.95)         False      False  ok   an interval match within 0.25 SE cannot tell blocks from rows above ratio ~0.87; step 2 must
+3 leakage          as-of pipeline (must NOT fire)                                                                  False      False  ok   0 earlier forecasts moved
+3 leakage          forecast reads the full-sample mean                                                             True       True   ok   250 earlier forecasts moved
+3 leakage          BLIND SPOT: a parameter fitted on the full sample whose grid argmin the scramble does not move  False      False  ok   0 moved - the scramble test is blind to it; the truncated-refit audit (attack_c28 3c) is the check, and only c-28's adapter has one
+3 leakage          'later forecasts moved' on the CLEAN pipeline                                                   True       True   ok   149 moved - this fires on a leak-free pipeline, so it proves the scramble ran, NOT that a leak would be seen
+4 specifications   z 2.79 over 72 registered intervals (c-30's pooled figure)                                      True       True   ok   
+4 specifications   z 4.1 over 72 (must NOT fire)                                                                   False      False  ok   
+4 specifications   zero-variance bootstrap enters at p = 1                                                         True       True   ok   
+4 specifications   SE 1e-9 from 4 identical blocks enters at p = 1                                                 True       True   ok   
+4 specifications   BLIND SPOT: the same SE 1e-9 when the adapter does not pass n_blocks                            False      False  ok   survives - n_blocks is optional; every adapter in this directory now passes it
+4 specifications   a specification count of 0 (count not found)                                                    True       True   ok   refused
+4 specifications   a recorded result with no registered_intervals.count                                            True       True   ok   refused
+4 specifications   72 pure-noise intervals, 2,000 times: a survivor in under 6% of families                        True       True   ok   family-wise rate 0.045
+4 specifications   BLIND SPOT: k is the unit's OWN count                                                           False      False  ok   nothing here counts a specification the unit did not register; that part of step 4 is reading, not code
+5 MDE              estimate exactly on 2.8 SE reads `at`                                                           True       True   ok   
+5 MDE              a null at 0.46 of its MDE reads `below`, never `at`                                             True       True   ok   
+5 MDE              5.4x its MDE reads `clear` (must NOT flag)                                                      False      False  ok   
+5 MDE              target states an MDE of 0.10 where 2.8 SE is 0.20                                               True       True   ok   
+5 MDE              target's stated 0.203 against 2.8 x 0.0725 (must NOT fire)                                      False      False  ok   
+5 MDE              NOT INDEPENDENT: can an interval that excludes zero (|z| >= 1.97) read `below`?                 True       True   ok   14 of 200 - only for |z| < 2.24; otherwise the reading is a function of the z step 4 already used
+
+32 plants, 32 behaved as required, 6 of them pinned blind spots or dependencies

@@ -106,8 +106,6 @@ def main():
         p = rc.Pop(b, rows, "m", "k")
         reg[b] = p.boot(lambda i, p=p: rc.brier(p.m[i], p.y[i]) - rc.brier(p.k[i], p.y[i]))
     R["registered_interval_redrawn"] = reg
-    rows_elo = [{"game": g, "stat": "ml", "line": 0.0, "y": float(y[j]), "m": float(m[j]), "k": float(B["elo_nomov"][j])}
-                for j, g in enumerate(gid)]
     mlj = [j for j, i in enumerate(pop) if games[i]["season"] >= GF.ML_FROM
            and ml_raw.get(games[i]["game_id"], (None, None))[0] is not None
            and ml_raw[games[i]["game_id"]][1] is not None]
@@ -126,17 +124,39 @@ def main():
         out("   STOP: a headline figure does not reproduce; that is the finding.")
 
     # ------------------------------------------------------------ 2 blocks
-    out("\n== 2. BLOCKS: rows x5 inside their block must not narrow; coarser blocks")
-    R["duplication"], R["alt_blocks"], R["seeds"] = {}, {}, {}
+    out("\n== 2. BLOCKS: every arm THROUGH c-28's own two bootstrap functions; coarser blocks")
+    R["through"], R["iid_contrast"], R["alt_blocks"], R["seeds"] = {}, {}, {}, {}
+    arm_rows = {b: [{"game": g, "stat": "ml", "line": 0.0, "y": float(y[j]), "m": float(m[j]), "k": float(B[b][j])}
+                    for j, g in enumerate(gid)] for b in D}
+    arm_rows["ml_close"] = [{"game": gid[j], "stat": "ml", "line": 0.0, "y": float(y[j]), "m": float(m[j]),
+                             "k": float(ih[q] / (ih[q] + ia[q]))} for q, j in enumerate(mlj)]
+
+    def w_many(rws):          # GF.boot_many: behind every interval compare() printed
+        pp = rc.Pop("dup", rws, "m", "k")
+        r = GF.boot_many(pp, lambda i: {"dBrier": rc.brier(pp.m[i], pp.y[i]) - rc.brier(pp.k[i], pp.y[i])},
+                         draws=400)["dBrier"]
+        return r["hi"] - r["lo"]
+
+    def w_pop(rws):           # rc.Pop.boot: the function at c-28's registered-interval call site
+        pp = rc.Pop("dup", rws, "m", "k")
+        r = pp.boot(lambda i: rc.brier(pp.m[i], pp.y[i]) - rc.brier(pp.k[i], pp.y[i]), draws=400)
+        return r["hi"] - r["lo"]
+    for b, rws in arm_rows.items():
+        units = len({r["game"] for r in rws})
+        for fn_name, fn in (("GF.boot_many", w_many), ("rc.Pop.boot", w_pop)):
+            t = L.duplication_through(fn, rws, "game", fn_name=fn_name, units=units)
+            R["through"]["%s|%s" % (b, fn_name)] = t
+            out("   %-9s %s" % (b, L.through_line(t)))
+    R["through_verdicts"] = L.require_through(
+        ["%s|%s" % (b, f) for b in ("home", "record", "elo_nomov", "ml_close") for f in ("GF.boot_many", "rc.Pop.boot")],
+        R["through"])
     for b, d in list(D.items()) + [("ml_close", dml)]:
         stat = lambda idx, d=d: float(d[idx].mean())  # noqa: E731
         lab = gid if b != "ml_close" else [gid[j] for j in mlj]
-        du = L.duplication(stat, len(d), lab, seed=11)
-        R["duplication"][b] = du
-        out("   %-9s blocked width x%.3f (%s)   iid width x%.3f (expected %.3f; check %s)"
-            % (b, du["width_ratio_blocked"], "passes" if du["passes"] else "NARROWED",
-               du["width_ratio_iid"], du["expected_iid_ratio"],
-               "discriminates" if du["discriminates"] else "DOES NOT DISCRIMINATE"))
+        R["iid_contrast"][b] = L.iid_contrast(stat, len(d), lab, seed=11)
+        out("   %-9s descriptive: %d rows in %d games; an unblocked interval would be x%.2f the width"
+            % (b, R["iid_contrast"][b]["rows"], R["iid_contrast"][b]["blocks"],
+               R["iid_contrast"][b]["iid_over_blocked_width"]))
     for b, d in D.items():
         stat = lambda idx, d=d: float(d[idx].mean())  # noqa: E731
         R["alt_blocks"][b] = L.alt_blocks(stat, n, labelings, seed=12)
@@ -147,17 +167,6 @@ def main():
         % (R["seeds"]["elo_nomov"]["share_excluding_zero"], R["seeds"]["elo_nomov"]["hi_min"],
            R["seeds"]["elo_nomov"]["hi_max"]))
 
-    # the same test THROUGH the target's own bootstrap (GF.boot_many, behind every interval it published)
-    def width_of(rws):
-        pp = rc.Pop("dup", rws, "m", "k")
-        r = GF.boot_many(pp, lambda i: {"dBrier": rc.brier(pp.m[i], pp.y[i]) - rc.brier(pp.k[i], pp.y[i])},
-                         draws=400)["dBrier"]
-        return r["hi"] - r["lo"]
-    dt_ = L.duplication_through(width_of, rows_elo, "game")
-    R["duplication_through_target_bootstrap"] = dt_
-    out("   THROUGH GF.boot_many: copies inside their game x%.3f (%s); copies as new games x%.3f (expected %.3f; check %s)"
-        % (dt_["ratio_copies_in_block"], "passes" if dt_["passes"] else "NARROWED", dt_["ratio_copies_as_new_blocks"],
-           dt_["expected_new_blocks"], "discriminates" if dt_["discriminates"] else "DOES NOT DISCRIMINATE"))
 
     # ------------------------------------------------------------ 3 leakage
     out("\n== 3. LEAKAGE")
@@ -277,7 +286,7 @@ def main():
     for b, d in list(D.items()) + [("ml_close", dml)]:
         se = float(L.block_boot(lambda idx, d=d: float(d[idx].mean()), [np.array([j]) for j in range(len(d))],
                                 seed=13).std())
-        mu = L.multiplicity(float(d.mean()), se, (3, REGISTERED_INTERVALS, 1000))
+        mu = L.multiplicity(float(d.mean()), se, (3, REGISTERED_INTERVALS, 1000), n_blocks=len(d))
         R["multiplicity"][b] = dict(mu, se=se, mde=L.mde_ratio(float(d.mean()), se))
         out("   %-9s z %+.1f  Bonferroni survives at k=3 %s, k=%d %s, k=1000 %s   |est|/MDE %.2f%s"
             % (b, mu["z"], mu["bonferroni"][3]["survives_0.05"], REGISTERED_INTERVALS,

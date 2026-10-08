@@ -1,0 +1,272 @@
+{
+ "run_id": "f-27 (run 2: the blocks step re-run through each target's own bootstrap)",
+ "at": "2026-10-08T12:45-04:00",
+ "code": "origin/f-27-vacuous-check (research/f26_reliability/)",
+ "why": "run 1's duplication() resampled with the attacker's bootstrap and printed x1.000 (passes) on 18 statistics by construction. It is retired; every claim below was re-run through the function its published interval came from.",
+ "marker": "NOT rewritten. select.py --record would also mark every unit that finished since run 1 as seen for the needs_ethan count, which this run did not make. Run 1's verdicts stand; this file is the record of the re-run.",
+ "through": {
+  "c-28": {
+   "home|GF.boot_many": {
+    "fn": "GF.boot_many",
+    "rows": 6743,
+    "units": 6743,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.507,
+    "verdict": "honours_blocks"
+   },
+   "home|rc.Pop.boot": {
+    "fn": "rc.Pop.boot",
+    "rows": 6743,
+    "units": 6743,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.507,
+    "verdict": "honours_blocks"
+   },
+   "record|GF.boot_many": {
+    "fn": "GF.boot_many",
+    "rows": 6743,
+    "units": 6743,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.425,
+    "verdict": "honours_blocks"
+   },
+   "record|rc.Pop.boot": {
+    "fn": "rc.Pop.boot",
+    "rows": 6743,
+    "units": 6743,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.425,
+    "verdict": "honours_blocks"
+   },
+   "elo_nomov|GF.boot_many": {
+    "fn": "GF.boot_many",
+    "rows": 6743,
+    "units": 6743,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.424,
+    "verdict": "honours_blocks"
+   },
+   "elo_nomov|rc.Pop.boot": {
+    "fn": "rc.Pop.boot",
+    "rows": 6743,
+    "units": 6743,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.424,
+    "verdict": "honours_blocks"
+   },
+   "ml_close|GF.boot_many": {
+    "fn": "GF.boot_many",
+    "rows": 5281,
+    "units": 5281,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.413,
+    "verdict": "honours_blocks"
+   },
+   "ml_close|rc.Pop.boot": {
+    "fn": "rc.Pop.boot",
+    "rows": 5281,
+    "units": 5281,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.413,
+    "verdict": "honours_blocks"
+   }
+  },
+  "c-30": {
+   "on3_dMCB": {
+    "fn": "ATS.boot_rows",
+    "rows": 985,
+    "units": 985,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.412,
+    "verdict": "honours_blocks"
+   },
+   "pooled_dBrier": {
+    "fn": "ATS.boot_rows",
+    "rows": 6580,
+    "units": 6580,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.426,
+    "verdict": "honours_blocks"
+   },
+   "book_dBrier": {
+    "fn": "ATS.boot_rows",
+    "rows": 5162,
+    "units": 5162,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.452,
+    "verdict": "honours_blocks"
+   }
+  },
+  "c-31": {
+   "league|GF.boot_many": {
+    "fn": "GF.boot_many",
+    "rows": 54064,
+    "units": 6758,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.47,
+    "verdict": "honours_blocks"
+   },
+   "league|rc.Pop.boot": {
+    "fn": "rc.Pop.boot",
+    "rows": 54064,
+    "units": 6758,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.47,
+    "verdict": "honours_blocks"
+   },
+   "season_avg|GF.boot_many": {
+    "fn": "GF.boot_many",
+    "rows": 54064,
+    "units": 6758,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.387,
+    "verdict": "honours_blocks"
+   },
+   "season_avg|rc.Pop.boot": {
+    "fn": "rc.Pop.boot",
+    "rows": 54064,
+    "units": 6758,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.387,
+    "verdict": "honours_blocks"
+   },
+   "close|GF.boot_many": {
+    "fn": "GF.boot_many",
+    "rows": 54064,
+    "units": 6758,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.415,
+    "verdict": "honours_blocks"
+   },
+   "close|rc.Pop.boot": {
+    "fn": "rc.Pop.boot",
+    "rows": 54064,
+    "units": 6758,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.415,
+    "verdict": "honours_blocks"
+   },
+   "CONTROL ladder rows|GTR.boot_rows (not a call c-31 makes)": {
+    "fn": "GTR.boot_rows",
+    "rows": 54064,
+    "units": 6758,
+    "copies_in_block": 0.559,
+    "copies_as_new_blocks": 0.559,
+    "verdict": "NARROWS"
+   },
+   "one rung per game|GTR.boot_rows": {
+    "fn": "GTR.boot_rows",
+    "rows": 6758,
+    "units": 6758,
+    "copies_in_block": 0.39,
+    "copies_as_new_blocks": 0.39,
+    "verdict": "row_bootstrap_one_per_unit"
+   }
+  },
+  "c-31 served vs_close": {
+   "fn": "GF.boot_many",
+   "rows": 5216,
+   "units": 5216,
+   "copies_in_block": 1.0,
+   "copies_as_new_blocks": 0.402,
+   "verdict": "honours_blocks"
+  },
+  "c-32": {
+   "moneyline": {
+    "fn": "OL.boot",
+    "rows": 32,
+    "units": 32,
+    "copies_in_block": 0.389,
+    "copies_as_new_blocks": 0.389,
+    "verdict": "row_bootstrap_one_per_unit"
+   },
+   "spread": {
+    "fn": "OL.boot",
+    "rows": 32,
+    "units": 32,
+    "copies_in_block": 0.417,
+    "copies_as_new_blocks": 0.417,
+    "verdict": "row_bootstrap_one_per_unit"
+   }
+  },
+  "c-36": {
+   "t2b": {
+    "fn": "research.win_total_drift:boot_ols",
+    "rows": 128,
+    "units": 32,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.448,
+    "verdict": "honours_blocks"
+   },
+   "t3p": {
+    "fn": "research.win_total_drift:boot_ols",
+    "rows": 128,
+    "units": 32,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.423,
+    "verdict": "honours_blocks"
+   },
+   "nolvl": {
+    "fn": "research.win_total_drift:boot_ols",
+    "rows": 128,
+    "units": 32,
+    "copies_in_block": 1.0,
+    "copies_as_new_blocks": 0.413,
+    "verdict": "honours_blocks"
+   }
+  }
+ },
+ "planted_leaks": {
+  "c-28": {
+   "infoset": 113,
+   "own_result": 3,
+   "params_T+1_seasons": 6
+  },
+  "c-30": {
+   "plant": "game 2019_12_BAL_LA (2019 wk 12) filed under week 1; results at/after 2019 wk 8 scrambled",
+   "earlier_forecasts_moved": 43,
+   "fires": true
+  },
+  "c-31": {
+   "plant": "game 2019_12_BAL_LA (2019 wk 12) filed under week 1; results at/after 2019 wk 8 scrambled",
+   "earlier_rungs_moved": 352,
+   "fires": true
+  },
+  "c-32": {
+   "planted_early_open_fires": true
+  },
+  "c-36": "no leakage step: rows only"
+ },
+ "served_vs_close_record_total": {
+  "served": [
+   0.004,
+   0.0019,
+   0.0063
+  ],
+  "redrawn": [
+   0.00404,
+   0.00191,
+   0.00626
+  ],
+  "no_wind": [
+   0.00561,
+   0.00351,
+   0.00793
+  ],
+  "wind_worth": [
+   -0.00157,
+   -0.00268,
+   -0.00044
+  ],
+  "bonferroni_41_p": 0.012388515135169795,
+  "mde_ratio": 1.29
+ },
+ "verdicts": {
+  "c-28": "SURVIVES the real blocks test. 8 of 8 (4 arms x GF.boot_many and rc.Pop.boot): copies in block x1.000, twin x0.41-0.51. One row a game (6,743 = 6,743), so blocking is immaterial to these intervals either way. Run 1's CITABLE stands.",
+  "a-63": "As c-28. The weeks 1-4 flip reproduces: registered -0.0008 [-0.0024, +0.0009], widened grid -0.0017 [-0.0031, -0.0004]. THE SENTENCE IS NOT ATTACHED where published (forecast.json season_stage.statement, record.json by_stage, fetched 2026-10-08).",
+  "c-30": "SURVIVES. 3 of 3 through ATS.boot_rows: x1.000, twin x0.41-0.45. One row a game. Planted leak fires (43 earlier forecasts moved). The pooled +0.0009 is still exactly on its MDE (1.00) with adjusted p 0.38 over 72. THE SENTENCE IS NOT ATTACHED: record_spread.json serves it as 'worse than' with no qualifier.",
+  "c-31": "SURVIVES, and this is the claim the test matters for: 54,064 rungs in 6,758 games, an unblocked interval would be x0.43-0.47 the width. 6 of 6 through GF.boot_many and rc.Pop.boot: x1.000, twin x0.39-0.47. CONTROL: c-31's own row bootstrap on the same ladder narrows x0.559 -> NARROWS, so the test fires on real data. Planted leak fires (352 earlier rungs). NEW: record_total.json's vs_close is NOT the +0.0044 run 1 attacked; it serves S2, +0.0040 [+0.0019, +0.0063] on 5,216 games. That reproduces to 4 dp, honours blocks, survives Bonferroni over 41 (p 0.012), 1.29x MDE. Without wind it is +0.0056 [+0.0035, +0.0079]; recorded wind is worth 0.0016 [0.0004, 0.0027] there, not 0.0010. THE SENTENCE IS HALF ATTACHED: does_not_cover says the record flatters; no size is given.",
+  "c-32": "SURVIVES as row_bootstrap_one_per_unit: OL.boot narrows x0.39/x0.42 on copies, and is a game bootstrap only because 32 rows = 32 games. Moneyline and spread reproduce; the total still does not (-0.019 [-0.173, +0.131] against -0.026 [-0.174, +0.112]). THE SENTENCE IS NOT ATTACHED: docs/findings/open-line-move.md on origin/c-32-open-line-move still prints -0.026 with no note; the doc is not on origin/main and not on the site.",
+  "c-36": "SURVIVES. 3 of 3 through its own boot_ols: x1.000, twin x0.41-0.45 (128 rows, 32 teams). This is the first time c-36's code has been executed by an attack; the pipeline is still not re-run and there is still no leakage step."
+ }
+}

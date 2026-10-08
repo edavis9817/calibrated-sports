@@ -137,11 +137,7 @@ def main():
         out("\n######## %s (n %d, slope %+.4f)" % (mk.upper(), n, est))
 
         # -------------------------------------------------------- 2 blocks
-        du = L.duplication(stat, n, gid, seed=21)
-        T["duplication"] = du
-        out("== 2. rows x5 inside their game: blocked width x%.3f (%s); iid width x%.3f (expected %.3f; check %s)"
-            % (du["width_ratio_blocked"], "passes" if du["passes"] else "NARROWED", du["width_ratio_iid"],
-               du["expected_iid_ratio"], "discriminates" if du["discriminates"] else "DOES NOT DISCRIMINATE"))
+        out("== 2. BLOCKS")
         # c-32's own boot() takes no block: it resamples ROWS. That is a game bootstrap only
         # while there is exactly one row per game - so assert it, and show what it does otherwise.
         if len(set(gid)) != n:
@@ -152,11 +148,11 @@ def main():
             yy = np.array([r["close_minus_open"] for r in rws])
             r = OL.boot(lambda ix: OL.slope_r(xx[ix], yy[ix])[0], len(rws), 400)
             return r["hi"] - r["lo"]
-        dt_ = L.duplication_through(width_of, rows, "game_id")
-        T["duplication_through_target_bootstrap"] = dict(dt_, rows=n, distinct_games=len(set(gid)))
-        out("   THROUGH c-32's boot(): copies of a game x%.3f - it has no block argument and narrows on ANY repeated row; "
-            "valid here only because rows == distinct games (%d == %d, asserted)"
-            % (dt_["ratio_copies_in_block"], n, len(set(gid))))
+        dt_ = L.duplication_through(width_of, rows, "game_id", fn_name="OL.boot", units=len(set(gid)))
+        T["through"] = dt_
+        out("   " + L.through_line(dt_))
+        out("   c-32's boot() has no block argument and narrows on ANY repeated row; it is a game bootstrap here "
+            "only because rows == distinct games (%d == %d)" % (n, len(set(gid))))
         day = [dt.datetime.fromtimestamp(k, dt.timezone.utc).strftime("%Y-%m-%d") for k in kick]
         slot = [str(k) for k in kick]
         T["alt_blocks"] = L.alt_blocks(stat, n, {"game": gid, "kickoff instant": slot, "kickoff UTC day": day}, seed=22)
@@ -193,7 +189,7 @@ def main():
 
         # -------------------------------------------------------- 4 specifications
         se = float(L.block_boot(stat, L.blocks_of(gid), seed=23).std())
-        T["multiplicity"] = L.multiplicity(est, se, (2, SLOPES_COUNTED))
+        T["multiplicity"] = L.multiplicity(est, se, (2, SLOPES_COUNTED), n_blocks=len(set(gid)))
         T["mde"] = L.mde_ratio(est, se)
         out("== 4. z %+.2f (p %.4f); Bonferroni k=2 p %.3f, k=%d p %.3f -> %s"
             % (T["multiplicity"]["z"], T["multiplicity"]["p"], T["multiplicity"]["bonferroni"][2]["p_adj"],
@@ -229,6 +225,8 @@ def main():
         _ = cls
         R["markets"][mk] = T
 
+    R["through_verdicts"] = L.require_through(["moneyline", "spread"],
+                                              {mk: R["markets"][mk]["through"] for mk in R["markets"]})
     with open(a.out, "w", encoding="utf-8") as f:
         json.dump(R, f, indent=1, default=str)
     out("\nwrote %s" % a.out)

@@ -115,6 +115,33 @@ def main():
         return got, keep["games"]
 
     base, games = capture()
+
+    def own_calls():
+        """c-30's OWN rows, as its main() handed them to boot_rows: {(cell, 0 = N0 | 1 = N1): rows}."""
+        calls = []
+
+        def boot_rows(name, rows, fns, draws):
+            calls.append((name, rows))
+            if len(calls) == 2 * n_cells:
+                raise _Stop()
+            pop = rc.Pop(name, rows, "m", "k")
+            return pop, {k: {"est": v, "lo": -1.0, "hi": 1.0, "se": 1.0, "games": pop.games, "n": pop.n, "mde": 2.8}
+                         for k, v in fns(pop, np.arange(pop.n)).items()}
+        ATS.boot_rows = boot_rows
+        saved = sys.stdout
+        try:
+            sys.stdout = open(os.devnull, "w")
+            try:
+                ATS.main(["--json-out", os.devnull, "--draws", "1"])
+            finally:
+                sys.stdout.close()
+                sys.stdout = saved
+        except _Stop:
+            pass
+        finally:
+            ATS.boot_rows = orig["boot_rows"]
+        return {(nm, j % 2): rows for j, (nm, rows) in enumerate(calls)}
+    CAP = own_calls()
     by_id = {g["game_id"]: g for g in games}
     gid = sorted(base)
     n = len(gid)
@@ -160,18 +187,39 @@ def main():
 
     # ------------------------------------------------------------ 2 blocks, 4 specs, 5 MDE
     rec = json.load(open(a.recorded, encoding="utf-8"))
-    k_reg = (rec.get("registered_intervals") or {}).get("count") or 0
+    k_reg = L.registered_count(rec, "c-30")
     R["registered_intervals_c30"] = k_reg
     R["claims"] = {}
     for nm, (stat, lab) in T.items():
         m_ = len(lab)
         C = {}
         out("\n######## %s (n %d)  %s" % (nm, m_, L.fmt(reg[nm])))
-        du = L.duplication(stat, m_, lab, seed=41, draws=1000 if nm == "on3_dMCB" else 2000)
-        C["duplication"] = du
-        out("== 2. rows x5 inside their game: blocked width x%.3f (%s); iid width x%.3f (expected %.3f; check %s)"
-            % (du["width_ratio_blocked"], "passes" if du["passes"] else "NARROWED", du["width_ratio_iid"],
-               du["expected_iid_ratio"], "discriminates" if du["discriminates"] else "DOES NOT DISCRIMINATE"))
+        # THROUGH c-30's own boot_rows (-> rc.Pop -> c-28's boot_many), with c-30's own statistic
+        if nm == "on3_dMCB":
+            trows, src = CAP[("on 3", 0)], "c-30's own rows"
+            tfn = lambda pop, i: {"v": rc.corp(pop.m[i], pop.y[i])["mcb"] - rc.corp(pop.k[i], pop.y[i])["mcb"]}  # noqa: E731
+        elif nm == "pooled_dBrier":
+            trows, src = CAP[("pooled", 0)], "c-30's own rows"
+            tfn = lambda pop, i: {"v": rc.brier(pop.m[i], pop.y[i]) - rc.brier(pop.k[i], pop.y[i])}  # noqa: E731
+        else:
+            trows = [{"game": gid[j], "stat": "cover", "line": 0.0, "y": float(y[j]), "m": float(E[j]), "k": float(book[q])}
+                     for q, j in enumerate(bj)]
+            src = "rows assembled here (c-30 builds its book rows after the capture point)"
+            tfn = lambda pop, i: {"v": rc.brier(pop.m[i], pop.y[i]) - rc.brier(pop.k[i], pop.y[i])}  # noqa: E731
+
+        def width_of(rws, tfn=tfn, nd=(300 if nm == "on3_dMCB" else 400)):
+            r = orig["boot_rows"]("dup", rws, tfn, nd)[1]["v"]
+            return r["hi"] - r["lo"]
+        if len(trows) != m_:
+            raise SystemExit("%s: %d rows through the target, %d in the statistic" % (nm, len(trows), m_))
+        th = L.duplication_through(width_of, trows, "game", fn_name="ATS.boot_rows", units=len(set(lab)))
+        th["rows_from"] = src
+        C["through"] = th
+        out("== 2. " + L.through_line(th) + "   [" + src + "]")
+        ic = L.iid_contrast(stat, m_, lab, seed=41, draws=1000 if nm == "on3_dMCB" else 2000)
+        C["iid_contrast"] = ic
+        out("   descriptive: %d rows in %d games; an unblocked interval would be x%.2f the width"
+            % (ic["rows"], ic["blocks"], ic["iid_over_blocked_width"]))
         C["alt_blocks"] = L.alt_blocks(stat, m_, {
             "game": lab, "season-week": ["%d-%02d" % (by_id[g]["season"], by_id[g]["week"]) for g in lab],
             "season": [by_id[g]["season"] for g in lab]}, seed=42, draws=1000 if nm == "on3_dMCB" else 2000)
@@ -180,7 +228,7 @@ def main():
         C["seeds"] = L.seeds(stat, m_, lab, n_seeds=10, draws=1000 if nm == "on3_dMCB" else 2000)
         out("   10 seeds: share excluding zero %.2f; lower bound from %+.5f to %+.5f"
             % (C["seeds"]["share_excluding_zero"], C["seeds"]["lo_min"], C["seeds"]["lo_max"]))
-        C["multiplicity"] = L.multiplicity(reg[nm]["est"], reg[nm]["se"], (2, max(k_reg, 2)))
+        C["multiplicity"] = L.multiplicity(reg[nm]["est"], reg[nm]["se"], (2, max(k_reg, 2)), n_blocks=len(set(lab)))
         C["mde"] = L.mde_ratio(reg[nm]["est"], reg[nm]["se"])
         mu = C["multiplicity"]
         out("== 4. z %+.2f (p %.5f); Bonferroni over c-30's own %d registered intervals: p %.4f -> %s"
@@ -188,6 +236,8 @@ def main():
                "survives" if mu["bonferroni"][max(k_reg, 2)]["survives_0.05"] else "DOES NOT SURVIVE"))
         out("== 5. |estimate| / MDE = %.2f%s" % (C["mde"]["ratio"], "  -> AT ITS MDE" if C["mde"]["at_mde"] else ""))
         R["claims"][nm] = C
+
+    R["through_verdicts"] = L.require_through(list(T), {nm: R["claims"][nm]["through"] for nm in R["claims"]})
 
     # ------------------------------------------------------------ 3 leakage
     out("\n== 3. LEAKAGE: scramble every result at or after a cutoff; no earlier forecast (E, N0, N1) may move")
@@ -215,6 +265,40 @@ def main():
         R["leak"].append({"cutoff_ts": c, "forecasts_checked": checked, "moved": moved, "later_forecasts_moved": after})
         out("   cutoff %d: %d earlier forecasts x 3 arms checked, %d moved; %d LATER forecasts moved (%s)"
             % (c, checked, moved, after, "the check can see a change" if after else "CHECK IS BLIND"))
+
+    # f-27: a PLANTED LEAK through the same comparison. "Later forecasts moved" shows the scramble does
+    # something; it does not show a leak INTO an earlier forecast would be counted. One late-2019 game is
+    # filed under week 1 (kickoff untouched), so every later 2019 rating has its result in the ancestry;
+    # then results at/after a mid-2019 cutoff are scrambled. Earlier forecasts MUST move.
+    late = max((g for g in games if g["season"] == 2019 and g["week"] == 12 and g["home_score"] is not None),
+               key=lambda g: g["kickoff_ts"])
+    c_p = min(g["kickoff_ts"] for g in games if g["season"] == 2019 and g["week"] == 8)
+
+    def plant(gs):
+        g2 = copy.deepcopy(gs)
+        for g in g2:
+            if g["game_id"] == late["game_id"]:
+                g["week"] = 1
+        return g2
+
+    def plant_scr(gs):
+        g2 = plant(gs)
+        for g in g2:
+            if g["kickoff_ts"] is not None and g["kickoff_ts"] >= c_p and g["home_score"] is not None:
+                g["home_score"], g["away_score"] = g["away_score"] + 7, g["home_score"]
+        return g2
+    try:
+        pb, _g = capture(mut_games=plant)
+        ps, _g = capture(mut_games=plant_scr)
+        pm = sum(1 for g, v in ps.items() if g in pb and by_id[g]["kickoff_ts"] < c_p
+                 and any(abs(v[k] - pb[g][k]) > 1e-12 for k in ("E", "N0", "N1")))
+        R["leak_planted"] = {"plant": "game %s (2019 wk 12) filed under week 1; results at/after 2019 wk 8 scrambled"
+                                      % late["game_id"], "earlier_forecasts_moved": pm, "fires": bool(pm)}
+        out("   PLANTED LEAK (%s): %d EARLIER forecasts moved -> %s"
+            % (R["leak_planted"]["plant"], pm, "FIRES" if pm else "DID NOT FIRE - the check is blind to this leak"))
+    except (SystemExit, Exception) as e:                     # noqa: BLE001 - the plant failing to run is a result
+        R["leak_planted"] = {"fires": None, "error": repr(e)[:300]}
+        out("   PLANTED LEAK could not be run through c-30's main(): %r" % (e,))
 
     R["seconds"] = time.time() - t0
     with open(a.out, "w", encoding="utf-8") as f:

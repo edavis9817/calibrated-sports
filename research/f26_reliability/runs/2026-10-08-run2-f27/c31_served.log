@@ -1,0 +1,14 @@
+
+== SERVED vs_close (record_total.json, as fetched): +0.0040 [+0.0019, +0.0063] over 5216 games
+   rows           measured +5216.00000  served +5216.0000  -> REPRODUCES
+   vs_close est   measured +0.00404  served +0.0040  -> REPRODUCES
+   vs_close lo    measured +0.00191  served +0.0019  -> REPRODUCES
+   vs_close hi    measured +0.00626  served +0.0063  -> REPRODUCES
+   THROUGH GF.boot_many (5216 rows, 5216 units): copies inside their block x1.000, copies as new blocks x0.402 (expected 0.447) -> honours_blocks
+   game         (5216 blocks) +0.0040 [+0.0019, +0.0062] SE 0.00109 *
+   season-week  ( 417 blocks) +0.0040 [+0.0020, +0.0061] SE 0.00108 *
+   season       (  20 blocks) +0.0040 [+0.0014, +0.0064] SE 0.00130 *
+   no wind: +0.0056 [+0.0035, +0.0079] SE 0.00111 *   | recorded wind is worth -0.00157 [-0.00268, -0.00044] SE 0.000570 * Brier on this comparison
+   z +3.6; Bonferroni over c-31's own 41 intervals: p 0.0124 -> survives;  |est|/MDE 1.29 (clear)
+
+wrote D:/temp/f27/c31_served.json (191s)
