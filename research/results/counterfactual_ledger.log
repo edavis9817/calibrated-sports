@@ -1,0 +1,162 @@
+# run 1 (fits rebuilt, 890s) - the zero-variance rule was mis-implemented in this run; see run 2
+ledger D:/temp/c40/snap/ledger.parquet sha256 760b93be22fb1464df139457b011a67687ba1c70a013ba06f8e55a90d225306d
+events 1112  published 600  graded 496  void 16  ungraded 88  cleared 256  missed 240  push 0
+read files indexed: 273
+  100/496 leans  162s
+  200/496 leans  375s
+  300/496 leans  601s
+  400/496 leans  748s
+reconstruction gate: 477 of 496 graded leans pass; {'pass': 477, 'rebuilt P(over) is not the ledgered one': 19}
+
+verdict: {'verdict': 'concentrated_and_structural', 'inputs': ['own_mean']}
+
+[all] rows 477 games 31  missed 227 (with a flip 227)  cleared 250 (with a flip 250)
+  own_mean    missed 0.661  cleared 0.680   T1 +0.461 [+0.369, +0.557] p 2.6e-21 holm 1.5e-19 est/MDE 3.39   T2 -0.019 [-0.099, +0.067] p 0.66 holm 1 est/MDE 0.16
+  group_mean  missed 0.110  cleared 0.132   T1 -0.090 [-0.142, -0.034] p 0.0011 holm 0.058 est/MDE 1.17   T2 -0.022 [-0.098, +0.054] p 0.58 holm 1 est/MDE 0.20
+  weight      missed 0.000  cleared 0.004   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 -0.004 [-0.013, +0.000] p 0.31 holm 1 est/MDE 0.36
+  dispersion  missed 0.000  cleared 0.000   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 se 0
+  line        missed 0.229  cleared 0.184   T1 +0.029 [-0.034, +0.088] p 0.35 holm 1 est/MDE 0.33   T2 +0.045 [-0.035, +0.121] p 0.26 holm 1 est/MDE 0.40
+
+[market=receptions] rows 344 games 31  missed 164 (with a flip 164)  cleared 180 (with a flip 180)
+  own_mean    missed 0.707  cleared 0.700   T1 +0.507 [+0.423, +0.595] p 1.9e-30 holm 1.1e-28 est/MDE 4.10   T2 +0.007 [-0.082, +0.105] p 0.88 holm 1 est/MDE 0.05
+  group_mean  missed 0.110  cleared 0.172   T1 -0.090 [-0.142, -0.035] p 0.0015 holm 0.078 est/MDE 1.13   T2 -0.062 [-0.159, +0.025] p 0.19 holm 1 est/MDE 0.47
+  weight      missed 0.000  cleared 0.006   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 -0.006 [-0.020, +0.000] p 0.34 holm 1 est/MDE 0.34
+  dispersion  missed 0.000  cleared 0.000   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 se 0
+  line        missed 0.183  cleared 0.122   T1 -0.017 [-0.069, +0.030] p 0.5 holm 1 est/MDE 0.24   T2 +0.061 [-0.004, +0.126] p 0.065 holm 1 est/MDE 0.66
+
+[market=rush_attempts] rows 133 games 31  missed 63 (with a flip 63)  cleared 70 (with a flip 70)
+  own_mean    missed 0.540  cleared 0.629   T1 +0.340 [+0.183, +0.500] p 1.6e-05 holm 0.00085 est/MDE 1.54   T2 -0.089 [-0.271, +0.105] p 0.35 holm 1 est/MDE 0.33
+  group_mean  missed 0.111  cleared 0.029   T1 -0.089 [-0.169, +0.008] p 0.049 holm 1 est/MDE 0.70   T2 +0.083 [-0.002, +0.185] p 0.082 holm 1 est/MDE 0.62
+  weight      missed 0.000  cleared 0.000   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 se 0
+  dispersion  missed 0.000  cleared 0.000   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 se 0
+  line        missed 0.349  cleared 0.343   T1 +0.149 [+0.021, +0.275] p 0.023 holm 1 est/MDE 0.81   T2 +0.006 [-0.182, +0.175] p 0.94 holm 1 est/MDE 0.02
+
+[side=over] rows 118 games 31  missed 60 (with a flip 60)  cleared 58 (with a flip 58)
+  own_mean    missed 0.650  cleared 0.569   T1 +0.450 [+0.332, +0.564] p 6e-14 holm 3.3e-12 est/MDE 2.68   T2 +0.081 [-0.099, +0.259] p 0.38 holm 1 est/MDE 0.32
+  group_mean  missed 0.000  cleared 0.034   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 -0.034 [-0.087, +0.000] p 0.15 holm 1 est/MDE 0.52
+  weight      missed 0.000  cleared 0.017   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 -0.017 [-0.061, +0.000] p 0.33 holm 1 est/MDE 0.35
+  dispersion  missed 0.000  cleared 0.000   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 se 0
+  line        missed 0.350  cleared 0.379   T1 +0.150 [+0.036, +0.268] p 0.012 holm 0.6 est/MDE 0.89   T2 -0.029 [-0.213, +0.153] p 0.76 holm 1 est/MDE 0.11
+
+[side=under] rows 359 games 31  missed 167 (with a flip 167)  cleared 192 (with a flip 192)
+  own_mean    missed 0.665  cleared 0.714   T1 +0.465 [+0.361, +0.571] p 1e-18 holm 5.9e-17 est/MDE 3.15   T2 -0.049 [-0.147, +0.051] p 0.34 holm 1 est/MDE 0.34
+  group_mean  missed 0.150  cleared 0.161   T1 -0.050 [-0.119, +0.020] p 0.16 holm 1 est/MDE 0.50   T2 -0.012 [-0.111, +0.086] p 0.82 holm 1 est/MDE 0.08
+  weight      missed 0.000  cleared 0.000   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 se 0
+  dispersion  missed 0.000  cleared 0.000   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 se 0
+  line        missed 0.186  cleared 0.125   T1 -0.014 [-0.076, +0.044] p 0.64 holm 1 est/MDE 0.17   T2 +0.061 [-0.025, +0.137] p 0.15 holm 1 est/MDE 0.51
+
+[band=4-6] rows 64 games 26  missed 41 (with a flip 41)  cleared 23 (with a flip 23)
+  own_mean    missed 0.951  cleared 0.870   T1 +0.751 [+0.638, +0.800] p 7.6e-57 holm 4.6e-55 est/MDE 5.67   T2 +0.082 [-0.071, +0.259] p 0.33 holm 1 est/MDE 0.35
+  group_mean  missed 0.049  cleared 0.043   T1 -0.151 [-0.200, -0.038] p 0.0014 holm 0.072 est/MDE 1.14   T2 +0.005 [-0.111, +0.133] p 0.93 holm 1 est/MDE 0.03
+  weight      missed 0.000  cleared 0.043   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 -0.043 [-0.158, +0.000] p 0.34 holm 1 est/MDE 0.34
+  dispersion  missed 0.000  cleared 0.000   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 se 0
+  line        missed 0.000  cleared 0.043   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 -0.043 [-0.150, +0.000] p 0.32 holm 1 est/MDE 0.35
+
+[band=6-8] rows 35 games 19  missed 14 (with a flip 14)  cleared 21 (with a flip 21)
+  own_mean    missed 0.929  cleared 0.857   T1 +0.729 [+0.550, +0.800] p 1.7e-22 holm 1e-20 est/MDE 3.49   T2 +0.071 [-0.167, +0.304] p 0.55 holm 1 est/MDE 0.21
+  group_mean  missed 0.000  cleared 0.048   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 -0.048 [-0.158, +0.000] p 0.3 holm 1 est/MDE 0.37
+  weight      missed 0.000  cleared 0.000   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 se 0
+  dispersion  missed 0.000  cleared 0.000   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 se 0
+  line        missed 0.071  cleared 0.095   T1 -0.129 [-0.200, +0.050] p 0.085 holm 1 est/MDE 0.62   T2 -0.024 [-0.182, +0.190] p 0.8 holm 1 est/MDE 0.09
+
+[band=8+] rows 378 games 31  missed 172 (with a flip 172)  cleared 206 (with a flip 206)
+  own_mean    missed 0.570  cleared 0.641   T1 +0.370 [+0.279, +0.468] p 1.7e-14 holm 9.7e-13 est/MDE 2.74   T2 -0.071 [-0.158, +0.027] p 0.13 holm 1 est/MDE 0.54
+  group_mean  missed 0.134  cleared 0.150   T1 -0.066 [-0.126, -0.005] p 0.03 holm 1 est/MDE 0.77   T2 -0.017 [-0.111, +0.070] p 0.72 holm 1 est/MDE 0.13
+  weight      missed 0.000  cleared 0.000   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 se 0
+  dispersion  missed 0.000  cleared 0.000   T1 -0.200 [-0.200, -0.200] p 0 holm 0 est/MDE 2572842049537697.00   T2 se 0
+  line        missed 0.297  cleared 0.209   T1 +0.097 [+0.025, +0.160] p 0.0044 holm 0.22 est/MDE 1.02   T2 +0.088 [-0.010, +0.181] p 0.071 holm 1 est/MDE 0.64
+
+ceiling, missed rows (227): no single-input flip at the full range: 0
+  within a 10% change: reached 3, not reached 224 (0.013)
+  within a 25% change: reached 51, not reached 176 (0.225)
+  within a 50% change: reached 120, not reached 107 (0.529)
+  within a 100% change: reached 172, not reached 55 (0.758)
+  own_mean    can flip 225, cannot 2, median change 0.5016646900539992
+  group_mean  can flip 227, cannot 0, median change 1.180952731613944
+  weight      can flip 19, cannot 208, median change 2.311260338165954
+  dispersion  can flip 60, cannot 167, median change 2.3000430325089387
+  line        can flip 205, cannot 22, median change 0.6666666666666667
+omnibus (reference only): {'chi2': 341.9207048458149, 'p_unblocked': 9.733984380053547e-73, 'note': 'rows of one game are not independent; not used'}
+descriptive: {"withdraw_input_missed": {"own_mean": 165, "group_mean": 29, "line": 33}, "withdraw_input_cleared": {"weight": 2, "group_mean": 38, "own_mean": 181, "line": 29}, "line_steps_where_line_is_flipping_input_missed": {"-8": 2, "-6": 3, "-5": 3, "-4": 3, "-3": 8, "-2": 5, "-1": 7, "1": 10, "2": 6, "3": 4, "4": 1}, "missed_by_market_side": {"receptions|over": 52, "receptions|under": 112, "rush_attempts|over": 8, "rush_attempts|under": 55}}
+done in 890s
+rc=0
+
+# run 2 (--from-rows run 1; zero-variance bootstrap is p = 1 as registered)
+ledger D:/temp/c40/snap/ledger.parquet sha256 760b93be22fb1464df139457b011a67687ba1c70a013ba06f8e55a90d225306d
+events 1112  published 600  graded 496  void 16  ungraded 88  cleared 256  missed 240  push 0
+rows read from D:/temp/c40/out: 477 (no fit rebuilt in this run)
+read files indexed: 0
+reconstruction gate: 477 of 496 graded leans pass; {'rebuilt P(over) is not the ledgered one': 19, 'pass': 477}
+
+verdict: {'verdict': 'concentrated_and_structural', 'inputs': ['own_mean']}
+
+[all] rows 477 games 31  missed 227 (with a flip 227)  cleared 250 (with a flip 250)
+  own_mean    missed 0.661  cleared 0.680   T1 +0.461 [+0.369, +0.557] p 2.6e-21 holm 2e-19 est/MDE 3.39   T2 -0.019 [-0.099, +0.067] p 0.66 holm 1 est/MDE 0.16
+  group_mean  missed 0.110  cleared 0.132   T1 -0.090 [-0.142, -0.034] p 0.0011 holm 0.079 est/MDE 1.17   T2 -0.022 [-0.098, +0.054] p 0.58 holm 1 est/MDE 0.20
+  weight      missed 0.000  cleared 0.004   T1 -0.200 [zero variance] p 1 holm 1   T2 -0.004 [-0.013, +0.000] p 0.31 holm 1 est/MDE 0.36
+  dispersion  missed 0.000  cleared 0.000   T1 -0.200 [zero variance] p 1 holm 1   T2 +0.000 [zero variance] p 1 holm 1
+  line        missed 0.229  cleared 0.184   T1 +0.029 [-0.034, +0.088] p 0.35 holm 1 est/MDE 0.33   T2 +0.045 [-0.035, +0.121] p 0.26 holm 1 est/MDE 0.40
+
+[market=receptions] rows 344 games 31  missed 164 (with a flip 164)  cleared 180 (with a flip 180)
+  own_mean    missed 0.707  cleared 0.700   T1 +0.507 [+0.423, +0.595] p 1.9e-30 holm 1.5e-28 est/MDE 4.10   T2 +0.007 [-0.082, +0.105] p 0.88 holm 1 est/MDE 0.05
+  group_mean  missed 0.110  cleared 0.172   T1 -0.090 [-0.142, -0.035] p 0.0015 holm 0.11 est/MDE 1.13   T2 -0.062 [-0.159, +0.025] p 0.19 holm 1 est/MDE 0.47
+  weight      missed 0.000  cleared 0.006   T1 -0.200 [zero variance] p 1 holm 1   T2 -0.006 [-0.020, +0.000] p 0.34 holm 1 est/MDE 0.34
+  dispersion  missed 0.000  cleared 0.000   T1 -0.200 [zero variance] p 1 holm 1   T2 +0.000 [zero variance] p 1 holm 1
+  line        missed 0.183  cleared 0.122   T1 -0.017 [-0.069, +0.030] p 0.5 holm 1 est/MDE 0.24   T2 +0.061 [-0.004, +0.126] p 0.065 holm 1 est/MDE 0.66
+
+[market=rush_attempts] rows 133 games 31  missed 63 (with a flip 63)  cleared 70 (with a flip 70)
+  own_mean    missed 0.540  cleared 0.629   T1 +0.340 [+0.183, +0.500] p 1.6e-05 holm 0.0011 est/MDE 1.54   T2 -0.089 [-0.271, +0.105] p 0.35 holm 1 est/MDE 0.33
+  group_mean  missed 0.111  cleared 0.029   T1 -0.089 [-0.169, +0.008] p 0.049 holm 1 est/MDE 0.70   T2 +0.083 [-0.002, +0.185] p 0.082 holm 1 est/MDE 0.62
+  weight      missed 0.000  cleared 0.000   T1 -0.200 [zero variance] p 1 holm 1   T2 +0.000 [zero variance] p 1 holm 1
+  dispersion  missed 0.000  cleared 0.000   T1 -0.200 [zero variance] p 1 holm 1   T2 +0.000 [zero variance] p 1 holm 1
+  line        missed 0.349  cleared 0.343   T1 +0.149 [+0.021, +0.275] p 0.023 holm 1 est/MDE 0.81   T2 +0.006 [-0.182, +0.175] p 0.94 holm 1 est/MDE 0.02
+
+[side=over] rows 118 games 31  missed 60 (with a flip 60)  cleared 58 (with a flip 58)
+  own_mean    missed 0.650  cleared 0.569   T1 +0.450 [+0.332, +0.564] p 6e-14 holm 4.4e-12 est/MDE 2.68   T2 +0.081 [-0.099, +0.259] p 0.38 holm 1 est/MDE 0.32
+  group_mean  missed 0.000  cleared 0.034   T1 -0.200 [zero variance] p 1 holm 1   T2 -0.034 [-0.087, +0.000] p 0.15 holm 1 est/MDE 0.52
+  weight      missed 0.000  cleared 0.017   T1 -0.200 [zero variance] p 1 holm 1   T2 -0.017 [-0.061, +0.000] p 0.33 holm 1 est/MDE 0.35
+  dispersion  missed 0.000  cleared 0.000   T1 -0.200 [zero variance] p 1 holm 1   T2 +0.000 [zero variance] p 1 holm 1
+  line        missed 0.350  cleared 0.379   T1 +0.150 [+0.036, +0.268] p 0.012 holm 0.84 est/MDE 0.89   T2 -0.029 [-0.213, +0.153] p 0.76 holm 1 est/MDE 0.11
+
+[side=under] rows 359 games 31  missed 167 (with a flip 167)  cleared 192 (with a flip 192)
+  own_mean    missed 0.665  cleared 0.714   T1 +0.465 [+0.361, +0.571] p 1e-18 holm 7.9e-17 est/MDE 3.15   T2 -0.049 [-0.147, +0.051] p 0.34 holm 1 est/MDE 0.34
+  group_mean  missed 0.150  cleared 0.161   T1 -0.050 [-0.119, +0.020] p 0.16 holm 1 est/MDE 0.50   T2 -0.012 [-0.111, +0.086] p 0.82 holm 1 est/MDE 0.08
+  weight      missed 0.000  cleared 0.000   T1 -0.200 [zero variance] p 1 holm 1   T2 +0.000 [zero variance] p 1 holm 1
+  dispersion  missed 0.000  cleared 0.000   T1 -0.200 [zero variance] p 1 holm 1   T2 +0.000 [zero variance] p 1 holm 1
+  line        missed 0.186  cleared 0.125   T1 -0.014 [-0.076, +0.044] p 0.64 holm 1 est/MDE 0.17   T2 +0.061 [-0.025, +0.137] p 0.15 holm 1 est/MDE 0.51
+
+[band=4-6] rows 64 games 26  missed 41 (with a flip 41)  cleared 23 (with a flip 23)
+  own_mean    missed 0.951  cleared 0.870   T1 +0.751 [+0.638, +0.800] p 7.6e-57 holm 6.1e-55 est/MDE 5.67   T2 +0.082 [-0.071, +0.259] p 0.33 holm 1 est/MDE 0.35
+  group_mean  missed 0.049  cleared 0.043   T1 -0.151 [-0.200, -0.038] p 0.0014 holm 0.098 est/MDE 1.14   T2 +0.005 [-0.111, +0.133] p 0.93 holm 1 est/MDE 0.03
+  weight      missed 0.000  cleared 0.043   T1 -0.200 [zero variance] p 1 holm 1   T2 -0.043 [-0.158, +0.000] p 0.34 holm 1 est/MDE 0.34
+  dispersion  missed 0.000  cleared 0.000   T1 -0.200 [zero variance] p 1 holm 1   T2 +0.000 [zero variance] p 1 holm 1
+  line        missed 0.000  cleared 0.043   T1 -0.200 [zero variance] p 1 holm 1   T2 -0.043 [-0.150, +0.000] p 0.32 holm 1 est/MDE 0.35
+
+[band=6-8] rows 35 games 19  missed 14 (with a flip 14)  cleared 21 (with a flip 21)
+  own_mean    missed 0.929  cleared 0.857   T1 +0.729 [+0.550, +0.800] p 1.7e-22 holm 1.3e-20 est/MDE 3.49   T2 +0.071 [-0.167, +0.304] p 0.55 holm 1 est/MDE 0.21
+  group_mean  missed 0.000  cleared 0.048   T1 -0.200 [zero variance] p 1 holm 1   T2 -0.048 [-0.158, +0.000] p 0.3 holm 1 est/MDE 0.37
+  weight      missed 0.000  cleared 0.000   T1 -0.200 [zero variance] p 1 holm 1   T2 +0.000 [zero variance] p 1 holm 1
+  dispersion  missed 0.000  cleared 0.000   T1 -0.200 [zero variance] p 1 holm 1   T2 +0.000 [zero variance] p 1 holm 1
+  line        missed 0.071  cleared 0.095   T1 -0.129 [-0.200, +0.050] p 0.085 holm 1 est/MDE 0.62   T2 -0.024 [-0.182, +0.190] p 0.8 holm 1 est/MDE 0.09
+
+[band=8+] rows 378 games 31  missed 172 (with a flip 172)  cleared 206 (with a flip 206)
+  own_mean    missed 0.570  cleared 0.641   T1 +0.370 [+0.279, +0.468] p 1.7e-14 holm 1.3e-12 est/MDE 2.74   T2 -0.071 [-0.158, +0.027] p 0.13 holm 1 est/MDE 0.54
+  group_mean  missed 0.134  cleared 0.150   T1 -0.066 [-0.126, -0.005] p 0.03 holm 1 est/MDE 0.77   T2 -0.017 [-0.111, +0.070] p 0.72 holm 1 est/MDE 0.13
+  weight      missed 0.000  cleared 0.000   T1 -0.200 [zero variance] p 1 holm 1   T2 +0.000 [zero variance] p 1 holm 1
+  dispersion  missed 0.000  cleared 0.000   T1 -0.200 [zero variance] p 1 holm 1   T2 +0.000 [zero variance] p 1 holm 1
+  line        missed 0.297  cleared 0.209   T1 +0.097 [+0.025, +0.160] p 0.0044 holm 0.31 est/MDE 1.02   T2 +0.088 [-0.010, +0.181] p 0.071 holm 1 est/MDE 0.64
+
+ceiling, missed rows (227): no single-input flip at the full range: 0
+  within a 10% change: reached 3, not reached 224 (0.013)
+  within a 25% change: reached 51, not reached 176 (0.225)
+  within a 50% change: reached 120, not reached 107 (0.529)
+  within a 100% change: reached 172, not reached 55 (0.758)
+  own_mean    can flip 225, cannot 2, median change 0.5016646900539992
+  group_mean  can flip 227, cannot 0, median change 1.180952731613944
+  weight      can flip 19, cannot 208, median change 2.311260338165954
+  dispersion  can flip 60, cannot 167, median change 2.3000430325089387
+  line        can flip 205, cannot 22, median change 0.6666666666666667
+omnibus (reference only): {'chi2': 341.9207048458149, 'p_unblocked': 9.733984380053547e-73, 'note': 'rows of one game are not independent; not used'}
+descriptive: {"withdraw_input_missed": {"own_mean": 165, "group_mean": 29, "line": 33}, "withdraw_input_cleared": {"weight": 2, "group_mean": 38, "own_mean": 181, "line": 29}, "line_steps_where_line_is_flipping_input_missed": {"-8": 2, "-6": 3, "-5": 3, "-4": 3, "-3": 8, "-2": 5, "-1": 7, "1": 10, "2": 6, "3": 4, "4": 1}, "missed_by_market_side": {"receptions|over": 52, "receptions|under": 112, "rush_attempts|over": 8, "rush_attempts|under": 55}}
+done in 0s
+rc=0

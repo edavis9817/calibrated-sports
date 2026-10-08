@@ -53,6 +53,7 @@ BOOT, SEED = 2000, 40
 MIN_BLOCKS = 5
 ALPHA = 0.05
 MDE_MULT = 2.80               # 80% power, two-sided 5%
+ZERO_SE = 1e-12               # a bootstrap sd below this is zero variance
 BANDS = (("4-6", 4.0, 6.0), ("6-8", 6.0, 8.0), ("8+", 8.0, None))
 
 
@@ -300,10 +301,16 @@ def slice_tests(name, rows, rng):
             else:
                 se = float(np.std(b, ddof=1))
                 lo, hi = (float(v) for v in np.percentile(b, [2.5, 97.5]))
-                p = 1.0 if se == 0 else float(2 * sps.norm.sf(abs(est) / se))
-                t.update(lo=lo, hi=hi, se=se, p=p, mde=MDE_MULT * se,
-                         ratio_to_mde=(abs(est) / (MDE_MULT * se) if se > 0 else None),
-                         note="zero-variance bootstrap: p = 1" if se == 0 else None)
+                # A share that is 0 in every draw has a bootstrap sd of ~1e-17, not
+                # 0.0: the mean of 2,000 identical floats is not exactly that float.
+                # The first run tested `se == 0`, so those tests entered the family
+                # at p = 0 instead of the registered p = 1 (findings, section 6).
+                flat = se < ZERO_SE
+                p = 1.0 if flat else float(2 * sps.norm.sf(abs(est) / se))
+                t.update(lo=lo, hi=hi, se=0.0 if flat else se, p=p,
+                         mde=None if flat else MDE_MULT * se,
+                         ratio_to_mde=None if flat else abs(est) / (MDE_MULT * se),
+                         note="zero-variance bootstrap: p = 1" if flat else None)
             tests.append(t)
     summary = {"slice": name, "n_rows": len(rows), "n_games": len(games),
                "missed": {"n": len(missed), "n_with_flip": n_m, "share": s_m,
@@ -396,6 +403,9 @@ def main(argv=None):
     ap.add_argument("--facts-db", required=True, help="scratch copy of the facts tables")
     ap.add_argument("--results-dir", required=True)
     ap.add_argument("--now", type=float, default=None, help="ledger 'now' (default: wall clock)")
+    ap.add_argument("--from-rows", default=None,
+                    help="a directory holding a previous run's two output files: skip the fits "
+                         "and recompute the shares and tests from its per-row file")
     a = ap.parse_args(argv)
 
     import polars as pl
@@ -417,14 +427,29 @@ def main(argv=None):
         print(f"NOTE: this tree's model is {baseline.model_version()}, the ledger's "
               f"{sorted({x['model_version'] for x in graded})} - the gate below decides")
 
-    idx = read_index(a.reads_dir)
+    if a.from_rows:
+        with open(os.path.join(a.from_rows, "counterfactual_ledger_rows.json"), encoding="utf-8") as fh:
+            prev_rows = json.load(fh)
+        with open(os.path.join(a.from_rows, "counterfactual_ledger.json"), encoding="utf-8") as fh:
+            prev = json.load(fh)
+        if prev_rows["ledger_sha256"] != led_hash or prev["ledger_sha256"] != led_hash:
+            raise SystemExit("--from-rows was built from a different ledger; refusing")
+        rows, failed = prev_rows["rows"], prev["gate"]["failed"]
+        gate = Counter(prev["gate"]["reasons"])
+        gate["pass"] = len(rows)
+        if {r["lean_id"] for r in rows} | {f["lean_id"] for f in failed} != {x["lean_id"] for x in graded}:
+            raise SystemExit("--from-rows does not hold exactly this ledger's graded leans")
+        print(f"rows read from {a.from_rows}: {len(rows)} (no fit rebuilt in this run)")
+        graded_iter = []
+    else:
+        graded_iter = graded
+        rows, gate, failed = [], Counter(), []
+    idx = read_index(a.reads_dir) if not a.from_rows else {}
     print(f"read files indexed: {len(idx)}")
     con = sqlite3.connect(f"file:{a.facts_db}?mode=ro", uri=True)
     cached_features()
 
-    rows, gate = [], Counter()
-    failed = []
-    for n, x in enumerate(graded):
+    for n, x in enumerate(graded_iter):
         key = (x["gsis_id"], x["market"], float(x["line"]))
         who = (idx.get(x["read_at"]) or {}).get(key)
         if who is None:
@@ -549,9 +574,11 @@ def main(argv=None):
             def f(t):
                 if t["lo"] is None:
                     return f"{t['estimate']:+.3f} [n/a] p_holm 1"
+                if t["ratio_to_mde"] is None:
+                    return f"{t['estimate']:+.3f} [zero variance] p 1 holm {t['p_holm']:.2g}"
                 return (f"{t['estimate']:+.3f} [{t['lo']:+.3f}, {t['hi']:+.3f}] "
                         f"p {t['p']:.2g} holm {t['p_holm']:.2g} est/MDE "
-                        f"{t['ratio_to_mde']:.2f}" if t["ratio_to_mde"] is not None else "se 0")
+                        f"{t['ratio_to_mde']:.2f}")
             print(f"  {i:11s} missed {s['missed']['share'][i]:.3f}  cleared "
                   f"{s['cleared']['share'][i]:.3f}   T1 {f(t1)}   T2 {f(t2)}")
     c_ = out["ceiling_flip"]
