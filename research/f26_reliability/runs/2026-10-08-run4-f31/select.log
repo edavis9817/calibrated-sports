@@ -1,0 +1,33 @@
+249 machine reports (0 unreadable []); window opens 2026-09-30T01:38:40-04:00; 36 units in it, 9 with an interval claim
+  a-75  score 4  published (own files); names its MDE                  1 intervals  headline -0.0008 [-0.0024, +0.0007]
+  b-106 score 3  published (own files)                                 1 intervals  headline 51.6 [47.2, 56.0]
+  c-42  score 1  names its MDE                                         4 intervals  headline -0.006 [-0.036, +0.022]
+  c-38  score 1  names its MDE                                         9 intervals  headline -0.0028 [-0.0071, +0.0012]
+  c-41  score 1  names its MDE                                         5 intervals  headline -0.00047 [-0.00074, -0.00019]
+  c-35  score 1  names its MDE                                         9 intervals  headline +0.40pp [-9.3, +8.0]
+  c-34  score 1  names its MDE                                         6 intervals  headline +0.00010 [-0.00022, +0.00040]
+  c-40  score 0  -                                                     3 intervals  headline -0.019 [-0.099, +0.067]
+  c-33  score 0  -                                                     3 intervals  headline 2.81 [2.15, 3.60]
+  no interval stated (not targets for this checklist): b-92, a-60, b-93, a-61, a-62, b-94, b-96, b-95, a-64, b-97, a-65, f-24, a-66, a-67, a-68, f-25, a-69, b-98, a-70, b-100, b-105, a-74, f-28, a-71, b-101, b-102, a-76
+  excluded as the agent's own units (never targets): f-21 (listed), f-22 (listed), f-23 (listed), f-26 (its files_changed touch research/f26_reliability/), f-27 (its files_changed touch research/f26_reliability/), f-29 (its files_changed touch research/f26_reliability/), f-30 (listed)
+
+6 of the 36 window units are new since the last recorded run
+needs_ethan: 19 items raised by those 6 units (588 across all 249 reports)
+  of them 'merge / merge order / deploy this branch' asks (one CLASS, a different branch each): 1
+  repeat an earlier unit's item at Jaccard >= 0.4: 3
+  repeat an earlier unit's item at Jaccard >= 0.5: 1
+  repeat an earlier unit's item at Jaccard >= 0.6: 1
+  0.60 a-76  Rebase a-71 and a-76 onto the a-70/a-75 stack
+       ~ a-71  Rebase a-71-nflverse-releases onto the a-70/a-75 stack before it is merged
+  0.46 b-106 Whether Lines gets a visible 'largest gaps first' link.
+       ~ b-99  Whether Lines may gain one visible 'largest gaps first' link before b-101 builds a ranking page.
+  0.42 a-76  Production backfills and the write-lock timing of the depth-chart parse on the live store
+       ~ a-71  Time the depth-chart write on the live store before merging
+  0.36 a-76  Lift a-64's exclusion of fumbles lost from the matchup page
+       ~ a-71  Re-check a-64's decision to leave fumbles lost off the page
+  0.33 b-101 Nav placement for this page and the parlay builder.
+       ~ b-100 Does the parlay builder get a nav or sport-home entry?
+  0.31 b-106 Whether landing tile 08 should point at /record.
+       ~ b-99  Landing tile 08 ('What did we say last week, and did it land?') should point at /record once the record ships, and Record or Receipts should be in the
+  0.29 a-76  Queue a unit on the nameless player rows
+       ~ a-65  Queue a fix unit for after the slate

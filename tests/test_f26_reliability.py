@@ -178,6 +178,24 @@ def test_rank_puts_the_published_claim_first_and_excludes_what_it_should(tmp_pat
     assert set(no_claim) == {"a-90", "b-90"}       # no interval stated: listed, never ranked
 
 
+def test_an_attack_unit_is_excluded_by_what_it_touched_not_by_its_number(tmp_path):
+    """f-31. The exclusion was a regex of unit numbers: it ranked f-27 (the agent's own repair) as a target, and once
+    widened to f-27/f-29 it swallowed f-28, which is not an attack unit. Both directions, on fixtures."""
+    reports = dict(REPORTS)
+    reports["f-97"] = {"summary": "run N: attacked +0.0004 [+0.0001, +0.0008]",
+                       "files_changed": ["research/f26_reliability/attack_c90.py"]}
+    reports["f-98"] = {"summary": "a ledger: 554 items, share 0.910 [0.880, 0.940]",
+                       "files_changed": ["relay/items.py"]}
+    runlog = dict(RUNLOG, **{"f-97": "2026-10-05T01:00:00-04:00", "f-98": "2026-10-05T02:00:00-04:00"})
+    relay = _relay(tmp_path, reports, runlog)
+    loaded, _ = SEL.load_reports(relay)
+    win, scored, _ = SEL.rank(loaded, SEL.load_marker(relay))
+    assert "f-97" not in win                       # ran the agent: never a target, whatever its number
+    assert "f-98" in win and "f-98" in [x["unit"] for x in scored]   # a track-F unit that did not is a target
+    assert SEL.is_attack_unit("f-23", loaded["f-23"]) == "listed"
+    assert SEL.is_attack_unit("c-90", loaded["c-90"]) is None
+
+
 def test_a_verdict_removes_a_unit_and_an_unreached_one_stays(tmp_path):
     relay = _relay(tmp_path, REPORTS, RUNLOG)
     v = tmp_path / "v.json"

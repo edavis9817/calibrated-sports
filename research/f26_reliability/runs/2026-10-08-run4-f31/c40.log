@@ -1,0 +1,85 @@
+477 rows; 227 missed, 250 cleared; 0 without a flipping input; 31 games, 2 weeks, 233 players, 360 player-games, 414 player-game-markets
+
+== 1. REPRODUCE from the committed rows (pipeline NOT re-run), through cl.slice_tests at seed 40
+   80 tests recomputed; 0 differ from the committed json in estimate, bounds, p or Holm p
+   rows                               measured +477.0000  published +477.0000 -> REPRODUCES
+   missed                             measured +227.0000  published +227.0000 -> REPRODUCES
+   cleared                            measured +250.0000  published +250.0000 -> REPRODUCES
+   games                              measured +31.0000  published +31.0000 -> REPRODUCES
+   own_mean share, missed             measured +0.6608  published +0.6610 -> REPRODUCES
+   own_mean share, cleared            measured +0.6800  published +0.6800 -> REPRODUCES
+   T1 own_mean est                    measured +0.4608  published +0.4610 -> REPRODUCES
+   T1 own_mean lo                     measured +0.3694  published +0.3690 -> REPRODUCES
+   T1 own_mean hi                     measured +0.5571  published +0.5570 -> REPRODUCES
+   T2 own_mean est                    measured -0.0192  published -0.0190 -> REPRODUCES
+   T2 own_mean lo                     measured -0.0991  published -0.0990 -> REPRODUCES
+   T2 own_mean hi                     measured +0.0674  published +0.0670 -> REPRODUCES
+   missed with no single-input flip   measured +0.0000  published +0.0000 -> REPRODUCES
+   missed flipped within 10%          measured +3.0000  published +3.0000 -> REPRODUCES
+     share within 10%                 measured +0.0132  published +0.0130 -> REPRODUCES
+   missed flipped within 25%          measured +51.0000  published +51.0000 -> REPRODUCES
+     share within 25%                 measured +0.2247  published +0.2250 -> REPRODUCES
+   missed flipped within 50%          measured +120.0000  published +120.0000 -> REPRODUCES
+     share within 50%                 measured +0.5286  published +0.5290 -> REPRODUCES
+   verdict by the registered rule: {'verdict': 'concentrated_and_structural', 'inputs': ['own_mean']} (file: {'verdict': 'concentrated_and_structural', 'inputs': ['own_mean']})
+
+== 2a. BLOCKS: THROUGH cl.slice_tests (the function behind every published interval)
+   T1 own_mean  THROUGH counterfactual_ledger.slice_tests (477 rows, 31 units): copies inside their block x1.000, copies as new blocks x0.460 (expected 0.447) -> honours_blocks
+   T2 own_mean  THROUGH counterfactual_ledger.slice_tests (477 rows, 31 units): copies inside their block x1.000, copies as new blocks x0.454 (expected 0.447) -> honours_blocks
+   T1 descriptive: 477 rows in 31 games; an unblocked interval would be x0.66 the width
+   T1 game         ( 31 blocks) +0.461 [+0.366, +0.556] SE 0.0487 *
+   T1 week         (  2 blocks) +0.461 [+0.448, +0.469] SE 0.0075  (<5 blocks: NOT READ)
+   T1 player       (233 blocks) +0.461 [+0.384, +0.535] SE 0.0380 *
+   T1 player-game  (360 blocks) +0.461 [+0.392, +0.525] SE 0.0339 *
+   T1 team         ( 32 blocks) +0.461 [+0.353, +0.570] SE 0.0548 *
+   T2 descriptive: 477 rows in 31 games; an unblocked interval would be x0.97 the width
+   T2 game         ( 31 blocks) -0.019 [-0.101, +0.070] SE 0.0435
+   T2 week         (  2 blocks) -0.019 [-0.032, -0.002] SE 0.0106  (<5 blocks: NOT READ)
+   T2 player       (233 blocks) -0.019 [-0.111, +0.071] SE 0.0455
+   T2 player-game  (360 blocks) -0.019 [-0.106, +0.069] SE 0.0454
+   T2 team         ( 32 blocks) -0.019 [-0.115, +0.076] SE 0.0494
+
+== 2b. THE NULL THE CLAIM NEEDS: 1/5 is not what the model's structure gives
+   share of ALL 477 analysed leans, outcome ignored: own_mean 0.671, group_mean 0.122, weight 0.002, dispersion 0.000, line 0.205
+   within game  own_mean   missed share 0.661; label-permuted null 0.657 [0.617, 0.696]; observed at the 62th pct; missed-cleared -0.019, permutation p 0.746
+   within game  group_mean missed share 0.110; label-permuted null 0.127 [0.097, 0.154]; observed at the 16th pct; missed-cleared -0.022, permutation p 0.472
+   within game  weight     missed share 0.000; label-permuted null 0.002 [0.000, 0.004]; observed at the 55th pct; missed-cleared -0.004, permutation p 1.000
+   within game  dispersion missed share 0.000; label-permuted null 0.000 [0.000, 0.000]; observed at the 100th pct; missed-cleared +0.000, permutation p 1.000
+   within game  line       missed share 0.229; label-permuted null 0.214 [0.176, 0.251]; observed at the 82th pct; missed-cleared +0.045, permutation p 0.297
+   unrestricted own_mean   missed share 0.661; label-permuted null 0.671 [0.626, 0.714]; observed at the 37th pct; missed-cleared -0.019, permutation p 0.697
+   unrestricted group_mean missed share 0.110; label-permuted null 0.122 [0.093, 0.150]; observed at the 28th pct; missed-cleared -0.022, permutation p 0.491
+   unrestricted weight     missed share 0.000; label-permuted null 0.002 [0.000, 0.004]; observed at the 52th pct; missed-cleared -0.004, permutation p 1.000
+   unrestricted dispersion missed share 0.000; label-permuted null 0.000 [0.000, 0.000]; observed at the 100th pct; missed-cleared +0.000, permutation p 1.000
+   unrestricted line       missed share 0.229; label-permuted null 0.206 [0.167, 0.242]; observed at the 91th pct; missed-cleared +0.045, permutation p 0.257
+   (rows of one player share an outcome and a flipping input, so a row permutation is ANTI-conservative; a p that is large here is large a fortiori)
+
+== 3. LEAKAGE: NOT RUN. A flip value is arithmetic on a fit; the fits were not rebuilt here.
+
+== 4. SPECIFICATIONS
+   result file: NO registered_intervals.count; it lists 80 tests ({'T1': 40, 'T2': 40}); pre-registration says 80 / 40 T2 -> MATCH
+   31 tests entered at p = 1 with a note; Holm survivors 8 (published 8): ['T1 own_mean']
+   T2 tests below p 0.05 unadjusted: 0; smallest 0.0649 at ('market=receptions', 'T2', 'line')
+   T1 own_mean z +9.48  Bonferroni survives k=80 True, k=1000 True
+   T2 own_mean z -0.45  Bonferroni survives k=80 False, k=1000 False
+   the unit's FIRST run (scratch): {'rows_file_identical': True, 'estimates_differ': 0, 'p_differ': 19, 'p_zero_in_run1': 19, 'holm_survivors_run1': 27, 'verdict_run1': {'verdict': 'concentrated_and_structural', 'inputs': ['own_mean']}}
+
+== 5. MDE
+   T2 own_mean est -0.019 SE 0.0430  |est|/MDE 0.16 (below); stated MDE 0.12 vs 2.8 x SE 0.121 -> consistent; 2.8 x SE under other blocks: game 0.122, player 0.126, player-game 0.134, team 0.139
+   T2 line     est +0.045 SE 0.0399  |est|/MDE 0.40 (below); stated MDE 0.11 vs 2.8 x SE 0.112 -> consistent; 2.8 x SE under other blocks: game 0.109, player 0.115, player-game 0.113, team 0.120
+   T1 own_mean |est|/MDE 3.39 (clear) - against the 1/5 null only
+
+== 6. THE EXCLUDED LEANS
+   the 19 excluded: {'games': 7, 'players': 18, 'by_market_side': {'receptions|over': 2, 'receptions|under': 14, 'rush_attempts|under': 3}, 'by_week': {4: 19}}
+   excluded 13 missed / 6 cleared (read from the ledger snapshot (sha256 760b93be22fb)) against 227 / 250 analysed: odds ratio 2.39, Fisher exact p 0.100
+   own_mean   missed-cleared with all 19 included: between -0.062 and +0.015 (analysed -0.019)
+   group_mean missed-cleared with all 19 included: between -0.048 and +0.029 (analysed -0.022)
+   weight     missed-cleared with all 19 included: between -0.027 and +0.050 (analysed -0.004)
+   dispersion missed-cleared with all 19 included: between -0.023 and +0.054 (analysed +0.000)
+   line       missed-cleared with all 19 included: between +0.014 and +0.091 (analysed +0.045)
+
+== 7. THE SPECIFICATION NOBODY REGISTERED (attacker's, descriptive): distance, not the argmin
+   mean log distance to the nearest flip, missed - cleared    +0.001 [-0.071, +0.069] SE 0.0355  (game blocks; 1 of 2 unregistered looks)
+   share within a 25% change, missed - cleared                +0.029 [-0.055, +0.116] SE 0.0440  (game blocks; 1 of 2 unregistered looks)
+   medians: missed 44.9%, cleared 49.1% proportional change
+
+wrote D:/temp/f31/c-40/c40.json

@@ -1,0 +1,87 @@
+cache: 3987 rungs, 725 ladders, 48 distinct games (counted here from game ids), by week {2: 239, 3: 233, 4: 253}; census {'rungs mapped wk2': 1482, 'entry: kalshi one-sided': 95, 'rungs usable at entry': 3987, 'rungs with a depth snapshot <= 600s before entry': 1400, 'entry: no kalshi quote before entry': 446, 'settlement void': 45, 'rungs mapped wk3': 1502, 'rungs mapped wk4': 1589}
+
+== 1. REPRODUCE (target's q1/q2/q3 on its own cache; same seed, so bounds must match exactly)
+   rungs                        measured +3987.00000  published +3987.0000 -> REPRODUCES
+   ladders                      measured +725.00000  published +725.0000 -> REPRODUCES
+   games                        measured +48.00000  published +48.0000 -> REPRODUCES
+   Q1 intervals computed        measured +48.00000  published +48.0000 -> REPRODUCES
+   Q1 BH survivors              measured +1.00000  published +1.0000 -> REPRODUCES
+   RB d=+1 implied              measured +0.13960  published +0.1396 -> REPRODUCES
+   RB d=+1 realised             measured +0.06452  published +0.0645 -> REPRODUCES
+   RB d=+1 n                    measured +124.00000  published +124.0000 -> REPRODUCES
+   RB d=+1 diff est             measured -0.07508  published -0.0751 -> REPRODUCES
+   RB d=+1 diff lo              measured -0.11444  published -0.1144 -> REPRODUCES
+   RB d=+1 diff hi              measured -0.02943  published -0.0294 -> REPRODUCES
+   depth join net est           measured +0.00403  published +0.0040 -> REPRODUCES
+   depth join net lo            measured -0.09320  published -0.0932 -> REPRODUCES
+   depth join net hi            measured +0.07966  published +0.0797 -> REPRODUCES
+   dA est                       measured -0.00271  published -0.0027 -> REPRODUCES
+   dA lo                        measured -0.01944  published -0.0194 -> REPRODUCES
+   dA hi                        measured +0.01429  published +0.0143 -> REPRODUCES
+   A_R-0.5 est                  measured +0.01822  published +0.0182 -> REPRODUCES
+   A_R-0.5 lo                   measured -0.03519  published -0.0352 -> REPRODUCES
+   A_R-0.5 hi                   measured +0.07327  published +0.0733 -> REPRODUCES
+   A_L-0.5 est                  measured +0.01552  published +0.0155 -> REPRODUCES
+   A_L-0.5 lo                   measured -0.03427  published -0.0343 -> REPRODUCES
+   A_L-0.5 hi                   measured +0.06659  published +0.0666 -> REPRODUCES
+   level share est              measured +0.95801  published +0.9580 -> REPRODUCES
+   level share lo               measured +0.95149  published +0.9510 -> REPRODUCES
+   level share hi               measured +0.96374  published +0.9640 -> REPRODUCES
+   Q3 YES@100 cost c 0.00-0.10  measured +1.44277  published +1.4400 -> REPRODUCES
+   Q3 YES@100 cost c 0.35-0.50  measured +2.42505  published +2.4300 -> REPRODUCES
+   Q3 YES@100 cost c 0.50-0.65  measured +2.51353  published +2.5100 -> REPRODUCES
+   Q3 YES@100 cost c 0.90-1.00  measured +1.79593  published +1.8000 -> REPRODUCES
+   survivors: ['A|receptions-RB|d=+1']
+   Q3 games with >=3 depth rungs, by week (counted here): {3: 16, 4: 1, 2: 1}; Q3 games in result 18
+   recomputed Q1-A block identical to the unit's recorded result file: True
+
+== 2. BLOCKS: THROUGH ladder_edges.Blocks.boot (the target's function), then coarser/other blocks
+   Q1 cell RB d=+1    THROUGH ladder_edges.Blocks.boot (124 rows, 47 units): copies inside their block x1.000, copies as new blocks x0.444 (expected 0.447) -> honours_blocks
+   Q1 cell RB d=+1    est -0.0751; 124 rows in 47 games; an unblocked interval would be x1.05 the width
+   Q1 cell RB d=+1    game         ( 47 blocks) -0.0751 [-0.1134, -0.0290] SE 0.02122 *
+   Q1 cell RB d=+1    week         (  3 blocks) -0.0751 [-0.1124, -0.0382] SE 0.01800  (<5 blocks: NOT READ)
+   Q1 cell RB d=+1    player       ( 56 blocks) -0.0751 [-0.1129, -0.0330] SE 0.02035 *
+   Q1 depth join      THROUGH ladder_edges.Blocks.boot (43 rows, 17 units): copies inside their block x1.000, copies as new blocks x0.528 (expected 0.447) -> honours_blocks
+   Q1 depth join      est +0.0040; 43 rows in 17 games; an unblocked interval would be x0.96 the width
+   Q1 depth join      game         ( 17 blocks) +0.0040 [-0.0911, +0.0791] SE 0.04482
+   Q1 depth join      week         (  3 blocks) +0.0040 [-0.4316, +0.1235] SE 0.10918  (<5 blocks: NOT READ)
+   Q2 dA              THROUGH ladder_edges.Blocks.boot (3935 rows, 48 units): copies inside their block x1.000, copies as new blocks x0.387 (expected 0.447) -> honours_blocks
+   Q2 dA              est -0.0027; 3935 rows in 48 games; an unblocked interval would be x0.64 the width
+   Q2 dA              game         ( 48 blocks) -0.0027 [-0.0179, +0.0134] SE 0.00816
+   Q2 dA              week         (  3 blocks) -0.0027 [-0.0168, +0.0045] SE 0.00532  (<5 blocks: NOT READ)
+   Q2 dA              player       (261 blocks) -0.0027 [-0.0186, +0.0126] SE 0.00784
+   Q2 dA              player-game  (691 blocks) -0.0027 [-0.0187, +0.0126] SE 0.00802
+   Q2 level share     THROUGH ladder_edges.Blocks.boot (691 rows, 48 units): copies inside their block x1.000, copies as new blocks x0.425 (expected 0.447) -> honours_blocks
+   Q2 level share     est +0.9580; 691 rows in 48 games; an unblocked interval would be x1.03 the width
+   Q2 level share     game         ( 48 blocks) +0.9580 [+0.9518, +0.9637] SE 0.00301 *
+   Q2 level share     week         (  3 blocks) +0.9580 [+0.9541, +0.9598] SE 0.00148  (<5 blocks: NOT READ)
+   Q2 level share     player       (261 blocks) +0.9580 [+0.9474, +0.9661] SE 0.00473 *
+
+== 3. LEAKAGE: NOT RUN (the extract and the model refit were not re-run). Descriptive only:
+   {'players': 269, 'players_with_more_than_one_pos_across_weeks': 0, 'rungs_pos_none': 0}
+
+== 4. SPECIFICATIONS: registered in the prereg vs computed vs read
+   BH q=0.10 over its own 48                                 k=48: 1 survivor(s); Bonferroni p of the smallest 0.0249
+   BH q=0.10 over the 55 it registered (7 missing at p=1)    k=55: 1 survivor(s); Bonferroni p of the smallest 0.0286
+   BH q=0.10 over all 73 computed, one family                k=73: 1 survivor(s); Bonferroni p of the smallest 0.0379
+   BH q=0.10 over all 80 registered, one family              k=80: 1 survivor(s); Bonferroni p of the smallest 0.0415
+   {'registered': {'q1': 55, 'q2': 21, 'q3': 4}, 'computed': {'q1': 48, 'q2': 21, 'q3': 4}, 'q1_lt5_games': 1, 'q1_exclude_zero_uncorrected': 7, 'q2_exclude_zero_uncorrected': 0, 'q3_zero_variance': 4, 'min_p_q1': 0.0005193288928391515}
+   first run (before addendum 1) vs final: {'q1_registered_intervals_moved': 0, 'q2_ordering_block_moved': 0, 'Q1C_max_gap_receptions_all_first': 0.03452033015058986, 'Q1C_max_gap_receptions_all_final': 0.01426685180215767, 'first_survivors': ['A|receptions-RB|d=+1']}
+   Q1-C largest |Kalshi implied - 2023-25| in a position cell (gap, n ladders, group, cell): [(0.0504, 4, 'receptions-RB', 'd=-3'), (0.0217, 26, 'receptions-TE', 'd=-3'), (0.0167, 141, 'receptions-WR', 'd=-2'), (0.016, 23, 'receptions-RB', 'd=-2'), (0.0156, 101, 'receptions-RB', 'd=+0'), (0.0135, 97, 'receptions-TE', 'd=-1')]
+
+== 5. MDE (|est| / 2.8 SE; and the unit's stated MDE against 2.8 x an SE re-drawn under another seed)
+   Q2 dA              est -0.0027 SE 0.00866  |est|/MDE 0.11 (below)  stated MDE 0.0240 vs re-measured 0.0242 -> consistent
+   Q1 depth join      est +0.0040 SE 0.04492  |est|/MDE 0.03 (below)  stated MDE 0.1262 vs re-measured 0.1258 -> consistent
+   Q1 cell RB d=+1    est -0.0751 SE 0.02118  |est|/MDE 1.27 (clear)
+   Q2 level share     est +0.9580 SE 0.00304  |est|/MDE 112.71 (clear)
+   A_R - 0.5          est +0.0182 SE 0.02777 (target's own draw)  |est|/MDE 0.23 (below)  stated 'about 0.075' vs 0.0778 -> consistent
+   A_L - 0.5          est +0.0155 SE 0.02645 (target's own draw)  |est|/MDE 0.21 (below)  stated 'about 0.075' vs 0.0741 -> consistent
+   depth join: the mid gap less the cost is +0.0299; its MDE is 0.1262 - the executable test could not see the edge the cell implies (ratio 0.24)
+
+== 5b. A MEASURED NULL for the 0.958 level share (the unit's benchmark was arithmetic)
+   observed 0.958; rms gap 0.1416; mean rungs a ladder 5.69 (arithmetic benchmark 1/n = 0.176)
+   null A, iid normal noise of the same rms on each rung:           0.213 [0.190, 0.238] over 20 draws
+   null B, the real gaps permuted across all rungs:                 0.286 [0.267, 0.304]
+   null C, ANOTHER player's model ladder on the same stat and lines: 0.959 [0.957, 0.961]  (689 of 691 ladders have a twin)
+
+wrote D:/temp/f31/c-35/c35.json

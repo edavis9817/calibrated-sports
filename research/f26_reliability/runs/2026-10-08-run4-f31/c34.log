@@ -1,0 +1,99 @@
+# attack_c34.py re-run by the f-31 parent, three processes (--part a | blocks | b), each with its exit code captured on the next line: 0 / 0 / 0.
+# (The sub-agent's own part b lost its exit code when a timeout wrapper was killed; this log is the parent's run.)
+
+##### --part a
+rows 9418 (published 9418)  season-weeks 36 (published 36)  games 542  players 485
+
+== 1 REPRODUCE - rc.Pop.boot, 2,000 week-block draws, seed 34, on the unit's rows
+   arm1 dDSC  +0.00010 [-0.00022, +0.00040] SE 0.000159  == result.json True; rounds to published True
+   arm1 dMCB  -0.00075 [-0.00151, -0.00002] SE 0.000377 *  == result.json True; rounds to published True
+   arm1 dAUC  +0.00015 [-0.00370, +0.00343] SE 0.001841  == result.json True; rounds to published True
+   arm3 dDSC  +0.00002 [-0.00017, +0.00019] SE 0.000092  == result.json True; rounds to published True
+   arm3 dMCB  -0.00140 [-0.00206, -0.00078] SE 0.000318 *  == result.json True; rounds to published True
+   arm3 dAUC  -0.00043 [-0.00324, +0.00217] SE 0.001382  == result.json True; rounds to published True
+
+== 1b IS THE ARM INERT (post hoc, the attacker's; not registered)
+   arm1: 2993 of 9418 rows move (31.8%); |shift| on moved rows p10 0.0121 p50 0.0317 p90 0.1015 p99 0.3768; mean |shift| over ALL rows 0.0161
+      rows moved by more than 0.01 / 0.02 / 0.05 / 0.10: [2773, 2324, 805, 320]  (29.4% / 24.7% / 8.5% / 3.4% of all)
+      DSC gap to the close: all rows 0.00414; affected rows only 0.00671; CEILING - dDSC if the affected rows were replaced by the close itself: +0.00064 (15% of the all-rows gap)
+      AFFECTED ROWS ONLY (n 2993, 36 weeks, 600 draws) dDSC  +0.00015 [-0.00104, +0.00105] SE 0.000545  MDE 0.00153  = 23% of the affected-row gap
+      AFFECTED ROWS ONLY (n 2993, 36 weeks, 600 draws) dMCB  -0.00251 [-0.00474, -0.00020] SE 0.001162 *  MDE 0.00325
+      AFFECTED ROWS ONLY (n 2993, 36 weeks, 600 draws) dAUC  +0.00098 [-0.01062, +0.01091] SE 0.005628  MDE 0.01576
+      stated: MDE 0.00044 = 11% of the all-rows gap 0.00414 (re-measured MDE 0.00044 = 11%)
+   arm3: 3350 of 9418 rows move (35.6%); |shift| on moved rows p10 0.0025 p50 0.0170 p90 0.0737 p99 0.2360; mean |shift| over ALL rows 0.0113
+      rows moved by more than 0.01 / 0.02 / 0.05 / 0.10: [2265, 1492, 567, 213]  (24.0% / 15.8% / 6.0% / 2.3% of all)
+      DSC gap to the close: all rows 0.00414; affected rows only 0.00503; CEILING - dDSC if the affected rows were replaced by the close itself: +0.00056 (14% of the all-rows gap)
+      AFFECTED ROWS ONLY (n 3350, 36 weeks, 600 draws) dDSC  +0.00024 [-0.00055, +0.00073] SE 0.000333  MDE 0.00093  = 19% of the affected-row gap
+      AFFECTED ROWS ONLY (n 3350, 36 weeks, 600 draws) dMCB  -0.00375 [-0.00562, -0.00198] SE 0.000959 *  MDE 0.00269
+      AFFECTED ROWS ONLY (n 3350, 36 weeks, 600 draws) dAUC  -0.00023 [-0.00754, +0.00640] SE 0.003487  MDE 0.00976
+      stated: MDE 0.00026 = 6% of the all-rows gap 0.00414 (re-measured MDE 0.00026 = 6%)
+
+== 1c PLANTS through the same test (rc.Pop.boot, 200 draws): affected rows only are altered
+   arm1 oracle: arm + eps * (y - arm)                0.01   dDSC +0.00050 [+0.00009, +0.00087] SE 0.000191 * -> DETECTED
+   arm1 oracle: arm + eps * (y - arm)                0.02   dDSC +0.00088 [+0.00044, +0.00134] SE 0.000228 * -> DETECTED
+   arm1 oracle: arm + eps * (y - arm)                0.05   dDSC +0.00228 [+0.00167, +0.00313] SE 0.000376 * -> DETECTED
+   arm1 toward the close: arm + lam * (close - arm)  0.25   dDSC +0.00018 [-0.00015, +0.00051] SE 0.000167 -> not detected
+   arm1 toward the close: arm + lam * (close - arm)  0.5    dDSC +0.00034 [-0.00003, +0.00066] SE 0.000182 -> not detected
+   arm1 toward the close: arm + lam * (close - arm)  1.0    dDSC +0.00064 [+0.00008, +0.00119] SE 0.000309 * -> DETECTED
+   arm3 oracle: arm + eps * (y - arm)                0.01   dDSC +0.00038 [+0.00020, +0.00063] SE 0.000118 * -> DETECTED
+   arm3 oracle: arm + eps * (y - arm)                0.02   dDSC +0.00089 [+0.00059, +0.00127] SE 0.000186 * -> DETECTED
+   arm3 oracle: arm + eps * (y - arm)                0.05   dDSC +0.00261 [+0.00186, +0.00352] SE 0.000428 * -> DETECTED
+   arm3 toward the close: arm + lam * (close - arm)  0.25   dDSC +0.00011 [-0.00015, +0.00032] SE 0.000123 -> not detected
+   arm3 toward the close: arm + lam * (close - arm)  0.5    dDSC +0.00024 [-0.00014, +0.00051] SE 0.000167 -> not detected
+   arm3 toward the close: arm + lam * (close - arm)  1.0    dDSC +0.00056 [-0.00011, +0.00096] SE 0.000287 -> not detected
+
+== 2 BLOCKS: in the --part blocks log
+
+== 4 SPECIFICATIONS
+   registered_count() refuses (c-34: no registered_intervals.count in the recorded result - refusing to correct over a made-up k); the unit's result.json carries a `tests` list instead: 36 entries
+   pre-registration: 47 intervals (3 primaries + 44); addendum 1 removes arm 2's P1 set -> 36. result.json: 36 computed, 7 exclude zero (reported: 36 and 7)
+   arm1 dMCB z -1.97 p 0.04827  Bonferroni survives over 2 / 36 / 47: [False, False, False]
+   arm1 dDSC z +0.63 p 0.5275  Bonferroni survives over 2 / 36 / 47: [False, False, False]
+   arm3 dMCB z -4.41 p 1.046e-05  Bonferroni survives over 2 / 36 / 47: [True, True, True]
+   arm3 dDSC z +0.20 p 0.8382  Bonferroni survives over 2 / 36 / 47: [False, False, False]
+
+== 5 MDE
+   arm1 dDSC: |est| / MDE 0.23 (below); stated MDE 0.00044 vs re-measured 0.00044 -> consistent True
+   arm3 dDSC: |est| / MDE 0.07 (below); stated MDE 0.00026 vs re-measured 0.00026 -> consistent True
+
+== 3 LEAKAGE: NOT RUN in this process (no --logger-db, or --part a: see the --part b log)
+
+wrote D:/temp/f31/verify/c34_a.json
+
+##### --part blocks
+rows 9418 (published 9418)  season-weeks 36 (published 36)  games 542  players 485
+
+== 2 BLOCKS - the target's blocks are SEASON-WEEKS (du.week_rows relabels `game`); units counted here: 36 weeks, 542 games, 485 players, 9418 rows
+   CORP is REFIT inside every draw: rc.Pop.boot calls fn(idx) and du._diff -> rc.corp -> rc.pav runs on the resampled rows (read from the code; nothing is held fixed)
+   arm1 dDSC: THROUGH research.ranking_calibration.Pop.boot (9418 rows, 36 units): copies inside their block x1.000, copies as new blocks x0.362 (expected 0.447) -> honours_blocks
+      alt game                          542 blocks  +0.00010 [-0.00021, +0.00039] SE 0.000151
+      alt player                        485 blocks  +0.00010 [-0.00027, +0.00036] SE 0.000171
+      alt row (iid)                    9418 blocks  +0.00010 [-0.00020, +0.00032] SE 0.000139
+   arm1 dMCB: THROUGH research.ranking_calibration.Pop.boot (9418 rows, 36 units): copies inside their block x1.000, copies as new blocks x0.492 (expected 0.447) -> honours_blocks
+      alt game                          542 blocks  -0.00075 [-0.00170, -0.00003] SE 0.000453 *
+      alt player                        485 blocks  -0.00075 [-0.00174, +0.00028] SE 0.000536
+      alt row (iid)                    9418 blocks  -0.00075 [-0.00160, -0.00000] SE 0.000403 *
+   arm3 dDSC: THROUGH research.ranking_calibration.Pop.boot (9418 rows, 36 units): copies inside their block x1.000, copies as new blocks x0.426 (expected 0.447) -> honours_blocks
+      alt game                          542 blocks  +0.00002 [-0.00022, +0.00024] SE 0.000114
+      alt player                        485 blocks  +0.00002 [-0.00028, +0.00026] SE 0.000127
+      alt row (iid)                    9418 blocks  +0.00002 [-0.00018, +0.00021] SE 0.000100
+   arm3 dMCB: THROUGH research.ranking_calibration.Pop.boot (9418 rows, 36 units): copies inside their block x1.000, copies as new blocks x0.553 (expected 0.447) -> honours_blocks
+      alt game                          542 blocks  -0.00140 [-0.00203, -0.00081] SE 0.000331 *
+      alt player                        485 blocks  -0.00140 [-0.00220, -0.00067] SE 0.000366 *
+      alt row (iid)                    9418 blocks  -0.00140 [-0.00201, -0.00087] SE 0.000300 *
+
+##### --part b
+rows 9418 (published 9418)  season-weeks 36 (published 36)  games 542  players 485
+
+== 3 LEAKAGE - the target's own build(), stores mode=ro
+panel: 501,470 player-games, 7,239 REG games (6s, store closed)
+injuries: 87,204 stamped-era rows, 1,274 versioned 2026 player-weeks, 24 captures; depth: 384 labelled team-seasons, 64 dt team-seasons
+   scored rows rebuilt: 9418 (published 9418)
+   3a as-of, counted here: {'team_games': 1073, 'injury_rows': 11207, 'stamped_at_or_after_kickoff': 0, 'more_than_8d_early': 0, 'no_stamp': 0, 'min_lead_h': 1.678611111111111, 'median_lead_h': 47.01138888888889, 'share_lead_under_2h': 8.92299455697332e-05}
+   3a PLANT one row of (2024, 1, 'ARI') stamped kickoff + 60s: my count of late rows 0 -> 1; the target's team_report_usable -> (False, 'stamped at or after kickoff')
+   3b arm1 re-fitted today vs the unit's predictions.csv: 9418 rows, max |diff| 0.00e+00, 0 differ by > 1e-9
+   3b PLANTED LEAK arm1 - coefficients, role priors and dispersion fitted on seasons THROUGH the scored one: 2993 forecasts move; dDSC +0.00011 [-0.00024, +0.00039] SE 0.000154; dMCB -0.00083 [-0.00143, -0.00010] SE 0.000343 *
+   3b arm3 re-fitted today vs the unit's predictions.csv: 9418 rows, max |diff| 0.00e+00, 0 differ by > 1e-9
+   3b PLANTED LEAK arm3 - coefficients, role priors and dispersion fitted on seasons THROUGH the scored one: 3350 forecasts move; dDSC +0.00002 [-0.00016, +0.00018] SE 0.000084; dMCB -0.00148 [-0.00196, -0.00084] SE 0.000287 *
+   3c SCRAMBLE season >= 2024 (48406 player-games, 1087 team-week reports): arm1 2023 forecasts moved under the target's fit 0 of 4509; under the planted leaky fit (trained through 2024) 1460 -> clean, and the audit can fire
+   3c SCRAMBLE season >= 2024 (48406 player-games, 1087 team-week reports): arm3 2023 forecasts moved under the target's fit 0 of 4509; under the planted leaky fit (trained through 2024) 1607 -> clean, and the audit can fire

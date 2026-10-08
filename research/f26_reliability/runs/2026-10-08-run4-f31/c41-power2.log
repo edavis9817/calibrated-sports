@@ -1,0 +1,64 @@
+== 1. REPRODUCE (target's analyse() + verdict() on D:/temp/f31/c-41/rerun/rows.json)
+   counted here: rungs 18666 (published 18666), player-games 10016 (10016), games 814 (814); test-season rungs 13405 on 544 games
+   46 tests recomputed; largest |difference| from the committed json over est/se/lo/hi/p: 0; verdict dict equal: True
+   candidates passing: 0 of 6 (published 0 of 6)
+   team_total b           measured +0.014787 published +0.014800 -> reproduces
+   team_total lo          measured +0.004754 published +0.004800 -> reproduces
+   team_total hi          measured +0.024218 published +0.024200 -> reproduces
+   team_total Holm p      measured +0.121692 published +0.120000 -> reproduces
+   team_total Brier       measured -0.000140 published -0.000140 -> reproduces
+   team_total Brier MDE   measured +0.000141 published +0.000141 -> reproduces
+   close+a Brier          measured -0.000467 published -0.000470 -> reproduces
+   close+a lo             measured -0.000743 published -0.000740 -> reproduces
+   close+a hi             measured -0.000192 published -0.000190 -> reproduces
+   pipeline re-run result NOT supplied (--rerun): step 1 is on saved rows only
+
+== 2. BLOCKS: THROUGH M.coef_test / M.brier_test (weights from M.block_weights)
+   team_total coefficient   THROUGH M.coef_test+M.block_weights (18666 rows, 814 units): copies inside their block x1.000, copies as new blocks x0.439 (expected 0.447) -> honours_blocks
+   close+a Brier            THROUGH M.brier_test+M.walk_forward+M.block_weights (18666 rows, 814 units): copies inside their block x1.000, copies as new blocks x0.457 (expected 0.447) -> honours_blocks
+   team_total Brier         THROUGH M.brier_test+M.walk_forward+M.block_weights (18666 rows, 814 units): copies inside their block x1.000, copies as new blocks x0.475 (expected 0.447) -> honours_blocks
+   rows 18666 vs units 814 games: 22.9 rungs a game, so the block LABEL matters - alt blocks below
+   team_total coefficient  (iid/blocked width x0.715)
+      by game                            814 blocks  +0.01479 [+0.00410, +0.02425] SE 0.004987 *
+      by player                          513 blocks  +0.01479 [+0.00505, +0.02556] SE 0.005322 *
+      by season-week                      54 blocks  +0.01479 [+0.00477, +0.02416] SE 0.005071 *
+      by team-season (home side of id)    96 blocks  +0.01479 [+0.00521, +0.02376] SE 0.004838 *
+      by season                            3 blocks  +0.01479 [+0.00179, +0.03089] SE 0.007441  (<5 blocks: NOT READ)
+   close+a Brier  (iid/blocked width x0.669)
+      by game                            544 blocks  -0.00047 [-0.00074, -0.00018] SE 0.000144 *
+      by player                          449 blocks  -0.00047 [-0.00071, -0.00021] SE 0.000126 *
+      by season-week                      36 blocks  -0.00047 [-0.00074, -0.00020] SE 0.000137 *
+      by team-season (home side of id)    64 blocks  -0.00047 [-0.00082, -0.00013] SE 0.000179 *
+      by season                            2 blocks  -0.00047 [-0.00073, -0.00017] SE 0.000190  (<5 blocks: NOT READ)
+   team_total Brier  (iid/blocked width x0.740)
+      by game                            544 blocks  -0.00014 [-0.00023, -0.00005] SE 0.000048 *
+      by player                          449 blocks  -0.00014 [-0.00024, -0.00005] SE 0.000049 *
+      by season-week                      36 blocks  -0.00014 [-0.00023, -0.00004] SE 0.000047 *
+      by team-season (home side of id)    64 blocks  -0.00014 [-0.00025, -0.00004] SE 0.000050 *
+      by season                            2 blocks  -0.00014 [-0.00025, -0.00002] SE 0.000080  (<5 blocks: NOT READ)
+
+== 3. LEAKAGE (function level only; build() NOT re-run under a scramble)
+   prior_games keeps 2 of 4 games (2 are at/after kickoff); scrambling those leaves features equal: True; planted same-kickoff prior raises LeakError: True
+   walk_forward: scramble 2025 residuals -> largest move of a 2024 forecast 0 (must be 0); with 2025 rows planted as 2023 -> 0.0241 (must be > 0)
+
+== 4. SPECIFICATIONS
+   counted in the committed json: 46 tests, 42 registered ({('coef', 'registered'): 30, ('brier', 'registered'): 12, ('brier', 'descriptive'): 4}); the unit reported 46 / 42; 'specifications' key 46
+   the json has no registered_intervals.count key (f26lib.registered_count would refuse); k is counted from its tests list
+   team_total coefficient   z +2.94 p 0.0033  Bonferroni x42 0.138, x46 0.151
+   team_total Brier         z -2.79 p 0.0053  Bonferroni x42 0.222, x46 0.243
+   close+a Brier            z -3.25 p 0.0011  Bonferroni x42 0.048, x46 0.053
+
+== 5. MDE
+   team_total coefficient   |est|/MDE 1.050 (at); stated MDE 0.014 vs 2.8 x SE here 0.014086 -> consistent
+   team_total Brier         |est|/MDE 0.996 (at); stated MDE 0.000141 vs 2.8 x SE here 0.000141 -> consistent
+   close+a Brier            |est|/MDE 1.162 (at); stated MDE None vs 2.8 x SE here 0.000402 -> no stated MDE
+   RB pooled coefficient SEs 0.0041-0.0060 (registered 0.0050): single-interval MDE 0.0115-0.0167, Holm worst case (4.08 SE) 0.0168-0.0243
+
+== 6. POWER: a synthetic candidate in the 'log_line' slot, through M.analyse + M.verdict (80 reps a size)
+   x = lam * r_rung + e, e ~ N(0,1) drawn once per PLAYER-GAME; real outcomes, prices, games and the other five
+   candidates untouched, so the Holm family is the real one with 7 of its 42 tests replaced.
+     b tgt  b pooled     Brier |   Holm   sign  cond2   PASS | share of reps
+    0.0400   +0.0399  0.001562 |   1.00   1.00   0.68   0.68 | mean z of the Brier gain 3.18
+    0.0450   +0.0464  0.002145 |   1.00   1.00   0.85   0.85 | mean z of the Brier gain 3.83
+    0.0500   +0.0498  0.002325 |   1.00   1.00   0.82   0.82 | mean z of the Brier gain 3.64
+    0.0600   +0.0601  0.003462 |   1.00   1.00   0.95   0.95 | mean z of the Brier gain 4.58

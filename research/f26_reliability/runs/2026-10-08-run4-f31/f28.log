@@ -1,0 +1,32 @@
+246 machine reports today, 578 needs_ethan items
+
+1. reproduce on the registered population (hash 09a2f5708b599ecd)
+  prefix of 238 reports (last added f-29): 554 items, hash 09a2f5708b599ecd, 504 clusters at 0.50, sensitivity [480, 535]
+  published 554 items / 504 clusters / 480 and 535: REPRODUCES
+
+2. stability: the same rule as the pile grows
+  232 reports (+f-27 ) 538 items -> 489 clusters (0.909 per item)
+  233 reports (+a-73 ) 542 items -> 492 clusters (0.908 per item)
+  234 reports (+b-104) 544 items -> 495 clusters (0.910 per item)
+  235 reports (+b-105) 547 items -> 498 clusters (0.910 per item)
+  236 reports (+a-75 ) 550 items -> 500 clusters (0.909 per item)
+  237 reports (+c-40 ) 552 items -> 503 clusters (0.911 per item)
+  238 reports (+f-29 ) 554 items -> 504 clusters (0.910 per item)  registered items whose cluster-mates (among the 554) changed: 0
+  239 reports (+c-41 ) 556 items -> 506 clusters (0.910 per item)  registered items whose cluster-mates (among the 554) changed: 0
+  240 reports (+a-74 ) 559 items -> 509 clusters (0.911 per item)  registered items whose cluster-mates (among the 554) changed: 0
+  241 reports (+f-28 ) 560 items -> 510 clusters (0.911 per item)  registered items whose cluster-mates (among the 554) changed: 0
+  242 reports (+a-71 ) 564 items -> 514 clusters (0.911 per item)  registered items whose cluster-mates (among the 554) changed: 0
+  243 reports (+c-38 ) 566 items -> 515 clusters (0.910 per item)  registered items whose cluster-mates (among the 554) changed: 0
+  244 reports (+b-101) 570 items -> 518 clusters (0.909 per item)  registered items whose cluster-mates (among the 554) changed: 0
+  245 reports (+f-30 ) 574 items -> 520 clusters (0.906 per item)  registered items whose cluster-mates (among the 554) changed: 0
+  246 reports (+b-102) 578 items -> 524 clusters (0.907 per item)  registered items whose cluster-mates (among the 554) changed: 0
+
+3. where a cluster count is written, in the relay folder and f-28's docs
+  queue\units\f-31-the-reliability-agent-run-4.md:79  - **f-28's 504 clusters.** Its own audits say 7 of 43 multi-item clusters are
+  queue\units\f-31-the-reliability-agent-run-4.md:82  distinct questions.
+  queue\units\f-33-generate-needs-ethan.md:16  reduces to **504 clusters** (idf cosine on `what` >= 0.50, connected
+  queue\units\f-33-generate-needs-ethan.md:18  - **f-28's own audits say that number is not a count of distinct questions:**
+  queue\units\f-33-generate-needs-ethan.md:60  question) and the sentence that it is not a count of distinct questions. A
+  docs\F28-answered-ledger-prereg.md:1  # f-28 - pre-registration: how many distinct questions the `needs_ethan` pile holds
+  docs\F28-answered-ledger-prereg.md:75  upper bound on distinct questions if the false-merge audit comes back clean, and
+  7 lines in 383 files searched
