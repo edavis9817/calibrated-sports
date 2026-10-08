@@ -172,17 +172,107 @@ def venv(world):
     return world["prod"] / ".venv" / "Scripts" / "python.exe"
 
 
+SLEEP = "import time, sys; time.sleep(float(sys.argv[1]))"
+
+
+def defer_file(w):
+    return w["log"].parent / ("prod_sync." + w["prod"].name + ".deferred_since")
+
+
 def test_update_defers_while_a_job_runs_from_the_clone(world, venv):
     before = head(world)
     advance_origin(world)
-    job = subprocess.Popen([str(venv), "-c", "import time; time.sleep(90)"])
+    job = subprocess.Popen([str(venv), "-c", SLEEP, "90"])
     try:
         time.sleep(1.5)
-        rc, out = run(world, "-Update")
+        rc, out = run(world, "-Update", "-WaitSec", "0")
     finally:
         job.kill()
     assert rc == 0 and "DEFERRED" in out and str(job.pid) in out, out
     assert head(world) == before
+    assert defer_file(world).exists()          # the clock on the deferral has started
+
+
+def test_a_permanent_loop_does_not_hold_the_fast_forward_back(world, venv):
+    """a-69. Live Snapshot runs from the production clone for ever, and the
+    first version of this script deferred behind it on every run, exit 0. The
+    same sleeping process is the control: under a command line that is not a
+    known loop it defers (the test above), under a loop's it does not."""
+    tip = advance_origin(world)
+    loop = subprocess.Popen([str(venv), "-c", SLEEP, "90", "-m", "jobs.live_snapshot", "--loop", "--log"])
+    try:
+        time.sleep(1.5)
+        rc, out = run(world, "-Update", "-WaitSec", "0")
+    finally:
+        loop.kill()
+    assert rc == 0 and "fast-forwarded 2 commit(s)" in out and "DEFERRED" not in out, out
+    assert head(world) == tip
+    # and the line says the loop is now running the code from before the move
+    assert f"loop pid {loop.pid} started" in out and "runs the older code until restarted" in out, out
+
+
+def test_the_logger_is_a_permanent_loop_too(world, venv):
+    tip = advance_origin(world)
+    loop = subprocess.Popen([str(venv), "-c", SLEEP, "90", "run_logger.py"])
+    try:
+        time.sleep(1.5)
+        rc, out = run(world, "-Update", "-WaitSec", "0")
+    finally:
+        loop.kill()
+    assert rc == 0 and head(world) == tip, out
+    assert f"logger pid {loop.pid} started" in out, out
+
+
+def test_a_loop_started_after_the_move_is_not_called_stale(world, venv):
+    advance_origin(world)
+    assert run(world, "-Update")[0] == 0
+    time.sleep(1.5)                            # reflog time is whole seconds
+    loop = subprocess.Popen([str(venv), "-c", SLEEP, "90", "run_logger.py"])
+    try:
+        time.sleep(1.5)
+        rc, out = run(world)
+    finally:
+        loop.kill()
+    assert rc == 0 and "older code" not in out, out
+
+
+def test_update_waits_for_a_short_job_and_then_fast_forwards(world, venv):
+    tip = advance_origin(world)
+    job = subprocess.Popen([str(venv), "-c", SLEEP, "6"])
+    try:
+        time.sleep(1.0)
+        rc, out = run(world, "-Update", "-WaitSec", "60")
+    finally:
+        job.kill()
+    assert rc == 0 and "waited for a job" in out and "fast-forwarded 2 commit(s)" in out, out
+    assert head(world) == tip
+    assert not defer_file(world).exists()
+
+
+def test_a_deferral_that_outlasts_its_limit_is_drift(world, venv):
+    """The bound. A deferral that began seven hours ago is exit 1 at the
+    default six-hour limit; the same deferral begun one hour ago is still a
+    quiet exit 0. Nothing is fast-forwarded in either."""
+    before = head(world)
+    advance_origin(world)
+    job = subprocess.Popen([str(venv), "-c", SLEEP, "120"])
+    try:
+        time.sleep(1.5)
+        for hours_ago, want_rc, want in ((1, 0, "DEFERRED since"), (7, 1, "has been deferred since")):
+            began = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - hours_ago * 3600))
+            defer_file(world).parent.mkdir(parents=True, exist_ok=True)
+            defer_file(world).write_text(began, encoding="ascii")
+            rc, out = run(world, "-Update", "-WaitSec", "0")
+            assert rc == want_rc and want in out and began in out and str(job.pid) in out, (hours_ago, out)
+            assert defer_file(world).read_text(encoding="ascii").strip() == began   # the clock is not reset
+            assert head(world) == before
+    finally:
+        job.kill()
+    # the job is gone: the next run fast-forwards and the deferral is over
+    time.sleep(1.0)
+    rc, out = run(world, "-Update", "-WaitSec", "0")
+    assert rc == 0 and "fast-forwarded" in out, out
+    assert not defer_file(world).exists()
 
 
 def test_requirements_change_reinstalls_and_a_failed_install_is_drift(world, venv):
