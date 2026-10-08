@@ -373,7 +373,8 @@ def test_the_real_registry_parses(tmp_path):
     """The AST reader against the committed nflverse.py, not only the fixture's."""
     reg = st.registry(os.path.dirname(os.path.dirname(os.path.abspath(st.__file__))))
     assert reg["weekly_stats"] == ("stats_player", "stats_player_week", True)
-    assert reg["depth_charts"] == ("depth_charts", "depth_charts", False)
+    assert reg["depth_charts"] == ("depth_charts", "depth_charts", True)      # parsed since a-71
+    assert reg["ftn_charting"] == ("ftn_charting", "ftn_charting", False)     # still archived only
     assert len(reg) >= 15
 
 

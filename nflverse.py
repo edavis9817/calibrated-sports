@@ -112,7 +112,36 @@ DATASETS = {
                                    "number; 2002 is the release's first season"),
     "depth_charts": Dataset("depth_charts", "depth_charts",
                             "depth_charts_{season}.parquet", LIVE,
-                            first_season=2001),
+                            normalize=True, first_season=2001,
+                            note="normalized since a-71 into nfl_depth_chart, 2025 "
+                                 "layout only (dated snapshots, stored at change "
+                                 "points). The 2001-2024 files are a different, weekly "
+                                 "layout: archived, parsed to 0 rows"),
+
+    # ---- added by a-71: releases f-24 found offered and fetched by nothing ---
+    "officials": Dataset(
+        "officials", "officials", "officials.parquet", LIVE, normalize=True,
+        first_season=2015,
+        note="ONE file, 2015 on. Its game_id is the league's ten-digit id "
+             "(games.parquet old_game_id), not nfl_games.game_id"),
+    # Fetched and archived, NOT normalized (a-71: 'fetch and land only'). The
+    # four weekly families; the advstats_season_* files are sums of them.
+    # Pro-Football-Reference-derived: archiving is not publishing, and the
+    # per-column terms ruling (f-07, analytics.pfr_terms) gates any display.
+    "pfr_adv_pass": Dataset("pfr_adv_pass", "pfr_advstats",
+                            "advstats_week_pass_{season}.parquet", LIVE, first_season=2018),
+    "pfr_adv_rush": Dataset("pfr_adv_rush", "pfr_advstats",
+                            "advstats_week_rush_{season}.parquet", LIVE, first_season=2018),
+    "pfr_adv_rec": Dataset("pfr_adv_rec", "pfr_advstats",
+                           "advstats_week_rec_{season}.parquet", LIVE, first_season=2018),
+    "pfr_adv_def": Dataset("pfr_adv_def", "pfr_advstats",
+                           "advstats_week_def_{season}.parquet", LIVE, first_season=2018),
+    # The SEASON roster (one row per player-team, 36 columns: ids, birth date,
+    # draft club and number). weekly_rosters is the weekly grain of the same
+    # thing and is what the store normalizes. The release reaches back to 1920;
+    # NFLVERSE_FIRST_SEASON clamps what a default run asks for.
+    "season_rosters": Dataset("season_rosters", "rosters", "roster_{season}.parquet",
+                              LIVE, first_season=1920),
 
     # ---- offseason tier: DOES NOT REFRESH IN-SEASON -------------------------
     "participation": Dataset(
@@ -130,6 +159,15 @@ DATASETS = {
                          note="NOT contracts.parquet - that 404s"),
     "draft_picks": Dataset("draft_picks", "draft_picks", "draft_picks.parquet",
                            OFFSEASON),
+    # THE FROZEN RELEASE (module docstring, point 1), archived on purpose by
+    # a-71 and never normalized: 1999-2024, last asset update 2025-05-07, no
+    # 2025 or 2026 file and there never will be one. OFFSEASON so the logger's
+    # live-tier refresh does not ask for a season that cannot exist. Only the
+    # weekly offence file; the release's other nine families are either sums of
+    # it or frozen copies of what stats_player / stats_team publish today.
+    "player_stats_legacy": Dataset(
+        "player_stats_legacy", "player_stats", "player_stats_{season}.parquet",
+        OFFSEASON, note="frozen at 2024 - reference only, never a current source"),
 }
 
 # field -> dataset, built once. Two datasets claiming the same field name would

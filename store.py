@@ -647,6 +647,78 @@ CREATE TABLE IF NOT EXISTS outcome_settlement (
     settled_ts   REAL NOT NULL,
     PRIMARY KEY (outcome_id, data_version)
 );
+
+-- Depth charts, 2025 layout only (a-71): nflverse publishes a dated snapshot
+-- (`dt`) of every team's chart about twice a day, ~2,300 rows a snapshot and
+-- 622,339 rows for 2026 by 10-08. STORED AT CHANGE POINTS: a team's chart is
+-- written for a `dt` only when it differs from that team's previous snapshot,
+-- so the chart in force at T is the newest stored dt <= T for the team, and
+-- nfl_depth_chart_snapshots says which dts were seen at all. `dt` is when
+-- upstream scraped the chart, not when this store could have known it.
+-- KEYED ON THE SLOT, NEVER ON gsis_id: gsis_id is joined on upstream at build
+-- time and is REWRITTEN in past snapshots (4,311 rows differ between the 09-09
+-- and 10-08 pulls of the same 173 snapshots, 929 of them value -> null), so it
+-- is written through upsert_preserving. No data_version in the key: the file
+-- is rewritten daily and a per-version copy is the whole file again.
+-- The 2001-2024 layout (season, club_code, week, ...) is archived and NOT
+-- parsed: its week is null on 234-1,594 rows a season and has no key yet.
+CREATE TABLE IF NOT EXISTS nfl_depth_chart (
+    sport         TEXT NOT NULL DEFAULT 'nfl',
+    season        INTEGER NOT NULL,
+    team          TEXT NOT NULL,
+    dt            TEXT NOT NULL,      -- upstream scrape time, ISO-8601 Z, verbatim
+    dt_ts         REAL NOT NULL,
+    pos_grp_id    TEXT NOT NULL,
+    pos_id        TEXT NOT NULL,
+    pos_rank      INTEGER NOT NULL,
+    pos_slot      INTEGER,
+    pos_grp       TEXT,
+    pos_name      TEXT,
+    pos_abb       TEXT,
+    espn_id       TEXT,
+    gsis_id       TEXT,
+    player_name   TEXT,
+    data_version  TEXT NOT NULL,      -- the pull that last wrote this row
+    source        TEXT NOT NULL,
+    ingested_ts   REAL NOT NULL,
+    PRIMARY KEY (season, team, dt, pos_grp_id, pos_id, pos_rank)
+);
+CREATE INDEX IF NOT EXISTS ix_depth_player ON nfl_depth_chart(gsis_id, dt_ts);
+
+CREATE TABLE IF NOT EXISTS nfl_depth_chart_snapshots (
+    sport         TEXT NOT NULL DEFAULT 'nfl',
+    season        INTEGER NOT NULL,
+    dt            TEXT NOT NULL,
+    dt_ts         REAL NOT NULL,
+    teams         INTEGER NOT NULL,   -- teams present in the snapshot
+    teams_changed INTEGER NOT NULL,   -- of those, charts stored for this dt
+    source_rows   INTEGER NOT NULL,   -- rows the release carries for this dt
+    data_version  TEXT NOT NULL,
+    PRIMARY KEY (season, dt)
+);
+
+-- Game officials from nflverse `officials` (a-71), 2015 on. `game_id` here is
+-- the league's ten-digit id ('2015091000'), which is `old_game_id` in
+-- games.parquet and is NOT nfl_games.game_id ('2015_01_PIT_NE'); nfl_games does
+-- not carry it, so this table joins to a game only through the archived
+-- games file. `position` is free text upstream (130 spellings).
+CREATE TABLE IF NOT EXISTS nfl_officials (
+    sport         TEXT NOT NULL DEFAULT 'nfl',
+    game_id       TEXT NOT NULL,
+    official_id   TEXT NOT NULL,
+    position      TEXT NOT NULL,
+    data_version  TEXT NOT NULL,
+    game_key      TEXT,
+    official_name TEXT,
+    jersey_number INTEGER,
+    season        INTEGER,
+    season_type   TEXT,
+    week          INTEGER,
+    source        TEXT NOT NULL,
+    ingested_ts   REAL NOT NULL,
+    PRIMARY KEY (game_id, official_id, position, data_version)
+);
+CREATE INDEX IF NOT EXISTS ix_officials_season ON nfl_officials(season, week);
 """
 
 

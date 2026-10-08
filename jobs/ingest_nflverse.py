@@ -337,7 +337,110 @@ def normalize_teams(data: bytes, version: str, week=None):
     return "nfl_teams", cols, rows
 
 
+# What identifies a team's chart at one snapshot: who sits in which slot.
+# espn_id, not gsis_id - upstream joins gsis_id on at build time and rewrites
+# it in past snapshots, so a signature holding it would call an id backfill a
+# depth-chart change.
+DEPTH_SIG = ("pos_grp_id", "pos_id", "pos_slot", "pos_rank", "espn_id")
+DEPTH_KEY = ("season", "team", "dt", "pos_grp_id", "pos_id", "pos_rank")
+DEPTH_BATCH = 20_000     # rows per committed write; the logger shares this file
+
+
+def depth_changes(df):
+    """A 2025-layout depth chart frame -> (rows at change points, snapshots).
+
+    A team's rows for a `dt` are kept only when its chart differs from the same
+    team's previous snapshot IN THIS FILE. Deterministic in the file, so a
+    later pull that extends the history re-derives the same change points and
+    adds the new ones. `snapshots` is one row per dt: teams present, teams
+    whose chart was kept, and the rows the release carried.
+    """
+    pl = _pl()
+    sig = (df.sort(["team", "dt", *DEPTH_SIG], nulls_last=True)
+           .group_by(["team", "dt"], maintain_order=True)
+           .agg(pl.concat_str([pl.col(c).cast(pl.String).fill_null("~") for c in DEPTH_SIG],
+                              separator="|").str.join("\n").alias("sig"),
+                pl.len().alias("n"))
+           .sort(["team", "dt"])
+           .with_columns((pl.col("sig") != pl.col("sig").shift(1).over("team"))
+                         .fill_null(True).alias("changed")))
+    kept = df.join(sig.filter(pl.col("changed")).select("team", "dt"), on=["team", "dt"],
+                   how="inner")
+    snaps = (sig.group_by("dt")
+             .agg(pl.len().alias("teams"), pl.col("changed").sum().alias("teams_changed"),
+                  pl.col("n").sum().alias("source_rows")).sort("dt"))
+    return kept, snaps
+
+
+def normalize_depth_charts(data: bytes, version: str, week=None, season=None):
+    """depth_charts -> nfl_depth_chart + nfl_depth_chart_snapshots (a-71).
+
+    2025 LAYOUT ONLY. A 2001-2024 file has no `dt` and is left archived: 0 rows,
+    said out loud. Writes directly, in committed batches, like the crosswalk -
+    it is two tables and one of them is an upsert that must not null gsis_id.
+    The file carries no season; it is the one in the asset name.
+    """
+    pl = _pl()
+    df = pl.read_parquet(io.BytesIO(data))
+    if "dt" not in df.columns:
+        print(f"       depth_charts {season}: weekly layout (2001-2024), archived, not parsed")
+        return None, None, []
+    if season is None:
+        raise ValueError("depth_charts: the season is in the asset name and was not passed")
+    need = [c for c in DEPTH_KEY if c != "season"]
+    df = df.drop_nulls(need).with_columns(
+        pl.col("dt").str.to_datetime("%Y-%m-%dT%H:%M:%SZ", time_zone="UTC")
+        .dt.epoch("s").cast(pl.Float64).alias("dt_ts"))
+    kept, snaps = depth_changes(df)
+    now = time.time()
+    cols = ("sport", "season", "team", "dt", "dt_ts", "pos_grp_id", "pos_id", "pos_rank",
+            "pos_slot", "pos_grp", "pos_name", "pos_abb", "espn_id", "gsis_id",
+            "player_name", "data_version", "source", "ingested_ts")
+    rows = [("nfl", season, r["team"], r["dt"], r["dt_ts"], r["pos_grp_id"], r["pos_id"],
+             r["pos_rank"], r.get("pos_slot"), r.get("pos_grp"), r.get("pos_name"),
+             r.get("pos_abb"), r.get("espn_id"), r.get("gsis_id"), r.get("player_name"),
+             version, SOURCE, now)
+            for r in kept.iter_rows(named=True)]
+    for i in range(0, len(rows), DEPTH_BATCH):
+        store.upsert_preserving("nfl_depth_chart", cols, rows[i:i + DEPTH_BATCH],
+                                conflict=DEPTH_KEY, preserve=("gsis_id", "player_name"))
+    ts = dict(df.select("dt", "dt_ts").unique().iter_rows())
+    store.replace_rows(
+        "nfl_depth_chart_snapshots",
+        ("sport", "season", "dt", "dt_ts", "teams", "teams_changed", "source_rows",
+         "data_version"),
+        [("nfl", season, r["dt"], ts[r["dt"]], int(r["teams"]), int(r["teams_changed"]),
+          int(r["source_rows"]), version) for r in snaps.iter_rows(named=True)])
+    print(f"       depth_charts {season}: {snaps.height:,} snapshots, {df.height:,} rows "
+          f"published, {len(rows):,} kept at change points")
+    return None, None, [None] * len(rows)       # row count only, already written
+
+
+def normalize_officials(data: bytes, version: str, week=None):
+    """officials -> nfl_officials (a-71). ONE file, 2015 on. `game_id` is the
+    league's ten-digit id, not nfl_games.game_id - see the DDL."""
+    pl = _pl()
+    df = pl.read_parquet(io.BytesIO(data))
+    if week is not None:
+        df = df.filter(pl.col("week") == week)
+    now = time.time()
+    cols = ("sport", "game_id", "official_id", "position", "data_version", "game_key",
+            "official_name", "jersey_number", "season", "season_type", "week", "source",
+            "ingested_ts")
+    rows = []
+    for r in df.iter_rows(named=True):
+        gid, oid, pos = r.get("game_id"), r.get("official_id"), r.get("position")
+        if not gid or not oid or not pos:
+            continue                   # no place in the PK
+        rows.append(("nfl", str(gid), str(oid), pos, version, r.get("game_key"),
+                     r.get("official_name"), r.get("jersey_number"), r.get("season"),
+                     r.get("season_type"), r.get("week"), SOURCE, now))
+    return "nfl_officials", cols, rows
+
+
 NORMALIZERS = {
+    "depth_charts": normalize_depth_charts,
+    "officials": normalize_officials,
     "players": normalize_players,
     "weekly_stats": normalize_weekly_stats,
     "games": normalize_games,
@@ -411,6 +514,8 @@ def ingest_one(ds: nflverse.Dataset, season=None, week=None, version=None,
         kwargs = {"week": week}
         if ds.name == "games":
             kwargs["seasons"] = seasons if seasons else ([season] if season else None)
+        if ds.name == "depth_charts":
+            kwargs["season"] = season
         table, cols, rows = fn(data, version, **kwargs)
         rows_written = (len(rows) if table is None
                         else store.replace_rows(table, cols, rows))
@@ -517,6 +622,8 @@ def rebuild_from_archive(datasets=None, seasons=None) -> dict:
         kwargs = {"week": None}
         if ds_name == "games":
             kwargs["seasons"] = [season] if season else None
+        if ds_name == "depth_charts":
+            kwargs["season"] = season
         table, cols, out = fn(data, version, **kwargs)
         n = (len(out) if table is None
              else store.replace_rows(table, cols, out))
