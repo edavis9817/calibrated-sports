@@ -147,3 +147,42 @@ def test_the_window_must_run_forwards(env):
     with pytest.raises(ValueError):
         bo.run(T1, T0, kickoffs=KICKOFFS)
     assert bo.parse_utc("2026-10-04T14:50:22Z") == 1791125422.0
+
+
+# --- a-69: the 60 s tier, and one series at a time -----------------------------
+
+def test_game_tier_adds_the_markets_polled_every_minute_and_nothing_further_out(env):
+    """A kickoff 12 hours after the window is in the `game` tier (60 s); one a
+    week out is not. Without the flag neither is taken - the first rule."""
+    store.upsert_markets([
+        {"venue": "kalshi", "market_id": "KXNFLREC-TONIGHT", "event_id": "E", "sport": "nfl",
+         "market_type": "prop", "subject": "p", "line": 4.5, "title": "t"}])
+    kick = dict(KICKOFFS)
+    kick[("kalshi", "KXNFLREC-TONIGHT")] = T1 + 12 * 3600
+    assert [t for t, _ in bo.targets(T0, T1, kick)] == ["KXNFLREC-HOT", "KXNFLREC-LIVE"]
+    assert [t for t, _ in bo.targets(T0, T1, kick, game_tier=True)] == [
+        "KXNFLREC-HOT", "KXNFLREC-LIVE", "KXNFLREC-TONIGHT"]
+    past_the_tier = dict(kick)
+    past_the_tier[("kalshi", "KXNFLREC-TONIGHT")] = T1 + config.COLD_WINDOW_HOURS * 3600 + 60
+    assert [t for t, _ in bo.targets(T0, T1, past_the_tier, game_tier=True)] == [
+        "KXNFLREC-HOT", "KXNFLREC-LIVE"]
+
+
+def test_series_restricts_the_run_and_leaves_the_other_series_rows_alone(env):
+    """A second run for props must not rewrite the game lines the first wrote:
+    their rows keep the ingest_ts of the run that wrote them."""
+    store.upsert_markets([
+        {"venue": "kalshi", "market_id": "KXNFLSPREAD-HOT", "event_id": "E", "sport": "nfl",
+         "market_type": "spread", "subject": "t", "line": 1.5, "title": "t"}])
+    kick = dict(KICKOFFS)
+    kick[("kalshi", "KXNFLSPREAD-HOT")] = T1 + 3600
+    bo.run(T0, T1, client=FakeClient(), pacer=NoWait(), kickoffs=kick, series=["KXNFLSPREAD"])
+    first = rows("market_id = 'KXNFLSPREAD-HOT'")
+    assert len(first) == 3 and rows("market_id LIKE 'KXNFLREC-%'") == []
+    time.sleep(0.05)
+    client = FakeClient()
+    s = bo.run(T0, T1, client=client, pacer=NoWait(), kickoffs=kick, series=["KXNFLREC"])
+    assert s["markets"] == 2 and len(client.calls) == 2
+    assert all("KXNFLREC" in u for u, _p in client.calls)
+    assert rows("market_id = 'KXNFLSPREAD-HOT'") == first          # ingest_ts included
+    assert len(rows("market_id LIKE 'KXNFLREC-%'")) == 6

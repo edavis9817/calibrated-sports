@@ -2,6 +2,7 @@
 
     python -m jobs.backfill_outage --from 2026-10-04T14:50:22Z --to 2026-10-04T15:28:03Z
     python -m jobs.backfill_outage --from ... --to ... --dry-run
+    python -m jobs.backfill_outage --from ... --to ... --game-tier --series KXNFLREC,KXNFLRSHATT
 
 THESE ROWS ARE RECONSTRUCTED, NOT CAPTURED. They come from Kalshi's 1-minute
 candlesticks, which are free, need no auth, and are the only record of a minute
@@ -38,6 +39,18 @@ window's start or LIVE_WINDOW_MIN before its end, by store.kickoff_map. Season
 futures and next week's markets are left out: they are polled every 5 to 10
 minutes, and the hourly candles in backfill_history already describe them.
 
+`--game-tier` (a-69) widens that to the `game` tier: a kickoff within
+COLD_WINDOW_HOURS after the window's end. Those markets are polled every 60 s,
+not every 5 to 10 minutes, so an outage costs them real resolution too - the
+first run left out 510 props the logger had been quoting a minute apart, which
+is how it was noticed. `--series` restricts a run to named series, so widening
+the set for props does not rewrite the game lines an earlier run already wrote.
+
+WHEN IT IS RUN MATTERS. The market set is read through store.kickoff_map, so a
+market with no `market_outcome` row is invisible to this job. Run on 2026-10-06
+it found no week-4 prop at all (none was mapped yet) and wrote game lines only;
+run on 2026-10-08 the same command found 889. Map first, then reconstruct.
+
 Raw first (invariant 2): each response is archived verbatim before it is parsed.
 A re-run replaces its OWN rows for the window and nothing else.
 """
@@ -61,14 +74,19 @@ def parse_utc(s: str) -> float:
     return float(calendar.timegm(time.strptime(s.rstrip("Z"), "%Y-%m-%dT%H:%M:%S")))
 
 
-def targets(t_from: float, t_to: float, kickoffs: dict = None):
+def targets(t_from: float, t_to: float, kickoffs: dict = None,
+            game_tier: bool = False, series=None):
     """[(ticker, meta)] for the Kalshi markets in play during the window."""
     if kickoffs is None:
         kickoffs = store.kickoff_map(("kalshi",))
     lo = t_from - config.LIVE_WINDOW_MIN * 60      # kicked off, still live at t_from
     hi = t_to + config.HOT_WINDOW_MIN * 60         # kicks off soon after t_to
+    if game_tier:                                  # ... or within the 60 s tier
+        hi = max(hi, t_to + config.COLD_WINDOW_HOURS * 3600)
+    series = set(series) if series else None
     wanted = {m for (v, m), kick in kickoffs.items()
-              if v == "kalshi" and kick is not None and lo < kick < hi}
+              if v == "kalshi" and kick is not None and lo < kick < hi
+              and (series is None or m.split("-")[0] in series)}
     con = sqlite3.connect(f"file:{config.DB_PATH}?mode=ro", uri=True)
     try:
         rows = con.execute(
@@ -104,10 +122,11 @@ def fetch(client, pacer, ticker, t_from: float, t_to: float):
 
 
 def run(t_from: float, t_to: float, dry_run: bool = False, limit: int = None,
-        client=None, pacer=None, kickoffs: dict = None) -> dict:
+        client=None, pacer=None, kickoffs: dict = None,
+        game_tier: bool = False, series=None) -> dict:
     if not t_from < t_to:
         raise ValueError("--from must be before --to")
-    tgts = targets(t_from, t_to, kickoffs)
+    tgts = targets(t_from, t_to, kickoffs, game_tier=game_tier, series=series)
     if limit:
         tgts = tgts[:limit]
     stats = {"window_min": round((t_to - t_from) / 60, 1), "markets": len(tgts),
@@ -164,9 +183,14 @@ def main():
     ap.add_argument("--to", dest="t_to", required=True)
     ap.add_argument("--dry-run", action="store_true", help="count the markets, fetch nothing")
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--game-tier", action="store_true",
+                    help="also markets kicking off within COLD_WINDOW_HOURS (polled every 60 s)")
+    ap.add_argument("--series", default=None,
+                    help="comma-separated series tickers; default every series")
     args = ap.parse_args()
     s = run(parse_utc(args.t_from), parse_utc(args.t_to), dry_run=args.dry_run,
-            limit=args.limit)
+            limit=args.limit, game_tier=args.game_tier,
+            series=args.series.split(",") if args.series else None)
     print(", ".join(f"{k}={v}" for k, v in s.items()))
 
 
