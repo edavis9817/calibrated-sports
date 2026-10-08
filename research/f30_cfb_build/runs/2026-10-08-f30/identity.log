@@ -1,3 +1,4 @@
+# the three runs below were made with the store path written in the script; the fourth, after it became --store, is the committed identity.py
 D:\temp\f30\c39src plant=False rows 3304 projection_rows 13216 bytes 3742527 sha256 12b913653b8b9ec259a3fbf02647a71299f08d0cd4af75d41b26e5a0c9e349dd (417s)
 imported from the tree: 9 files
 changed e8ff867..a981315: 11 files (A, M); of those imported by the hashed run: 0 []
@@ -8,4 +9,10 @@ imported from the tree: 9 files
 rc=0
 D:\temp\f30\c39src plant=True rows 3304 projection_rows 13216 bytes 3742722 sha256 49e11b8b27aea60ada93fad2b2f440fcb030e1da8d56fb491540513397db7700 (416s)
 imported from the tree: 9 files
+rc=0
+# after the --store edit:
+D:\temp\f30\c39src plant=False rows 3304 projection_rows 13216 bytes 3742527 sha256 12b913653b8b9ec259a3fbf02647a71299f08d0cd4af75d41b26e5a0c9e349dd (235s)
+imported from the tree: 9 files
+changed e8ff867..a981315: 11 files (A, M); of those imported by the hashed run: 0 []
+imported: config.py jobs/__init__.py jobs/season_model.py jobs/season_projection.py models/__init__.py models/game.py models/season.py research/__init__.py research/c28_season_identity.py
 rc=0

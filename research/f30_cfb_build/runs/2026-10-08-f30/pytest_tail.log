@@ -1,0 +1,8 @@
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_decisions_audit.py::test_no_decision_has_ever_stopped_being_recorded
+FAILED tests/test_decisions_audit.py::test_it_runs_as_a_module_and_exits_zero_when_clean
+2 failed, 2585 passed, 41 skipped, 5 warnings in 196.65s (0:03:16)
+rc=1
