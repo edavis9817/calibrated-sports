@@ -376,7 +376,7 @@ def coherence(ladders, ivs, out):
         non += not unimodal(m)
     res["C5"] = {"receptions_ladders_4plus_rungs": len(rec), "not_unimodal": non}
     out(f"  C5 receptions ladders with >= 4 rungs: {len(rec)}; unit masses between rungs NOT unimodal: "
-        f"{non} ({non / len(rec):.3f})")
+        f"{non} ({non / max(len(rec), 1):.3f})")
     return res
 
 
