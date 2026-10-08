@@ -136,7 +136,7 @@ def test_tape_ladder_uses_decided_rungs_and_drops_unusable_quotes():
         "KXNFLWINS-27JAC-8": {"h": {T: (0.60, 0.62, None, 0, 0)}, "d": {}},
         "KXNFLWINS-27JAC-9": {"h": {T: (0.38, 0.42, None, 0, 0)}, "d": {}},
         "KXNFLWINS-27JAC-10": {"h": {T: (0.01, 0.99, None, 0, 0)}, "d": {}},    # empty book: dropped
-        "KXNFLWINS-27JAC-11": {"h": {T - 3600: (0.10, 0.12, None, 0, 0)}, "d": {}},   # 1h fallback
+        "KXNFLWINS-27JAC-11": {"h": {T - 30 * 3600: (0.10, 0.12, None, 0, 0)}, "d": {}},   # carried 30h
     }
     tape = W.Tape(candles)
     assert list(tape.by_team) == ["JAX"]                      # folded to the nflverse code

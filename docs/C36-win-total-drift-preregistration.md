@@ -187,3 +187,37 @@ separate mechanical channels, each closed by construction:
 
 That the model is better or worse than the market at forecasting wins. That any drift found
 here persists past week 4. That a taker can get the candle touch in size.
+
+## Addendum 1 - 2026-10-08, after the first run STOPPED at validation and before any result
+
+The first run (`e5ce5a7`) stopped at the candle validation and printed nothing after it. No
+weekly change, no model number and no regression has been computed or seen. What the stop and
+two diagnostics (`D:/temp/c36/diag*.py`, validation only) showed:
+
+- **Kalshi does not emit an hourly candle for an hour in which nothing changed.** 205,182
+  hourly candles over 544 rungs is a median of 398 per rung across ~750 hours. I registered "the
+  hourly candle with `end_period_ts == T`" on the assumption of one candle per hour, taken from
+  a probe of two busy rungs. That assumption was wrong.
+- Where a candle does end exactly at T it agrees with the live quote: 303 of 304 at S_3, 180 of
+  180 at S_4. The agreement rule was never in doubt. The script stopped on a bound I added in
+  the script and did not register (`n < 300` rungs compared); it was a guess at coverage and it
+  was wrong for the reason above.
+- **Carrying the last candle forward reproduces the live quote.** At five instants inside the
+  live window (S_3, S_4, S'_3, S'_4, Sat 10-03 20:00), every rung whose latest candle ended
+  BEFORE T - 347 comparisons, up to 24 hours stale - agrees with the live quote to 1c on both
+  sides. 347 of 347. A sixth instant chosen to be fast (Mon 09-28 06:00, ~2.5h after Sunday
+  night football) agrees on 251 of 287, and the misses are all EXACT-hour candles (223 of 259):
+  there the candle's hour-end close and the logger's last 300-second poll are different
+  instants in a moving market, and the candle is the fresher of the two.
+
+**Change, fixed here before the real run:**
+
+1. A rung's quote at T is the **latest candle ending at or before T**, with no age cap, inside
+   the archive of that period (hourly from 09-07 00:00, daily before). Before a rung's first
+   candle there is no quote. The script counts how many reads were carried and how far.
+2. The validation uses the same read (the split by staleness is the diagnostic above, not
+   re-printed by the script) and keeps the registered
+   stop rule exactly (under 90% agreement at S_3 or S_4 stops the unit). The unregistered
+   `n < 300` bound is removed; the count compared is printed.
+3. Nothing else changes: instants, the usable rule, the market number, every regression and
+   every stop condition are as registered above.

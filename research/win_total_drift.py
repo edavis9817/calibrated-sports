@@ -24,6 +24,7 @@ Writes: the results JSON named on the command line and nothing else.
 from __future__ import annotations
 
 import argparse
+import bisect
 import datetime as dt
 import glob
 import gzip
@@ -287,6 +288,8 @@ class Tape:
         self.c = candles
         self.fallback = 0
         self.miss = 0
+        self.max_age = 0.0
+        self.keys = {kd: {t: sorted(v[kd]) for t, v in candles.items()} for kd in ("h", "d")}
         self.by_team = defaultdict(list)
         for t in candles:
             m = RE_WINS.match(t)
@@ -297,19 +300,18 @@ class Tape:
             v.sort()
 
     def quote(self, ticker, T, kind="h"):
-        """(bid, ask) of the candle ending exactly at T; else the latest candle
-        ending within the 3 hours before T (counted); else None."""
-        d = self.c[ticker][kind]
-        r = d.get(float(T))
-        if r is None and kind == "h":
-            for back in (1, 2, 3):
-                r = d.get(float(T) - back * HOUR)
-                if r is not None:
-                    self.fallback += 1
-                    break
-        if r is None:
+        """(bid, ask) of the LATEST candle ending at or before T (addendum 1:
+        Kalshi emits no candle for an hour in which nothing changed, so the
+        last one stands until the next). None before the rung's first candle."""
+        ks = self.keys[kind][ticker]
+        i = bisect.bisect_right(ks, float(T)) - 1
+        if i < 0:
             self.miss += 1
             return None
+        if ks[i] != float(T):
+            self.fallback += 1
+            self.max_age = max(self.max_age, float(T) - ks[i])
+        r = self.c[ticker][kind][ks[i]]
         return r[0], r[1]
 
     def ladder(self, team, T, wins_at, kind="h"):
@@ -426,7 +428,7 @@ def main(argv=None):
         out(f"  S_{k} {iso(T)} vs live quotes: {n} rungs compared, {agree} agree to 1c on bid and "
             f"ask ({agree / max(n, 1):.1%}); |mid diff| median {np.median(dm):.4f} p95 "
             f"{np.percentile(dm, 95):.4f}")
-        if n < 300 or agree / n < 0.90:
+        if n == 0 or agree / n < 0.90:
             raise SystemExit(f"STOP (pre-registered): candle validation failed at S_{k}")
     c25 = json.load(open(a.c25_quotes))
     for state, lab in ((1, "S'_1"), (2, "S'_2")):
@@ -530,8 +532,8 @@ def main(argv=None):
             rows.append(r)
     out(f"  team-weeks {len(rows)}; with weekly move {sum(r['move_w'] is not None for r in rows)}, "
         f"with jump {sum(r['jump'] is not None for r in rows)}, with gap "
-        f"{sum(r['gap'] is not None for r in rows)}; candle fallbacks (1-3h back) {tape.fallback}, "
-        f"misses {tape.miss}")
+        f"{sum(r['gap'] is not None for r in rows)}; candle reads carried forward {tape.fallback} (oldest "
+        f"{tape.max_age / HOUR:.0f}h), reads before a rung's first candle {tape.miss}")
     res["team_weeks"] = rows
 
     # ------------------------------------------------------------ Q1
