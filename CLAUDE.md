@@ -184,6 +184,15 @@ not yet measured and the retention arithmetic depends on it.**
   400, so chunk. **429 after ~5 rapid requests**, no rate headers, no
   Retry-After. Candles carry `volume_fp` and `open_interest_fp`; `price` is
   `{}` when nothing traded, and bid/ask still exist there.
+- **No candle is emitted for a period in which nothing changed, and the last one stands.**
+  Measured 2026-10-08 on `KXNFLWINS` (c-36, `research/win_total_drift.py`,
+  `research/c36_candle_diag_carry.py`): 544 rungs carry a median 398 hourly candles over ~750
+  hours. Reading "the candle ending at T" silently drops every quiet rung; carry the latest
+  candle ending at or before T instead - it matched the live quote to 1c on 347 of 347 stale
+  reads. With that read the candle `yes_bid`/`yes_ask` closes reproduce the logger's quotes
+  (319 of 320 and 304 of 304 rungs at two instants), so a season future's PRICE path is
+  recoverable for free back to the market's open even though `prune_quotes` keeps 14 days.
+  Depth is still not: a candle carries no book.
 - **Live `volume` is CUMULATIVE, a candle's `volume_fp` is PER-PERIOD.**
   Summing both together produced a 6.7-billion-contract week.
 - **Kalshi ladders are dense where they exist and absent where they do not.**
