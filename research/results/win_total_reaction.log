@@ -1,0 +1,22 @@
+== POST HOC: the path of the market number after the team's own kickoff K (wins)
+  team-games 128 (ties dropped); usable undecided rungs per ladder before kickoff: median 9
+  K+ 3.5h: after a win +0.35, after a loss -0.35 (n 100); share of the K+24h move done +0.59 [+0.27, +0.90] n 100 blocks 58; usable rungs median 2
+  K+   4h: after a win +0.42, after a loss -0.57 (n 100); share of the K+24h move done +0.77 [+0.46, +1.04] n 100 blocks 58; usable rungs median 3
+  K+   5h: after a win +0.24, after a loss -0.40 (n 108); share of the K+24h move done +0.51 [+0.23, +0.74] n 108 blocks 61; usable rungs median 4
+  K+   6h: after a win +0.52, after a loss -0.56 (n 105); share of the K+24h move done +0.88 [+0.63, +1.13] n 105 blocks 59; usable rungs median 4
+  K+   8h: after a win +0.49, after a loss -0.46 (n 114); share of the K+24h move done +0.77 [+0.58, +0.96] n 114 blocks 63; usable rungs median 6
+  K+  12h: after a win +0.45, after a loss -0.62 (n 115); share of the K+24h move done +0.89 [+0.77, +0.99] n 115 blocks 63; usable rungs median 6
+  K+  17h: after a win +0.50, after a loss -0.65 (n 120); share of the K+24h move done +0.94 [+0.84, +1.03] n 120 blocks 64; usable rungs median 8
+  K+  24h: after a win +0.56, after a loss -0.67 (n 122); share of the K+24h move done +1.00 [+1.00, +1.00] n 122 blocks 64; usable rungs median 9
+
+== POST HOC: the obvious trade. Central rung chosen BEFORE kickoff; after the game buy the result's side at the candle touch, sell at K+24h at the opposite touch; taker fee both legs at 100 contracts; game blocks
+  enter K+4h (n 127, no quote 1): central rung mid moved toward the result by entry +0.0607 [+0.0444, +0.0778] n 127 blocks 64, by K+24h +0.0862 [+0.0728, +0.0994] n 127 blocks 64; entry spread median 10c
+       round trip net -0.0924 [-0.1097, -0.0758] n 127 blocks 64; marked to the K+24h mid with the entry fee -0.0634 [-0.0798, -0.0474] n 127 blocks 64; positive in 13%; by week wk1 -9.9c, wk2 -9.2c, wk3 -13.4c, wk4 -4.5c
+  enter K+5h (n 127, no quote 1): central rung mid moved toward the result by entry +0.0670 [+0.0538, +0.0799] n 127 blocks 64, by K+24h +0.0862 [+0.0728, +0.0994] n 127 blocks 64; entry spread median 5c
+       round trip net -0.0824 [-0.0998, -0.0666] n 127 blocks 64; marked to the K+24h mid with the entry fee -0.0534 [-0.0703, -0.0379] n 127 blocks 64; positive in 11%; by week wk1 -10.5c, wk2 -7.0c, wk3 -11.0c, wk4 -4.4c
+  enter K+6h (n 127, no quote 1): central rung mid moved toward the result by entry +0.0713 [+0.0580, +0.0854] n 127 blocks 64, by K+24h +0.0862 [+0.0728, +0.0994] n 127 blocks 64; entry spread median 9c
+       round trip net -0.1007 [-0.1201, -0.0830] n 127 blocks 64; marked to the K+24h mid with the entry fee -0.0717 [-0.0901, -0.0541] n 127 blocks 64; positive in 5%; by week wk1 -10.4c, wk2 -9.4c, wk3 -15.6c, wk4 -4.9c
+  enter K+8h (n 127, no quote 1): central rung mid moved toward the result by entry +0.0767 [+0.0628, +0.0907] n 127 blocks 64, by K+24h +0.0862 [+0.0728, +0.0994] n 127 blocks 64; entry spread median 4c
+       round trip net -0.0787 [-0.0922, -0.0662] n 127 blocks 64; marked to the K+24h mid with the entry fee -0.0497 [-0.0625, -0.0380] n 127 blocks 64; positive in 7%; by week wk1 -9.3c, wk2 -8.4c, wk3 -8.1c, wk4 -5.7c
+
+wrote research/results/win_total_reaction.json

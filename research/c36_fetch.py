@@ -2,9 +2,9 @@
 before any parsing (invariant 2). Resumable: a ticker with a file on disk is skipped."""
 import httpx, time, json, gzip, os, sqlite3, sys, threading, datetime as dt
 B = "https://api.elections.kalshi.com/trade-api/v2"
-OUT = "D:/calibrated-sports/data/research_raw/c36"
+DB, OUT = sys.argv[1], sys.argv[2]      # <market_log.db> <raw dir>
 UA = {"User-Agent": "calibratedsports-research/1.0 python-httpx/0.28"}
-con = sqlite3.connect("file:D:/calibrated-sports/data/market_log.db?mode=ro", uri=True, timeout=5)
+con = sqlite3.connect("file:" + DB.replace("\\", "/") + "?mode=ro", uri=True, timeout=5)
 tick = sorted(r[0] for r in con.execute("SELECT market_id FROM markets WHERE venue='kalshi' AND market_id LIKE 'KXNFLWINS-27%'"))
 con.close()
 OPEN = int(dt.datetime(2026, 4, 20, tzinfo=dt.timezone.utc).timestamp())

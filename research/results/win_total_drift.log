@@ -1,0 +1,87 @@
+== archive: 544 rung tickers, 205,182 hourly and 62,637 daily candles; 32 teams
+  hourly span 2026-09-07 00:00 -> 2026-10-08 06:00; daily span 2026-04-21 04:00 -> 2026-09-06 04:00
+  instants verified: every week-k game kicked >= 5h before S_k; no week-(k+1) game within 8h after S'_k
+
+== candle validation (the stop rule: >= 90% of rungs agree to 1c at S_3 and S_4)
+  S_3 2026-09-29 16:00 vs live quotes: 320 rungs compared, 319 agree to 1c on bid and ask (99.7%); |mid diff| median 0.0000 p95 0.0050
+  S_4 2026-10-06 16:00 vs live quotes: 304 rungs compared, 304 agree to 1c on bid and ask (100.0%); |mid diff| median 0.0000 p95 0.0000
+  S'_1 2026-09-16 16:00 vs c-25's preserved rows: 314 compared, 312 agree to 1c (99.4%); |mid diff| median 0.0000
+  S'_2 2026-09-23 16:00 vs c-25's preserved rows: 297 compared, 297 agree to 1c (100.0%); |mid diff| median 0.0000
+
+== model: a-41/a-55 season model at states 0..4
+  state 4 against the published projection (2026-10-07T13:29:56Z): max |mean wins - published| 0.0050
+  params {'k': 20.0, 'hfa': 50.0, 'regress': 0.5}, sigma 100.0, 20000 sims per state
+
+== market number m (0.5 crossing of the usable ladder): teams with a number at S_0..S_4 {0: 32, 1: 32, 2: 32, 3: 32, 4: 32}; at S'_0..S'_4 {0: 32, 1: 32, 2: 32, 3: 32, 4: 32}
+  usable undecided rungs per team-instant: median 10, min 7, max 14
+  team-weeks 128; with weekly move 128, with jump 110, with gap 128; candle reads carried forward 7830 (oldest 634h), reads before a rung's first candle 293
+
+== Q1 how much a win total moves, and when (descriptive)
+  week 1: number moved |d| mean 0.64 median 0.50 p90 1.27 max 1.77 wins (n 32)
+  week 2: number moved |d| mean 0.69 median 0.56 p90 1.40 max 1.71 wins (n 32)
+  week 3: number moved |d| mean 0.61 median 0.56 p90 1.12 max 1.47 wins (n 32)
+  week 4: number moved |d| mean 0.57 median 0.53 p90 0.99 max 1.23 wins (n 32)
+  after a win: mean weekly change of the number +0.60 [+0.50, +0.72] n 64 blocks 27 wins
+  after a loss: mean weekly change of the number -0.62 [-0.75, -0.50] n 64 blocks 29 wins
+  most-moved teams (sum |weekly d| over 4 weeks): LAC 4.41, CLE 4.27, PIT 3.69, NYG 3.69, CHI 3.64, ATL 3.50; least: NYJ 1.72, GB 1.72, SEA 1.72, DET 1.69, IND 1.56, MIA 0.79
+  rungs 0-1 wins from the number: weekly |d mid| mean 9.0pp median 8.5pp p90 17.4pp; median spread 1c (n 252)
+  rungs 1-2 wins from the number: weekly |d mid| mean 8.2pp median 7.0pp p90 15.5pp; median spread 2c (n 253)
+  rungs 2-3 wins from the number: weekly |d mid| mean 6.4pp median 6.0pp p90 13.0pp; median spread 2c (n 245)
+  rungs 3-+ wins from the number: weekly |d mid| mean 3.8pp median 3.0pp p90 8.5pp; median spread 4c (n 387)
+  WHEN: share of the week's squared movement inside the team's own 6h game window (of 168h): +0.543 [+0.481, +0.620] n 110 blocks 32; mean |jump| 0.70 wins, mean |rest of week| 0.68
+  daily |change| of the number: preseason (04-21..09-07) mean 0.044 median 0.021 wins (n 3744); in season mean 0.191 median 0.090 (n 920)
+
+== Q2 does the market move more than it should
+  T2a (registered) drift(POSTb->S_w) on jump(PRE->POSTa): -0.050 [-0.190, +0.061] z -0.75 MDE 0.184 n 108 blocks 32
+      game blocks: -0.050 [-0.176, +0.051] z -0.83 MDE 0.168 n 108 blocks 60
+      same-instant (drift from POSTa; artifact-prone): -0.545 [-0.724, -0.339] z -5.59 MDE 0.273 n 110 blocks 32
+      jump after a win: mean +0.24 wins (n 57); drift after mean +0.044
+      jump after a loss: mean -0.38 wins (n 53); drift after mean +0.009
+  T2b (descriptive) d-market on d-model, weekly: slope +0.724 [+0.652, +0.803] z +18.57 MDE 0.109 n 128 blocks 32; RMS ratio market/model +0.836 [+0.753, +0.919] n 128 blocks 32
+      after a win: market +0.60, model +0.84 wins (n 64)
+      after a loss: market -0.62, model -0.84 wins (n 64)
+  dispersion at S_0: SD across teams market 2.17 / model 1.27 wins; slope model-on-market +0.470 [+0.344, +0.644] n 32 blocks 32
+  dispersion at S_1: SD across teams market 2.22 / model 1.56 wins; slope model-on-market +0.587 [+0.467, +0.749] n 32 blocks 32
+  dispersion at S_2: SD across teams market 2.37 / model 1.86 wins; slope model-on-market +0.696 [+0.567, +0.848] n 32 blocks 32
+  dispersion at S_3: SD across teams market 2.34 / model 2.02 wins; slope model-on-market +0.764 [+0.635, +0.903] n 32 blocks 32
+  dispersion at S_4: SD across teams market 2.38 / model 2.23 wins; slope model-on-market +0.854 [+0.730, +0.980] n 32 blocks 32
+
+== Q3 does the model's gap at week k predict the move from k to k+1
+  T3-P (registered, PRIMARY) beta on gap: +0.050 [-0.022, +0.132] z +1.27 MDE 0.110 n 128 blocks 32
+       game blocks: +0.050 [-0.020, +0.120] z +1.41 MDE 0.099 n 128 blocks 64
+       controls: win +1.315 [+1.172, +1.449] z +18.42 MDE 0.200 n 128 blocks 32; level -0.056 [-0.093, -0.016] z -2.87 MDE 0.054 n 128 blocks 32; win x level -0.045 [-0.095, -0.003] z -1.93 MDE 0.066 n 128 blocks 32
+  T3-D (registered) pre-game drift, beta_D on gap: +0.005 [-0.040, +0.045] z +0.23 MDE 0.062 n 126 blocks 32; level +0.010 [-0.013, +0.028] z +0.94 MDE 0.029 n 126 blocks 32
+  beside them: without the level control +0.143 [+0.084, +0.205] z +4.78 MDE 0.084 n 128 blocks 32; move started at S_k (shares the quote with the gap) +0.071 [+0.004, +0.148] z +1.90 MDE 0.104 n 128 blocks 32
+  leave-one-week-out beta: without wk1 +0.060, without wk2 +0.031, without wk3 +0.082, without wk4 +0.031
+      week 1 alone: +0.040 [-0.207, +0.202] z +0.37 MDE 0.300 n 32 blocks 32
+      week 2 alone: +0.131 [-0.035, +0.325] z +1.53 MDE 0.241 n 32 blocks 32
+      week 3 alone: -0.049 [-0.164, +0.059] z -0.89 MDE 0.153 n 32 blocks 32
+      week 4 alone: +0.127 [-0.001, +0.295] z +1.68 MDE 0.212 n 32 blocks 32
+  the gap: SD 1.22 wins, mean -0.02; week-to-week persistence r 0.93 (n 96)
+  BH q=0.10 over the 3 registered tests: p {T2a: 0.452, T3-P: 0.203, T3-D: 0.816} -> survivors none
+  one-week round trip on the model's side of the central rung (candle touch, taker both legs, 100 contracts): mid-to-mid +0.0257 [+0.0062, +0.0448] n 128 blocks 32; net -0.0250 [-0.0445, -0.0057] n 128 blocks 32; larger-gap half net -0.0279 [-0.0506, -0.0022] n 64 blocks 22; mean fee both legs 3.41c
+
+== Q4 what it costs to hold one
+  /series/KXNFLWINS (2026-10-08 06:08): fee_type quadratic multiplier 1; core.fees maker M 0 taker M 1
+  books: 544 rungs, fetched 2026-10-08 06:08 -> 2026-10-08 06:15 UTC (one overnight snapshot); two-sided 297, decided 128
+  undecided two-sided with spread <= 15c: 293; wider or degenerate: 4; undecided with a one-sided or empty book: 119
+  mid 0.00-0.10 (n 51): spread median 5c, touch YES/NO 5/600, OI median 6,441;  all-in cost over mid (c) | 100: YES 3.9 (100%) NO 3.2 (88%) | 500: YES 4.1 (100%) NO 3.4 (88%) | 1000: YES 6.9 (100%) NO 3.6 (35%)
+  mid 0.10-0.25 (n 45): spread median 4c, touch YES/NO 6/174, OI median 14,696;  all-in cost over mid (c) | 100: YES 5.1 (100%) NO 3.5 (100%) | 500: YES 5.9 (100%) NO 4.0 (100%) | 1000: YES 8.0 (100%) NO 4.5 (76%)
+  mid 0.25-0.75 (n 110): spread median 2c, touch YES/NO 45/100, OI median 24,189;  all-in cost over mid (c) | 100: YES 3.4 (100%) NO 3.2 (100%) | 500: YES 4.2 (100%) NO 4.0 (100%) | 1000: YES 5.1 (100%) NO 4.6 (100%)
+  mid 0.75-0.90 (n 37): spread median 5c, touch YES/NO 5/300, OI median 9,670;  all-in cost over mid (c) | 100: YES 4.3 (100%) NO 3.7 (100%) | 500: YES 5.6 (97%) NO 4.0 (100%) | 1000: YES 6.4 (84%) NO 5.0 (100%)
+  mid 0.90-1.00 (n 50): spread median 5c, touch YES/NO 5/600, OI median 6,042;  all-in cost over mid (c) | 100: YES 4.0 (92%) NO 3.4 (100%) | 500: YES 4.1 (90%) NO 3.5 (100%) | 1000: YES 4.0 (40%) NO 5.4 (100%)
+  candle spread at S_0: within 2 wins of the number median 2c (n 128); further out 4c (n 242) - two-sided rungs, no spread cap
+  candle spread at S_1: within 2 wins of the number median 2c (n 126); further out 7c (n 182) - two-sided rungs, no spread cap
+  candle spread at S_2: within 2 wins of the number median 1c (n 126); further out 4c (n 176) - two-sided rungs, no spread cap
+  candle spread at S_3: within 2 wins of the number median 1c (n 128); further out 1c (n 193) - two-sided rungs, no spread cap
+  candle spread at S_4: within 2 wins of the number median 1c (n 128); further out 2c (n 176) - two-sided rungs, no spread cap
+  contracts traded per rung over the last 7 days: median 461, p90 11,987, max 474,164; rungs with none 36%
+  CARRY: 102 days from the snapshot to the series close (2027-01-18 05:00 UTC)
+    price 0.20, alternative 4%/yr (ASSUMED, not measured): carry 0.22c per contract; taker fee one leg 1.12c, two legs 2.24c
+    price 0.20, alternative 0%/yr (ASSUMED, not measured): carry 0.00c per contract; taker fee one leg 1.12c, two legs 2.24c
+    price 0.50, alternative 4%/yr (ASSUMED, not measured): carry 0.56c per contract; taker fee one leg 1.75c, two legs 3.50c
+    price 0.50, alternative 0%/yr (ASSUMED, not measured): carry 0.00c per contract; taker fee one leg 1.75c, two legs 3.50c
+    price 0.80, alternative 4%/yr (ASSUMED, not measured): carry 0.89c per contract; taker fee one leg 1.12c, two legs 2.24c
+    price 0.80, alternative 0%/yr (ASSUMED, not measured): carry 0.00c per contract; taker fee one leg 1.12c, two legs 2.24c
+
+wrote research/results/win_total_drift.json

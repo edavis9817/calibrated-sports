@@ -1,10 +1,14 @@
+"""c-36 validation diagnostic (addendum 1). Read-only.
+
+    python research/c36_candle_diag_exact.py <market_log.db> <raw dir>
+"""
 import sys, sqlite3, numpy as np
 from collections import Counter
 sys.path.insert(0, ".")
 from research import win_total_drift as W
-c, nh, nd = W.load_candles("D:/calibrated-sports/data/research_raw/c36")
+c, nh, nd = W.load_candles(sys.argv[2])
 tape = W.Tape(c)
-con = W.ro("D:/calibrated-sports/data/market_log.db")
+con = W.ro(sys.argv[1])
 n_h = sorted(len(v["h"]) for v in c.values()); print("hourly per ticker: min/med/max", n_h[0], n_h[len(n_h)//2], n_h[-1], "zero:", sum(1 for x in n_h if x==0))
 for k in (3,4):
     T = W.S_OF[k]; why = Counter()

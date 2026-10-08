@@ -1,9 +1,13 @@
+"""c-36 validation diagnostic (addendum 1). Read-only.
+
+    python research/c36_candle_diag_carry.py <market_log.db> <raw dir>
+"""
 import sys, sqlite3, numpy as np, bisect
 from collections import Counter
 sys.path.insert(0, ".")
 from research import win_total_drift as W
-c, nh, nd = W.load_candles("D:/calibrated-sports/data/research_raw/c36")
-con = W.ro("D:/calibrated-sports/data/market_log.db")
+c, nh, nd = W.load_candles(sys.argv[2])
+con = W.ro(sys.argv[1])
 import datetime as dt
 Ts = {"S_3": W.S_OF[3], "S_4": W.S_OF[4], "S'_3": W.S_OF[3]+86400, "S'_4": W.S_OF[4]+86400, "Sat 10-03 20:00": W.utc(2026,10,3,20), "Mon 09-28 06:00": W.utc(2026,9,28,6)}
 for lab, T in Ts.items():
