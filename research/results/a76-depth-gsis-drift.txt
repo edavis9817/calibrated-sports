@@ -1,0 +1,40 @@
+
+== depth_charts_2025
+  pulls on disk 2, distinct contents 1: 2026-09-09 .. 2026-10-08
+  BYTE-IDENTICAL across the 2 pulls (sha256 14f74185b3c2): 554,215 rows, 221 snapshots, 0 rows rewritten between 2026-09-09 and 2026-10-08. Upstream did not rebuild the file in that window; whether it was rewritten before 2026-09-09 is not on disk.
+
+== depth_charts_2026
+  pulls on disk 30, distinct contents 30: 2026-09-09 .. 2026-10-08
+  first pull 2026-09-09 against last pull 2026-10-08
+    snapshots: older pull 173, newer pull 224, in both 173, in the older pull and gone from the newer 0
+    rows in those shared snapshots: older 507,605, newer 507,605, joined on the slot key 507,605; only older 0, only newer 0; duplicate slot keys older 0, newer 0
+    column           differ  null->value  value->null  value->other
+    player_name           0            0            0             0
+    espn_id               0            0            0             0
+    gsis_id           4,311        3,108          929           274
+    pos_grp               0            0            0             0
+    pos_name              0            0            0             0
+    pos_abb               0            0            0             0
+    pos_slot              0            0            0             0
+    gsis_id rewrites touch 138 of 173 shared snapshots, dt 2026-04-24T08:57:45Z .. 2026-09-09T12:06:21Z; 40 distinct espn_id, 25 teams
+      null->value    3,108 rows,   29 distinct espn_id,  130 snapshots
+      value->null      929 rows,    9 distinct espn_id,  136 snapshots
+      value->other     274 rows,    2 distinct espn_id,  138 snapshots
+    columns other than gsis_id with any differing row: none
+    inside the newer file alone: espn_id carrying more than one gsis_id (null counted) 0 of 3318; rows with espn_id null 0
+  each pull against the next (gsis_id only, shared snapshots only):
+    older       newer        shared  differ  null->value  value->null  value->other  other cols
+    2026-09-09  2026-09-10      173     623          358          265             0           0
+    2026-09-10  2026-09-11      174     956          469          487             0           0
+    2026-09-11  2026-09-12      175     196          134           62             0           0
+    2026-09-12  2026-09-13      176     240            0          240             0           0
+    2026-09-14  2026-09-15      178     399          115            0           284           0
+    2026-09-16  2026-09-17      180     234          234            0             0           0
+    2026-09-17  2026-09-18      182     125          125            0             0           0
+    2026-09-19  2026-09-20      186     401          401            0             0           0
+    2026-09-20  2026-09-21      188     111          111            0             0           0
+    2026-09-27  2026-09-28      202     309          309            0             0           0
+    2026-10-01  2026-10-02      210      90           90            0             0           0
+    2026-10-02  2026-10-03      212     439          439            0             0           0
+    2026-10-03  2026-10-04      214     450          450            0             0           0
+    sum over 29 steps: differ 4,573, null->value 3,235, value->null 1,054, value->other 284 (a row rewritten twice counts twice; steps not listed had no difference)

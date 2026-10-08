@@ -1,0 +1,22 @@
+== 1. fumbles lost: team row against two different player-row sums
+  team file: D:/temp/a64/stats_team_week_2026.parquet
+  player file: D:/calibrated-sports/data/raw\nflverse\2026-10-08\stats_player_week_2026.parquet
+  a-64's six team-games (team total | team typed sum | players total | players typed sum):
+    CLE wk1: 1 | 1 | 1 | 1
+    CLE wk2: 0 | 0 | 0 | 0
+    CLE wk3: 1 | 0 | 1 | 0  <- 1 against 0
+    PIT wk1: 1 | 1 | 1 | 1
+    PIT wk2: 1 | 1 | 1 | 1
+    PIT wk3: 0 | 0 | 0 | 0
+    CLE wk3 lost fumble is on Malachi Corley (WR): fumbles_lost_total 1, typed columns [0, 0, 0]
+  all seasons 1999-2026: 14,627 team-games; team total != players total on 6; team total != players typed sum on 1,432
+
+== 2. def_sacks: team row against the sum of player rows
+  14,659 team-games; team != sum of player rows on 99 (44 where the players sum is higher, 55 where it is lower)
+  by season: {1999: 10, 2000: 5, 2001: 11, 2002: 27, 2003: 4, 2004: 2, 2005: 4, 2006: 6, 2007: 4, 2008: 6, 2009: 8, 2010: 2, 2011: 2, 2012: 2, 2019: 4, 2020: 2}
+  season-weeks holding a difference: 44; netting to exactly zero inside the week: 44
+  the team row equals the OPPONENT's sacks_suffered on 98 of the 99 (all team-games: 14,423 of 14,659)
+  nameless player rows (player_display_name null): 595, ids {None: 534, '0': 42, '00-0017820': 10, '00-0005765': 4, '00-0005532': 3, '00-0016335': 1, 'XX-0000001': 1}; of them carrying def_sacks > 0: 46
+  over-credited team-games whose excess is exactly the nameless row's sacks: 44 of 44
+  over-credited team-games with a nameless sack row at all: 44 of 44
+  dropping the nameless rows instead: team != sum of NAMED player rows on 57 team-games (the sacks nobody is named for; they are in no named player's row)

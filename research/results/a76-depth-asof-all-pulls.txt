@@ -1,0 +1,34 @@
+store D:\scratch\a76\seq\market_log.db
+
+== depth chart 2025
+  stored 212,825 change-point rows over 221 recorded snapshots; data_version on the stored rows: 1 distinct, 2026-09-09 .. 2026-09-09; archived pulls 1 distinct (2026-09-09 .. 2026-09-09)
+  against the NEWEST pull, 2026-09-09: 554,215 published rows in 221 snapshots; rebuilt 554,215; slot keys only in the file 0, only in the rebuild 0
+    column            rows   differ  stored null, file value  stored value, file null  two different values  verdict
+    pos_slot       554,215        0                        0                        0                     0  reconstructs
+    espn_id        554,215        0                        0                        0                     0  reconstructs
+    gsis_id        554,215        0                        0                        0                     0  reconstructs
+    player_name    554,215      155                       72                        0                    83  DOES NOT reconstruct
+    pos_grp        554,215        0                        0                        0                     0  reconstructs
+    pos_name       554,215        0                        0                        0                     0  reconstructs
+    pos_abb        554,215        0                        0                        0                     0  reconstructs
+
+== depth chart 2026
+  stored 160,448 change-point rows over 224 recorded snapshots; data_version on the stored rows: 1 distinct, 2026-10-08 .. 2026-10-08; archived pulls 30 distinct (2026-09-09 .. 2026-10-08)
+  against the NEWEST pull, 2026-10-08: 622,339 published rows in 224 snapshots; rebuilt 622,339; slot keys only in the file 0, only in the rebuild 0
+    column            rows   differ  stored null, file value  stored value, file null  two different values  verdict
+    pos_slot       622,339        0                        0                        0                     0  reconstructs
+    espn_id        622,339        0                        0                        0                     0  reconstructs
+    gsis_id        622,339      929                        0                      929                     0  DOES NOT reconstruct
+    player_name    622,339      405                       34                        0                   371  DOES NOT reconstruct
+    pos_grp        622,339        0                        0                        0                     0  reconstructs
+    pos_name       622,339        0                        0                        0                     0  reconstructs
+    pos_abb        622,339       11                        0                        0                    11  DOES NOT reconstruct
+  against the OLDEST pull, 2026-09-09 (what this store could have known then): 507,605 published rows in 173 snapshots; rebuilt 507,605; slot keys only in the file 0, only in the rebuild 0
+    column            rows   differ  stored null, file value  stored value, file null  two different values  verdict
+    pos_slot       507,605        0                        0                        0                     0  reconstructs
+    espn_id        507,605        0                        0                        0                     0  reconstructs
+    gsis_id        507,605    3,382                        0                    3,108                   274  DOES NOT reconstruct
+    player_name    507,605      405                       34                        0                   371  DOES NOT reconstruct
+    pos_grp        507,605        0                        0                        0                     0  reconstructs
+    pos_name       507,605        0                        0                        0                     0  reconstructs
+    pos_abb        507,605        0                        0                        0                     0  reconstructs
