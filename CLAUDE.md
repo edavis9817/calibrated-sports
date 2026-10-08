@@ -1547,8 +1547,43 @@ brief 023 confirmed it against the book close in every season.
       links that changed. One rule (`map_row`) serves it and the weekly full pass.
       `python -m jobs.map_markets --pending` is the same pass by hand.
     - `analytics.staleness.check_mapped_rate` is the gate: per series, the share
-      of the current week's `KXNFLREC` / `KXNFLRSHATT` markets carrying an
-      outcome, RED under 0.95, with the week read from the ticker's own date.
+      of a week's `KXNFLREC` / `KXNFLRSHATT` markets that carried an outcome
+      **before their own kickoff**, RED under 0.95, with the week and the kickoff
+      read from the ticker's own date and teams against the schedule.
+    - **A MARKET HAS THREE STATES AND `unmapped_reason` RECORDS ONE OF THEM
+      (a-73).** `mapped` is a row with an outcome, `refused` is a row with a
+      reason, **`unexamined` is no `market_outcome` row at all**. The third has
+      nowhere to put a reason, so any census read from `market_outcome` is clean
+      during exactly this failure. `map_markets.state_census()` reads from
+      `markets`; `--coverage` and `--unmapped` print it (zero included) and no
+      longer open the store for writing; `staleness.check_unexamined` is RED per
+      venue when any market has gone 30 minutes with no row. The pending pass
+      takes every venue a mapper exists for, so `unexamined` means the pass has
+      not run and never "that venue is not on the timer".
+    - **"Mapped" is measured BEFORE KICKOFF, never at any time (a-73).** By the
+      Tuesday after, every market is mapped and the week reads healthy - that is
+      the reading that hid weeks 2 and 4. The gate reads the week being priced
+      AND the week just played (for 8 days), so a Tuesday reader sees
+      `KXNFLREC 2026 week 4: 78 of 1278 ... 1200 mapped only after kickoff`.
+    - **FIRST-MAPPED TIME IS `outcomes.created_ts`, AND ONLY FOR KALSHI PLAYER
+      PROPS.** `market_outcome.mapped_ts` is rewritten by every full pass.
+      `created_ts` survives a re-upsert through BOTH writers
+      (`tests/test_first_mapped.py`) and is the market's own first-mapped time
+      only where its venue creates the outcome. It is wrong for a game line, a
+      Polymarket market or a book line, and it breaks when outcomes are re-keyed:
+      every week-3 Kalshi spread outcome reads 2026-09-29 18:10Z.
+    - **THE DEPTH SERIES HAS HOLES AND THEY ARE PERMANENT:
+      `docs/findings/depth-series-holes.md`.** Depth is captured only for mapped
+      markets, so a `market_depth` row exists for 7.2% of week-2 and 7.5% of
+      week-4 Kalshi props (86.4% in week 3, 60.9% in week 1), and for **0 of 436
+      week-3 spreads** (cause not established). Candles carry no book. Any
+      depth-conditioned result over those weeks silently excludes them: print the
+      per-week denominator against `markets` beside the estimate.
+    - **The fix runs only where the logger runs it.** On 2026-10-08 the code was
+      on a branch and production was at `9518b1e`; week 5's props were mapped
+      by hand runs of `--pending`. Read `logger.log` for
+      `pending mapping: every 600s` before believing this section describes
+      production.
   - **When nflverse is late,** the export still runs,
     `manifest.current.stale` names the missing week, the log WARNs, and the next
     scheduled run picks the data up.

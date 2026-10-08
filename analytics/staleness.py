@@ -26,13 +26,17 @@ THREE CHECKS, AND WHAT EACH ONE CAN AND CANNOT SEE.
     and carries none this season; and a series that stopped - reported with
     the LAST NON-ZERO DATE, because "0" alone cannot say whether it has been 0
     for an hour or three weeks.
-    And the MAPPED RATE (a-68): the share of the current week's priority prop
-    markets that carry an outcome. Mapping ran three mornings a week while the
-    venue listed on Thursday afternoon, so 87 of 1,589 week-4 props had an
-    outcome before their own kickoff and nothing failed - a market nobody has
-    looked at has no reason row, so the reason census read clean throughout.
-    The denominator is therefore taken from `markets` and the TICKER'S OWN
-    DATE, never from anything the mapper wrote.
+    And the MAPPED RATE (a-68): the share of a week's priority prop markets
+    that carried an outcome BEFORE THEIR OWN KICKOFF (a-73: before kickoff,
+    not at any time - by the Tuesday after, every market is mapped and the
+    week reads healthy). Mapping ran three mornings a week while the venue
+    listed on Thursday afternoon, so 87 of 1,589 week-4 props had an outcome
+    before their own kickoff and nothing failed - a market nobody has looked
+    at has no reason row, so the reason census read clean throughout. The
+    denominator is therefore taken from `markets`, the TICKER'S OWN DATE and
+    the schedule, never from anything the mapper wrote; the week being priced
+    and the week just played are both read; and UNEXAMINED markets (no
+    `market_outcome` row at all) are counted per venue as their own item.
  3. COLLECTED AND UNREAD. Tables and archived datasets crossed against the
     committed code by AST: what is written and never read, what is read only
     off every publish path, and (one free GitHub call) what the upstream
@@ -639,9 +643,21 @@ MAPPING_GRACE_S = 1800
 # week's first kickoff, and RED after it: props list about 7h before the
 # Thursday game (measured 17:00Z against a 00:15Z kickoff, weeks 3 and 4).
 LISTED_BY_S = 4 * 3600
-_TICKER_DATE = re.compile(r"^(?P<series>[A-Z0-9]+)-(?P<yy>\d\d)(?P<mon>[A-Z]{3})(?P<dd>\d\d)")
+# The week just played stays in the gate this long after its last kickoff. The
+# current-week reading disappears when the week rolls, and a Tuesday read of
+# "everything is mapped" is exactly how weeks 2 and 4 passed for healthy
+# (a-67 read the table after that morning's full pass). Eight days is one
+# week of memory, so the offseason does not carry a January reading into July.
+PREVIOUS_WEEK_WITHIN_S = 8 * 86400
+_TICKER_DATE = re.compile(r"^(?P<series>[A-Z0-9]+)-(?P<yy>\d\d)(?P<mon>[A-Z]{3})(?P<dd>\d\d)"
+                          r"(?P<blob>[A-Z]*)")
 _MONTHS = {m: i + 1 for i, m in enumerate(
     ("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"))}
+# nflverse code -> the spellings Kalshi concatenates into a ticker. This
+# module's own table for the reason `ticker_day` has its own pattern.
+KALSHI_TEAM_FORMS = {"LA": ("LA", "LAR"), "JAX": ("JAX", "JAC"), "WAS": ("WAS", "WSH"),
+                     "LV": ("LV", "LVR")}
+UNEXAMINED = "(never looked at: no market_outcome row)"
 
 
 def ticker_day(ticker):
@@ -661,6 +677,36 @@ def ticker_day(ticker):
     return m.group("series"), d.timestamp()
 
 
+def ticker_game(ticker):
+    """(gameday 'YYYY-MM-DD', team blob) from a ticker, or None. The date in a
+    ticker is the game's LOCAL day, which is `nfl_games.gameday`."""
+    m = _TICKER_DATE.match(ticker or "")
+    if not m or m.group("mon") not in _MONTHS or not m.group("blob"):
+        return None
+    return ("20%s-%02d-%s" % (m.group("yy"), _MONTHS[m.group("mon")], m.group("dd")),
+            m.group("blob"))
+
+
+def game_schedule(market_log, season):
+    """({(gameday, blob): (week, kickoff_ts)}, {week: (first, last)}).
+
+    Every spelling of the two codes, away then home - the order Kalshi writes.
+    This is how an UNMAPPED market gets a kickoff: through the schedule, never
+    through the mapping it does not have.
+    """
+    sched, weeks = {}, {}
+    for week, gameday, home, away, kick in query(
+            market_log, "SELECT week, gameday, home_team, away_team, MAX(kickoff_ts) "
+                        "FROM nfl_games WHERE sport='nfl' AND season=? "
+                        "AND kickoff_ts IS NOT NULL GROUP BY game_id", (season,)):
+        first, last = weeks.get(week, (kick, kick))
+        weeks[week] = (min(first, kick), max(last, kick))
+        for a in KALSHI_TEAM_FORMS.get(away, (away,)):
+            for h in KALSHI_TEAM_FORMS.get(home, (home,)):
+                sched[(gameday, "%s%s" % (a, h))] = (week, kick)
+    return sched, weeks
+
+
 def current_week(market_log, now, grace_hours=None):
     """(season, week, first_kickoff, last_kickoff) of the week being priced:
     the first week whose final kickoff plus the grace is still ahead."""
@@ -676,95 +722,206 @@ def current_week(market_log, now, grace_hours=None):
 
 
 def check_mapped_rate(stores, now, floor=None, grace_s=None):
-    """Share of the current week's priority prop markets carrying an outcome.
+    """Share of a week's priority prop markets that carried an outcome BEFORE
+    THEIR OWN KICKOFF. Per series, RED below the floor.
 
-    Per series, RED below the floor. A market with no `market_outcome` row and
-    one with a row and no outcome both count against the rate and are reported
-    apart, because they are different defects: the first is the mapper not
-    having run, the second is the mapper refusing.
+    Before kickoff, not at any time (a-73). "Mapped today" is true of every
+    market by the Tuesday after, which is how weeks 2 and 4 read as healthy
+    with 6% of their props mapped in time: a market mapped after its game is
+    worth nothing to depth capture, the Board or the kickoff tiers. So for a
+    game that has kicked off, a market counts only if its outcome existed
+    before the kickoff; for a game still ahead, being mapped now is being in
+    time. Two weeks are read: the one being priced, and the one just played
+    (for PREVIOUS_WEEK_WITHIN_S), because the first reading vanishes when the
+    week rolls and the second is what a Tuesday reader needs.
+
+    RELIES ON `outcomes.created_ts` AS THE TIME A MARKET WAS FIRST MAPPED.
+    `market_outcome.mapped_ts` cannot say it: every full pass rewrites it.
+    `created_ts` is written once and survives a re-upsert, and it is the
+    market's own first-mapped time only where the market's venue is the one
+    that creates the outcome - true of Kalshi player props, which is all this
+    reads (Polymarket and the books link to player outcomes, never create).
+
+    Reported apart, because they are different defects: `late` is mapped after
+    kickoff (the cadence failure), `no_row` is the mapper not having looked,
+    `refused` is the mapper saying no.
     """
     floor = MAPPED_RATE_FLOOR if floor is None else floor
     grace_s = MAPPING_GRACE_S if grace_s is None else grace_s
     path = stores.get("market_log.db")
     if path is None:
         return [Item("emptiness", "mapped_rate", ERROR, "market_log.db not found: mapped rate not read")]
-    wk = current_week(path, now)
-    if wk is None:
-        return [Item("emptiness", "mapped_rate", SKIPPED,
-                     "no week ahead in the %d schedule: there is no current slate to map"
-                     % current_season(now))]
-    season, week, first, last = wk
+    season = current_season(now)
+    sched, weeks = game_schedule(path, season)
+    cur = current_week(path, now)
+    out = []
+    targets = {}                                   # week -> is it the one being priced
+    if cur is None:
+        out.append(Item("emptiness", "mapped_rate", SKIPPED,
+                        "no week ahead in the %d schedule: there is no current slate to map" % season))
+    else:
+        targets[cur[1]] = True
+    played = [w for w, (_, last) in weeks.items()
+              if last + GRACE_HOURS * 3600 <= now and now - last <= PREVIOUS_WEEK_WITHIN_S]
+    if played:
+        targets.setdefault(max(played), False)
+    if not targets:
+        return out
     like = " OR ".join("m.market_id LIKE ?" for _ in PRIORITY_PROP_SERIES)
     rows = query(path, "SELECT m.market_id, m.first_seen, mo.market_id IS NOT NULL, "
-                       "mo.outcome_id IS NOT NULL, mo.unmapped_reason "
+                       "mo.outcome_id IS NOT NULL, mo.unmapped_reason, o.created_ts "
                        "FROM markets m LEFT JOIN market_outcome mo "
                        "ON mo.venue = m.venue AND mo.market_id = m.market_id "
+                       "LEFT JOIN outcomes o ON o.outcome_id = mo.outcome_id "
                        "WHERE m.venue = 'kalshi' AND (%s)" % like,
                  tuple(s + "-%" for s in PRIORITY_PROP_SERIES))
-    # a ticker's date is the game's local day; a night kickoff is the next day in UTC
-    lo, hi = first - 36 * 3600, last
-    per = {s: {"n": 0, "mapped": 0, "no_row": 0, "refused": 0, "young": 0,
-               "oldest": None, "reasons": {}} for s in PRIORITY_PROP_SERIES}
-    undated = []
-    for mid, seen, has_row, mapped, reason in rows:
+    per = {(w, s): {"n": 0, "in_time": 0, "late": 0, "no_row": 0, "refused": 0, "young": 0,
+                    "listed_late": 0, "oldest": None, "reasons": {}}
+           for w in targets for s in PRIORITY_PROP_SERIES}
+    undated, unplaced = [], []
+    for mid, seen, has_row, mapped, reason, created in rows:
         td = ticker_day(mid)
-        if td is None or td[0] not in per:
+        if td is None or td[0] not in PRIORITY_PROP_SERIES:
             undated.append(mid)
             continue
-        if not lo <= td[1] <= hi:
+        hit = sched.get(ticker_game(mid) or ())
+        if hit is None:
+            # a ticker's date is the game's local day; a night kickoff is the next day in UTC
+            if any(weeks[w][0] - 36 * 3600 <= td[1] <= weeks[w][1] for w in targets):
+                unplaced.append(mid)
             continue
-        c = per[td[0]]
-        if not mapped and seen is not None and now - seen < grace_s:
-            c["young"] += 1
+        week, kick = hit
+        if week not in targets:
             continue
-        c["n"] += 1
-        if mapped:
-            c["mapped"] += 1
-            continue
-        c["no_row" if not has_row else "refused"] += 1
-        c["oldest"] = seen if c["oldest"] is None or (seen or now) < c["oldest"] else c["oldest"]
-        key = "(never looked at: no market_outcome row)" if not has_row else (reason or "?")[:60]
-        c["reasons"][key] = c["reasons"].get(key, 0) + 1
-    out = []
+        c = per[(week, td[0])]
+        if kick <= now:
+            # the game is under way or over: only an outcome that existed
+            # before the kickoff was any use to it
+            if seen is None or seen > kick - grace_s:
+                c["listed_late"] += 1       # listed too late to have been mapped in time
+                continue
+            c["n"] += 1
+            if mapped and created is not None and created < kick:
+                c["in_time"] += 1
+                continue
+            key = ("late" if mapped and created is not None else
+                   "no_row" if not has_row else "refused")
+            why = ("(mapped only after kickoff)" if key == "late" else UNEXAMINED if key == "no_row"
+                   else (reason or "(outcome_id with no outcomes row)")[:60])
+        else:
+            if not mapped and seen is not None and now - seen < grace_s:
+                c["young"] += 1
+                continue
+            c["n"] += 1
+            if mapped:
+                c["in_time"] += 1
+                continue
+            key = "no_row" if not has_row else "refused"
+            why = UNEXAMINED if key == "no_row" else (reason or "?")[:60]
+        c[key] += 1
+        if key != "late":
+            c["oldest"] = seen if c["oldest"] is None or (seen or now) < c["oldest"] else c["oldest"]
+        c["reasons"][why] = c["reasons"].get(why, 0) + 1
     if undated:
         out.append(Item("emptiness", "mapped_rate:undated", RED,
                         "%d priority prop ticker(s) carry no readable game date, so they are in "
                         "no week's rate (first: %s)" % (len(undated), undated[0]),
                         {"tickers": undated[:20]}))
-    where = "%d week %d" % (season, week)
-    for s in PRIORITY_PROP_SERIES:
-        c = per[s]
-        key = "mapped_rate:kalshi:%s" % s
-        detail = dict(c, season=season, week=week, floor=floor)
-        if c["n"] == 0:
-            if now >= first - LISTED_BY_S:
-                out.append(Item("emptiness", key, RED,
-                                "%s has NO %s market listed for %s and its first kickoff is %s "
-                                "UTC: nothing to map is a discovery failure, not a pass"
-                                % ("kalshi", s, where, dt.datetime.fromtimestamp(
-                                    first, dt.timezone.utc).strftime("%Y-%m-%d %H:%M")), detail))
-            else:
-                out.append(Item("emptiness", key, SKIPPED,
-                                "no %s market listed yet for %s (%d under %d min old): no rate "
-                                "to read, which is not a pass" % (s, where, c["young"], grace_s // 60),
-                                detail))
-            continue
-        rate = c["mapped"] / c["n"]
-        detail["rate"] = round(rate, 4)
-        if rate < floor:
+    if unplaced:
+        out.append(Item("emptiness", "mapped_rate:unplaced", RED,
+                        "%d priority prop ticker(s) dated inside a week under test match no game in "
+                        "the schedule, so they have no kickoff and are in no rate (first: %s)"
+                        % (len(unplaced), unplaced[0]), {"tickers": unplaced[:20]}))
+    for week in sorted(targets, reverse=True):
+        pricing = targets[week]
+        first = weeks[week][0]
+        where = "%d week %d" % (season, week)
+        for s in PRIORITY_PROP_SERIES:
+            c = per[(week, s)]
+            key = "mapped_rate:kalshi:%s" % s if pricing else "mapped_rate:kalshi:%s:%dw%02d" % (s, season, week)
+            detail = dict(c, season=season, week=week, floor=floor, pricing=pricing)
+            if c["n"] == 0:
+                if now >= first - LISTED_BY_S:
+                    out.append(Item("emptiness", key, RED,
+                                    "%s has NO %s market listed for %s and its first kickoff is %s "
+                                    "UTC: nothing to map is a discovery failure, not a pass"
+                                    % ("kalshi", s, where, dt.datetime.fromtimestamp(
+                                        first, dt.timezone.utc).strftime("%Y-%m-%d %H:%M")), detail))
+                else:
+                    out.append(Item("emptiness", key, SKIPPED,
+                                    "no %s market listed yet for %s (%d under %d min old): no rate "
+                                    "to read, which is not a pass" % (s, where, c["young"], grace_s // 60),
+                                    detail))
+                continue
+            rate = c["in_time"] / c["n"]
+            detail["rate"] = round(rate, 4)
+            head = ("%s %s: %d of %d listed markets carried an outcome before their own kickoff "
+                    "(%.3f, floor %.2f)" % (s, where, c["in_time"], c["n"], rate, floor))
+            if rate >= floor:
+                out.append(Item("emptiness", key, OK, head, detail))
+                continue
             top = max(c["reasons"].items(), key=lambda kv: kv[1])
+            tail = "" if pricing else (" - week %d is played: this is a hole in what was captured "
+                                       "for it, not something a re-run fills" % week)
             out.append(Item("emptiness", key, RED,
-                            "%s %s: %d of %d listed markets carry an outcome (%.3f, floor %.2f); "
-                            "%d never looked at, %d refused; oldest unmapped listed %s UTC; "
-                            "most common: %s (%d)"
-                            % (s, where, c["mapped"], c["n"], rate, floor, c["no_row"], c["refused"],
-                               dt.datetime.fromtimestamp(c["oldest"], dt.timezone.utc)
-                               .strftime("%Y-%m-%d %H:%M") if c["oldest"] else "?",
-                               top[0], top[1]), detail))
+                            "%s; %d mapped only after kickoff, %d never looked at, %d refused; "
+                            "%smost common: %s (%d)%s"
+                            % (head, c["late"], c["no_row"], c["refused"],
+                               "oldest unmapped listed %s UTC; " % dt.datetime.fromtimestamp(
+                                   c["oldest"], dt.timezone.utc).strftime("%Y-%m-%d %H:%M")
+                               if c["oldest"] else "", top[0], top[1], tail), detail))
+    return out
+
+
+# The first run of the fix leaves nothing on any venue unexamined (the pending
+# pass takes every venue discovery writes), so ANY market still without a row
+# after the grace is the pass not running - on any venue, in any series.
+def check_unexamined(stores, now, grace_s=None):
+    """Markets the mapper has never looked at: listed, and no `market_outcome`
+    row at all.
+
+    The state a census of `unmapped_reason` cannot show, because there is no
+    row for the reason to be on - which is what kept a four-week mapping
+    outage out of every reason list (a-68, a-73). Read from `markets`, per
+    venue, RED when any is older than the grace. `check_mapped_rate` covers two
+    series of one venue; this covers every market discovery has written.
+    """
+    grace_s = MAPPING_GRACE_S if grace_s is None else grace_s
+    path = stores.get("market_log.db")
+    if path is None:
+        return [Item("emptiness", "unexamined", ERROR, "market_log.db not found: unexamined markets not read")]
+    rows = query(path, "SELECT m.venue, COUNT(*), SUM(mo.market_id IS NULL), "
+                       "SUM(mo.market_id IS NULL AND m.first_seen <= ?), "
+                       "MIN(CASE WHEN mo.market_id IS NULL THEN m.first_seen END) "
+                       "FROM markets m LEFT JOIN market_outcome mo "
+                       "ON mo.venue = m.venue AND mo.market_id = m.market_id "
+                       "GROUP BY m.venue", (now - grace_s,))
+    if not rows:
+        return [Item("emptiness", "unexamined", SKIPPED,
+                     "markets is empty: there is nothing to have examined, which is not a pass")]
+    by = {}
+    for venue, n, never, stale, oldest in rows:
+        v = by.setdefault(venue.split(":")[0], {"listed": 0, "unexamined": 0, "stale": 0, "oldest": None})
+        v["listed"] += n
+        v["unexamined"] += never or 0
+        v["stale"] += stale or 0
+        if oldest is not None and (v["oldest"] is None or oldest < v["oldest"]):
+            v["oldest"] = oldest
+    out = []
+    for venue in sorted(by):
+        v = by[venue]
+        if v["stale"]:
+            out.append(Item("emptiness", "unexamined:%s" % venue, RED,
+                            "%d of %d %s markets have NO market_outcome row and were listed over "
+                            "%d min ago (oldest %s UTC): the mapper has not looked at them, so no "
+                            "reason census counts them"
+                            % (v["stale"], v["listed"], venue, grace_s // 60,
+                               dt.datetime.fromtimestamp(v["oldest"], dt.timezone.utc)
+                               .strftime("%Y-%m-%d %H:%M")), v))
         else:
-            out.append(Item("emptiness", key, OK,
-                            "%s %s: %d of %d listed markets carry an outcome (%.3f, floor %.2f)"
-                            % (s, where, c["mapped"], c["n"], rate, floor), detail))
+            out.append(Item("emptiness", "unexamined:%s" % venue, OK,
+                            "%s: 0 of %d markets unexamined past %d min (%d listed inside it)"
+                            % (venue, v["listed"], grace_s // 60, v["unexamined"]), v))
     return out
 
 
@@ -1128,6 +1285,7 @@ def run(store_dir, root, now=None, offline=False, quick=False, strict=False,
     items += _guard("emptiness", check_sport_partitions, stores)
     items += _guard("emptiness", check_series, stores, now, quick=quick)
     items += _guard("emptiness", check_mapped_rate, stores, now)
+    items += _guard("emptiness", check_unexamined, stores, now)
     mods, unparsed = scan_code(root)
     closure, entries = publish_closure(root, mods)
     if unparsed or not entries:

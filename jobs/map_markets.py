@@ -8,10 +8,20 @@
     python -m jobs.map_markets --venue polymarket   # player props LINK only (a-60)
     python -m jobs.map_markets --pending       # only what is not mapped yet (a-68)
 
-EVERY market gets a market_outcome row. A market that could not be resolved is
-recorded WITH ITS REASON, never dropped: a coverage number computed over the
-markets you managed to parse is not a coverage number, and the unmapped list
-grouped by reason is the queue that tells you which mapper to improve next.
+EVERY market THE MAPPER HAS LOOKED AT gets a market_outcome row. A market that
+could not be resolved is recorded WITH ITS REASON, never dropped: a coverage
+number computed over the markets you managed to parse is not a coverage
+number, and the unmapped list grouped by reason is the queue that tells you
+which mapper to improve next.
+
+A MARKET HAS THREE STATES, NOT TWO (a-73). `mapped` is a row with an outcome,
+`refused` is a row with a reason, and `unexamined` is NO ROW AT ALL - listed by
+discovery and never handed to a mapper. The third state has no
+`unmapped_reason` to count, so a census read from `market_outcome` alone shows
+nothing during exactly the failure a-68 describes below: four weeks of it read
+as a clean reason list. `state_census()` is the one reader that starts from
+`markets`, and `--coverage` and `--unmapped` both print it; neither opens the
+store for writing.
 
 MAPPING RUNS ON THE LISTING'S CLOCK, NOT THE WEEK'S (a-68). The full pass above
 ran only inside `jobs.weekly_refresh`, at 13:00Z on Tuesday, Wednesday and
@@ -120,11 +130,58 @@ def run(venue=None, limit=None, create_book_outcomes=False,
     return {"stats": stats, "reasons": reasons}
 
 
+# --- the three states (a-73) --------------------------------------------------
+# The label an unexamined market carries wherever reasons are listed. It is not
+# stored: an unexamined market is defined by having no row to store it in.
+UNEXAMINED = "(never examined: no market_outcome row)"
+
+
+def state_census(con=None, now=None, older_than=0.0):
+    """Per (venue, market_type): listed, mapped, refused, unexamined.
+
+    Read from `markets` LEFT JOIN `market_outcome`, because the third state is
+    the absence of a row and no query over `market_outcome` can return it.
+    `stale` counts the unexamined markets first seen more than `older_than`
+    seconds ago - the ones a running pending pass should already have reached -
+    and `oldest` is the earliest `first_seen` among all the unexamined.
+    """
+    own = con is None
+    if own:
+        con = sqlite3.connect(f"file:{config.DB_PATH}?mode=ro", uri=True)
+    now = time.time() if now is None else now
+    try:
+        rows = con.execute("""
+            SELECT m.venue, m.market_type, COUNT(*),
+                   SUM(mo.outcome_id IS NOT NULL),
+                   SUM(mo.market_id IS NOT NULL AND mo.outcome_id IS NULL),
+                   SUM(mo.market_id IS NULL),
+                   SUM(mo.market_id IS NULL AND m.first_seen <= ?),
+                   MIN(CASE WHEN mo.market_id IS NULL THEN m.first_seen END)
+              FROM markets m
+              LEFT JOIN market_outcome mo
+                ON mo.venue = m.venue AND mo.market_id = m.market_id
+             GROUP BY m.venue, m.market_type
+             ORDER BY m.venue, COUNT(*) DESC""", (now - older_than,)).fetchall()
+    finally:
+        if own:
+            con.close()
+    return [{"venue": v, "market_type": t, "listed": n, "mapped": a or 0,
+             "refused": b or 0, "unexamined": c or 0, "stale": d or 0, "oldest": o}
+            for v, t, n, a, b, c, d, o in rows]
+
+
+def _utc(ts):
+    return time.strftime("%Y-%m-%d %H:%M", time.gmtime(ts)) if ts else "-"
+
+
 # --- the pending pass (a-68) --------------------------------------------------
 # Kalshi BEFORE Polymarket BEFORE the books, for the reason the full pass runs
 # them in that order: a Polymarket player line and a book line only ever LINK
 # to an outcome an exchange rung created.
-PENDING_VENUES = ("kalshi", "polymarket")
+# `oddsapi` (the game events, every one refused by design) rides last so that
+# a pass leaves NO venue's market unexamined: "unexamined" then means the pass
+# has not run, and never "this venue is not on the timer" (a-73).
+PENDING_VENUES = ("kalshi", "polymarket", "oddsapi")
 # An unmapped row is looked at again only when its reason says "the claim is
 # known and its outcome does not exist YET" and the venue still lists it. Every
 # other reason is a property of the market and re-reading it changes nothing.
@@ -198,6 +255,9 @@ def run_pending(venues=None, book_props=True, now=None) -> dict:
     if book_props:
         for k, n in run_book_props_pending(now)["census"].items():
             stats[f"oddsapi_props:{k}"] += n
+    # What this pass did NOT reach, read back rather than assumed: nonzero is a
+    # market discovery listed while the pass ran, or a venue it was not given.
+    stats["unexamined_left"] = sum(r["unexamined"] for r in state_census())
     stats["elapsed"] = round(time.time() - t0, 1)
     errors = sum(n for k, n in stats.items() if k.endswith(":error"))
     store.record_health("mapping_pending", errors == 0,
@@ -285,28 +345,24 @@ def run_book_props(create=False, event_ids=None) -> dict:
 def coverage():
     """Per venue and per market type, printed. The acceptance number."""
     con = sqlite3.connect(f"file:{config.DB_PATH}?mode=ro", uri=True)
-    rows = con.execute("""
-        SELECT m.venue, m.market_type,
-               COUNT(*)                                   AS n,
-               SUM(mo.outcome_id IS NOT NULL)             AS mapped
-          FROM markets m
-          LEFT JOIN market_outcome mo
-            ON mo.venue = m.venue AND mo.market_id = m.market_id
-         GROUP BY m.venue, m.market_type
-         ORDER BY m.venue, n DESC
-    """).fetchall()
-    print(f"{'venue':<12} {'market_type':<12} {'markets':>8} {'mapped':>8} {'cov':>7}")
+    rows = state_census(con)
+    print(f"{'venue':<12} {'market_type':<12} {'markets':>8} {'mapped':>8} {'cov':>7} "
+          f"{'refused':>8} {'unexamined':>10}")
     tot = Counter()
-    for venue, mtype, n, mapped in rows:
-        mapped = mapped or 0
+    for r in rows:
+        venue, n, mapped = r["venue"], r["listed"], r["mapped"]
         tot[venue] += n
         tot[venue + ":m"] += mapped
-        print(f"{venue:<12} {str(mtype):<12} {n:>8,} {mapped:>8,} "
-              f"{mapped/n if n else 0:>7.1%}")
+        tot[venue + ":r"] += r["refused"]
+        tot[venue + ":u"] += r["unexamined"]
+        print(f"{venue:<12} {str(r['market_type']):<12} {n:>8,} {mapped:>8,} "
+              f"{mapped/n if n else 0:>7.1%} {r['refused']:>8,} {r['unexamined']:>10,}")
     print()
-    for venue in sorted({v for v, _, _, _ in rows}):
+    for venue in sorted({r["venue"] for r in rows}):
         n, m = tot[venue], tot[venue + ":m"]
-        print(f"{venue:<12} {'TOTAL':<12} {n:>8,} {m:>8,} {m/n if n else 0:>7.1%}")
+        print(f"{venue:<12} {'TOTAL':<12} {n:>8,} {m:>8,} {m/n if n else 0:>7.1%} "
+              f"{tot[venue + ':r']:>8,} {tot[venue + ':u']:>10,}")
+    print_unexamined(rows)
 
     n_out = con.execute("SELECT COUNT(*) FROM outcomes").fetchone()[0]
     shared = con.execute("""
@@ -321,9 +377,27 @@ def coverage():
     con.close()
 
 
+def print_unexamined(rows):
+    """The third state, always printed - zero included, because a line that
+    reads 0 most days is what makes the day it reads 1,400 visible."""
+    n = sum(r["unexamined"] for r in rows)
+    print(f"\nunexamined (no market_outcome row, so in NO reason census): {n:,}")
+    for r in rows:
+        if r["unexamined"]:
+            print(f"  {r['unexamined']:>6,}  {r['venue']} {r['market_type']}, "
+                  f"oldest listed {_utc(r['oldest'])} UTC")
+
+
 def unmapped(n=20):
     con = sqlite3.connect(f"file:{config.DB_PATH}?mode=ro", uri=True)
-    print("unmapped by reason:")
+    # FIRST, and from `markets`: the reasons below are read from market_outcome
+    # and cannot contain a market nobody has looked at.
+    census = state_census(con)
+    print_unexamined(census)
+    never = sum(r["unexamined"] for r in census)
+    print("\nunmapped by reason:")
+    if never:
+        print(f"  {never:>6,}  {UNEXAMINED}")
     for reason, c in con.execute("""
             SELECT unmapped_reason, COUNT(*) c FROM market_outcome
              WHERE outcome_id IS NULL GROUP BY 1 ORDER BY c DESC LIMIT 12"""):
@@ -357,7 +431,9 @@ def main():
                          "then settle into the PUBLISHED prop history (a-60)")
     args = ap.parse_args()
 
-    store.init_db()
+    # The two reports open the store read-only and must stay that way: they
+    # ran `init_db` first, which opens it for writing - a report-only flag that
+    # was not report-only (relay ledger, 2026-09-22).
     if args.coverage:
         coverage()
         return
@@ -365,6 +441,7 @@ def main():
         unmapped(args.unmapped)
         return
 
+    store.init_db()
     if args.pending:
         res = run_pending((args.venue,) if args.venue else None,
                           book_props=args.venue is None)

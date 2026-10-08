@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import time
 import textwrap
 
 import pytest
@@ -45,11 +46,18 @@ def world(tmp_path, pace_weeks=(1, 2, 3), spine_pull="2026-10-05", metric_ts=NOW
     store.mkdir(parents=True)
     (root / "jobs").mkdir(parents=True)
     (root / "analytics").mkdir()
-    games = [("nfl", "g%d_%d" % (s, w), "v1", s, w, kick(w) - (SEASON - s) * 364 * DAY, 20 if (s, w) <= (SEASON, 4) else None)
+    games = [("nfl", "g%d_%d" % (s, w), "v1", s, w, kick(w) - (SEASON - s) * 364 * DAY, 20 if (s, w) <= (SEASON, 4) else None,
+              # a-73: the game's local day and teams, which is how a ticker finds its kickoff
+              time.strftime("%Y-%m-%d", time.gmtime(kick(w) - (SEASON - s) * 364 * DAY - 4 * 3600)), "JAX", "KC")
              for s in (2025, 2026) for w in range(1, 7)]
+    # the week being priced (4, kicked off three hours ago) and the week just played (3)
+    props = [("%s-%sKCJAX-P%d" % (s, d, i), w, i)
+             for s in ("KXNFLREC", "KXNFLRSHATT") for d, w in (("26OCT05", 4), ("26SEP28", 3))
+             for i in range(4)]
     pw = [("nfl", "p1", s, w, 5 if s == 2025 else targets_2026) for s in (2025, 2026) for w in range(1, 5)]
     db(str(store / "market_log.db"), """
-        CREATE TABLE nfl_games (sport, game_id, data_version, season, week, kickoff_ts, home_score);
+        CREATE TABLE nfl_games (sport, game_id, data_version, season, week, kickoff_ts, home_score,
+                                gameday, home_team, away_team);
         CREATE TABLE nfl_player_week (sport, gsis_id, season, week, targets);
         CREATE TABLE nflverse_versions (dataset, season, data_version);
         CREATE TABLE source_health (source, ok, detail, updated_ts);
@@ -58,15 +66,17 @@ def world(tmp_path, pace_weeks=(1, 2, 3), spine_pull="2026-10-05", metric_ts=NOW
         CREATE TABLE market_depth (ts, venue, market_id);
         CREATE TABLE markets (venue, market_id, market_type, first_seen);
         CREATE TABLE market_outcome (venue, market_id, outcome_id, unmapped_reason);
+        CREATE TABLE outcomes (outcome_id, created_ts);
         """, [
-        # a-68: the current week's priority props, four rungs per series, listed two days ago
+        # a-68: the week's priority props, four rungs per series, listed two days
+        # before their kickoff; a-73: each outcome created a day before it
         ("INSERT INTO markets VALUES (?,?,?,?)",
-         [("kalshi", "%s-26OCT05KCJAX-P%d" % (s, i), "prop", NOW - 2 * DAY)
-          for s in ("KXNFLREC", "KXNFLRSHATT") for i in range(4)]),
+         [("kalshi", m, "prop", kick(w) - 2 * DAY) for m, w, _ in props]),
         ("INSERT INTO market_outcome VALUES (?,?,?,?)",
-         [("kalshi", "%s-26OCT05KCJAX-P%d" % (s, i), "o%d" % i, None)
-          for s in ("KXNFLREC", "KXNFLRSHATT") for i in range(props_mapped)]),
-        ("INSERT INTO nfl_games VALUES (?,?,?,?,?,?,?)", games),
+         [("kalshi", m, "o-" + m, None) for m, w, i in props if w == 3 or i < props_mapped]),
+        ("INSERT INTO outcomes VALUES (?,?)",
+         [("o-" + m, kick(w) - DAY) for m, w, i in props if w == 3 or i < props_mapped]),
+        ("INSERT INTO nfl_games VALUES (?,?,?,?,?,?,?,?,?,?)", games),
         ("INSERT INTO nfl_player_week VALUES (?,?,?,?,?)", pw),
         ("INSERT INTO nflverse_versions VALUES (?,?,?)",
          [("pbp", 2026, "2026-10-05"), ("pbp", 2025, "2026-09-09"), ("depth_charts", 2026, "2026-10-05")]),
@@ -117,7 +127,7 @@ def world(tmp_path, pace_weeks=(1, 2, 3), spine_pull="2026-10-05", metric_ts=NOW
             Q = ["SELECT * FROM nfl_games JOIN nfl_player_week", "SELECT 1 FROM nflverse_versions",
                  "SELECT 1 FROM source_health", "SELECT 1 FROM raw_shards", "SELECT 1 FROM poll_log",
                  "SELECT 1 FROM market_depth", "SELECT 1 FROM weather_at_kickoff",
-                 "SELECT 1 FROM markets JOIN market_outcome",
+                 "SELECT 1 FROM markets JOIN market_outcome JOIN outcomes",
                  "SELECT 1 FROM feeds_raw_files", "SELECT 1 FROM injury_reports", "SELECT 1 FROM f_spine_build", "SELECT 1 FROM f_ngs_build",
                  "SELECT 1 FROM f_onfield_build", "SELECT 1 FROM f_pbp_files", "SELECT 1 FROM f_metrics"]
             """ + ('PARSED = "depth_charts_{season}.parquet"' if parser else "")),
