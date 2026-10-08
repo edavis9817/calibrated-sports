@@ -812,9 +812,27 @@
           "type": "array",
           "items": {"$ref": "#/$defs/MetricEntry"}
         },
-        "denominators": {"$ref": "#/$defs/Denominators"}
+        "denominators": {"$ref": "#/$defs/Denominators"},
+        "absences": {
+          "description": "WHAT THIS SPORT CANNOT ANSWER, AND WHY (a-72). One entry per place in this sport's files where a null, an empty list or an empty map is a DECLARED absence rather than a missing value. The templates are shared across sports, so a field one sport fills is a field another may be unable to: without this list a reader sees only the null and has to guess whether it means not collected, not published or not applicable - and a guessed empty state is a hand-written claim. OPTIONAL: absent means this producer declares none, which is a different statement from an empty list. A producer never OMITS a required key to say a thing is missing; it publishes the key empty and names it here.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/DeclaredAbsence"}
+        }
       },
       "required": ["schema_version", "generated_at", "kind", "sport", "name", "period_type", "current", "seasons", "stat_definitions", "market_definitions", "scoring_presets", "scoring_note", "teams", "team_colors", "counts", "unresolved_ids"],
+      "additionalProperties": false
+    },
+
+    "DeclaredAbsence": {
+      "description": "One declared absence. `path` is `{kind}.{dotted path}` into a file of that kind, with `[]` for every element of an array; a path beginning `stats.` names a stat key wherever a Stats map carries it. `state` says which of four different facts the emptiness is - they are not interchangeable and a page words them differently: `not_collected` (no source records it), `not_published` (it could exist and this producer does not publish it), `not_applicable` (the sport has no such thing), `partial` (recorded for some rows and null for the rest; the reason says which). `reason` is one sentence a page may render verbatim. `limitation` is the producer's own id for the limitation behind it, or null.",
+      "type": "object",
+      "properties": {
+        "path": {"type": "string"},
+        "state": {"enum": ["not_collected", "not_published", "not_applicable", "partial"]},
+        "reason": {"type": "string", "minLength": 10},
+        "limitation": {"type": ["string", "null"]}
+      },
+      "required": ["path", "state", "reason", "limitation"],
       "additionalProperties": false
     },
 

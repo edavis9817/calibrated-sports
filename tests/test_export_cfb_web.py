@@ -76,8 +76,10 @@ def test_the_export_validates_against_the_real_contract(store):
     X.assert_stats_defined(files, files["cfb/manifest.json"]["stat_definitions"])
     # EXACTLY the cfb/ tree. `sports.json` is track A's key (c-05): two builders of one
     # key ping-pong it on every upload.
+    # a-72: plus the one player in scope - a summary and a file per season he played.
     assert set(files) == {"cfb/manifest.json", "cfb/players/index.json",
-                          "cfb/teams/alpha-state-aces.json", "cfb/teams/beta-tech-bears.json"}
+                          "cfb/teams/alpha-state-aces.json", "cfb/teams/beta-tech-bears.json",
+                          "cfb/players/10/summary.json", f"cfb/players/10/{SEASON}.json"}
 
 
 def test_team_slugs_are_the_schools_own_and_are_legal_keys(store):
@@ -164,24 +166,147 @@ def test_an_exported_team_with_no_colour_gets_no_chip_not_a_neighbours(store):
     assert "AAA" not in files["cfb/manifest.json"]["team_colors"]     # not the D-II red
 
 
-def test_roster_games_count_stat_rows_and_snap_share_is_null(store):
-    """No CFB source records whether a player dressed: `games` is a LOWER BOUND, and the
-    contract's non-nullable integer cannot say that (finding C-3)."""
+def test_roster_games_is_null_because_no_appearance_record_exists(store):
+    """No CFB source records whether a player dressed. The contract made `games` nullable
+    for exactly this (finding C-4); until a-72 this file still published the count of
+    games with a stat row - 0 for a rostered player who simply recorded nothing."""
     files, _ = X.build(store)
     roster = {r["name"]: r for r in files["cfb/teams/alpha-state-aces.json"]["roster"]}
-    assert roster["Player One"]["games"] == 1
-    assert roster["Player Two"]["games"] == 0        # rostered, no stat row, did not "miss"
+    assert all(r["games"] is None for r in roster.values())
     assert all(r["snap_share"] is None for r in roster.values())
     assert roster["Player One"]["target_share"] == pytest.approx(8 / 32)
-    assert all(r["has_page"] is False and r["slug"] is None for r in roster.values())
+    # the one player in scope has a page and the slug that page is at; the others do not
+    assert roster["Player One"]["has_page"] is True
+    assert roster["Player One"]["slug"] == "player-one-10"
+    for name in ("Player Two", "Player Three"):
+        assert roster[name]["has_page"] is False and roster[name]["slug"] is None
 
 
-def test_the_player_index_is_empty_and_counts_say_zero(store):
-    """The contract's index IS the page list: every entry needs a slug, and a slug is a
-    URL. CFB ships no player pages, so the honest export is empty (finding C-4)."""
+# ---------------------------------------------------------------------------
+# a-72: the first sport's shapes, key for key
+# ---------------------------------------------------------------------------
+
+def test_the_player_index_lists_who_has_a_page_and_counts_agree(store):
     files, _ = X.build(store)
-    assert files["cfb/players/index.json"]["players"] == []
-    assert files["cfb/manifest.json"]["counts"]["players"] == 0
+    players = files["cfb/players/index.json"]["players"]
+    assert [p["id"] for p in players] == ["10"]
+    assert files["cfb/manifest.json"]["counts"]["players"] == 1
+    p = players[0]
+    assert p["slug"] == "player-one-10" and p["team"] == "AAA" and p["position"] == "WR"
+    assert p["first_season"] == p["last_season"] == SEASON and p["has_market"] is False
+    # a player with no offensive row is not in scope, however long his roster line
+    assert "cfb/players/12/summary.json" not in files
+
+
+def test_a_player_file_carries_the_row_and_declares_what_it_cannot(store):
+    # a teammate who threw and ran, so those columns are RECORDED this season: a column
+    # nobody in the league has a value for is a hole, and a hole is kept as null
+    _insert(store, "cfb_player_game_box", game_id=100, season=SEASON, team_id=1,
+            athlete_id=11, athlete_name="Player Two", pass_att=20, pass_cmp=12,
+            pass_yds=150, rush_att=5, rush_yds=21)
+    store.commit()
+    files, _ = X.build(store)
+    season = files[f"cfb/players/10/{SEASON}.json"]
+    (row,) = season["periods"]
+    assert row["team"] == "AAA" and row["opponent"] == "BBB" and row["home"] is True
+    assert row["season_type"] == "REG" and row["index"] == 1
+    s = row["stats"]
+    assert s["rec"] == 6 and s["rec_yds"] == 88 and s["rec_td"] == 1
+    assert s["targets"] == 8 and s["target_share"] == pytest.approx(8 / 32)
+    # declared absent: present and NULL, never missing and never zero
+    assert s["snaps"] is None and s["snap_share"] is None
+    # zero all season and not null: the first producer's key rule drops it
+    assert "pass_att" not in s and "rush_att" not in s
+    summary = files["cfb/players/10/summary.json"]
+    assert summary["market"] is None and summary["prop_history"] is None
+    assert summary["career"]["stats"]["rec"] == 6
+    assert summary["career"]["stats"]["snap_share_mean"] is None
+    assert summary["seasons"][0]["key"] == f"cfb/players/10/{SEASON}.json"
+
+
+def test_a_game_the_usage_feed_does_not_cover_has_null_targets_not_zero(store):
+    store.execute("DELETE FROM cfb_player_game_usage")
+    store.commit()
+    files, _ = X.build(store)
+    s = files[f"cfb/players/10/{SEASON}.json"]["periods"][0]["stats"]
+    assert s["targets"] is None and s["target_share"] is None
+    assert files["cfb/players/10/summary.json"]["career"]["stats"]["targets"] is None
+
+
+def test_an_opponent_is_a_slug_as_the_contract_says(store):
+    """The templates build `/{sport}/team/{opponent}` from this field. Until a-72 it was
+    the opponent's display name."""
+    files, _ = X.build(store)
+    week1 = [g for g in files["cfb/teams/alpha-state-aces.json"]["schedule"]
+             if g["index"] == 1][0]
+    assert week1["opponent"] == "beta-tech-bears"
+    slugs = {t["slug"] for t in files["cfb/manifest.json"]["teams"]}
+    assert week1["opponent"] in slugs
+
+
+def test_a_team_entry_carries_its_season_and_the_path_ends_at_the_record(store):
+    files, _ = X.build(store)
+    by = {t["slug"]: t for t in files["cfb/manifest.json"]["teams"]}
+    a, b = by["alpha-state-aces"]["season"], by["beta-tech-bears"]["season"]
+    assert (a["games"], a["cleared"], a["missed"], a["tied"]) == (1, 1, 0, 0)
+    assert (b["games"], b["cleared"], b["missed"]) == (1, 0, 1)
+    assert a["points_for"] == 31 and a["points_against"] == 17
+    path = a["cumulative"]
+    assert [e["index"] for e in path] == list(range(1, 10))     # the frame: weeks 1..9
+    assert path[0]["state"] == "played" and path[0]["cleared"] == 1
+    assert path[8]["state"] == "unplayed" and path[8]["cleared"] is None
+    assert {e["state"] for e in path[1:8]} == {"gap"}           # seven open weeks: unresolved
+
+
+def test_memberships_are_the_seasons_the_feed_holds(store):
+    files, _ = X.build(store)
+    assert files["cfb/teams/alpha-state-aces.json"]["memberships"] == [
+        {"season": SEASON, "conference": "Conf A", "division": None, "classification": "fbs"}]
+
+
+def test_every_declared_absence_is_a_real_emptiness_and_has_a_reason(store):
+    """`absences` is checked against the files it describes, in both directions that
+    can be checked here: each named path that exists in a built file is empty there, and
+    the nulls a template would meet are named."""
+    files, _ = X.build(store)
+    m = files["cfb/manifest.json"]
+    named = {a["path"]: a for a in m["absences"]}
+    assert all(len(a["reason"]) >= 10 for a in named.values())
+    for path in ("team.roster[].games", "team.roster[].snap_share", "team.coaches",
+                 "player_summary.prop_history", "player_summary.market",
+                 "player_season.periods[].stats.snaps", "sport_manifest.scoring_presets"):
+        assert path in named, path
+    team = files["cfb/teams/alpha-state-aces.json"]
+    assert team["coaches"] == [] and m["scoring_presets"] == {}
+    # every stat key published null in a team split is named, key by key
+    nulls = {k for sp in team["splits"] for side in ("offense", "defense")
+             for k, v in sp[side].items() if v is None}
+    assert nulls and all(f"stats.{k}" in named for k in nulls), nulls
+
+
+def test_a_column_the_feed_stopped_recording_is_null_and_one_it_records_is_not(store):
+    """The detector must be able to return both answers. Two seasons of rows for the
+    exported team: catches in both, and sacks recorded in one of them only."""
+    for gid, season, sacks in ((200, SEASON - 2, 0), (201, SEASON - 1, 4)):
+        _insert(store, "cfb_games", game_id=gid, season=season, week=1,
+                season_type="regular", start_ts=1.0, home_id=1, away_id=2,
+                home_team="Alpha State", away_team="Beta Tech", home_points=10,
+                away_points=7)
+        # the defensive columns are one feed category and share coverage, so all of
+        # them are recorded (or not) together
+        _insert(store, "cfb_player_game_box", game_id=gid, season=season, team_id=1,
+                athlete_id=10, athlete_name="Player One", rec=6, rec_yds=80,
+                **{c: sacks for c in X.DEFENSIVE_CATEGORY})
+    store.commit()
+    holes = X.not_collected(store, {1, 2})
+    assert SEASON - 2 in holes["sacks"] and SEASON - 1 not in holes["sacks"]
+    assert "rec" not in holes                      # recorded in every season it has rows
+    files, _ = X.build(store)
+    splits = {(s["season"], s["season_type"]): s
+              for s in files["cfb/teams/alpha-state-aces.json"]["splits"]}
+    assert splits[(SEASON - 2, "REG")]["defense"]["def_sacks"] is None
+    assert splits[(SEASON - 1, "REG")]["defense"]["def_sacks"] == 4
+    assert splits[(SEASON - 1, "REG")]["offense"]["rec_yds"] == 80
 
 
 def test_counts_games_is_scoped_to_the_exported_teams(store):

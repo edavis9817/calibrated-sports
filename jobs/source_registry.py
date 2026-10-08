@@ -431,6 +431,16 @@ LOADERS = {
         "team_points": ("team",),
         "roster_rows": ("team",),
         "build": ("sport_manifest",),
+        # a-72: the player kinds, and the readers the conformance work added.
+        "slug_map": ("team",),
+        "memberships": ("team",),
+        "season_summaries": ("sport_manifest",),
+        "not_collected": ("team", "player_season", "player_summary", "sport_manifest"),
+        "usage_by_game": ("team", "player_season", "player_summary"),
+        "player_scope": ("player_season", "player_summary", "player_index", "team",
+                         "sport_manifest"),
+        "roster_identity": ("player_season", "player_summary", "player_index"),
+        "build_players": ("player_season", "player_summary", "player_index"),
     },
     "mlb": {
         "build": ("player_season", "player_summary", "player_index", "team", "sport_manifest"),
@@ -567,8 +577,7 @@ KIND_EXTRA = {
         "sports": (),
         "sources": (),
     },
-    # The college index is an empty list: no appearance signal, so no player pages.
-    "cfb": {"player_index": ()},
+    "cfb": {},
     "mlb": {},
 }
 

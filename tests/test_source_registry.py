@@ -119,7 +119,9 @@ def test_declarations_are_per_sport_and_match_each_sports_store():
     nothing, because a-22 filtered the NFL declarations by `sports`."""
     assert R.DECLARED["cfb"]["sport_manifest"] == ("sportsdataverse.cfb",)
     assert R.DECLARED["cfb"]["team"] == ("sportsdataverse.cfb", "cfbd")
-    assert R.DECLARED["cfb"]["player_index"] == ()       # an empty list, by decision
+    # a-72: the college index lists players now, read from the same store as the rest.
+    for kind in ("player_index", "player_summary", "player_season"):
+        assert R.DECLARED["cfb"][kind] == ("sportsdataverse.cfb",), kind
     for kind in ("sport_manifest", "team", "player_index", "player_summary", "player_season"):
         assert R.DECLARED["mlb"][kind] == ("retrosheet",), kind
     assert not any("kalshi" in i for ids in R.DECLARED["cfb"].values() for i in ids)
