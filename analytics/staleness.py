@@ -120,6 +120,11 @@ WATCHED_PARTITIONS = {
     ("feeds.db", "weather_at_kickoff", "nfl"): "the matchup file publishes wind and temperature (a-64)",
 }
 DEPTH_VENUES = ("kalshi", "polymarket")
+# The row `analytics.refresh --gate --record-health` writes for THIS gate. It is
+# the previous run's verdict, so reading it back as a finding would make every
+# failing run add one red item to the next: the gate would count itself. Every
+# other failing row is red, including the rebuild's (`analytics_rebuild`).
+OWN_HEALTH_SOURCE = "staleness_gate"
 # `source_health.detail` counters that must not read zero, per source.
 HEALTH_COUNTERS = {"depth_capture": ("kalshi_rows", "poly_rows", "raw_books_kept")}
 
@@ -422,6 +427,8 @@ def check_health(stores, now):
         return [Item("freshness", "source_health", ERROR, "source_health unreadable (%s)" % e)]
     out = []
     for source, ok, detail, updated in sorted(rows):
+        if source == OWN_HEALTH_SOURCE:
+            continue
         if not ok:
             out.append(Item("freshness", "source_health:%s" % source, RED,
                             "source_health '%s' is failing as of %s: %s"

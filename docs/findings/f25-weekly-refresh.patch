@@ -1,0 +1,133 @@
+diff --git a/jobs/weekly_refresh.py b/jobs/weekly_refresh.py
+index 2ef7dd6..ffe054e 100644
+--- a/jobs/weekly_refresh.py
++++ b/jobs/weekly_refresh.py
+@@ -11,6 +11,12 @@ config.storage_path("logs", "weekly_refresh.log"):
+                        marks the data stale)
+   1b. headshots        jobs.ingest_headshots --season <season> (archive only;
+                        failure: WARN)
++  1c. track F rebuild  analytics.refresh --rebuild --season <season> --record-health
++                       (failure: WARN; f-25). The play-level spine, the NGS weeks
++                       and every metric already in analytics.db, rebuilt from the
++                       mirror step 1 just refreshed. BEFORE every export: the
++                       analytics export ships f_metrics and the game export drops
++                       a team-game with no pace row. Writes analytics.db only.
+   2. market mapping    jobs.map_markets --venue kalshi       (failure: WARN)
+   2a. polymarket       jobs.map_markets --venue polymarket   (failure: WARN; a-60).
+                        Player props LINK only, so nothing it writes adds a
+@@ -35,6 +41,9 @@ config.storage_path("logs", "weekly_refresh.log"):
+   5. validate          GET {WEB_SITE_URL}/data/nfl/manifest.json and compare its
+                        generated_at with the local export (mismatch or an
+                        unreachable site: WARN - the site may not be on v2 yet)
++  6. staleness gate    analytics.refresh --gate --record-health (NEVER fatal; f-25).
++                       Last, so it judges what this run left behind. Writes
++                       logs/staleness_gate.md and .json and one source_health row.
+ 
+ A data refresh builds nothing and commits no DATA: the site reads R2 at runtime.
+ The one commit it may make is the slug registry in this repo (step 3b).
+@@ -205,6 +214,21 @@ def _run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fet
+              fatal=False)
+     # Archive-only re-derivation, so it runs even with --skip-ingest.
+     step("headshots", [py, "-m", "jobs.ingest_headshots", "--season", str(season)], fatal=False)
++    # TRACK F'S FACT TABLES (f-25). Nothing scheduled these: the 2026 spine was
++    # built by hand on 2026-09-17 and sat at week 1 for three weeks, so the
++    # matchup export - which drops a team-game with no pace row - published a
++    # total on 0 of 15 games, and 123 metrics were shipped weekly as current
++    # while holding one week of the season. Archive-only like the headshots, so
++    # it runs with --skip-ingest too, and BEFORE every export that reads it.
++    # Non-fatal: it refreshes only metrics analytics.db already holds, and a
++    # failure leaves the previous build in place and a failing
++    # `analytics_rebuild` health row, which the gate at the end reports.
++    rebuilt = step("analytics-rebuild", [py, "-m", "analytics.refresh", "--rebuild",
++                                         "--season", str(season), "--record-health"],
++                   fatal=False)
++    if rebuilt.returncode != 0:
++        log("WARN", "track F's tables were not rebuilt - the analytics export and the game "
++                    "export below read last run's spine, and say nothing about it themselves")
+     step("map", [py, "-m", "jobs.map_markets", "--venue", "kalshi"], fatal=False)
+     # Polymarket was never re-mapped after 2026-09-09, so its mapped outcomes fell
+     # from 1,255 in week 1 to 1 in week 4 and every cross-venue read went empty
+@@ -345,6 +369,12 @@ def _run(skip_ingest=False, runner=subprocess.run, log=None, now=None, fetch=fet
+                             "site is not reading v2 yet")
+         except Exception as e:  # noqa: BLE001 - any failure here is a warning, never fatal
+             log("WARN", f"validate: {url} unreachable or not v2 ({type(e).__name__}: {e})")
++    # THE STALENESS GATE (f-24, wired by f-25), LAST so it judges the stores as
++    # this run left them. It exits 0 whatever it finds - most of its red items
++    # are structural and wait on rulings - and its verdict is the report under
++    # logs/ and the `staleness_gate` health row. To make it fatal: add `--fatal`
++    # here, pass fatal=True, and give it an exit code in EXIT_DETAIL.
++    step("staleness", [py, "-m", "analytics.refresh", "--gate", "--record-health"], fatal=False)
+     log("INFO", f"refresh done in {time.time() - t0:.0f}s")
+     return 0
+ 
+diff --git a/tests/test_weekly_refresh.py b/tests/test_weekly_refresh.py
+index f4e0927..98424e7 100644
+--- a/tests/test_weekly_refresh.py
++++ b/tests/test_weekly_refresh.py
+@@ -101,6 +101,8 @@ class Runner:
+         # would quietly exercise the no-sentinel path while passing.
+         if "analytics.export" in s:
+             return "analytics"
++        if "analytics.refresh" in s:
++            return "staleness" if "--gate" in s else "analytics-rebuild"
+         if "jobs.season_model" in s:
+             return "season"
+         if "jobs.landing_export" in s:
+@@ -163,9 +165,12 @@ def test_steps_run_in_order_and_touch_git_only_for_the_slug_registry(env):
+     # `analytics.export` sits between the site export and the upload: it is a
+     # SECOND PRODUCER into the same tree, and it has to have written before the
+     # one uploader runs.
+-    assert py_steps == ["jobs.ingest_nflverse", "jobs.ingest_headshots", "jobs.map_markets",
++    assert py_steps == ["jobs.ingest_nflverse", "jobs.ingest_headshots",
++                        "analytics.refresh",       # f-25: the spine, before every export
++                        "jobs.map_markets",
+                         "jobs.map_markets", "jobs.map_markets", "jobs.export_web", "analytics.export", "jobs.season_model",
+-                        "jobs.landing_backfill", "jobs.landing_export", "jobs.export_web"]
++                        "jobs.landing_backfill", "jobs.landing_export", "jobs.export_web",
++                        "analytics.refresh"]       # f-25: the staleness gate, last
+     git_calls = [c for c in r.calls if c and c[0] == "git"]
+     assert git_calls, "the refresh should check the slug registry"
+     assert all(c[-1] == W.SLUG_PATH and c[-2] == "--" for c in git_calls)
+@@ -178,7 +183,8 @@ def test_export_failure_stops_before_upload(env):
+     tmp, _ = env
+     r = Runner(fail={"export"})
+     assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 1
+-    assert r.names() == ["ingest", "headshots", "map", "map_poly", "map_books", "export"]
++    assert r.names() == ["ingest", "headshots", "analytics-rebuild", "map", "map_poly", "map_books",
++                         "export"]
+ 
+ 
+ def test_upload_failure_is_an_error(env):
+@@ -619,3 +625,32 @@ def test_a_failing_landing_degrades(env):
+     assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
+     assert "upload" in r.names()
+     assert "landing file was not rebuilt" in read_log(tmp)
++
++
++# ------------------------------- track F's rebuild and the staleness gate (f-25)
++
++def test_the_rebuild_runs_before_every_export_and_the_gate_runs_last(env):
++    tmp, _ = env
++    r = Runner()
++    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
++    names = r.names()
++    assert names.index("analytics-rebuild") < min(names.index(n) for n in ("export", "analytics"))
++    assert names[-1] == "staleness"
++    assert r.cmd_for("analytics-rebuild")[-4:] == ["--rebuild", "--season", str(W.season_now()),
++                                                   "--record-health"]
++    assert r.cmd_for("staleness")[-2:] == ["--gate", "--record-health"]
++
++
++def test_the_rebuild_runs_even_when_the_ingest_is_skipped(env):
++    tmp, _ = env
++    r = Runner()
++    assert W.run(skip_ingest=True, runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
++    assert "analytics-rebuild" in r.names() and "ingest" not in r.names()
++
++
++def test_a_failing_rebuild_or_gate_never_fails_the_refresh(env):
++    tmp, _ = env
++    r = Runner(fail={"analytics-rebuild", "staleness"})
++    assert W.run(runner=r, log=log_to(tmp), fetch=matching_fetch) == 0
++    assert "upload" in r.names()
++    assert "track F's tables were not rebuilt" in read_log(tmp)
