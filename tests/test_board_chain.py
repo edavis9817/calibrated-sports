@@ -307,7 +307,13 @@ def test_a_pre_a48_ledger_is_chained_on_the_next_write_with_no_cell_changed(env)
     pq, csv = _files(dest, J)
     assert pq.select(list(B.LEDGER_COLUMNS)).to_dicts() == legacy.to_dicts()
     assert J.verify_pair_chain(pq, csv).holds
-    assert pq["row_hash"].to_list() == [r["row_hash"] for r in chained_first]   # deterministic
+    # a-62: a pre-a-48 file carries no written_at (it predates a-62 too), so the
+    # migration chains it unstamped - the v1 hashes, deterministic from genesis -
+    # and the file gains the column null. `chained_first` was written stamped,
+    # so its hashes are the v2 ones and are NOT what a legacy file chains to.
+    assert pq["written_at"].null_count() == pq.height
+    assert pq["row_hash"].to_list() == [r["row_hash"] for r in B.chain(legacy.to_dicts())]
+    assert pq["row_hash"].to_list() != [r["row_hash"] for r in chained_first]
 
 
 def test_an_unchained_csv_beside_a_chained_parquet_is_healed_by_the_pair_check(env):
@@ -339,10 +345,15 @@ def _bytes(df, key):
     return buf.getvalue()
 
 
+_SCHEMA = {c: {"string": pl.Utf8, "int64": pl.Int64, "float64": pl.Float64}[B.LEDGER_DTYPES[c]]
+           for c in B.ledger_file_columns()}
+
+
 @pytest.mark.parametrize("key", ["board/nfl/ledger.parquet", "board/nfl/ledger.csv"])
 def test_the_bucket_accepts_the_chain_columns_once_and_nothing_else(key):
     rows = _ledger(4)
-    full = pl.DataFrame([{c: r[c] for c in B.ledger_file_columns()} for r in rows])
+    full = pl.DataFrame([{c: r.get(c) for c in B.ledger_file_columns()} for r in rows],
+                        schema=_SCHEMA)
     legacy = full.select(list(B.LEDGER_COLUMNS))
     s3 = FakeS3({key: _bytes(legacy, key)})
     ok = E.check_append_only(s3, "b", key, _bytes(full, key))
@@ -350,7 +361,9 @@ def test_the_bucket_accepts_the_chain_columns_once_and_nothing_else(key):
     # a widening that also edits a cell is refused
     edited = full.with_columns(pl.when(pl.int_range(pl.len()) == 1).then(pl.lit("under"))
                                .otherwise(pl.col("side")).alias("side"))
-    edited = pl.DataFrame(B.chain(edited.select(list(B.LEDGER_COLUMNS)).to_dicts()))
+    edited = pl.DataFrame([{c: r.get(c) for c in B.ledger_file_columns()}
+                           for r in B.chain(edited.select(list(B.LEDGER_COLUMNS)).to_dicts())],
+                          schema=_SCHEMA)
     with pytest.raises(E.AppendOnlyError, match="row 1 differs"):
         E.check_append_only(s3, "b", key, _bytes(edited.select(list(B.ledger_file_columns())), key))
     # a widening whose chain does not verify is refused
@@ -359,8 +372,8 @@ def test_the_bucket_accepts_the_chain_columns_once_and_nothing_else(key):
         E.check_append_only(s3, "b", key, _bytes(bad, key))
     # once the bucket carries the chain, the ordinary rule applies again
     s3 = FakeS3({key: _bytes(full, key)})
-    more = pl.DataFrame([{c: r[c] for c in B.ledger_file_columns()}
-                         for r in B.extend_chain(rows, [_ev(4)])])
+    more = pl.DataFrame([{c: r.get(c) for c in B.ledger_file_columns()}
+                         for r in B.extend_chain(rows, [_ev(4)])], schema=_SCHEMA)
     assert "4 -> 5 rows, every existing row unchanged" == \
         E.check_append_only(s3, "b", key, _bytes(more, key)).split(": ", 1)[1]
     with pytest.raises(E.AppendOnlyError):

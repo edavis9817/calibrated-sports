@@ -2,6 +2,7 @@
 
     python -m research.nfl_stadium_coords              # measure, print, write the points file
     python -m research.nfl_stadium_coords --check      # coverage and roof checks only, no fetch
+    python -m research.nfl_stadium_coords --zones      # add country and time zone, re-measure nothing
 
 Writes `feeds/nfl_stadium_points.csv`, which the NFL weather ingest reads. Every response
 it reads is archived verbatim in the feeds raw tree first (invariant 2). Free, keyless:
@@ -42,7 +43,15 @@ OSM_API = "https://api.openstreetmap.org/api/0.6"
 NOMINATIM = "https://nominatim.openstreetmap.org/search"
 AIRPORTS = "https://raw.githubusercontent.com/nflverse/nfldata/master/data/airports.csv"
 POINT_COLS = ["qid", "label", "latitude", "longitude", "precision_deg", "osm_ref",
-              "inside_footprint", "offset_km", "centroid_km", "retrieved_utc"]
+              "inside_footprint", "offset_km", "centroid_km", "retrieved_utc",
+              # a-66. country_code is Wikidata P17 -> P297 on the venue's own item.
+              # timezone is NOT Wikidata: P421 was asked for and is on 0 of the 47 items
+              # (and the P131 parent carries it on 5, one of them wrong), so the IANA zone
+              # is the one Open-Meteo resolves for the SAME sourced coordinate.
+              "country_code", "country_source", "timezone", "timezone_source",
+              "zones_retrieved_utc"]
+COUNTRY_SOURCE = "wikidata:P17/P297"
+TIMEZONE_SOURCE = "open-meteo:timezone=auto"
 
 
 def games(con, client):
@@ -293,6 +302,83 @@ def measure_points(con, client, xwalk, keep=None):
     return rows
 
 
+def wikidata_zones(con, client, qids):
+    """{qid: {"countries": {iso}, "p421": {labels}}} - P17's ISO code and P421, both read
+    off the venue's own item. P421 is asked for so its absence is MEASURED on every run,
+    not remembered."""
+    q = ("SELECT ?item ?iso ?tzLabel WHERE { VALUES ?item { %s } "
+         "OPTIONAL { ?item wdt:P17 ?c . ?c wdt:P297 ?iso } "
+         "OPTIONAL { ?item wdt:P421 ?tz } "
+         "SERVICE wikibase:label { bd:serviceParam wikibase:language \"en\". } }"
+         % " ".join(f"wd:{x}" for x in sorted(qids)))
+    body = client.get("nfl_venue_wikidata", WIKIDATA_SPARQL, {"query": q, "format": "json"})
+    fetch.archive(con, "nfl_venue_wikidata", "zones", WIKIDATA_SPARQL, body, kind="json")
+    out = {x: {"countries": set(), "p421": set()} for x in qids}
+    for b in json.loads(body)["results"]["bindings"]:
+        qid = b["item"]["value"].rsplit("/", 1)[1]
+        if b.get("iso"):
+            out[qid]["countries"].add(b["iso"]["value"])
+        if b.get("tzLabel"):
+            out[qid]["p421"].add(b["tzLabel"]["value"])
+    return out
+
+
+def openmeteo_zones(con, client, points):
+    """{qid: IANA zone} for each sourced point, one batched call. The zone is a property
+    of the coordinate, so it is read for the coordinate the weather is read for."""
+    qids = sorted(q for q, p in points.items() if p.get("latitude") is not None)
+    out = {}
+    for start in range(0, len(qids), sources.OPEN_METEO_MAX_COORDS):
+        batch = qids[start:start + sources.OPEN_METEO_MAX_COORDS]
+        params = {"latitude": ",".join(f"{points[q]['latitude']:.4f}" for q in batch),
+                  "longitude": ",".join(f"{points[q]['longitude']:.4f}" for q in batch),
+                  "hourly": "temperature_2m", "forecast_days": 1, "timezone": "auto"}
+        body = client.get("nfl_venue_zone", sources.OPEN_METEO_FORECAST, params)
+        fetch.archive(con, "nfl_venue_zone", f"batch{start}", sources.OPEN_METEO_FORECAST,
+                      body, kind="json")
+        blocks = json.loads(body)
+        blocks = blocks if isinstance(blocks, list) else [blocks]
+        if len(blocks) != len(batch):
+            raise SystemExit(f"asked for {len(batch)} zones, got {len(blocks)} - refusing")
+        for q, b in zip(batch, blocks):
+            out[q] = b.get("timezone")
+    return out
+
+
+def add_zones(con, client, points):
+    """Country and zone onto the EXISTING points, every other column untouched. A venue
+    with two countries, or a zone the tz database does not hold, gets none."""
+    from zoneinfo import ZoneInfo
+    wd = wikidata_zones(con, client, sorted(points))
+    om = openmeteo_zones(con, client, points)
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+    rows, n_country, n_zone = [], 0, 0
+    p421 = sum(1 for v in wd.values() if v["p421"])
+    print(f"\n6. country and time zone: {len(points)} venues; Wikidata P421 present on "
+          f"{p421} of them")
+    for qid, p in points.items():
+        row = {c: ("" if p.get(c) is None else p.get(c)) for c in POINT_COLS}
+        iso = sorted(wd[qid]["countries"])
+        zone = om.get(qid)
+        try:
+            ZoneInfo(zone) if zone else None
+        except Exception:  # noqa: BLE001 - an unknown key is "no zone", said out loud
+            print(f"   {qid}: zone {zone!r} is not in the tz database - not used")
+            zone = None
+        if len(iso) != 1:
+            print(f"   {qid}: {len(iso)} countries {iso} - not used")
+        row.update(country_code=iso[0] if len(iso) == 1 else "",
+                   country_source=COUNTRY_SOURCE if len(iso) == 1 else "",
+                   timezone=zone or "", timezone_source=TIMEZONE_SOURCE if zone else "",
+                   zones_retrieved_utc=now)
+        n_country += len(iso) == 1
+        n_zone += bool(zone)
+        rows.append(row)
+        print(f"   {qid:10} {str(p.get('label'))[:30]:30} {row['country_code'] or '--':3} "
+              f"{row['timezone'] or '(none)'}")
+    return rows, n_country, n_zone, p421
+
+
 def write_points(rows, path=None):
     path = nfl_venues.POINTS if path is None else path
     with open(path, "w", newline="", encoding="utf-8") as f:
@@ -332,6 +418,9 @@ def main(argv=None):
     ap.add_argument("--check", action="store_true", help="coverage and roofs only")
     ap.add_argument("--fill", action="store_true",
                     help="re-query only venues whose offset is not yet measured")
+    ap.add_argument("--zones", action="store_true",
+                    help="add country (Wikidata P17) and IANA zone (Open-Meteo, for the same "
+                         "point) to the existing points file; no coordinate is re-measured")
     a = ap.parse_args(argv)
     from feeds import paths
     paths.ensure_dirs()
@@ -343,6 +432,15 @@ def main(argv=None):
     missing = coverage(g, xwalk)
     roofs(g, xwalk)
     if a.check:
+        return 1 if missing else 0
+    if a.zones:
+        points = nfl_venues.load_points()
+        if not points:
+            raise SystemExit("no points file to add zones to - measure the points first")
+        rows, n_country, n_zone, p421 = add_zones(con, client, points)
+        write_points(rows)
+        print(f"\nwrote {nfl_venues.POINTS}: {len(rows)} venues, {n_country} with a country, "
+              f"{n_zone} with a time zone (Wikidata P421 on {p421})")
         return 1 if missing else 0
     rows = measure_points(con, client, xwalk,
                           keep=nfl_venues.load_points() if a.fill else None)

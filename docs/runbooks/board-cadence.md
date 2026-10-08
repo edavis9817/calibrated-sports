@@ -23,6 +23,15 @@ Every tick:
    latest read still has a row that kicked off and is not settled;
 4. reads a week only when `core.board.read_due` or `grade_due` says so;
 5. uploads the Board's own tree (`export_web.upload(tree="board")`). **It deletes nothing.**
+6. **rebuilds the record (a-61)** - `record/nfl/published.json`, `record/research.json`,
+   `record/backtest.json` - with `jobs.record_export.publish`, into its own tree beside the
+   Board's (`<parent of BOARD_EXPORT_DIR>ecord_export`, derived, no new setting), and
+   uploads it as its own tree (`upload(tree="record")`, state `_state/record_upload_state.json`).
+   **Non-fatal and per tier**: a tier that fails to build or fails the contract is logged
+   (`!!! RECORD STEP FAILED (<tier>)`) and listed under `record.failed` in the tick's summary
+   line, and its previously published file stays in place, locally and in R2; the other tiers
+   still publish, and the tick's exit code is the Board's alone. It deletes nothing. It adds
+   ~6 s to a tick (measured 2026-09-30, most of it `git log` per research document).
 
 ## The cadence it implements (config.py, `BOARD_*`)
 

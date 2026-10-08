@@ -119,3 +119,75 @@ def test_it_runs_as_a_module_and_exits_zero_when_clean():
                        capture_output=True, text=True)
     assert r.returncode == 0, r.stdout + r.stderr
     assert "MISSING" in r.stdout
+
+
+# ------------------------------------------------- the scope of "history" (a-61)
+#
+# The audit used to read `git log --all`, so a row on an UNMERGED branch read as
+# lost from every other tree. These build a real repository and drive both halves:
+# an unmerged row is not a loss, and every way a row can leave THIS tree's
+# ancestry still is.
+
+def _g(repo, *args):
+    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t",
+                    "-c", "commit.gpgsign=false", *args],
+                   cwd=repo, check=True, capture_output=True, text=True)
+
+
+def _commit(repo, rows, msg):
+    (repo / A.PATH).write_text(
+        "| date | decision | reason |\n|---|---|---|\n"
+        + "".join(f"| 2026-09-30 | {r} | r |\n" for r in rows), encoding="utf-8")
+    _g(repo, "add", A.PATH)
+    _g(repo, "commit", "-q", "-m", msg)
+
+
+@pytest.fixture
+def repo(tmp_path, monkeypatch):
+    _g(tmp_path, "init", "-q", "-b", "main")
+    _commit(tmp_path, ["Base"], "base")
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
+def _gone():
+    return [d for (_date, d), _line in A.missing()]
+
+
+def test_a_row_on_an_UNMERGED_branch_is_pending_not_lost(repo):
+    _g(repo, "checkout", "-q", "-b", "side")
+    _commit(repo, ["Base", "Side only"], "side row")
+    _g(repo, "checkout", "-q", "main")
+    assert _gone() == []
+    assert [d for (_date, d) in A.pending_rows()] == ["side only"]
+
+
+def test_a_row_dropped_from_this_trees_own_history_is_lost(repo):
+    _commit(repo, ["Base", "Kept a while"], "add")
+    _commit(repo, ["Base"], "drop")
+    assert _gone() == ["kept a while"]
+
+
+def test_a_merge_resolution_that_drops_the_merged_branchs_row_is_lost(repo):
+    """The 2026-09-19 shape: the row arrives by merge and the resolution loses it.
+    Once merged, the adding commit is an ancestor, so it is demanded."""
+    _g(repo, "checkout", "-q", "-b", "side")
+    _commit(repo, ["Base", "From side"], "side row")
+    _g(repo, "checkout", "-q", "main")
+    _commit(repo, ["Base", "From main"], "main row")
+    subprocess.run(["git", "merge", "-q", "side"], cwd=repo, capture_output=True)
+    _commit(repo, ["Base", "From main"], "resolution keeps only main's row")
+    assert _gone() == ["from side"]
+
+
+def test_a_row_that_only_ever_lived_in_a_merge_resolution_is_history(repo):
+    """`-m` diffs a merge against each parent; without it a row typed into a
+    resolution and later dropped would be invisible."""
+    _g(repo, "checkout", "-q", "-b", "side")
+    _commit(repo, ["Base", "S"], "side")
+    _g(repo, "checkout", "-q", "main")
+    _commit(repo, ["Base", "M"], "main")
+    subprocess.run(["git", "merge", "-q", "side"], cwd=repo, capture_output=True)
+    _commit(repo, ["Base", "M", "S", "Typed in the resolution"], "resolve")
+    _commit(repo, ["Base", "M", "S"], "drop it")
+    assert _gone() == ["typed in the resolution"]

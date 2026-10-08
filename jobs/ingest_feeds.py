@@ -388,10 +388,21 @@ def run_nfl_weather(con, games, *, days=None, season=None, client=None, now=None
     measure(con, "nfl_weather.domed", scope, len(domed))
     measure(con, "nfl_weather.conditions_unknown", scope, unknown)
 
-    by_day = {}
+    by_day, beyond = {}, 0
+    last_day = openmeteo.day(now + sources.FORECAST_HORIZON_DAYS * 86400)
     for item in matched:
         key = (openmeteo.day(item[1]), openmeteo.endpoint_for(item[1], now)[0])
+        if key[1] == "forecast" and key[0] > last_day:
+            # Past the forecast endpoint's horizon: asking is an HTTP 400 that would
+            # stop the run and lose every later date. Counted, and fetched on a later
+            # run once the kickoff is inside the horizon.
+            beyond += 1
+            continue
         by_day.setdefault(key, []).append(item)
+    measure(con, "nfl_weather.beyond_forecast_horizon", scope, beyond)
+    if verbose and beyond:
+        print(f"  {beyond} games kick off after {last_day}, beyond the forecast horizon "
+              f"({sources.FORECAST_HORIZON_DAYS} days): not asked for")
     written, missing_hour = 0, 0
     for (date, kind), items in sorted(by_day.items()):
         url = sources.OPEN_METEO_ARCHIVE if kind == "archive" else sources.OPEN_METEO_FORECAST
@@ -427,7 +438,7 @@ def run_nfl_weather(con, games, *, days=None, season=None, client=None, now=None
     measure(con, "nfl_weather.hour_not_published", scope, missing_hour)
     return {"games": len(matched), "rows_written": written, "domed": len(domed),
             "refused": reasons, "conditions_unknown": unknown,
-            "hour_not_published": missing_hour}
+            "hour_not_published": missing_hour, "beyond_forecast_horizon": beyond}
 
 
 def nfl_weather_readout(con):

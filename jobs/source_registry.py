@@ -132,6 +132,14 @@ SOURCES = {
                   "the analytics metrics built on weekly stats, and the actual each prop "
                   "settles against"),
         last_read=("health", ("nflverse:weekly_stats",))),
+    # a-66: the stats_team release - the source's own team-game totals, a different
+    # file from stats_player that goes stale separately.
+    "nflverse.team_stats": dict(
+        name="nflverse", sports=("nfl",), layer="FACTS",
+        provides=("Team-game totals (the stats_team release): passing and rushing yards, "
+                  "interceptions and expected points added by unit, every season it carries"),
+        used_for="Passing and rushing by unit, for and against, on each matchup",
+        last_read=("health", ("nflverse:team_stats",))),
     "nflverse.schedule": dict(
         name="nflverse", sports=("nfl",), layer="FACTS",
         provides="The schedule: every game's date, kickoff, teams, final score, and the "
@@ -260,6 +268,30 @@ SOURCES = {
                   "that size (research/board_bands.py), never a forecast of the lean"),
         last_read=("committed", "research/results/board_bands.json")),
 
+    # a-64: the fitted constants and scoring records of the two game models the
+    # matchup files quote beside the forecast - c-30's key-number spread and c-31's
+    # two-team total - read from the units' committed result files, never refitted
+    # at export. A season-T fit uses seasons 2000..T-1 only.
+    "calibrated.game_models": dict(
+        name="Calibrated Sports", sports=("nfl",), layer="BELIEFS",
+        provides=("The spread model's key-number weights and the total model's fitted "
+                  "constants, with each one's walk-forward scoring record, 2001-2025"),
+        used_for=("The model's spread and total beside the market's on each matchup, and the "
+                  "record each one carries"),
+        last_read=("committed", "research/results/c30_against_the_spread.json, "
+                                "research/results/c31_game_total.json")),
+    # a-64: stadium coordinates (Wikidata P625, checked against the OpenStreetMap
+    # footprint by research/nfl_stadium_coords.py) - the travel distance on a matchup.
+    # a-66: and the venue's country (P17). The time zone is NOT Wikidata's: P421 is on
+    # none of these items, so it is Open-Meteo's for the same coordinate.
+    "wikidata.stadiums": dict(
+        name="Wikidata", sports=("nfl",), layer="CONTEXT",
+        provides=("Stadium coordinates, each with its measured distance from the venue, and "
+                  "the venue's country"),
+        used_for=("The travel distance from each team's home stadium to the game's stadium, "
+                  "and whether the game is outside the United States"),
+        last_read=("committed", "feeds/nfl_stadium_points.csv")),
+
     # --- held in other stores; registered because `coverage` counts them
     "sportsdataverse.cfb": dict(
         name="sportsdataverse", sports=("cfb",), layer="FACTS",
@@ -280,9 +312,12 @@ SOURCES = {
                   "published) and coverage counts"),
         last_read=("elsewhere", "mlb.db")),
     "openmeteo": dict(
-        name="Open-Meteo", sports=("cfb",), layer="CONTEXT",
-        provides="Weather at kickoff, by venue coordinates",
-        used_for="Coverage counts",
+        name="Open-Meteo", sports=("nfl", "cfb"), layer="CONTEXT",
+        provides=("Modelled weather for the venue's grid cell at the kickoff hour, as a "
+                  "forecast taken before the game and as a reanalysis after it; and the time "
+                  "zone of each stadium's coordinate"),
+        used_for=("The forecast wind and temperature on each matchup, with how far ahead it "
+                  "was taken; time zones crossed; coverage counts"),
         last_read=("elsewhere", "feeds.db")),
     # Read by a PAGE, at request time, through no exported file (a-30; f-19 found it
     # unregistered). a-23's Live snapshot job moves this read into a producer; when
@@ -323,6 +358,7 @@ SPORT_TABLE_SOURCES = {
                       "nflverse.participation", "nflverse.snap_counts"),
         "player_headshot": ("nflverse.rosters",),
         "nfl_roster_week": ("nflverse.rosters",),
+        "nfl_team_week": ("nflverse.team_stats",),
         "nfl_teams": ("nflverse.teams",),
         "nfl_pbp_looks": ("nflverse.pbp",),
         # A venue-independent claim: 2023-2025 rows were created from Odds API
@@ -506,6 +542,9 @@ KIND_INPUTS = {
         "landing": ("sport_manifest", "market", "research.calibration",
                     "research.hypotheses", "research.market_calibration", "lab_index",
                     "board_read", "board_index", "player_season"),
+        # a-57: record/{sport}/published.json is a projection of the Board's lean
+        # ledger alone, which board_read's producer writes.
+        "record.published": ("board_read",),
     },
     "cfb": {},
     "mlb": {},
@@ -549,6 +588,22 @@ KIND_EXTRA = {
         "season_model": ("nflverse.schedule", "nflverse.teams"),
         # a-55: the projected final record, same job, same two tables.
         "season_projection": ("nflverse.schedule", "nflverse.teams"),
+        # a-63: jobs/game_export.py reads nfl_games alone (schedule, scores and the
+        # nflverse moneyline close the record stores and does not display), mode=ro,
+        # outside sync_keys. nfl_teams is loaded by the shared loader and not used.
+        "game.forecast": ("nflverse.schedule",),
+        "game.record": ("nflverse.schedule",),
+        # a-64: the matchup files, built in the same run. The schedule (lines, venue,
+        # rest, scores), weekly player stats (passing and rushing by unit), team pace
+        # built from play-by-play by the analytics store (points per play, plays per
+        # game), the two game models' committed fits and records, and stadium points.
+        # a-66: nflverse's team-game totals (units and EPA) and Open-Meteo (the
+        # pre-game forecast, and each stadium's time zone).
+        "game.matchup": ("nflverse.schedule", "nflverse.stats", "nflverse.team_stats",
+                         "nflverse.pbp", "calibrated.game_models", "wikidata.stadiums",
+                         "openmeteo"),
+        "game.matchup_index": ("nflverse.schedule", "calibrated.game_models"),
+        "game.model_record": ("calibrated.game_models",),
         # a-45: jobs/lab_publish.py's catalogue. Its ranges also come from the
         # analytics column survey (analytics.metrics.derive_range, run by
         # lab.catalogue.ranges when the universe is built), which measures the
@@ -563,6 +618,19 @@ KIND_EXTRA = {
         # (walk-forward bands) and the hard-coded R15 verdict - and the model it fits
         # at every read. F11's next-game rates are nflverse stats, already derived.
         "board_read": ("calibrated.walkforward", "calibrated.model"),
+        # a-57, the record. jobs/record_export.py reads committed documents, not the
+        # store; these are what the scripts behind them read, taken from a grep of
+        # their FROM/JOIN clauses (venue_spread, over_bias_exchange, live_exit_value,
+        # bias_by_moneyness, ranking_calibration, cfb_p1_markets): Odds API quotes and
+        # closes, Kalshi quotes / depth / the trades tape, nflverse player-weeks,
+        # games and snaps, and the walk-forward and model predictions.
+        "record.research": ("oddsapi", "kalshi.ladders", "kalshi.trades", "nflverse.stats",
+                            "nflverse.schedule", "nflverse.snap_counts",
+                            "calibrated.walkforward", "calibrated.model"),
+        # docs/findings/ranking-versus-calibration.md P1: brief 023's walk-forward
+        # against the de-vigged Odds API close, settled on nflverse stats and snaps.
+        "record.backtest": ("oddsapi", "nflverse.stats", "nflverse.schedule",
+                            "nflverse.snap_counts", "calibrated.walkforward"),
         # read nothing upstream: a static list, and this registry itself
         "sports": (),
         "sources": (),
@@ -1113,10 +1181,10 @@ NOT_CONNECTED = [
                "unplayed games only",
          evidence="market_log.db quotes (Kalshi, retained per the price history row)"),
     dict(what="Wind", where="Live, team pages",
-         state="not_ingested",
-         needs="NFL stadium coordinates from a trusted source; weather is read for college "
-               "venues only",
-         evidence="feeds.db weather_at_kickoff holds sport = cfb rows only"),
+         state="ingested_not_exported",
+         needs="a reader on Live and team pages; since a-66 only the matchup files carry it, "
+               "as a pre-game forecast with its lead time",
+         evidence="feeds.db weather_at_kickoff, sport = nfl: forecast and reanalysis rows"),
     dict(what="Live exchange prices", where="Live",
          state="declined",
          needs="nothing: publishing Kalshi prices to the site on a cycle was withdrawn",

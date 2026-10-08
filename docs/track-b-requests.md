@@ -1219,3 +1219,32 @@ Before rendering:
 - **The components table grows three columns at the END.** Index by name from `columns`, never
   by position, and every existing column keeps its index.
 - Components size (staged, 28 season files): 28.7 MB uncompressed.
+
+## a-66 (2026-10-06) - additions to `GameMatchupFile`. Re-vendor; `contract-in-sync` is red until you do
+
+Nothing was removed or renamed, so data may lead code here. Every field below is REQUIRED on a
+matchup file and nullable where it says so.
+
+| field | type | what it is |
+|---|---|---|
+| `teams.{home,away}.units.source` | `team_rows` \| `player_rows` \| null | which rows the six existing unit figures were read from |
+| `teams.*.units.passing_epa_per_game_{for,against}` | number \| null | expected points added on pass plays, per game |
+| `teams.*.units.rushing_epa_per_game_{for,against}` | number \| null | the same for rushing |
+| `teams.*.units.rushing_epa_per_carry_{for,against}` | number \| null | per carry. **There is no passing per-play figure and the page must not derive one** |
+| `teams.*.units.epa_definition` | string | render it beside the EPA figures |
+| `teams.*.units.epa_reason` | string \| null | why the six EPA fields are null |
+| `situation.venue.country_code` | string \| null | ISO 3166-1 alpha-2 |
+| `situation.teams.*.time_zones_definition` | string | render it beside `time_zones_crossed`, which is now populated |
+| `situation.weather.forecast_lead_hours` | number \| null | kickoff minus when the forecast was taken |
+| `situation.weather.forecast_taken` | string \| null | ISO instant |
+| `situation.weather.forecast_source` | string | says it is a model for a grid cell, not a measurement at the stadium |
+
+Before rendering:
+- **A forecast without its lead time is not rendered.** Wind "13 mph" six days out and six hours
+  out are different claims; print `forecast_lead_hours` (or `forecast_taken`) with it.
+- **Never put `recorded_*` in a pre-game slot.** It is null before the game by construction;
+  after the game the two differ (they correlate 0.71) and are labelled apart.
+- **The forecast does not move the total.** `total_assumes_wind_mph` is still what the total was
+  computed at. Do not write a sentence connecting the forecast wind to the model's total.
+- `international` and `time_zones_crossed` are now values on every week-5 file; their `_reason`
+  is null when the value is present.

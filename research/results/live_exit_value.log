@@ -1,0 +1,114 @@
+== DENSITY - Kalshi REC/RSHATT, quotes per market per game, by phase ==
+cache extracted 2026-09-29T14:21:15.077855 ; pbp D:/calibrated-sports/data/raw/nflverse/2026-09-29/play_by_play_2026.parquet
+  week 1: 1,719 markets, 0 games with any in-game quote | pre med 0 zero 100% | Q1 med 0 zero 100% | Q2 med 0 zero 100% | Q3 med 0 zero 100% | Q4 med 0 zero 100% | post med 0 zero 100% |
+  week 2: 1,482 markets, 16 games with any in-game quote | pre med 24 zero 8% | Q1 med 4 zero 5% | Q2 med 5 zero 3% | Q3 med 5 zero 7% | Q4 med 4 zero 11% | post med 2 zero 22% |
+  week 3: 1,502 markets, 16 games with any in-game quote | pre med 51 zero 6% | Q1 med 66 zero 5% | Q2 med 102 zero 3% | Q3 med 55 zero 6% | Q4 med 22 zero 13% | post med 5 zero 24% |
+  inter-quote gap Q1: p50 10.9s p90 95.4s p99 600.7s
+  inter-quote gap Q2: p50 10.8s p90 106.9s p99 600.9s
+  inter-quote gap Q3: p50 10.9s p90 287.2s p99 600.9s
+  inter-quote gap Q4: p50 21.2s p90 600.2s p99 600.9s
+
+== POPULATION == live-tier games 17 {'week 3': 16, 'week 2': 1}; excluded {'week 2': 15}
+census {'end_q1: DECIDED (pbp c >= k) -> none': 8, 'end_q1: DECIDED (pbp c >= k) -> one_sided': 28, 'end_q1: DECIDED (pbp c >= k) -> stale': 15, 'end_q1: none': 56, 'end_q1: ok': 1318, 'end_q1: one_sided': 110, 'end_q1: one_sided, ask only': 80, 'end_q1: one_sided, bid only': 26, 'end_q1: one_sided, neither': 4, 'end_q1: stale': 108, 'end_q3: DECIDED (pbp c >= k) -> none': 5, 'end_q3: DECIDED (pbp c >= k) -> ok': 2, 'end_q3: DECIDED (pbp c >= k) -> one_sided': 158, 'end_q3: DECIDED (pbp c >= k) -> stale': 193, 'end_q3: none': 7, 'end_q3: ok': 1018, 'end_q3: one_sided': 302, 'end_q3: one_sided, ask only': 142, 'end_q3: one_sided, bid only': 142, 'end_q3: one_sided, neither': 18, 'end_q3: stale': 265, 'halftime: DECIDED (pbp c >= k) -> none': 11, 'halftime: DECIDED (pbp c >= k) -> ok': 2, 'halftime: DECIDED (pbp c >= k) -> one_sided': 102, 'halftime: DECIDED (pbp c >= k) -> stale': 83, 'halftime: none': 30, 'halftime: ok': 1200, 'halftime: one_sided': 203, 'halftime: one_sided, ask only': 98, 'halftime: one_sided, bid only': 96, 'halftime: one_sided, neither': 9, 'halftime: stale': 159, 'markets in live games': 1611, 'pre: none': 101, 'pre: ok': 1411, 'pre: one_sided': 45, 'pre: one_sided, ask only': 45, 'pre: stale': 35, 'settled': 1592, 'settlement void': 19}
+pbp reconciliation {'pbp final == settled actual': 1592}
+
+== Q1 - LIVE CALIBRATION (undecided rungs; y - mid in pp) ==
+H1a slope of (y - mid_t) on (mid_t - mid_pre), pooled: +0.036 [-0.055, +0.120] (n=3,410, games=17)
+   descriptive, receptions: +0.056 [-0.069, +0.192] (n=2,987, games=17)
+   descriptive, rush_attempts: -0.071 [-0.536, +0.276] (n=423, games=17)
+   descriptive, end_q1: +0.058 [-0.185, +0.269] (n=1,286, games=17)
+   descriptive, halftime: +0.049 [-0.058, +0.133] (n=1,153, games=17)
+   descriptive, end_q3: -0.004 [-0.137, +0.124] (n=971, games=17)
+H1b mean(y - mid), pooled: -1.09 [-3.65, +2.01] (n=3,532, games=17)
+H1b mean(y - mid), end_q1: +1.17 [-1.74, +4.69] (n=1,318, games=17)
+H1b mean(y - mid), halftime: -1.10 [-3.53, +1.89] (n=1,198, games=17)
+H1b mean(y - mid), end_q3: -4.02 [-6.92, -0.83] (n=1,016, games=17)
+   descriptive, post-hoc, end_q1    tight (half-spread <= 1c): y - mid +2.28 [-1.19, +5.94] (n=397, games=17)
+        y - ask +1.58 [-1.88, +5.22] (n=397, games=17); y - bid +2.98 [-0.50, +6.66] (n=397, games=17)
+   descriptive, post-hoc, end_q1    wide (half-spread > 1c): y - mid +0.69 [-3.15, +5.12] (n=921, games=17)
+        y - ask -4.42 [-8.13, -0.03] (n=921, games=17); y - bid +5.80 [+1.47, +10.60] (n=921, games=17)
+   descriptive, post-hoc, halftime  tight (half-spread <= 1c): y - mid +0.23 [-2.31, +3.00] (n=391, games=17)
+        y - ask -0.42 [-2.98, +2.34] (n=391, games=17); y - bid +0.88 [-1.64, +3.66] (n=391, games=17)
+   descriptive, post-hoc, halftime  wide (half-spread > 1c): y - mid -1.74 [-4.84, +1.96] (n=807, games=17)
+        y - ask -9.29 [-12.30, -5.53] (n=807, games=17); y - bid +5.81 [+2.25, +9.65] (n=807, games=17)
+   descriptive, post-hoc, end_q3    tight (half-spread <= 1c): y - mid -4.09 [-8.45, -0.24] (n=280, games=17)
+        y - ask -4.72 [-9.08, -0.88] (n=280, games=17); y - bid -3.45 [-7.81, +0.39] (n=280, games=17)
+   descriptive, post-hoc, end_q3    wide (half-spread > 1c): y - mid -3.99 [-7.12, -0.26] (n=736, games=17)
+        y - ask -13.63 [-17.66, -9.12] (n=736, games=17); y - bid +5.65 [+2.95, +8.96] (n=736, games=17)
+   descriptive, post-hoc, pooled    tight (half-spread <= 1c): y - mid -0.14 [-2.54, +2.70] (n=1,068, games=17)
+        y - ask -0.80 [-3.21, +2.03] (n=1,068, games=17); y - bid +0.53 [-1.88, +3.38] (n=1,068, games=17)
+   descriptive, post-hoc, pooled    wide (half-spread > 1c): y - mid -1.51 [-4.60, +2.29] (n=2,464, games=17)
+        y - ask -8.77 [-11.98, -4.80] (n=2,464, games=17); y - bid +5.75 [+2.44, +9.53] (n=2,464, games=17)
+   descriptive, move down (bottom third) (mean move -18.8pp): y - mid -2.02 [-5.90, +2.57] (n=1,138, games=17)
+   descriptive, move middle third (mean move -1.4pp): y - mid -0.98 [-2.93, +1.04] (n=1,135, games=17)
+   descriptive, move up (top third) (mean move +16.0pp): y - mid -0.33 [-3.67, +4.02] (n=1,137, games=17)
+   calibration by checkpoint x price bucket (priced / realised; y - mid [game boot]):
+     end_q1    0.0-0.1: 0.057 / 0.049  -0.80 [-2.71, +1.57] (n=364, games=17)
+     end_q1    0.1-0.3: 0.182 / 0.206  +2.45 [-2.57, +8.23] (n=359, games=17)
+     end_q1    0.3-0.5: 0.398 / 0.393  -0.52 [-7.77, +7.61] (n=206, games=17)
+     end_q1    0.5-0.7: 0.602 / 0.617  +1.50 [-6.17, +9.62] (n=167, games=17)
+     end_q1    0.7-0.9: 0.792 / 0.823  +3.12 [-3.21, +8.87] (n=192, games=17)
+     end_q1    0.9-1.0: 0.931 / 1.000  +6.87 [+6.05, +7.57] (n=30, games=12)
+     halftime  0.0-0.1: 0.056 / 0.049  -0.65 [-2.89, +1.79] (n=365, games=17)
+     halftime  0.1-0.3: 0.173 / 0.124  -4.92 [-8.87, -0.01] (n=363, games=17)
+     halftime  0.3-0.5: 0.397 / 0.414  +1.70 [-4.82, +9.03] (n=174, games=17)
+     halftime  0.5-0.7: 0.587 / 0.567  -2.07 [-9.45, +6.08] (n=150, games=17)
+     halftime  0.7-0.9: 0.801 / 0.871  +7.01 [+1.03, +12.76] (n=132, games=17)
+     halftime  0.9-1.0: 0.930 / 0.786  -14.43 [-44.07, +2.93] (n=14, games=7)
+     end_q3    0.0-0.1: 0.057 / 0.028  -2.87 [-4.67, -1.09] (n=323, games=17)
+     end_q3    0.1-0.3: 0.172 / 0.111  -6.07 [-8.88, -2.69] (n=388, games=17)
+     end_q3    0.3-0.5: 0.399 / 0.317  -8.28 [-16.63, +0.83] (n=139, games=17)
+     end_q3    0.5-0.7: 0.570 / 0.602  +3.17 [-5.40, +12.44] (n=113, games=17)
+     end_q3    0.7-0.9: 0.783 / 0.796  +1.34 [-10.50, +11.39] (n=49, games=15)
+     end_q3    0.9-1.0: 0.925 / 0.750  -17.50 [-66.38, +8.38] (n=4, games=4)
+   canonical case - receptions, by remaining needed r = k - c:
+     end_q1    r=1  : priced 0.792 realised 0.786  -0.66 [-5.14, +4.99] (n=98, games=17)
+     end_q1    r=2  : priced 0.591 realised 0.609  +1.86 [-3.01, +6.52] (n=174, games=17)
+     end_q1    r>=3 : priced 0.207 realised 0.214  +0.62 [-2.72, +4.71] (n=885, games=17)
+     halftime  r=1  : priced 0.682 realised 0.688  +0.60 [-3.85, +6.07] (n=157, games=17)
+     halftime  r=2  : priced 0.419 realised 0.409  -1.05 [-5.11, +3.56] (n=186, games=17)
+     halftime  r>=3 : priced 0.141 realised 0.120  -2.08 [-4.46, +0.83] (n=706, games=17)
+     end_q3    r=1  : priced 0.509 realised 0.524  +1.50 [-6.73, +8.94] (n=170, games=17)
+     end_q3    r=2  : priced 0.261 realised 0.249  -1.25 [-6.20, +3.78] (n=181, games=17)
+     end_q3    r>=3 : priced 0.110 realised 0.045  -6.50 [-9.26, -3.68] (n=552, games=17)
+   decided rungs (pbp c >= k), descriptive: {'n': 4, 'games': 4, 'realised_over_rate': 1.0, 'median_mid': 0.955, 'median_bid': 0.925}
+   MDE at 80% power (2.8 x bootstrap SE): bias 4.08pp, slope 0.127
+
+== Q2 - COST OF EXITING (per contract; 100-contract taker order, over holder) ==
+pre      : fresh two-sided 1,411/1,592; one-sided 2.8%, stale/none 8.5%; half-spread p50 0.5c p90 1.5c; fee mean 1.03c; cost +1.81 [+1.73, +1.93] (n=1,411, games=17); YES-bid touch p50 224.0 (n=1327, <100 contracts 41.5%); NO-side touch p50 7226.0
+           executable 100-contract exit, over holder (sell YES): {'fill': 1297, 'unfillable': 30, 'nodepth': 84}; cost (vs mid, + fee) +2.34 [+2.12, +2.62] (n=1,297, games=17), p50 2.2c
+           executable 100-contract exit, under holder (sell NO): {'fill': 1327, 'nodepth': 84}; cost (vs mid, + fee) +1.97 [+1.88, +2.09] (n=1,327, games=17), p50 1.9c
+           by bucket: 0.0-0.1 n=398 hs p50 1.0c cost 1.2c; 0.1-0.3 n=358 hs p50 0.5c cost 1.8c; 0.3-0.5 n=234 hs p50 0.5c cost 2.3c; 0.5-0.7 n=200 hs p50 0.5c cost 2.3c; 0.7-0.9 n=199 hs p50 0.5c cost 2.0c; 0.9-1.0 n=22 hs p50 1.0c cost 1.7c
+end_q1   : fresh two-sided 1,318/1,592; one-sided 6.9%, stale/none 10.3%; half-spread p50 2.0c p90 10.0c; fee mean 0.95c; cost +4.73 [+3.66, +5.97] (n=1,318, games=17); YES-bid touch p50 20.0 (n=1259, <100 contracts 74.6%); NO-side touch p50 340.0
+           executable 100-contract exit, over holder (sell YES): {'fill': 893, 'unfillable': 367, 'nodepth': 58}; cost (vs mid, + fee) +7.46 [+5.69, +9.83] (n=893, games=17), p50 4.2c
+           executable 100-contract exit, under holder (sell NO): {'fill': 1251, 'unfillable': 9, 'nodepth': 58}; cost (vs mid, + fee) +6.28 [+4.99, +7.74] (n=1,251, games=17), p50 3.5c
+           by bucket: 0.0-0.1 n=364 hs p50 1.5c cost 2.2c; 0.1-0.3 n=359 hs p50 2.0c cost 4.5c; 0.3-0.5 n=206 hs p50 2.0c cost 6.6c; 0.5-0.7 n=167 hs p50 2.5c cost 7.9c; 0.7-0.9 n=192 hs p50 2.0c cost 5.6c; 0.9-1.0 n=30 hs p50 1.5c cost 2.1c
+halftime : fresh two-sided 1,200/1,592; one-sided 12.8%, stale/none 11.9%; half-spread p50 2.0c p90 14.0c; fee mean 0.84c; cost +6.14 [+4.98, +7.42] (n=1,200, games=17); YES-bid touch p50 2.0 (n=1141, <100 contracts 72.2%); NO-side touch p50 450.0
+           executable 100-contract exit, over holder (sell YES): {'fill': 686, 'unfillable': 456, 'nodepth': 58}; cost (vs mid, + fee) +8.52 [+6.40, +11.33] (n=686, games=17), p50 4.2c
+           executable 100-contract exit, under holder (sell NO): {'fill': 1135, 'nodepth': 58, 'unfillable': 7}; cost (vs mid, + fee) +8.69 [+6.62, +11.18] (n=1,135, games=17), p50 3.6c
+           by bucket: 0.0-0.1 n=365 hs p50 1.0c cost 2.0c; 0.1-0.3 n=363 hs p50 2.5c cost 5.7c; 0.3-0.5 n=174 hs p50 3.0c cost 11.9c; 0.5-0.7 n=150 hs p50 3.0c cost 10.8c; 0.7-0.9 n=133 hs p50 3.0c cost 6.3c; 0.9-1.0 n=15 hs p50 1.0c cost 2.3c
+end_q3   : fresh two-sided 1,018/1,592; one-sided 19.0%, stale/none 17.1%; half-spread p50 3.0c p90 19.5c; fee mean 0.71c; cost +7.85 [+6.35, +9.36] (n=1,018, games=17); YES-bid touch p50 1.0 (n=967, <100 contracts 82.9%); NO-side touch p50 401.0
+           executable 100-contract exit, over holder (sell YES): {'unfillable': 546, 'fill': 421, 'nodepth': 51}; cost (vs mid, + fee) +9.53 [+7.51, +12.20] (n=421, games=17), p50 5.2c
+           executable 100-contract exit, under holder (sell NO): {'fill': 964, 'nodepth': 51, 'unfillable': 3}; cost (vs mid, + fee) +13.18 [+10.30, +16.07] (n=964, games=17), p50 4.4c
+           by bucket: 0.0-0.1 n=323 hs p50 1.5c cost 2.4c; 0.1-0.3 n=388 hs p50 7.0c cost 7.9c; 0.3-0.5 n=139 hs p50 7.5c cost 14.5c; 0.5-0.7 n=113 hs p50 8.0c cost 15.4c; 0.7-0.9 n=49 hs p50 3.0c cost 7.8c; 0.9-1.0 n=6 hs p50 2.0c cost 2.9c
+
+== Q3 - EXIT AGAINST HOLD (entry: Kalshi mid at kickoff - 10 min) ==
+all       end_q1    over : EV cost +5.88 [+2.63, +9.64] (n=1,286, games=17) = miscal +1.31 [-1.68, +4.82] (n=1,286, games=17) + cost +4.57 [+3.54, +5.79] (n=1,286, games=17); var reduction +89.5 [+86.9, +91.7] (n=1,286, games=17)% (var hold 0.1601, exit 0.0168)
+all       end_q1    under: EV cost +3.36 [-0.31, +6.56] (n=1,286, games=17) = miscal -1.31 [-4.82, +1.68] (n=1,286, games=17) + cost +4.68 [+3.64, +5.92] (n=1,286, games=17); var reduction +88.7 [+86.0, +91.0] (n=1,286, games=17)% (var hold 0.1601, exit 0.0181)
+all       halftime  over : EV cost +4.96 [+2.21, +8.07] (n=1,153, games=17) = miscal -0.99 [-3.46, +2.06] (n=1,153, games=17) + cost +5.96 [+4.78, +7.26] (n=1,153, games=17); var reduction +77.2 [+73.8, +80.4] (n=1,153, games=17)% (var hold 0.1661, exit 0.0379)
+all       halftime  under: EV cost +7.13 [+3.87, +9.96] (n=1,153, games=17) = miscal +0.99 [-2.06, +3.46] (n=1,153, games=17) + cost +6.14 [+4.93, +7.48] (n=1,153, games=17); var reduction +72.6 [+68.5, +76.4] (n=1,153, games=17)% (var hold 0.1661, exit 0.0454)
+all       end_q3    over : EV cost +3.30 [+0.76, +6.06] (n=972, games=17) = miscal -4.45 [-7.44, -1.12] (n=972, games=17) + cost +7.75 [+6.23, +9.29] (n=972, games=17); var reduction +71.7 [+66.7, +76.2] (n=972, games=17)% (var hold 0.1491, exit 0.0422)
+all       end_q3    under: EV cost +12.54 [+8.24, +16.65] (n=972, games=17) = miscal +4.45 [+1.12, +7.44] (n=972, games=17) + cost +8.09 [+6.51, +9.71] (n=972, games=17); var reduction +57.2 [+49.5, +64.0] (n=972, games=17)% (var hold 0.1491, exit 0.0639)
+undecided end_q1    over : EV cost +5.88 [+2.63, +9.64] (n=1,286, games=17) = miscal +1.31 [-1.68, +4.82] (n=1,286, games=17) + cost +4.57 [+3.54, +5.79] (n=1,286, games=17); var reduction +89.5 [+86.9, +91.7] (n=1,286, games=17)% (var hold 0.1601, exit 0.0168)
+undecided end_q1    under: EV cost +3.36 [-0.31, +6.56] (n=1,286, games=17) = miscal -1.31 [-4.82, +1.68] (n=1,286, games=17) + cost +4.68 [+3.64, +5.92] (n=1,286, games=17); var reduction +88.7 [+86.0, +91.0] (n=1,286, games=17)% (var hold 0.1601, exit 0.0181)
+undecided halftime  over : EV cost +4.96 [+2.21, +8.07] (n=1,153, games=17) = miscal -0.99 [-3.46, +2.06] (n=1,153, games=17) + cost +5.96 [+4.78, +7.26] (n=1,153, games=17); var reduction +77.2 [+73.8, +80.4] (n=1,153, games=17)% (var hold 0.1661, exit 0.0379)
+undecided halftime  under: EV cost +7.13 [+3.87, +9.96] (n=1,153, games=17) = miscal +0.99 [-2.06, +3.46] (n=1,153, games=17) + cost +6.14 [+4.93, +7.48] (n=1,153, games=17); var reduction +72.6 [+68.5, +76.4] (n=1,153, games=17)% (var hold 0.1661, exit 0.0454)
+undecided end_q3    over : EV cost +3.29 [+0.75, +6.06] (n=971, games=17) = miscal -4.46 [-7.46, -1.12] (n=971, games=17) + cost +7.75 [+6.23, +9.32] (n=971, games=17); var reduction +71.8 [+66.9, +76.3] (n=971, games=17)% (var hold 0.1490, exit 0.0420)
+undecided end_q3    under: EV cost +12.56 [+8.24, +16.70] (n=971, games=17) = miscal +4.46 [+1.12, +7.46] (n=971, games=17) + cost +8.10 [+6.51, +9.73] (n=971, games=17); var reduction +57.2 [+49.5, +64.0] (n=971, games=17)% (var hold 0.1490, exit 0.0638)
+   descriptive, post-hoc: TAKER ENTRY at the checkpoint, held to settlement (net of fee):
+     end_q1    buy YES at ask    : -3.67 [-6.81, +0.04] (n=1,318, games=17)
+     end_q1    buy NO at 1 - bid : -5.90 [-9.60, -2.68] (n=1,318, games=17)
+     halftime  buy YES at ask    : -7.41 [-10.20, -4.28] (n=1,198, games=17)
+     halftime  buy NO at 1 - bid : -5.04 [-8.11, -2.35] (n=1,198, games=17)
+     end_q3    buy YES at ask    : -12.22 [-16.10, -8.02] (n=1,016, games=17)
+     end_q3    buy NO at 1 - bid : -3.85 [-6.57, -1.13] (n=1,016, games=17)

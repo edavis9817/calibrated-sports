@@ -1,0 +1,70 @@
+== census ==
+  T: buy_no touch < C or no depth within 60s           1,993
+  entry E: not two-sided or stale                        340
+  entry E: two-sided                                   2,513
+  game without final score in the cache                  106
+  maker: no depth snapshot within 60s of E             1,285
+  markets weeks 2-3                                    2,984
+  settled over/under                                   2,853
+  settlement void                                         25
+  tapes fetched by status {200: 2984}; still capped 0; prints 34,049
+
+== M1 - over bias on Kalshi's own mid (realised - mid, pp; game block) ==
+  E n 2,513  games  31  mean mid 0.3399  realised 0.3359  gap -0.40 [-2.67, +2.07]
+     receptions     n 2,203  games  31  gap -0.32 [-2.95, +2.41]  (descriptive)
+     rush_attempts  n   310  games  31  gap -0.97 [-7.39, +5.85]  (descriptive)
+  K n 2,589  games  31  mean mid 0.3396  realised 0.3329  gap -0.67 [-2.82, +1.67]
+     receptions     n 2,269  games  31  gap -0.56 [-3.05, +2.04]  (descriptive)
+     rush_attempts  n   320  games  31  gap -1.40 [-7.48, +5.24]  (descriptive)
+
+== trade arms, under side, 100 contracts, placed at E, cancelled at kickoff ==
+  T  taker at the ask   n   520  games 16  net -5.06 [-10.06, +0.03]  mean fee 1.26pp  -> RETIRED
+  MB maker at the bid   placed 1,228  filled 220  games 16 (with a fill 16)
+     fill rate %            +17.92 [+12.36, +24.14]
+     CONDITIONAL net pp     -0.60 [-9.18, +8.54]   -> RETIRED
+     unfilled (hypoth.) pp  +0.62 [-2.77, +3.63]
+     selection gap pp       -1.22 [-10.08, +8.64]
+     per order placed pp    -0.11 [-1.68, +1.40]
+     post-fill drift pp     -0.61 [-1.34, -0.15]  (NO mid at kickoff - at fill; negative = moved against)
+     depth touch price == quoted ask on 1,225 of 1,228
+     queue ahead, median contracts: 3000.0
+     materiality: 614 orders/week x per-order EV x 100 -> $-66/week
+  MM maker at the mid   placed 1,228  filled 376  games 16 (with a fill 16)
+     fill rate %            +30.62 [+22.00, +40.18]
+     CONDITIONAL net pp     +0.10 [-6.99, +6.34]   -> OPEN (not a finding; retired if the week 4-6 replication is <= 0)
+     unfilled (hypoth.) pp  -0.27 [-4.08, +3.01]
+     selection gap pp       +0.37 [-7.37, +7.68]
+     per order placed pp    +0.03 [-1.98, +1.93]
+     post-fill drift pp     -0.41 [-0.88, -0.10]  (NO mid at kickoff - at fill; negative = moved against)
+     MM rows identical to MB (1c spread): 610 of 1,228
+     materiality: 614 orders/week x per-order EV x 100 -> $19/week
+
+== by YES-mid bucket at E (DESCRIPTIVE - not tests) ==
+  0.0-0.2  n 1,069  M1 +0.93 [-1.08, +2.95]  T net -6.92 [-15.22, -0.65]  T fee 0.48
+      MB placed   515 filled   57 in 13 games  fill +11.07 [+6.51, +15.49]  cond -4.95 [-17.04, +5.91]
+      MM placed   515 filled  144 in 16 games  fill +27.96 [+18.21, +38.51]  cond -2.92 [-9.04, +2.62]
+  0.2-0.4  n   472  M1 +0.40 [-3.64, +4.82]  T net -17.71 [-27.55, -6.55]  T fee 1.43
+      MB placed   228 filled   57 in 15 games  fill +25.00 [+15.91, +35.32]  cond -9.42 [-22.67, +6.98]
+      MM placed   228 filled   84 in 16 games  fill +36.84 [+28.81, +45.26]  cond -4.06 [-14.64, +8.12]
+  0.4-0.6  n   419  M1 -3.67 [-8.23, +0.92]  T net -0.10 [-5.87, +4.98]  T fee 1.73
+      MB placed   206 filled   60 in 14 games  fill +29.13 [+21.67, +36.18]  cond +3.20 [-10.58, +16.92]
+      MM placed   206 filled   75 in 15 games  fill +36.41 [+26.96, +45.10]  cond +1.52 [-11.52, +14.19]
+  0.6-0.8  n   344  M1 +0.80 [-3.41, +5.07]  T net -5.79 [-14.99, +2.86]  T fee 1.49
+      MB placed   166 filled   36 in 12 games  fill +21.69 [+11.45, +32.74]  cond +6.14 [-7.78, +22.40]
+      MM placed   166 filled   55 in 14 games  fill +33.13 [+18.63, +48.66]  cond +3.82 [-5.03, +13.18]
+  0.8-1.0  n   209  M1 -4.50 [-10.13, +0.99]  T net +2.19 [-7.93, +11.14]  T fee 0.94
+      MB placed   113 filled   10 in  5 games  fill +8.85 [+2.40, +16.22]  cond +27.40 [+8.60, +53.00]
+      MM placed   113 filled   18 in  7 games  fill +15.93 [+6.25, +26.61]  cond +26.39 [+6.55, +43.00]
+
+== POST-HOC, not registered: is the maker subset representative? ==
+  depth coverage {'settled_markets': 2853, 'settled_never_depth': 1570, 'settled_games': 31, 'settled_games_with_depth': 17, 'settled_within_60s_of_E': 1264, 'settled_within_300s_of_E': 1264, 'settled_within_900s_of_E': 1264, 'settled_within_3600s_of_E': 1264}
+  M1 at E on the maker subset  n 1,228  games 16  gap +0.49 [-2.48, +3.87]
+  MB conditional interval half-width 8.86pp
+
+== by stat (DESCRIPTIVE) ==
+  receptions     n 2,203  T -3.70 [-9.13, +1.94]  MB 188/1079 cond -0.45 [-9.14, +9.25]  MM 326/1079 cond +0.50 [-6.24, +7.73]
+  rush_attempts  n 310  T -14.42 [-26.05, -3.44]  MB 32/149 cond -1.50 [-24.77, +18.85]  MM 50/149 cond -2.48 [-20.44, +11.81]
+
+== ticket sizes (DESCRIPTIVE) ==
+  C=10    T n 1,092 net -2.69 [-6.04, +0.35]  MB 259/1228 cond -0.11 [-8.77, +8.05]  MM 487/1228 cond +0.03 [-5.56, +5.35]
+  C=1000  T n 216 net -8.11 [-16.28, +0.54]  MB 109/1228 cond +0.70 [-12.00, +9.81]  MM 169/1228 cond -0.56 [-10.56, +8.34]

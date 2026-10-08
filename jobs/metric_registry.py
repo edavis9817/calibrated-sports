@@ -45,6 +45,12 @@ REGISTER = "research/hypotheses.json"
 MANIFEST = "nfl/manifest.json"
 SEASON = "season/nfl/division.json"
 PROJECTION = "season/nfl/projection.json"
+# a-63: the game forecast and its settlement record (jobs.game_export).
+GAME_RECORD = "game/nfl/record.json"
+GAME_FORECAST = "game/nfl/forecast.json"
+# a-64: the spread's and the total's scoring records (jobs.game_matchup).
+GAME_RECORD_SPREAD = "game/nfl/record_spread.json"
+GAME_RECORD_TOTAL = "game/nfl/record_total.json"
 # a-55: the projection's per-team rows are keyed by team, so the registry names
 # the 32 published abbreviations (nflverse's, the site's team keys). A relocation
 # or a renamed code fails the season gate loudly rather than dropping a team.
@@ -281,6 +287,49 @@ METRICS = [
            "remaining.difficulty_rank"))],
     # --- the opportunity residual (a-18 built it, a-21 fixed it, a-51 publishes it)
     *_residual_rows(),
+    # --- the game forecast's settlement record (a-63) ---------------------------
+    # The record's headline figures only. `market_comparison` is DELIBERATELY NOT
+    # registered: this list is exported into the sport manifest, and a registered
+    # figure is one a page is invited to render by resolving its path - the
+    # opposite of the 2026-09-30 decision that it is stored and not displayed.
+    # The forecast's `season_stage` repeats one stage's figures; which stage
+    # depends on the week, so a static copy path cannot name it and
+    # `jobs.game_export.stage_agrees` checks that pair instead.
+    _m("game.record.games", "Games with a winner scored walk-forward, game forecast", "games",
+       0, (GAME_RECORD, "population.games")),
+    _m("game.record.brier.model", "Brier score of the game forecast, walk-forward", "Brier", 4,
+       (GAME_RECORD, "model.brier")),
+    *[_m(f"game.record.vs_{b}{sfx}", f"Brier(model) - Brier({w}), game forecast{lab}", "Brier",
+         4, (GAME_RECORD, f"baselines[id={b}].d_brier.{fld}"))
+      for b, w in (("home", "home team"), ("record", "better record"), ("elo_nomov", "plain Elo"))
+      for sfx, fld, lab in (("", "estimate", ""),
+                            (".interval", "interval", ", game-block 95% interval"))],
+    *[_m(f"game.record.{st}.vs_elo_nomov{sfx}",
+         f"Brier(model) - Brier(plain Elo), {w}{lab}", "Brier", 4,
+         (GAME_RECORD, f"by_stage.{st}.vs.elo_nomov.d_brier.{fld}"))
+      for st, w in (("weeks_1_4", "regular-season weeks 1-4"),
+                    ("weeks_5_plus", "regular-season weeks 5+"))
+      for sfx, fld, lab in (("", "estimate", ""),
+                            (".interval", "interval", ", game-block 95% interval"))],
+    # --- the spread's and the total's records (a-64) ---------------------------
+    # Registered, `vs_close` included: a-64 asks each model number to travel with
+    # the fact that it loses to the close. The matchup files copy these figures and
+    # jobs.game_export.matchup_agrees refuses a copy that differs.
+    _m("game.record_spread.games", "Games scored against the closing spread, spread model",
+       "games", 0, (GAME_RECORD_SPREAD, "population.games")),
+    _m("game.record_total.games", "Games scored against settlement, total model", "games", 0,
+       (GAME_RECORD_TOTAL, "population.games")),
+    *[_m(f"game.record_{mk}.vs_close{sfx}", f"Brier(model) - Brier(closing price), {w}{lab}",
+         "Brier", 4, (f, f"vs_close.d_brier.{fld}"))
+      for mk, w, f in (("spread", "spread model", GAME_RECORD_SPREAD),
+                       ("total", "total model", GAME_RECORD_TOTAL))
+      for sfx, fld, lab in (("", "estimate", ""),
+                            (".interval", "interval", ", game-block 95% interval"))],
+    *[_m(f"game.record_total.vs_{b}{sfx}", f"Brier(model) - Brier({w}), total model{lab}",
+         "Brier", 4, (GAME_RECORD_TOTAL, f"against_baselines[id={b}].d_brier.{fld}"))
+      for b, w in (("league", "league average total"), ("season_avg", "season averages"))
+      for sfx, fld, lab in (("", "estimate", ""),
+                            (".interval", "interval", ", game-block 95% interval"))],
 ]
 
 
@@ -298,12 +347,15 @@ RESEARCH_FILES = frozenset({MARKET, SCORE, REGISTER})
 RESEARCH_METRICS = [m for m in METRICS if _files_of(m) <= RESEARCH_FILES]
 MANIFEST_METRICS = [m for m in METRICS if _files_of(m) <= {MANIFEST}]
 SEASON_METRICS = [m for m in METRICS if _files_of(m) <= {SEASON, PROJECTION}]
+# a-63: the fifth gate, run by `jobs.game_export` on the built files before any write.
+GAME_METRICS = [m for m in METRICS if _files_of(m) <= {GAME_RECORD, GAME_FORECAST,
+                                                       GAME_RECORD_SPREAD, GAME_RECORD_TOTAL}]
 # a-51: the fourth gate, `analytics.export.gate`, on the built analytics tree
 # before `--dest web` writes it (and in jobs.publish_preflight).
 ANALYTICS_METRICS = [m for m in METRICS if all(f.startswith("analytics/") for f in _files_of(m))]
 _ungated = [m["id"] for m in METRICS if m not in RESEARCH_METRICS
             and m not in MANIFEST_METRICS and m not in SEASON_METRICS
-            and m not in ANALYTICS_METRICS]
+            and m not in ANALYTICS_METRICS and m not in GAME_METRICS]
 if _ungated:
     raise ImportError(f"metrics no gate can check (files span both groups): {_ungated}")
 
