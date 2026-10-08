@@ -36,11 +36,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from jobs.export_web import kind_for_key                          # noqa: E402
 
 PAGE_KINDS = ("sport_manifest", "team", "player_index", "player_summary", "player_season")
-# Maps whose KEYS are data (an id, a stat key the manifest defines, a colour code):
-# walking into them would compare one sport's vocabulary with another's.
+# Maps whose KEYS are data (a stat key the manifest defines, a colour code): walking into
+# them would compare one sport's vocabulary with another's.
+#
+# `player_summary.identity.ids` WAS here and is not (a-78, from f-30). Its keys are id
+# SYSTEMS - gsis, pfr, espn - a short fixed vocabulary a template can name literally,
+# which is exactly what this tool exists to compare. Opaque, the five systems the first
+# sport carries and college does not were invisible, and "missing 0" was a statement
+# about every path but that one. A path the tool cannot see is not a path with no gap.
 OPAQUE = {"sport_manifest.stat_definitions", "sport_manifest.market_definitions",
-          "sport_manifest.scoring_presets", "sport_manifest.team_colors",
-          "player_summary.identity.ids"}
+          "sport_manifest.scoring_presets", "sport_manifest.team_colors"}
 SAMPLE = 400
 
 

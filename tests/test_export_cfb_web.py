@@ -198,6 +198,162 @@ def test_the_player_index_lists_who_has_a_page_and_counts_agree(store):
     assert "cfb/players/12/summary.json" not in files
 
 
+# ---------------------------------------------------------------------------
+# a-78: a page is in scope only if the feed names a person
+# ---------------------------------------------------------------------------
+
+def _team_row(con, aid, name, roster=True, **box):
+    """A feed team-total row: a POSITIVE id, offensive usage, and a name that is the
+    team word with a blank or a dash where the given name goes."""
+    if roster:
+        _insert(con, "cfb_rosters", season=SEASON, team_id=1, athlete_id=aid,
+                full_name=name, position="-")
+    _insert(con, "cfb_player_game_box", game_id=100, season=SEASON, team_id=1,
+            athlete_id=aid, athlete_name=name, **(box or {"rush_att": 3, "rush_yds": -6}))
+    con.commit()
+
+
+@pytest.mark.parametrize("name, person", [
+    ("- Team", False), (" Team", False), ("Team", False), ("TEAM", False),
+    ("-", False), ("", False), (None, False), ("  ", False),
+    ("Player One", True), ("Jordan Team", True), ("Team Smith", True), ("D'Team", True),
+    ("Teams", True), ("Jo", True)])
+def test_the_rule_names_what_a_team_row_is_and_returns_both_answers(name, person):
+    assert X.names_a_person(name) is person
+
+
+@pytest.mark.parametrize("name", ["- Team", " Team"])
+def test_a_feed_team_row_with_a_positive_id_gets_no_player_page(store, name):
+    ids = {1, 2}
+    before = X.player_scope(store, ids)
+    _team_row(store, 4892588, name)
+    # the old filter - a positive id with usage - still sees it: the rule is what removes it
+    assert 4892588 in X._usage_ids(store, ids, None)
+    assert X.player_scope(store, ids) == before == {10}
+    assert X.team_rows(store, ids) == {4892588: [name]}
+    files, notes = X.build(store)
+    X.validate_contract(files)
+    assert not [k for k in files if k.startswith("cfb/players/4892588/")]
+    m = files["cfb/manifest.json"]
+    assert [p["id"] for p in files["cfb/players/index.json"]["players"]] == ["10"]
+    assert m["counts"]["players"] == 1 and notes["team_rows"] == 1
+    # left out, and SAID to be: the exclusion is in the manifest, not a silent filter
+    assert m["unresolved_ids"] == [
+        {"id": "4892588", "name": name, "reason": X.REASON_TEAM_ROW}]
+
+
+def test_a_team_row_the_roster_never_lists_is_left_out_on_its_box_name_alone(store):
+    _team_row(store, 4391609, "- Team", roster=False)
+    assert X.player_scope(store, {1, 2}) == {10}
+
+
+def test_no_scoped_athlete_slugifies_to_a_team_row(store):
+    """THE GUARD: every page's slug, with its own id taken off, must be a name - not
+    empty and not the team word. Asserted on what is BUILT, and shown to fail: with the
+    rule switched off the same fixture mints `team-4892588`, which is the page f-30
+    found 17 of."""
+    _team_row(store, 4892588, " Team")
+    _team_row(store, 2988292, "- Team")
+
+    def team_slugs(files):
+        out = []
+        for p in files["cfb/players/index.json"]["players"]:
+            assert p["slug"].endswith("-" + p["id"]), p
+            bare = p["slug"][: -len(p["id"])].strip("-")
+            if bare in ("", X.TEAM_ROW_WORD):
+                out.append(p["slug"])
+        return out
+    files, _ = X.build(store)
+    assert len(files["cfb/players/index.json"]["players"]) == 1      # not vacuous
+    assert team_slugs(files) == []
+    # the same check against the rule switched off returns the other answer
+    real = X.names_a_person
+    X.names_a_person = lambda name: bool(name and name.strip())
+    try:
+        off, _ = X.build(store)
+    finally:
+        X.names_a_person = real
+    assert sorted(team_slugs(off)) == ["team-2988292", "team-4892588"]
+
+
+def test_an_id_named_both_ways_is_titled_with_the_persons_name(store):
+    """The roster calls the id a team row and the box score names a man: some feed name
+    is a person, so he is in scope, and the page is never titled 'Team'."""
+    _insert(store, "cfb_rosters", season=SEASON, team_id=1, athlete_id=13,
+            full_name="- Team", position="-")
+    _insert(store, "cfb_player_game_box", game_id=100, season=SEASON, team_id=1,
+            athlete_id=13, athlete_name="Player Four", rush_att=4, rush_yds=19)
+    store.commit()
+    assert 13 in X.player_scope(store, {1, 2})
+    files, _ = X.build(store)
+    ident = files["cfb/players/13/summary.json"]["identity"]
+    assert ident["name"] == "Player Four" and ident["slug"] == "player-four-13"
+
+
+def test_an_id_the_feed_never_names_is_still_reported_with_no_page(store):
+    _insert(store, "cfb_player_game_box", game_id=100, season=SEASON, team_id=1,
+            athlete_id=14, athlete_name=None, rush_att=2, rush_yds=5)
+    store.commit()
+    files, notes = X.build(store)
+    assert "cfb/players/14/summary.json" not in files and notes["team_rows"] == 0
+    assert files["cfb/manifest.json"]["unresolved_ids"] == [
+        {"id": "14", "name": None, "reason": X.REASON_NO_NAME}]
+
+
+def test_the_scope_floor_is_2015_and_the_rule_did_not_move_it():
+    assert X.PLAYER_SCOPE_FROM == 2015
+
+
+def test_the_id_systems_college_lacks_are_declared_and_the_one_it_has_is_not(store):
+    """f-30: the first sport carries gsis, pfr, pff, sleeper and yahoo under
+    `identity.ids`; college carries espn. Each absent system is named with a state and
+    a reason, and a system college DOES publish is never declared absent."""
+    files, _ = X.build(store)
+    named = {a["path"]: a for a in files["cfb/manifest.json"]["absences"]}
+    ids = files["cfb/players/10/summary.json"]["identity"]["ids"]
+    assert ids == {"espn": "10"}
+    for key in ("gsis", "pfr", "pff", "sleeper", "yahoo"):
+        a = named[f"player_summary.identity.ids.{key}"]
+        assert a["state"] in ("not_published", "not_collected") and len(a["reason"]) >= 10
+        assert key not in ids                       # declared absent AND actually absent
+    assert not [k for k in ids if f"player_summary.identity.ids.{k}" in named]
+    X.validate_contract(files)
+
+
+def test_the_diff_tool_walks_identity_ids_and_can_report_a_gap_there(tmp_path):
+    """The path was opaque, so `missing 0` could not have said otherwise. Two tiny
+    trees: the first sport's summary carries `gsis`, college's does not. Undeclared it
+    is MISSING; declared it is not. Both answers, from the tool's own main()."""
+    from research import cfb_contract_diff as D
+    assert "player_summary.identity.ids" not in D.OPAQUE
+    env = {"schema_version": 2, "generated_at": "x"}
+
+    def tree(root, sport, ids, absences=None):
+        d = root / sport / "players" / "1"
+        d.mkdir(parents=True)
+        (d / "summary.json").write_text(json.dumps(
+            {**env, "kind": "player_summary", "sport": sport, "identity": {"ids": ids}}))
+        man = {**env, "kind": "sport_manifest", "sport": sport}
+        if absences is not None:
+            man["absences"] = absences
+        (root / sport / "manifest.json").write_text(json.dumps(man))
+    nfl = tmp_path / "n"
+    tree(nfl, "nfl", {"gsis": "00-1", "espn": "5"})
+    undeclared, declared = tmp_path / "u", tmp_path / "d"
+    tree(undeclared, "cfb", {"espn": "9"}, [])
+    tree(declared, "cfb", {"espn": "9"},
+         [{"path": "player_summary.identity.ids.gsis", "state": "not_published",
+           "reason": "not a declared source", "limitation": None}])
+    out = {}
+    for label, cfb in (("undeclared", undeclared), ("declared", declared)):
+        rep = tmp_path / f"{label}.json"
+        assert D.main(["--nfl", str(nfl), "--cfb", str(cfb), "--json", str(rep)]) == 0
+        out[label] = json.loads(rep.read_text())["kinds"]["player_summary"]
+    assert out["undeclared"]["missing"] == ["player_summary.identity.ids.gsis"]
+    assert out["declared"]["missing"] == []
+    assert out["declared"]["under_declared_parent"] == ["player_summary.identity.ids.gsis"]
+
+
 def test_a_player_file_carries_the_row_and_declares_what_it_cannot(store):
     # a teammate who threw and ran, so those columns are RECORDED this season: a column
     # nobody in the league has a value for is a hole, and a hole is kept as null
@@ -616,7 +772,8 @@ def test_alabama_favoured_by_18_5_over_florida_state_is_published_as_plus_18_5()
         assert hp > ap                                     # Alabama, at home, won
         lines, abbrs = X.game_lines(con), X.abbr_map(con)
         assert lines[401856685][0] == -18.5                # CFBD: negative = home favoured
-        rows = {tid: next(r for r in X.schedule_rows(con, tid, lines, abbrs, set())
+        slugs = X.slug_map(con, X.teams(con))    # a-72 added the argument; a-78 passes it
+        rows = {tid: next(r for r in X.schedule_rows(con, tid, lines, abbrs, set(), slugs)
                           if r["game_id"] == "401856685") for tid in (home_id, away_id)}
     finally:
         con.close()

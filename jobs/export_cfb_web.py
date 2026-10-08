@@ -175,8 +175,28 @@ DEFENSIVE_CATEGORY = ("tkl_solo", "tkl_total", "tfl", "sacks", "pass_def", "def_
 TEAM_DEFENSE_ABSENT = ("def_tkl_with_assist", "def_tkl_ast", "def_qb_hits", "def_ff",
                        "def_safeties")
 PLAYER_ABSENT = ("two_pt",)
+# The first sport's `identity.ids` keys that no college file carries: (key, state, reason).
+# `espn` is the one id system this sport has. `gsis` is the only one of these the store
+# could answer, and only for drafted players, through a crosswalk this sport's source
+# registry does not declare - which is why it is "not published" and the rest are not.
+_NO_ID_SOURCE = ("No source this sport ingests carries this id system for college "
+                 "players, so the key is absent from identity.ids.")
+ID_ABSENT = (
+    ("gsis", "not_published",
+     "The league's own player id exists only for players who reached it; the draft "
+     "crosswalk that could supply it is not a declared source for college pages, so "
+     "the key is absent from identity.ids."),
+    ("pfr", "not_collected", _NO_ID_SOURCE),
+    ("pff", "not_collected", _NO_ID_SOURCE),
+    ("sleeper", "not_collected", _NO_ID_SOURCE),
+    ("yahoo", "not_collected", _NO_ID_SOURCE),
+)
 
 REASON_NO_NAME = "no resolvable name - excluded from the export"
+REASON_TEAM_ROW = "the feed's team-total row, not a person - excluded from the export"
+# The word the feed writes where a person's name would be, on the row that carries a
+# team's own totals (a-78). Its given-name half is blank or a dash: '- Team', ' Team'.
+TEAM_ROW_WORD = "team"
 NO_SNAPS = ("Not collected: no public source records college snap counts or whether a "
             "player took the field.")
 STAT_ABSENT = ("snaps", "snap_share", "snap_share_mean")
@@ -664,11 +684,41 @@ def fold(name):
     return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
 
 
-def player_scope(con, team_ids, from_season=None):
-    """{athlete_id} with an offensive box row for an exported team from `from_season`.
+def names_a_person(name):
+    """Does this feed name name a PERSON? (a-78)
 
-    Ids at or below zero are the feed's placeholders for a player it could not identify
-    (`research/cfb_scale.py` counts them) and name no one, so they are never in scope."""
+    THE RULE, written before the count it produces was read: a page is in scope only if
+    the feed names a person. A name names a person when it has at least one word, and
+    not every word is the feed's own team label. So '- Team' and ' Team' - the row the
+    feed uses for a team's totals, a blank or a dash where the given name goes - name no
+    one, and neither does a name with no letters or digits in it at all ('-', '').
+    'Jordan Team' names a person: the rule is about a name made of NOTHING BUT the team
+    word, not about a surname. Deliberately not an id list - the feed mints a fresh
+    positive id for such a row whenever it likes, and 17 of them had one."""
+    words = fold(name).split()
+    return bool(words) and any(w != TEAM_ROW_WORD for w in words)
+
+
+def feed_names(con, ids):
+    """{athlete_id: [every name either feed gives that id]}, roster first, then the box
+    score, each newest season first. Current rows only; nulls and blanks are not names."""
+    out = defaultdict(list)
+
+    def add(aid, name):
+        if aid in ids and name is not None and name.strip() and name not in out[aid]:
+            out[aid].append(name)
+    for aid, name in con.execute(
+            "SELECT athlete_id, full_name FROM cfb_rosters WHERE valid_to_ts IS NULL "
+            "ORDER BY season DESC"):
+        add(aid, name)
+    for aid, name in con.execute(
+            "SELECT athlete_id, athlete_name FROM cfb_player_game_box WHERE "
+            "valid_to_ts IS NULL AND athlete_id > 0 ORDER BY season DESC, game_id DESC"):
+        add(aid, name)
+    return out
+
+
+def _usage_ids(con, team_ids, from_season):
     from_season = PLAYER_SCOPE_FROM if from_season is None else from_season
     marks = ",".join("?" * len(team_ids))
     usage = " + ".join(f"COALESCE({c}, 0)" for c in OFFENSE_COLUMNS)
@@ -676,6 +726,31 @@ def player_scope(con, team_ids, from_season=None):
         f"SELECT DISTINCT athlete_id FROM cfb_player_game_box WHERE valid_to_ts IS NULL "
         f"AND athlete_id > 0 AND season >= ? AND team_id IN ({marks}) AND ({usage}) > 0",
         (from_season, *sorted(team_ids)))}
+
+
+def team_rows(con, team_ids, from_season=None):
+    """{athlete_id: [names]} for ids with offensive usage that the feed names, and never
+    as a person (`names_a_person`). These are what `player_scope` leaves out; the
+    manifest lists them in `unresolved_ids` so the exclusion is not a silent filter."""
+    ids = _usage_ids(con, team_ids, from_season)
+    names = feed_names(con, ids)
+    return {aid: ns for aid, ns in names.items()
+            if ns and not any(names_a_person(n) for n in ns)}
+
+
+def player_scope(con, team_ids, from_season=None):
+    """{athlete_id} with an offensive box row for an exported team from `from_season`,
+    WHERE THE FEED NAMES A PERSON.
+
+    Ids at or below zero are the feed's placeholders for a player it could not identify
+    (`research/cfb_scale.py` counts them) and name no one, so they are never in scope.
+    A positive id is not proof of a person either (a-78): the feed gives its team-total
+    row one, named '- Team'. An id is left out when the feed names it and no name it
+    carries names a person - see `names_a_person` for the rule and `team_rows` for the
+    ids. An id the feed never names at all stays in: `build_players` reports it in
+    `unresolved_ids` and gives it no page, as before."""
+    ids = _usage_ids(con, team_ids, from_season)
+    return ids - set(team_rows(con, team_ids, from_season))
 
 
 def roster_identity(con, scope):
@@ -758,11 +833,18 @@ def build_players(con, scope, team_abbr_of, exported_abbrs, holes, generated_at)
         ros = rosters.get(aid)
         if ros is None:
             census["no_roster"] += 1
-        name = (ros or {}).get("name") or next(
-            (r[1] for r in reversed(prs) if r[1]), None)
+        # The roster's name, else the newest box name - and only ever one that names a
+        # person (a-78): an id the feed calls '- Team' on the roster and a man's name in
+        # the box is titled with the man's name. `player_scope` has already left out the
+        # ids no feed name of which is a person, so `named` is empty here only for an id
+        # the feed never names.
+        given = [(ros or {}).get("name")] + [r[1] for r in reversed(prs)]
+        named = [n for n in given if n and n.strip()]
+        name = next((n for n in named if names_a_person(n)), None)
         sid = str(aid)
         if not name:
-            unresolved.append({"id": sid, "name": None, "reason": REASON_NO_NAME})
+            unresolved.append({"id": sid, "name": named[0] if named else None,
+                               "reason": REASON_TEAM_ROW if named else REASON_NO_NAME})
             continue
         slug = f"{slugify(name)}-{sid}".strip("-")
         pages[aid] = slug
@@ -937,6 +1019,12 @@ def absences(holes):
          "reason": "A main line is defined for prop history, and college publishes none.",
          "limitation": "cfb.stats_and_usage_only"},
     ]
+    # Id systems the first sport publishes under `identity.ids` and this one does not
+    # (a-78). The map is open and a sport brings its own set, so the keys are ABSENT
+    # rather than null - null would say "this player's id is not known", and for these
+    # the truthful statement is that nobody looked it up.
+    out += [{"path": f"player_summary.identity.ids.{key}", "state": state,
+             "reason": reason, "limitation": None} for key, state, reason in ID_ABSENT]
     for key in TEAM_DEFENSE_ABSENT + PLAYER_ABSENT:
         out.append({"path": f"stats.{key}", "state": "not_collected",
                     "reason": "The college box score feed has no column for this stat.",
@@ -1018,8 +1106,11 @@ def build(con, generated_at=None, player_from=None):
 
     slugs = slug_map(con, ts)
     scope = player_scope(con, ids, player_from)
+    not_people = team_rows(con, ids, player_from)
     player_files, index, unresolved, pages, census = build_players(
         con, scope, abbrs, set(codes), holes, generated_at)
+    unresolved += [{"id": str(aid), "name": not_people[aid][0], "reason": REASON_TEAM_ROW}
+                   for aid in sorted(not_people)]
     files.update(player_files)
     summaries, frame = season_summaries(con, ids)
 
@@ -1093,7 +1184,8 @@ def build(con, generated_at=None, player_from=None):
 
     return files, {"dropped_colors": dropped_colors, "blank_opponent_abbrs": blank_abbrs,
                    "stale": stale, "holes": holes, "frame": frame, "census": census,
-                   "players": len(index), "scope": len(scope)}
+                   "players": len(index), "scope": len(scope),
+                   "team_rows": len(not_people)}
 
 
 OWNED_PREFIX = f"{SPORT}/"
@@ -1134,8 +1226,10 @@ def export(out_dir, dry_run=False, verbose=True):
         print(f"  current.stale {notes['stale']}")
         c = notes["census"]
         print(f"  players {notes['players']} of {notes['scope']} in scope "
-              f"(season >= {PLAYER_SCOPE_FROM}); {len(m['unresolved_ids'])} excluded with no "
-              f"name; {c['no_roster']} never on a roster (position null); "
+              f"(season >= {PLAYER_SCOPE_FROM}); "
+              f"{sum(u['reason'] == REASON_NO_NAME for u in m['unresolved_ids'])} excluded "
+              f"with no name; {notes['team_rows']} more left out of scope as the feed's "
+              f"team-total row; {c['no_roster']} never on a roster (position null); "
               f"{c['team_not_exported']} whose latest team is not exported (team null)")
         print(f"  player rows {c['rows']}, targets null on {c['null_target_rows']} "
               f"(no play-by-play for the game); season totals {c['totals']}, targets null "

@@ -437,8 +437,12 @@ LOADERS = {
         "season_summaries": ("sport_manifest",),
         "not_collected": ("team", "player_season", "player_summary", "sport_manifest"),
         "usage_by_game": ("team", "player_season", "player_summary"),
-        "player_scope": ("player_season", "player_summary", "player_index", "team",
-                         "sport_manifest"),
+        # a-78: `player_scope` reads through these two - who has offensive usage, and
+        # what either feed calls him (a page is in scope only if the feed names a person).
+        "_usage_ids": ("player_season", "player_summary", "player_index", "team",
+                       "sport_manifest"),
+        "feed_names": ("player_season", "player_summary", "player_index", "team",
+                       "sport_manifest"),
         "roster_identity": ("player_season", "player_summary", "player_index"),
         "build_players": ("player_season", "player_summary", "player_index"),
     },
