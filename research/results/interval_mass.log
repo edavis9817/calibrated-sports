@@ -96,6 +96,9 @@ intervals 11145 on 709 ladders; by position {'adjacent': 5312, 'straddle': 3486,
     COST LINE receptions|w=3|all: sell the interval, 100 a leg, 669 of 1862 with depth; two-leg cost 4.24c against a 2.85pp gap at the mid; thinner-leg touch p50 100; realised net pp -3.39 [-7.21, +0.44]  (n 669, 18 games)
   VERDICT, calibration (pre-registered rule): a deviation survives correction below its MDE  [pre-run MDE over the readable cells: median 7.66pp, min 0.98, max 50.42]
   bootstrap SE over the pre-run (independent-ladder) SE: p50 0.98, p90 1.10
+  POST HOC (addendum 1), z on the pre-run null SE instead of the bootstrap SE: nominal p<0.05 5; BH q=0.1 survivors 0 []; Holm 0
+    smallest p: receptions|w=1|0.10-0.20 0.0061; receptions|w=3|0.45-0.60 0.0086; receptions|w=2|0.20-0.30 0.0091; receptions|w=2|0.10-0.20 0.0107; receptions|w=3|all 0.0195; receptions|w=4|>=0.60 0.0633; receptions|w=4|0.45-0.60 0.0831; receptions|w=2|all 0.0928
+    cells in which no interval hit (bootstrap variance collapses): ['receptions|w=3|0.05-0.10']
 
 == The 2026 pre-check: stated direction against the result ==
   S_2    predicted < 0  implied 0.3748 realised 0.3543  diff pp -2.05 [-7.16, +3.36]  (n 350, 48 games)  pre-run MDE 7.16  -> not detected

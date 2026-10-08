@@ -2226,3 +2226,23 @@ while three writer tasks launched from it). a-10 built two production clones pin
   the cutover and the one commit production makes itself (the slug registry).
 - **Once they do, merging to `origin/main` is deploying.** The sync fast-forwards within the
   hour.
+
+- **An interval between two rungs of Kalshi's ladder is coherent, not shown mispriced, and costs
+  about twice a single rung** (c-43, `research/interval_mass.py`, pre-registered at `dbf8b03`;
+  `docs/findings/c43-interval-mass.md`). Kalshi `KXNFLREC` / `KXNFLRSHATT`, NFL 2026 weeks 2-4,
+  kickoff - 180 min, c-35's 725 ladders and 48 games; the MARKET's ladder, no model read.
+  - **Coherence:** 0 of 11,145 rung pairs imply a negative mass, 0 are crossed at the touch.
+  - **Calibration, by the registered rule: "a deviation survives correction below its MDE".** 6 of
+    46 readable (width x price-bin) cells survive BH, none exceeds its pre-run MDE (median 7.7pp),
+    and on an outcome-independent SE none survives (post hoc). Every receptions width reads
+    negative, 2-3pp from width 3 up - the same sample and the same shape as c-35's narrow
+    dispersion, not a second finding.
+  - **A too-narrow ladder over-prices the CENTRE; it does not under-price wide intervals.** Stated
+    before the run and not detected: straddling intervals -3.64pp [-7.62, +0.26], MDE 6.09pp.
+  - **Cost:** two legs 4.36c over the mid at 100 contracts against 2.30c for the nearest single
+    rung (+2.06c [+1.94, +2.17]), about half of it fee; the cost does not fall with width, so a
+    width-1 interval costs 34% of its value and a width-4 one 8.5%. 18 games, 16 of them week 3.
+  - **A cell in which nothing hit has almost no BOOTSTRAP variance.** 22 intervals, 0 hits, read
+    z = -34 and was the run's only Holm survivor; under the ladder's own cells z = -1.36. The
+    variance was not zero, it was the variance of the prices. A pre-run MDE from an outcome-free
+    simulation is what refused it.

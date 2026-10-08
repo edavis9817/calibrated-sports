@@ -223,3 +223,28 @@ consistency between two summaries of one sample. An out-of-sample test needs wee
   a taker's cost.
 - Whether a sportsbook quotes such an interval ("no book quotes") is the roadmap's premise
   and is not tested here.
+
+---
+
+## Addendum 1 - written AFTER the registered run (2026-10-08), with the results in view
+
+The registered run used `research/interval_mass.py` as committed before it (`a62133d`, plus
+a guard against an empty denominator in the C5 print, which no real number touches). It ran
+once. One thing was added afterwards. **It changes no registered interval and no verdict**:
+the result JSON before and after is identical apart from one added key
+(`calibration.posthoc_null_se`), and the log differs by three added lines.
+
+- **POST HOC sensitivity, outside the verdict: z on the pre-run null SE.** The registered
+  rule divides each estimate by its bootstrap SE. One surviving cell, receptions width 3
+  priced 0.05-0.10, has 22 intervals on 18 games and **not one of them hit**. Every bootstrap
+  resample of an all-zero cell also realises zero, so its bootstrap SE (0.24pp) measures
+  only the spread of the prices, and the cell reads z = -34 - the only Holm survivor in the
+  run. Under the ladder's own cells its SE is 6.1pp and z = -1.36. This is the
+  zero-variance trap CLAUDE.md records from brief 022, one step removed: the variance is
+  not zero, it is merely not the variance of the thing tested. The registered verdict rule
+  already refuses to call this cell mispriced (8.3pp against a pre-run MDE of 17.1pp),
+  which is what the MDE condition is for. The added table recomputes every p-value with the
+  outcome-free SE and re-applies BH and Holm, so the reader can see how much of the
+  registered survivor count depends on which SE is used.
+
+Nothing else was changed: no width, bin, instant or correction. Specifications tried: one.

@@ -1308,6 +1308,49 @@
   "mde_prerun_max": 0.5041661922174075,
   "mde_prerun_min": 0.009849012091147519,
   "bootstrap_over_prerun_mde_p50": 0.978919784907097,
+  "posthoc_null_se": {
+   "n_nominal": 5,
+   "n_bh": 0,
+   "n_holm": 0,
+   "bh": [],
+   "smallest_p": [
+    [
+     0.006083956417274339,
+     "receptions|w=1|0.10-0.20"
+    ],
+    [
+     0.008601580405016514,
+     "receptions|w=3|0.45-0.60"
+    ],
+    [
+     0.009056061541538896,
+     "receptions|w=2|0.20-0.30"
+    ],
+    [
+     0.010711265214455767,
+     "receptions|w=2|0.10-0.20"
+    ],
+    [
+     0.019505444921973748,
+     "receptions|w=3|all"
+    ],
+    [
+     0.06333245257557557,
+     "receptions|w=4|>=0.60"
+    ],
+    [
+     0.0831224078281994,
+     "receptions|w=4|0.45-0.60"
+    ],
+    [
+     0.09277891663823647,
+     "receptions|w=2|all"
+    ]
+   ],
+   "all_zero_cells": [
+    "receptions|w=3|0.05-0.10"
+   ]
+  },
   "precheck_reading": {
    "straddle": "not detected",
    "upper_wing": "not detected"

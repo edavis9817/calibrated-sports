@@ -533,6 +533,33 @@ def survivor_cost_line(ladders, ivs, idx, est, name, out):
 # Answer 2 - calibration, and the pre-check
 # =============================================================================
 
+def posthoc_null_se(names, tests, exist, out):
+    """ADDENDUM 1, POST HOC, outside the verdict. The registered z divides by the
+    bootstrap SE, and a cell in which NO interval hit has almost no bootstrap
+    variance (every resample also realises zero), so it reads as overwhelming
+    evidence when it is a handful of misses. Here z divides by the pre-run SE
+    under the ladder's own cells instead, which does not depend on the outcome."""
+    ps, keys = [], []
+    for k in exist:
+        r = tests[k]
+        se = None if r.get("mde_prerun") is None else r["mde_prerun"] / 2.8
+        ok = se and se > TOL and r["games"] >= MIN_GAMES and r["est"] is not None
+        ps.append(float(2 * norm.sf(abs(r["est"] / se))) if ok else 1.0)
+        keys.append(k)
+    keep = le.bh(ps, BH_Q)
+    hk = holm(ps)
+    res = {"n_nominal": int(sum(p < 0.05 for p in ps)), "n_bh": len(keep), "n_holm": len(hk),
+           "bh": [{"name": names[keys[i]], "est": tests[keys[i]]["est"], "p": ps[i]} for i in sorted(keep)],
+           "smallest_p": sorted((ps[i], names[keys[i]]) for i in range(len(ps)))[:8],
+           "all_zero_cells": [names[k] for k in exist if tests[k]["realised"] == 0 and tests[k]["n"] > 1]}
+    out(f"  POST HOC (addendum 1), z on the pre-run null SE instead of the bootstrap SE: nominal p<0.05 "
+        f"{res['n_nominal']}; BH q={BH_Q} survivors {res['n_bh']} {[e['name'] for e in res['bh']]}; Holm "
+        f"{res['n_holm']}")
+    out("    smallest p: " + "; ".join(f"{n} {p:.4f}" for p, n in res["smallest_p"]))
+    out(f"    cells in which no interval hit (bootstrap variance collapses): {res['all_zero_cells']}")
+    return res
+
+
 def calibration(ladders, ivs, mde, out):
     out("\n== Answer 2 - calibration of the interval against settlement ==")
     fam, pre = test_cells(ivs)
@@ -593,6 +620,8 @@ def calibration(ladders, ivs, mde, out):
     res["bootstrap_over_prerun_mde_p50"] = float(np.median(ratio))
     out(f"  bootstrap SE over the pre-run (independent-ladder) SE: p50 {np.median(ratio):.2f}, "
         f"p90 {np.percentile(ratio, 90):.2f}")
+
+    res["posthoc_null_se"] = posthoc_null_se(names, tests, exist, out)
 
     out("\n== The 2026 pre-check: stated direction against the result ==")
     pn = list(pre)

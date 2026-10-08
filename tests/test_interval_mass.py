@@ -271,3 +271,16 @@ def test_priced_pairs_net_pays_two_on_a_hit_when_bought_and_zero_when_sold():
     assert b["net"] == pytest.approx(2 - b["capital"]) and s["net"] == pytest.approx(0 - s["capital"])
     assert b["value"] == pytest.approx(0.25) and s["value"] == pytest.approx(0.75)
     assert im.break_even(0.25, 0.04) > 0 and im.break_even(0.0, 0.04) is None
+
+
+# ---- addendum 1: the all-zero cell ---------------------------------------------------
+
+def test_a_cell_in_which_nothing_hit_survives_on_the_bootstrap_se_and_not_on_the_null_se():
+    games = [f"g{n}" for n in range(20)]
+    p = np.linspace(0.06, 0.10, 20)
+    r = im.boot_mean(0.0 - p, games, "zero-hit")              # 20 intervals, none hit
+    r.update(realised=0.0, mde_prerun=2.8 * 0.06)             # ~ sqrt(.08 * .92 / 20)
+    assert im.pval(r) < 1e-6                                   # the bootstrap calls it certain
+    res = im.posthoc_null_se(["cell"], [r], [0], out=lambda *_: None)
+    assert res["n_bh"] == 0 and res["all_zero_cells"] == ["cell"]
+    assert res["smallest_p"][0][0] > 0.1
