@@ -1,0 +1,327 @@
+panel: 501,470 player-games, census {'player-week row with no REG game': 1, 'played, no stat row (zero added)': 41301}  (7s)
+
+#### receiving_yards: 57,355 frame rows 2016-2025  (11s)
+   T=2023: priors on 2016-2022, shapes on [2020, 2021, 2022] (n 17,638, positive 11,165)
+      k_y {'TE': 1.5, 'RB': 3.0, 'WR': 1.5}  k_z {'TE': 1.6, 'RB': 2.2, 'WR': 1.3}
+      S1 (c0, c1) [-0.925, 0.414]   Y (b0, b1, c0, c1) [0.364, 0.893, -1.027, 0.446]   hurdle (a, b) [-0.02, 0.815]
+      train NLL per positive: S1 4.3663  Y 4.3634  Y-lognormal 4.4066  Y-weibull 4.3642
+      median gamma shape of Y on season 2023: 1.501
+   T=2024: priors on 2016-2023, shapes on [2021, 2022, 2023] (n 17,954, positive 11,283)
+      k_y {'TE': 1.5, 'RB': 3.1, 'WR': 1.5}  k_z {'TE': 1.6, 'RB': 2.2, 'WR': 1.3}
+      S1 (c0, c1) [-0.875, 0.399]   Y (b0, b1, c0, c1) [0.347, 0.896, -0.966, 0.428]   hurdle (a, b) [-0.004, 0.813]
+      train NLL per positive: S1 4.3498  Y 4.3469  Y-lognormal 4.3876  Y-weibull 4.3480
+      median gamma shape of Y on season 2024: 1.481
+   T=2025: priors on 2016-2024, shapes on [2022, 2023, 2024] (n 17,950, positive 11,192)
+      k_y {'TE': 1.4, 'RB': 3.1, 'WR': 1.5}  k_z {'TE': 1.5, 'RB': 2.2, 'WR': 1.3}
+      S1 (c0, c1) [-0.838, 0.391]   Y (b0, b1, c0, c1) [0.297, 0.912, -0.915, 0.415]   hurdle (a, b) [0.02, 0.827]
+      train NLL per positive: S1 4.3372  Y 4.3351  Y-lognormal 4.3771  Y-weibull 4.3360
+      median gamma shape of Y on season 2025: 1.526
+   rungs 2023: 20,114 scored
+   rungs 2024: 22,508 scored
+   rungs 2025: 11,111 scored
+   rung census: {'rungs': 56732, 'settled over/under': 53859, 'settle_one: void (dropped)': 63, 'not a regular-season game (dropped)': 2810, 'settled but not in the frame (position not WR/TE/RB or no panel row; dropped)': 126}
+
+== PART 1 shape fit: receiving_yards, seasons [2023, 2024, 2025] (randomised PIT; coverage = share of PIT <= q)
+
+   F  all played player-games: n 18,031   realized share <= 0: 0.3800   mean 20.86
+   arm              KS  maxbin    q10    q25    q50    q75    q90    q95     pi0    logS    CRPS
+   S0           0.0300  0.0188  0.119  0.278  0.513  0.739  0.891  0.945  0.3656  3.3019  10.291
+   S1           0.0155  0.0124  0.112  0.265  0.507  0.755  0.905  0.952  0.3656  3.1974  10.247
+   Y            0.0083  0.0067  0.100  0.243  0.495  0.754  0.907  0.953  0.3757  3.1921  10.267
+   Y-lognormal  0.0409  0.0269  0.099  0.240  0.467  0.719  0.903  0.960  0.3757  3.2169  10.395
+   Y-weibull    0.0128  0.0087  0.099  0.238  0.496  0.759  0.907  0.952  0.3757  3.1931  10.254
+
+   F  as-of n >= 4: n 16,241   realized share <= 0: 0.3524   mean 22.14
+   arm              KS  maxbin    q10    q25    q50    q75    q90    q95     pi0    logS    CRPS
+   S0           0.0227  0.0161  0.116  0.272  0.504  0.733  0.888  0.943  0.3498  3.3839  10.594
+   S1           0.0093  0.0088  0.109  0.255  0.497  0.747  0.902  0.950  0.3498  3.3065  10.539
+   Y            0.0193  0.0088  0.095  0.232  0.484  0.744  0.903  0.951  0.3612  3.3023  10.581
+   Y-lognormal  0.0537  0.0326  0.096  0.230  0.455  0.708  0.899  0.959  0.3612  3.3293  10.740
+   Y-weibull    0.0221  0.0126  0.094  0.228  0.486  0.751  0.903  0.950  0.3612  3.3033  10.564
+
+   F  as-of n < 4: n 1,790   realized share <= 0: 0.6302   mean 9.23
+   arm              KS  maxbin    q10    q25    q50    q75    q90    q95     pi0    logS    CRPS
+   S0           0.1079  0.0436  0.144  0.335  0.593  0.793  0.923  0.968  0.5087  2.5576   7.538
+   S1           0.1102  0.0453  0.145  0.349  0.592  0.822  0.935  0.966  0.5087  2.2078   7.595
+   Y            0.1079  0.0425  0.141  0.341  0.599  0.839  0.942  0.969  0.5069  2.1920   7.419
+   Y-lognormal  0.0968  0.0458  0.125  0.334  0.579  0.820  0.934  0.973  0.5069  2.1972   7.267
+   Y-weibull    0.0966  0.0436  0.141  0.323  0.593  0.835  0.944  0.969  0.5069  2.1931   7.441
+
+   priced player-games (>= 1 rung): n 10,082   realized share <= 0: 0.1517   mean 33.03
+   arm              KS  maxbin    q10    q25    q50    q75    q90    q95     pi0    logS    CRPS
+   S0           0.0540  0.0268  0.108  0.251  0.466  0.702  0.873  0.930  0.1892  4.3521  14.533
+   S1           0.0516  0.0204  0.097  0.223  0.452  0.714  0.888  0.941  0.1892  4.2180  14.435
+   Y            0.0793  0.0293  0.080  0.190  0.423  0.697  0.879  0.937  0.2169  4.2162  14.526
+   Y-lognormal  0.1293  0.0614  0.077  0.184  0.381  0.647  0.879  0.952  0.2169  4.2641  14.852
+   Y-weibull    0.0713  0.0286  0.076  0.186  0.431  0.707  0.878  0.934  0.2169  4.2157  14.492
+   naive CRPS: N-pos 11.857 (all)   N-own 10.902 (n 16,493 with >= 4 window games)
+   CRPS Y - N-pos   -1.590 [-1.681, -1.506]* SE 0.0452  MDE 0.127
+   CRPS Y - N-own   -0.414 [-0.467, -0.362]* SE 0.0267  MDE 0.075
+   CRPS Y - S0      -0.023 [-0.058, +0.012]  SE 0.0177  MDE 0.050
+   CRPS Y - S1      +0.020 [-0.001, +0.042]  SE 0.0111  MDE 0.031
+   CRPS S1 - S0     -0.044 [-0.064, -0.024]* SE 0.0103  MDE 0.029
+   REGISTERED SHAPE VERDICT (receiving_yards, Y, F pooled): FITS  KS 0.0083 (bar 0.03); coverage outside +/-0.02: none
+      S0           KS 0.0300; outside: ['q25 0.278']
+      S1           KS 0.0155; outside: none
+      Y-lognormal  KS 0.0409; outside: ['q50 0.467', 'q75 0.719']
+      Y-weibull    KS 0.0128; outside: none
+
+#### rush_yards: 15,477 frame rows 2016-2025  (29s)
+   T=2023: priors on 2016-2022, shapes on [2020, 2021, 2022] (n 4,794, positive 3,692)
+      k_y {'RB': 1.4}  k_z {'RB': 1.0}
+      S1 (c0, c1) [-2.188, 0.713]   Y (b0, b1, c0, c1) [0.442, 0.884, -2.462, 0.786]   hurdle (a, b) [-0.1, 0.82]
+      train NLL per positive: S1 4.5518  Y 4.5492  Y-lognormal 4.6177  Y-weibull 4.5439
+      median gamma shape of Y on season 2023: 1.445
+   T=2024: priors on 2016-2023, shapes on [2021, 2022, 2023] (n 4,789, positive 3,732)
+      k_y {'RB': 1.4}  k_z {'RB': 1.0}
+      S1 (c0, c1) [-2.065, 0.684]   Y (b0, b1, c0, c1) [0.399, 0.89, -2.336, 0.76]   hurdle (a, b) [-0.153, 0.79]
+      train NLL per positive: S1 4.5306  Y 4.5282  Y-lognormal 4.5940  Y-weibull 4.5218
+      median gamma shape of Y on season 2024: 1.398
+   T=2025: priors on 2016-2024, shapes on [2022, 2023, 2024] (n 4,797, positive 3,737)
+      k_y {'RB': 1.3}  k_z {'RB': 1.0}
+      S1 (c0, c1) [-2.009, 0.675]   Y (b0, b1, c0, c1) [0.323, 0.911, -2.186, 0.724]   hurdle (a, b) [-0.142, 0.786]
+      train NLL per positive: S1 4.5266  Y 4.5248  Y-lognormal 4.5846  Y-weibull 4.5182
+      median gamma shape of Y on season 2025: 1.393
+
+== PART 1 shape fit: rush_yards, seasons [2023, 2024, 2025] (randomised PIT; coverage = share of PIT <= q)
+
+   F  all played player-games: n 4,761   realized share <= 0: 0.2193   mean 31.85
+   arm              KS  maxbin    q10    q25    q50    q75    q90    q95     pi0    logS    CRPS
+   S0           0.0338  0.0195  0.120  0.269  0.486  0.724  0.888  0.946  0.2189  3.9690  13.552
+   S1           0.0193  0.0134  0.097  0.237  0.487  0.752  0.907  0.956  0.2189  3.9005  13.526
+   Y            0.0218  0.0130  0.090  0.234  0.484  0.754  0.913  0.959  0.2204  3.8958  13.567
+   Y-lognormal  0.0747  0.0367  0.088  0.219  0.431  0.703  0.909  0.968  0.2204  3.9436  13.859
+   Y-weibull    0.0180  0.0130  0.087  0.235  0.492  0.757  0.909  0.955  0.2204  3.8906  13.535
+
+   F  as-of n >= 4: n 4,237   realized share <= 0: 0.1994   mean 33.80
+   arm              KS  maxbin    q10    q25    q50    q75    q90    q95     pi0    logS    CRPS
+   S0           0.0331  0.0182  0.118  0.263  0.485  0.725  0.886  0.944  0.2039  4.0311  13.884
+   S1           0.0239  0.0140  0.094  0.227  0.481  0.750  0.905  0.955  0.2039  3.9752  13.868
+   Y            0.0324  0.0161  0.086  0.224  0.476  0.749  0.910  0.958  0.2058  3.9723  13.916
+   Y-lognormal  0.0839  0.0397  0.085  0.207  0.419  0.697  0.908  0.967  0.2058  4.0212  14.259
+   Y-weibull    0.0279  0.0174  0.083  0.225  0.485  0.753  0.907  0.953  0.2058  3.9669  13.876
+
+   F  as-of n < 4: n 524   realized share <= 0: 0.3798   mean 16.14
+   arm              KS  maxbin    q10    q25    q50    q75    q90    q95     pi0    logS    CRPS
+   S0           0.0721  0.0408  0.130  0.317  0.494  0.718  0.905  0.962  0.3406  3.4671  10.863
+   S1           0.0775  0.0527  0.116  0.317  0.542  0.765  0.924  0.968  0.3406  3.2960  10.759
+   Y            0.0802  0.0313  0.122  0.319  0.553  0.796  0.931  0.971  0.3380  3.2775  10.747
+   Y-lognormal  0.0720  0.0355  0.116  0.317  0.525  0.752  0.916  0.975  0.3380  3.3154  10.627
+   Y-weibull    0.0760  0.0313  0.122  0.321  0.555  0.792  0.931  0.969  0.3380  3.2743  10.778
+   naive CRPS: N-pos 15.578 (all)   N-own 14.524 (n 4,322 with >= 4 window games)
+   CRPS Y - N-pos   -2.011 [-2.203, -1.806]* SE 0.1036  MDE 0.290
+   CRPS Y - N-own   -0.718 [-0.840, -0.603]* SE 0.0599  MDE 0.168
+   CRPS Y - S0      +0.015 [-0.052, +0.082]  SE 0.0343  MDE 0.096
+   CRPS Y - S1      +0.042 [+0.006, +0.077]* SE 0.0180  MDE 0.050
+   CRPS S1 - S0     -0.026 [-0.070, +0.018]  SE 0.0227  MDE 0.064
+   REGISTERED SHAPE VERDICT (rush_yards, Y, F pooled): FITS  KS 0.0218 (bar 0.03); coverage outside +/-0.02: none
+      S0           KS 0.0338; outside: ['q75 0.724']
+      S1           KS 0.0193; outside: none
+      Y-lognormal  KS 0.0747; outside: ['q25 0.219', 'q50 0.431', 'q75 0.703']
+      Y-weibull    KS 0.0180; outside: none
+
+== PART 2 populations: RB 18,666 rungs (10,016 player-games, 814 games)   RA 53,733   RM 10,082 player-games
+   RB rungs by n_bench books: {1: 12432, 2: 4998, 3: 1236}   RM modal rung is one book: 0.058   RA rungs per player-game 5.33   integer lines 2
+   (bootstraps: 19 jobs in 675s)
+
+== RB-2023 Y vs p_bench: n 5,261  games 270  realized over rate 0.4957
+   Brier model 0.2662  market 0.2498  diff +0.0165
+   AUC       model +0.5123 [+0.4923, +0.5319]* SE 0.0099
+             market +0.5161 [+0.5015, +0.5306]* SE 0.0075
+   Spearman  model +0.0212 [-0.0134, +0.0553]  SE 0.0172
+             market +0.0313 [+0.0029, +0.0595]* SE 0.0146
+   wAUC      model +0.5088 [+0.4866, +0.5314]* SE 0.0112
+             market +0.5187 [+0.5011, +0.5345]* SE 0.0085
+   CORP  model  BS 0.2662 = MCB 0.0170 - DSC 0.0008 + UNC 0.2500
+   CORP  market BS 0.2498 = MCB 0.0004 - DSC 0.0006 + UNC 0.2500
+     mcb_m  +0.0170 [+0.0135, +0.0218]* SE 0.0021
+     mcb_k  +0.0004 [+0.0004, +0.0016]* SE 0.0003
+     dsc_m  +0.0008 [+0.0003, +0.0023]* SE 0.0005
+     dsc_k  +0.0006 [+0.0003, +0.0020]* SE 0.0004
+   dAUC    (model - market) -0.0038 [-0.0282, +0.0214]  SE 0.0127  MDE 0.0355
+   d_rho   (model - market) -0.0101 [-0.0553, +0.0354]  SE 0.0230  MDE 0.0644
+   d_wAUC  (model - market) -0.0099 [-0.0375, +0.0191]  SE 0.0145  MDE 0.0407
+   dMCB    (model - market) +0.0166 [+0.0123, +0.0208]* SE 0.0022  MDE 0.0062
+   dDSC    (model - market) +0.0001 [-0.0012, +0.0015]  SE 0.0007  MDE 0.0019
+   dBS +0.0165 = dMCB +0.0166 - dDSC +0.0001   shares: calibration 1.01, resolution -0.01
+   binned Murphy model  REL 0.0167 RES 0.0010 UNC 0.2500 resid +0.0005
+   binned Murphy market REL 0.0001 RES 0.0002 UNC 0.2500 resid -0.0001
+   ORACLE (in-sample isotonic model, optimistic) Brier 0.2492 vs market 0.2498: -0.0005
+   VERDICT ordering (dAUC): no difference in ordering detected;  (dDSC): no difference in ordering detected
+   CLASSIFICATION: miscalibrated, not blind
+
+== RB-2024 Y vs p_bench: n 6,294  games 272  realized over rate 0.4787
+   Brier model 0.2695  market 0.2499  diff +0.0196
+   AUC       model +0.4976 [+0.4764, +0.5186]* SE 0.0105
+             market +0.5183 [+0.5044, +0.5317]* SE 0.0070
+   Spearman  model -0.0041 [-0.0408, +0.0321]  SE 0.0182
+             market +0.0343 [+0.0083, +0.0596]* SE 0.0132
+   wAUC      model +0.4997 [+0.4778, +0.5224]* SE 0.0117
+             market +0.5193 [+0.5032, +0.5342]* SE 0.0079
+   CORP  model  BS 0.2695 = MCB 0.0203 - DSC 0.0003 + UNC 0.2495
+   CORP  market BS 0.2499 = MCB 0.0009 - DSC 0.0006 + UNC 0.2495
+     mcb_m  +0.0203 [+0.0163, +0.0256]* SE 0.0023
+     mcb_k  +0.0009 [+0.0005, +0.0022]* SE 0.0005
+     dsc_m  +0.0003 [+0.0001, +0.0017]* SE 0.0004
+     dsc_k  +0.0006 [+0.0003, +0.0015]* SE 0.0003
+   dAUC    (model - market) -0.0207 [-0.0451, +0.0042]  SE 0.0127  MDE 0.0355
+   d_rho   (model - market) -0.0385 [-0.0820, +0.0060]  SE 0.0225  MDE 0.0630
+   d_wAUC  (model - market) -0.0196 [-0.0457, +0.0069]  SE 0.0138  MDE 0.0386
+   dMCB    (model - market) +0.0194 [+0.0144, +0.0247]* SE 0.0026  MDE 0.0072
+   dDSC    (model - market) -0.0002 [-0.0010, +0.0010]  SE 0.0005  MDE 0.0014
+   dBS +0.0196 = dMCB +0.0194 - dDSC -0.0002   shares: calibration 0.99, resolution 0.01
+   binned Murphy model  REL 0.0195 RES 0.0005 UNC 0.2495 resid +0.0010
+   binned Murphy market REL 0.0005 RES 0.0001 UNC 0.2495 resid -0.0001
+   ORACLE (in-sample isotonic model, optimistic) Brier 0.2492 vs market 0.2499: -0.0007
+   VERDICT ordering (dAUC): no difference in ordering detected;  (dDSC): no difference in ordering detected
+   CLASSIFICATION: miscalibrated, not blind
+
+== RB-2025 Y vs p_bench: n 7,111  games 272  realized over rate 0.4676
+   Brier model 0.2644  market 0.2498  diff +0.0146
+   AUC       model +0.5082 [+0.4904, +0.5260]* SE 0.0093
+             market +0.5116 [+0.4993, +0.5238]* SE 0.0063
+   Spearman  model +0.0142 [-0.0166, +0.0450]  SE 0.0161
+             market +0.0207 [-0.0013, +0.0424]  SE 0.0112
+   wAUC      model +0.5036 [+0.4840, +0.5235]* SE 0.0104
+             market +0.5099 [+0.4960, +0.5247]* SE 0.0074
+   CORP  model  BS 0.2644 = MCB 0.0160 - DSC 0.0006 + UNC 0.2489
+   CORP  market BS 0.2498 = MCB 0.0016 - DSC 0.0007 + UNC 0.2489
+     mcb_m  +0.0160 [+0.0128, +0.0207]* SE 0.0021
+     mcb_k  +0.0016 [+0.0009, +0.0035]* SE 0.0007
+     dsc_m  +0.0006 [+0.0004, +0.0020]* SE 0.0004
+     dsc_k  +0.0007 [+0.0005, +0.0017]* SE 0.0003
+   dAUC    (model - market) -0.0034 [-0.0258, +0.0186]  SE 0.0113  MDE 0.0317
+   d_rho   (model - market) -0.0065 [-0.0457, +0.0319]  SE 0.0197  MDE 0.0553
+   d_wAUC  (model - market) -0.0063 [-0.0304, +0.0184]  SE 0.0127  MDE 0.0356
+   dMCB    (model - market) +0.0145 [+0.0099, +0.0195]* SE 0.0025  MDE 0.0069
+   dDSC    (model - market) -0.0001 [-0.0009, +0.0011]  SE 0.0005  MDE 0.0014
+   dBS +0.0146 = dMCB +0.0145 - dDSC -0.0001   shares: calibration 0.99, resolution 0.01
+   binned Murphy model  REL 0.0150 RES 0.0005 UNC 0.2489 resid +0.0009
+   binned Murphy market REL 0.0011 RES 0.0001 UNC 0.2489 resid -0.0002
+   ORACLE (in-sample isotonic model, optimistic) Brier 0.2484 vs market 0.2498: -0.0014
+   VERDICT ordering (dAUC): no difference in ordering detected;  (dDSC): no difference in ordering detected
+   CLASSIFICATION: miscalibrated, not blind
+
+== RB-pooled Y vs p_bench: n 18,666  games 814  realized over rate 0.4793
+   Brier model 0.2666  market 0.2498  diff +0.0168
+   AUC       model +0.5053 [+0.4940, +0.5166]* SE 0.0058
+             market +0.5150 [+0.5069, +0.5229]* SE 0.0041
+   Spearman  model +0.0092 [-0.0105, +0.0288]  SE 0.0100
+             market +0.0276 [+0.0128, +0.0424]* SE 0.0075
+   wAUC      model +0.5041 [+0.4913, +0.5163]* SE 0.0063
+             market +0.5155 [+0.5067, +0.5242]* SE 0.0045
+   CORP  model  BS 0.2666 = MCB 0.0173 - DSC 0.0002 + UNC 0.2496
+   CORP  market BS 0.2498 = MCB 0.0007 - DSC 0.0004 + UNC 0.2496
+     mcb_m  +0.0173 [+0.0149, +0.0200]* SE 0.0013
+     mcb_k  +0.0007 [+0.0004, +0.0014]* SE 0.0003
+     dsc_m  +0.0002 [+0.0001, +0.0008]* SE 0.0002
+     dsc_k  +0.0004 [+0.0003, +0.0009]* SE 0.0002
+   dAUC    (model - market) -0.0096 [-0.0231, +0.0045]  SE 0.0070  MDE 0.0197
+   d_rho   (model - market) -0.0184 [-0.0423, +0.0063]  SE 0.0125  MDE 0.0349
+   d_wAUC  (model - market) -0.0115 [-0.0265, +0.0037]  SE 0.0077  MDE 0.0216
+   dMCB    (model - market) +0.0166 [+0.0138, +0.0195]* SE 0.0014  MDE 0.0040
+   dDSC    (model - market) -0.0002 [-0.0006, +0.0003]  SE 0.0002  MDE 0.0007
+   dBS +0.0168 = dMCB +0.0166 - dDSC -0.0002   shares: calibration 0.99, resolution 0.01
+   binned Murphy model  REL 0.0164 RES 0.0002 UNC 0.2496 resid +0.0008
+   binned Murphy market REL 0.0005 RES 0.0001 UNC 0.2496 resid -0.0001
+   ORACLE (in-sample isotonic model, optimistic) Brier 0.2493 vs market 0.2498: -0.0005
+   VERDICT ordering (dAUC): no difference in ordering detected;  (dDSC): no difference in ordering detected
+   CLASSIFICATION: miscalibrated, not blind
+   REALIZED pooled dDSC MDE 0.0007 (expected ~0.0015; under-powered bar 0.0030): powered as registered
+
+== RA-pooled Y vs p_all: n 53,733  games 814  realized over rate 0.4622
+   Brier model 0.2514  market 0.2347  diff +0.0167
+   AUC       model +0.5939 [+0.5849, +0.6029]* SE 0.0045
+             market +0.6275 [+0.6217, +0.6331]* SE 0.0029
+   Spearman  model +0.1622 [+0.1466, +0.1777]* SE 0.0078
+             market +0.2209 [+0.2109, +0.2305]* SE 0.0050
+   wAUC      model +0.6199 [+0.6091, +0.6305]* SE 0.0055
+             market +0.6551 [+0.6462, +0.6635]* SE 0.0045
+   CORP  model  BS 0.2514 = MCB 0.0102 - DSC 0.0074 + UNC 0.2486
+   CORP  market BS 0.2347 = MCB 0.0006 - DSC 0.0145 + UNC 0.2486
+     mcb_m  +0.0102 [+0.0086, +0.0124]* SE 0.0010
+     mcb_k  +0.0006 [+0.0005, +0.0011]* SE 0.0002
+     dsc_m  +0.0074 [+0.0063, +0.0089]* SE 0.0007
+     dsc_k  +0.0145 [+0.0135, +0.0158]* SE 0.0006
+   dAUC    (model - market) -0.0337 [-0.0421, -0.0254]* SE 0.0043  MDE 0.0119
+   d_rho   (model - market) -0.0588 [-0.0733, -0.0444]* SE 0.0074  MDE 0.0206
+   d_wAUC  (model - market) -0.0352 [-0.0437, -0.0268]* SE 0.0043  MDE 0.0122
+   dMCB    (model - market) +0.0097 [+0.0075, +0.0118]* SE 0.0011  MDE 0.0030
+   dDSC    (model - market) -0.0071 [-0.0083, -0.0058]* SE 0.0007  MDE 0.0019
+   dBS +0.0167 = dMCB +0.0097 - dDSC -0.0071   shares: calibration 0.58, resolution 0.42
+   binned Murphy model  REL 0.0098 RES 0.0069 UNC 0.2486 resid -0.0001
+   binned Murphy market REL 0.0003 RES 0.0137 UNC 0.2486 resid -0.0005
+   ORACLE (in-sample isotonic model, optimistic) Brier 0.2412 vs market 0.2347: +0.0065
+   VERDICT ordering (dAUC): model orders WORSE than the market;  (dDSC): model orders WORSE than the market
+   CLASSIFICATION: both
+
+== RM-pooled Y vs p_all (modal line): n 10,082  games 814  realized over rate 0.4794
+   Brier model 0.2670  market 0.2498  diff +0.0173
+   AUC       model +0.5029 [+0.4918, +0.5137]* SE 0.0055
+             market +0.5202 [+0.5096, +0.5314]* SE 0.0056
+   Spearman  model +0.0051 [-0.0142, +0.0237]  SE 0.0095
+             market +0.0358 [+0.0170, +0.0556]* SE 0.0099
+   wAUC      model +0.5037 [+0.4909, +0.5160]* SE 0.0063
+             market +0.5245 [+0.5120, +0.5376]* SE 0.0064
+   CORP  model  BS 0.2670 = MCB 0.0177 - DSC 0.0003 + UNC 0.2496
+   CORP  market BS 0.2498 = MCB 0.0009 - DSC 0.0007 + UNC 0.2496
+     mcb_m  +0.0177 [+0.0155, +0.0203]* SE 0.0012
+     mcb_k  +0.0009 [+0.0007, +0.0018]* SE 0.0003
+     dsc_m  +0.0003 [+0.0001, +0.0008]* SE 0.0002
+     dsc_k  +0.0007 [+0.0005, +0.0016]* SE 0.0003
+   dAUC    (model - market) -0.0173 [-0.0331, -0.0019]* SE 0.0079  MDE 0.0220
+   d_rho   (model - market) -0.0308 [-0.0585, -0.0038]* SE 0.0138  MDE 0.0385
+   d_wAUC  (model - market) -0.0208 [-0.0384, -0.0039]* SE 0.0088  MDE 0.0247
+   dMCB    (model - market) +0.0168 [+0.0140, +0.0194]* SE 0.0013  MDE 0.0038
+   dDSC    (model - market) -0.0004 [-0.0012, +0.0001]  SE 0.0003  MDE 0.0009
+   dBS +0.0173 = dMCB +0.0168 - dDSC -0.0004   shares: calibration 0.97, resolution 0.03
+   binned Murphy model  REL 0.0171 RES 0.0003 UNC 0.2496 resid +0.0007
+   binned Murphy market REL 0.0006 RES 0.0003 UNC 0.2496 resid -0.0001
+   ORACLE (in-sample isotonic model, optimistic) Brier 0.2493 vs market 0.2498: -0.0005
+   VERDICT ordering (dAUC): model orders WORSE than the market;  (dDSC): no difference in ordering detected
+   CLASSIFICATION: miscalibrated, not blind
+
+== naive baselines and decomposition (Brier differences; negative = first is better)
+   RB-2023 Brier Y - N-half                                   +0.0162 [+0.0114, +0.0209]* SE 0.0024  MDE 0.0068  n 5,261
+   RB-2023 Brier Y - N-prior                                  -0.0080 [-0.0142, -0.0018]* SE 0.0031  MDE 0.0088  n 5,261
+   RB-2024 Brier Y - N-half                                   +0.0195 [+0.0139, +0.0250]* SE 0.0027  MDE 0.0077  n 6,294
+   RB-2024 Brier Y - N-prior                                  -0.0168 [-0.0229, -0.0110]* SE 0.0031  MDE 0.0087  n 6,294
+   RB-2025 Brier Y - N-half                                   +0.0144 [+0.0092, +0.0194]* SE 0.0026  MDE 0.0074  n 7,111
+   RB-2025 Brier Y - N-prior                                  -0.0141 [-0.0202, -0.0081]* SE 0.0031  MDE 0.0086  n 7,111
+   RB-pooled Brier Y - N-half                                 +0.0166 [+0.0136, +0.0196]* SE 0.0015  MDE 0.0043  n 18,666
+   RB-pooled Brier Y - N-prior                                -0.0133 [-0.0169, -0.0099]* SE 0.0018  MDE 0.0050  n 18,666
+   RM Brier Y - N-half                                        +0.0170 [+0.0141, +0.0198]* SE 0.0014  MDE 0.0040  n 10,082
+   RM Brier Y - N-prior                                       -0.0154 [-0.0191, -0.0118]* SE 0.0019  MDE 0.0052  n 10,082
+   RB-pooled Brier S1 - S0 (shape, centre fixed)              -0.0033 [-0.0043, -0.0022]* SE 0.0005  MDE 0.0015  n 18,666
+   RB-pooled Brier Y - S1 (centre, family fixed)              +0.0009 [+0.0001, +0.0017]* SE 0.0004  MDE 0.0011  n 18,666
+   RB-pooled Brier Y-lognormal - Y                            +0.0088 [+0.0076, +0.0100]* SE 0.0006  MDE 0.0017  n 18,666
+   RB-pooled Brier Y-weibull - Y                              -0.0014 [-0.0017, -0.0011]* SE 0.0001  MDE 0.0004  n 18,666
+   -- descriptive, not among the 58 declared:
+   RB-pooled Brier Y - p_bench                                +0.0168 [+0.0137, +0.0197]* SE 0.0015  MDE 0.0043  n 18,666
+   RB-pooled Brier S0 - p_bench                               +0.0192 [+0.0161, +0.0221]* SE 0.0015  MDE 0.0043  n 18,666
+   RB-pooled Brier N-prior - p_bench                          +0.0301 [+0.0266, +0.0337]* SE 0.0018  MDE 0.0051  n 18,666
+   RB-pooled Brier N-half - p_bench                           +0.0002 [+0.0000, +0.0003]* SE 0.0001  MDE 0.0002  n 18,666
+   RB-pooled Brier p_bench - N-half                           -0.0002 [-0.0003, -0.0000]* SE 0.0001  MDE 0.0002  n 18,666
+   RM Brier Y - p_all                                         +0.0173 [+0.0144, +0.0201]* SE 0.0014  MDE 0.0040  n 10,082
+   RM single-book modal rung: Brier Y - p_all                 +0.0106 [-0.0033, +0.0246]  SE 0.0071  MDE 0.0198  n 585
+   RM multi-book modal rung:  Brier Y - p_all                 +0.0177 [+0.0150, +0.0204]* SE 0.0014  MDE 0.0040  n 9,497
+   RB-pooled MCB S1 - S0 (shape, centre fixed)                -0.0033 [-0.0043, -0.0023]* SE 0.0005  MDE 0.0015
+   RB-pooled MCB Y - S1 (centre, family fixed)                +0.0009 [+0.0002, +0.0017]* SE 0.0004  MDE 0.0011
+   RB-pooled DSC S1 - S0 (shape, centre fixed)                -0.0001 [-0.0003, +0.0001]  SE 0.0001  MDE 0.0003
+   RB-pooled DSC Y - S1 (centre, family fixed)                +0.0000 [-0.0001, +0.0002]  SE 0.0001  MDE 0.0002
+   levels on RB pooled (bootstrap intervals):
+      RB-pooled MCB S0           0.0197 [0.0172, 0.0225]
+      RB-pooled DSC S0           0.0003 [0.0001, 0.0008]
+      RB-pooled AUC S0           0.5052 [0.4937, 0.5167]
+      RB-pooled MCB S1           0.0164 [0.0141, 0.0190]
+      RB-pooled DSC S1           0.0002 [0.0001, 0.0007]
+      RB-pooled AUC S1           0.5053 [0.4939, 0.5165]
+      RB-pooled MCB Y            0.0173 [0.0149, 0.0200]
+      RB-pooled DSC Y            0.0002 [0.0001, 0.0008]
+      RB-pooled AUC Y            0.5053 [0.4940, 0.5166]
+   point levels on RB pooled:  half Brier 0.2500   prior Brier 0.2799   S0 Brier 0.2690   S1 Brier 0.2657   Y Brier 0.2666   p_bench Brier 0.2498
+
+   REGISTERED SUCCESS CONDITION: does not beat the naive baselines: fails against N-half
+   SECONDARY (the close), RB pooled: dDSC -> not distinguishable from the close (MDE 0.0007); dAUC -> not distinguishable from the close (MDE 0.0197); d_wAUC -> not distinguishable from the close
+
+== SUMMARY: intervals computed 58 (declared 58); excluding zero 35; runtime 710s
