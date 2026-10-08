@@ -212,6 +212,13 @@ def check_pins(entries, pins):
     return len(pins)
 
 
+def drifted(entries, its):
+    """Entries whose item is gone from the reports, or whose `what` no longer
+    hashes to what the entry recorded: the report was edited under the id."""
+    now = {it.id: it.what_sha for it in its}
+    return [e for e in entries if e.get("what_sha") and now.get(e["item"]) != e["what_sha"]]
+
+
 def view(relay, track=None):
     """(clusters, entries, items): each cluster is (name, [Item], [open Item])."""
     its, n_reports = items_mod.load(relay)
@@ -301,7 +308,11 @@ def main(argv=None):
         if a.command == "verify":
             print("chain intact: %d entries, %d pins checked, head %s"
                   % (len(entries), pinned, entries[-1]["_line_sha"] if entries else "(empty)"))
-            return 0
+            moved = drifted(entries, items_mod.load(relay)[0])
+            for e in moved:
+                print("DRIFT %s: item %s is gone or its text changed since this entry was written"
+                      % (e["entry"], e["item"]))
+            return 3 if moved else 0
         if a.command == "pin":
             if not entries:
                 raise SystemExit("nothing to pin")
@@ -316,6 +327,9 @@ def main(argv=None):
             return 0
         clusters, entries, its, n_reports = view(relay, a.track)
         print(_summary(clusters, entries, its, n_reports))
+        moved = drifted(entries, its)
+        if moved:
+            print("WARNING: %d entries point at an item that is gone or was edited - run verify" % len(moved))
         if a.command != "summary":
             _print_open(clusters, entries, a.limit, a.command == "clusters")
         return 0

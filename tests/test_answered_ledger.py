@@ -216,6 +216,16 @@ def test_the_cli_refuses_to_write_without_saying_who(relay, monkeypatch, tmp_pat
     assert answered.verify(str(relay / answered.LEDGER))[0]["by"] == "ethan"
 
 
+def test_a_report_edited_under_an_id_is_reported(relay, capsys, monkeypatch, tmp_path):
+    monkeypatch.setattr(answered, "PINS", str(tmp_path / "no-pins.jsonl"))
+    _three(relay)
+    assert answered.main(["verify", "--relay", str(relay)]) == 0
+    capsys.readouterr()
+    _report(relay, "b-3", ["A different question now sits at this position"])
+    assert answered.main(["verify", "--relay", str(relay)]) == 3
+    assert "DRIFT L0003" in capsys.readouterr().out
+
+
 def test_the_live_ledger_is_intact_and_holds_every_committed_pin():
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     relay = os.environ.get("RELAY_DIR") or os.path.join(os.path.dirname(here), "_relay")
@@ -226,3 +236,4 @@ def test_the_live_ledger_is_intact_and_holds_every_committed_pin():
     pins = answered.read_pins()
     assert pins, "relay/answered.pins.jsonl is empty: the live ledger's head was never pinned"
     assert answered.check_pins(entries, pins) == len(pins)
+    assert answered.drifted(entries, items.load(relay)[0]) == []
