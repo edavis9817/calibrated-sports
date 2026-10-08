@@ -210,3 +210,34 @@ registered run. If it crashes, the crash is fixed and reported.
 
 Everything printed and committed is an aggregate or an interval. Per-rung rows go to a
 scratch directory and are never committed.
+
+## Addendum 1 — 2026-10-08, written with the script and BEFORE any residual was formed
+
+The script has been executed twice: on the synthetic fixtures (11 tests) and once with
+`--dry`, which printed counts and missing rates only - no settlement was joined and no
+outcome read. Nothing above is edited. What `--dry` showed:
+
+    bench rungs 19,911; dropped: not regular season 1,151, position 75
+    RB before settlement: 18,685 rungs, 10,030 player-games, 814 games
+    (c-37 after settlement: 18,666 / 10,016 / 814)
+    missing: form_gap 269, last_game 1,200, team_total 327, the other three 0
+
+Definitions that writing the code showed to be under-specified:
+
+1. **A tie is a push and is dropped.** `push_possible` is 0 on every receiving-yards
+   outcome row, and `core.settlement.resolve` grades `actual == line` as OVER when that
+   flag is 0. On an integer line that would score a tie as a cleared over. A rung with
+   `actual == line` is dropped and counted (`drop_push_on_line`), as c-37 did.
+2. **Position** is the position on the player's most recent prior game *in the two-season
+   window* (seasons `S-1`, `S`), else `player_xwalk.position`.
+3. **Prior games are regular-season games only**, so C1 and C2 do not see a playoff game.
+4. **Each coefficient test standardises its candidate on the rows of its own cut** (a
+   per-season test on that season's rows). The walk-forward standardises on training
+   rows only, as registered.
+5. **The 95% interval is the bootstrap percentile interval; the p-value is from
+   `est / SE_boot`**, as registered. The Brier condition "interval excludes zero" reads
+   the percentile interval's upper end.
+6. **The joint arm and `close + a` are fitted by the same walk-forward** as the
+   candidates; the joint arm fits an intercept and does not add it.
+7. **Under-powered** is flagged per candidate from its `RB` pooled coefficient SE
+   against 0.0100.
