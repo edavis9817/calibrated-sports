@@ -354,11 +354,16 @@ def test_a_batch_is_a_primary_key_lookup_not_a_walk_of_every_live_row(env):
     `SEARCH quotes USING INDEX ix_quotes_ingest (source=?)`). The same rows are
     deleted either way, so only the PLAN tells the two apart.
 
-    What this can and cannot show: on a fixture this small the planner may pick
-    the primary key for the bare form too, so the bad plan is NOT reproduced
-    here - it was read off the 30M-row store. What is pinned is that the
-    shipped statement cannot use that index at all (`+source`), and that its
-    plan is the primary key."""
+    What this can and cannot show: THIS fixture does not reproduce the bad
+    plan, because it runs ANALYZE and explains three ids - and with either one
+    the planner takes the primary key for the bare form too. What is pinned
+    here is that the shipped statement cannot use that index at all
+    (`+source`), and that its plan is the primary key.
+
+    CORRECTED by a-69: this said the bad plan could only be read off the
+    30M-row store. It reproduces on an empty table under the live store's own
+    conditions - no sqlite_stat1, a real batch of 500 ids - and
+    tests/test_prune_lock_duration.py does that, and times the lock."""
     seed()
     held = ("AND NOT EXISTS (SELECT 1 FROM quote_retention_hold h WHERE h.venue = "
             "quotes.venue AND h.market_id = quotes.market_id AND h.until_ts > ?)")
