@@ -2,7 +2,7 @@
 
     python research/f26_reliability/selfcheck.py            # ~10 s, no store, no network
 
-f-26 run 1 printed "x1.000 (passes)" on 18 statistics from a duplication test
+f-26 run 1 printed "x1.000 (passes)" on 15 statistics from a duplication test
 that resampled with the attacker's own bootstrap and so could not fail. A check
 that cannot fail is worse than none. This file plants, for each of the five
 steps, a case the step MUST reject, and exits 1 if any step lets its plant

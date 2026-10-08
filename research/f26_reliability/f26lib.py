@@ -68,7 +68,7 @@ def duplication(*_a, **_k):
     keeps printing a pass. It duplicated rows inside their block and resampled
     with THIS file's block bootstrap, so `width_ratio_blocked` was 1.000 by
     construction and `passes` could not be False for any target: the attacker
-    was testing the attacker. It printed x1.000 (passes) on all 18 statistics of
+    was testing the attacker. It printed x1.000 (passes) on all 15 statistics of
     f-26 run 1."""
     raise VacuousCheck("f26lib.duplication() cannot fail and is retired. Use duplication_through() with the "
                        "TARGET's bootstrap function for the test, and iid_contrast() for the descriptive ratio.")

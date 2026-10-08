@@ -2,7 +2,7 @@
  "run_id": "f-27 (run 2: the blocks step re-run through each target's own bootstrap)",
  "at": "2026-10-08T12:45-04:00",
  "code": "origin/f-27-vacuous-check (research/f26_reliability/)",
- "why": "run 1's duplication() resampled with the attacker's bootstrap and printed x1.000 (passes) on 18 statistics by construction. It is retired; every claim below was re-run through the function its published interval came from.",
+ "why": "run 1's duplication() resampled with the attacker's bootstrap and printed x1.000 (passes) on 15 statistics by construction. It is retired; every claim below was re-run through the function its published interval came from.",
  "marker": "NOT rewritten. select.py --record would also mark every unit that finished since run 1 as seen for the needs_ethan count, which this run did not make. Run 1's verdicts stand; this file is the record of the re-run.",
  "through": {
   "c-28": {

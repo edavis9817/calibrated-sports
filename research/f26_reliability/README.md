@@ -66,7 +66,7 @@ Stop at the first step that fails; that step is the finding.
    with the input named — the verdict may still stand.
 2. **Blocks.** One test and two descriptions. **Run 1's version of this step could not
    fail** (f-27): `duplication()` resampled with *this* file's bootstrap, so its ratio was
-   1.000 by construction, and it printed `x1.000 (passes)` on 18 statistics. It now raises.
+   1.000 by construction, and it printed `x1.000 (passes)` on 15 statistics. It now raises.
    - `duplication_through()` — **the test.** The claim's rows are handed to the **target's
      own** bootstrap function, then the same rows x5 with their block label kept, then a
      twin where every copy is its own block. Verdicts: `honours_blocks` (x1.0, twin
