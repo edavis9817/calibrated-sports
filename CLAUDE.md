@@ -1968,6 +1968,21 @@ the agent — stated as options with a recommendation, not as a question without
 - **Scheduled weekly CFB refresh:** `run_weekly_cfb.cmd` (runs the job with `--log`;
   output and exit code in `<STORAGE_DIR>/cfb/logs/ingest_cfb.log`).
 - **Track C state lives in `docs/TRACK-C-HANDOFF.md`** - read it before any CFB work.
+- **The college game model beats the naive baselines and loses to every price on disk** (c-39,
+  `research/cfb_game_forecast.py`, pre-registered at `1787e1f`; `models/cfb_game.py`). FBS-FBS
+  decisive games 2005-2025, walk-forward, n 15,508: Brier 0.1819 against home 0.2434, better
+  record 0.2199, plain Elo 0.1861 - every dBrier interval below zero. Against a price: CFBD
+  moneyline 2021-25 (provider's last value, NOT a timestamped close) +0.0107 [+0.0070, +0.0144],
+  n 3,768; the timestamped Odds API pre-kickoff h2h, 2026 weeks 3-5 only, +0.0321
+  [+0.0147, +0.0495], n 168; the model's side against the CFBD spread 2013-25 covers 0.4980
+  [0.4880, 0.5075], n 9,652. By the registered rule that reads "the method is the limit", for THIS
+  method (final scores only) on THESE prices - it says nothing about a model that reads rosters.
+  - **The fitted college multiplier is plain ln(margin + 1): no cap and no rating-gap damping**
+    in 22 of 22 seasons. College wants LESS blowout damping than the NFL form, not more. K 40
+    against the NFL's 20, regression 0.4 against 0.5 (weaker, not stronger), and the regression
+    target is the team's CONFERENCE mean (weight 1.0 every season), home advantage 55 Elo, 0 on a
+    neutral site. Carrying the NFL constants across costs 0.0110 Brier.
+  - **A postseason row carries `week = 1`.** Order college games by `start_ts`, never by week.
 - **CFB line sources are layers, not substitutes:** CFBD for 2013-2019 (unreachable elsewhere) and
   as the free 2020-2025 layer; the Odds API is the forward source (bulk game lines, ~3 credits a
   slate); Kalshi/Polymarket are exchange probabilities, never presented as a book line. CFBD lines
