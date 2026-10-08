@@ -7,10 +7,10 @@ Age is the unit's last `runlog.jsonl` timestamp, falling back to the report
 file's mtime.
 
 WHAT THIS CANNOT SAY. The report schema has no field recording that an item was
-answered, so "unactioned" is not measurable from these files: this counts items
-RAISED. The only actioned-marker anywhere is prose in DECISIONS.md and
-NEEDS-ETHAN.md, and matching prose to items by text is the proxy this project
-keeps getting burned by. The count is therefore an upper bound on what is open.
+answered. Since f-28 that state lives in `<relay>/ANSWERED.jsonl` (see
+`relay.answered`), and the last line printed reads it: an item is open unless a
+cited entry there closes it, so the open count is still an upper bound - it
+falls only as answers are recorded.
 """
 import collections
 import datetime as dt
@@ -51,8 +51,8 @@ def count(relay, now):
             continue
         unit = d.get("unit_id") or os.path.basename(f)[:-5]
         ts = times.get(unit) or os.path.getmtime(f)
-        for n in d.get("needs_ethan") or []:
-            rows.append({"unit": unit, "track": d.get("track"), "age_days": (now - ts) / 86400,
+        for i, n in enumerate(d.get("needs_ethan") or []):
+            rows.append({"unit": unit, "index": i, "track": d.get("track"), "age_days": (now - ts) / 86400,
                          "irreversible": bool(n.get("irreversible")),
                          "spends_money": bool(n.get("spends_money")), "what": n.get("what", "")})
     return files, rows, unreadable
@@ -80,7 +80,12 @@ def main(argv):
           + "%8d" % len(rows))
     ages = sorted(r["age_days"] for r in rows)
     print("age in days: median %.1f, oldest %.1f, newest %.1f" % (ages[len(ages) // 2], ages[-1], ages[0]))
-    print("NOT MEASURED: how many were answered. The schema has no field for it.")
+    # f-28: the answered state lives in <relay>/ANSWERED.jsonl, not in the schema.
+    from relay import answered
+    done = answered.answered_ids(answered.verify(os.path.join(relay, answered.LEDGER)))
+    ids = {"%s#%d" % (r["unit"], r["index"]) for r in rows}
+    print("answered per ANSWERED.jsonl: %d; open: %d. An item with no cited entry there is open."
+          % (len(ids & done), len(ids - done)))
 
 
 if __name__ == "__main__":
