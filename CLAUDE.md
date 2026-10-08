@@ -1983,6 +1983,30 @@ the agent — stated as options with a recommendation, not as a question without
     target is the team's CONFERENCE mean (weight 1.0 every season), home advantage 55 Elo, 0 on a
     neutral site. Carrying the NFL constants across costs 0.0110 Brier.
   - **A postseason row carries `week = 1`.** Order college games by `start_ts`, never by week.
+- **The game model's advantage over the naive baselines appears in BOTH sports, same sign and
+  same ordering** (c-38, `research/cross_sport.py`, pre-registered at `dbd3d29`;
+  `docs/findings/cross-sport.md`). Margin-of-victory Elo against settlement, each sport's own
+  walk-forward population (NFL 2001-2025, 6,743 games; college FBS-FBS 2005-2025, 15,508): 16 of
+  16 primary tests Holm-significant. It is LARGER in college on every baseline - college minus NFL
+  dBrier -0.0359 [-0.0404, -0.0314] against home, -0.0217 [-0.0255, -0.0179] against better record,
+  -0.0015 [-0.0026, -0.0003] against plain Elo (that last one sits on its MDE and survives Holm in
+  no cut). "Works" means beats three baselines; the model loses to every price in both sports.
+  - **The size gap against `home` is the wider spread of college games, not a better model**:
+    re-weighted to the NFL's distribution of favourite probability it is -0.0028 [-0.0071, +0.0012].
+    Against record (-0.0073) and plain Elo (-0.0032) a gap remains at equal forecast strength.
+  - **The advantage is not a product of the per-sport fit.** Each sport's 2026 constants carried
+    into the OTHER sport with nothing refitted still beat home, record and a carried plain Elo
+    (6 of 6 like-for-like tests Holm-significant). Fitting is worth 0.0110 Brier in college
+    and 0.0042 in the NFL. A carried margin model does NOT beat a plain Elo fitted to the sport.
+  - **Never compare the two sports' losses to a price.** NFL +0.0092 is a 2006-2025 close; college
+    +0.0107 is CFBD's untimestamped last value on 2021-2025. On 2021-2025 alone the NFL figure is
+    +0.0126 (ratio 1.060 against college's 1.058), so "loses by more in college" was a difference
+    in SEASONS. No between-sport interval exists for a price, by registration.
+  - **Compare two subjects with independent draws.** One shared bootstrap seed across the two
+    sports gives a zero-width difference on identical data (`tests/test_cross_sport.py`).
+  - **c-28's published identity hash `2a2ca2dc...0b16` is stale; the current one is
+    `12b91365...49dd`.** The model files have no diff since `d1b259d`; `nfl_games` was re-ingested
+    (2026-09-30 -> 2026-10-08). Compare the hash against one taken on the same data version.
 - **CFB line sources are layers, not substitutes:** CFBD for 2013-2019 (unreachable elsewhere) and
   as the free 2020-2025 layer; the Odds API is the forward source (bulk game lines, ~3 credits a
   slate); Kalshi/Polymarket are exchange probabilities, never presented as a book line. CFBD lines
