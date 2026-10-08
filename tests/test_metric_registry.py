@@ -31,8 +31,16 @@ def _calibration_fixture():
                       "model_minus_naive": {"estimate": 0.0012, "interval": [-0.0098, 0.0136]}}}
 
 
+@pytest.fixture(scope="module")
+def _game(tmp_path_factory):
+    # a-63: the game forecast's two files, built by the real job over its tests'
+    # synthetic league (tests/test_game_export.py)
+    from tests.test_game_export import synthetic_files
+    return synthetic_files(tmp_path_factory.mktemp("a63-registry"))
+
+
 @pytest.fixture
-def files():
+def files(_game):
     with open(os.path.join(ROOT, "docs", "hypotheses.json"), encoding="utf-8") as f:
         hyp = json.load(f)
     return {M.MARKET: E.build_market_calibration("2026-09-26T00:00:00Z"),
@@ -40,7 +48,8 @@ def files():
             M.SCORE: _calibration_fixture(),
             M.MANIFEST: _manifest_fixture(),
             **_season_fixture(),
-            **analytics_fixture()}
+            **analytics_fixture(),
+            **_game}
 
 
 def analytics_fixture(season_from=2006, season_to=2025):

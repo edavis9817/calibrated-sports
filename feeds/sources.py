@@ -28,6 +28,11 @@ OPEN_METEO_MAX_COORDS = 50
 # The archive lags real weather by ~5 days; inside that window the forecast endpoint
 # still answers for past hours (`past_days`). Measured, not assumed - see the job.
 ARCHIVE_LAG_DAYS = 6
+# The forecast endpoint answers through today + 15 days and REFUSES the 16th with
+# HTTP 400 ("start_date is out of allowed range"), measured 2026-10-06 (a-66). A
+# request past it does not return an empty day, it fails the call - and the client
+# stops a run on a failed call - so dates beyond it are counted, not asked for.
+FORECAST_HORIZON_DAYS = 15
 
 
 @dataclass(frozen=True)

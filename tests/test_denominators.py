@@ -202,9 +202,10 @@ def test_a_null_share_passes_the_gate_only_because_it_is_declared_nullable():
 def test_every_metric_has_exactly_one_gate():
     # a-42 added the season gate, checked by jobs.season_export before it writes;
     # a-51 the analytics gate, checked by analytics.export.gate on the web path.
-    r, m, s, a = (M.RESEARCH_METRICS, M.MANIFEST_METRICS, M.SEASON_METRICS,
-                  M.ANALYTICS_METRICS)
-    assert len(r) + len(m) + len(s) + len(a) == len(M.METRICS)
-    ids = [{x["id"] for x in g} for g in (r, m, s, a)]
+    # a-63 the game gate, checked by jobs.game_export before it writes.
+    r, m, s, a, g = (M.RESEARCH_METRICS, M.MANIFEST_METRICS, M.SEASON_METRICS,
+                     M.ANALYTICS_METRICS, M.GAME_METRICS)
+    assert len(r) + len(m) + len(s) + len(a) + len(g) == len(M.METRICS)
+    ids = [{x["id"] for x in grp} for grp in (r, m, s, a, g)]
     assert sum(len(i) for i in ids) == len(set().union(*ids))
     assert m, "the manifest gate checks nothing"

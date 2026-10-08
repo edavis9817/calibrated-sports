@@ -63,12 +63,11 @@ from dataclasses import dataclass
 
 import numpy as np
 
-MEAN = 1500.0
-MOV_A = 2.2
-
-# A franchise keeps one rating across a move. The division map is keyed on the
-# published abbreviation and holds both halves (STL and LA are both NFC West).
-FRANCHISE = {"STL": "LA", "SD": "LAC", "OAK": "LV"}
+# c-28: the game-level mechanics (constants, win probability, the rating update
+# one game causes) live in models.game and are re-exported here unchanged, so
+# every caller of models.season keeps working and there is one copy.
+from models.game import (FRANCHISE, MEAN, MOV_A, EloParams,  # noqa: F401
+                         elo_delta, franchise, pregame, win_prob)
 
 IMPLEMENTED_TIEBREAKERS = [
     "head_to_head", "division_record", "common_games", "conference_record",
@@ -82,26 +81,7 @@ NOT_IMPLEMENTED_TIEBREAKERS = [
 RESIDUAL_TIEBREAK = "uniform draw among clubs still tied after strength of schedule"
 
 
-def franchise(team: str) -> str:
-    return FRANCHISE.get(team, team)
-
-
-@dataclass(frozen=True)
-class EloParams:
-    k: float
-    hfa: float
-    regress: float
-
-    def as_dict(self):
-        return {"k": self.k, "hfa": self.hfa, "regress": self.regress}
-
-
-def win_prob(diff):
-    """P(home wins) given home rating minus away rating PLUS home advantage."""
-    return 1.0 / (1.0 + 10.0 ** (-np.asarray(diff, dtype=float) / 400.0))
-
-
-def run_elo(games, params: EloParams, snapshot_at=None):
+def run_elo(games, params: EloParams, snapshot_at=None, mov: bool = True):
     """Walk every scored game in (season, week, kickoff) order.
 
     `games` is a list of dicts with game_id, season, week, kickoff_ts, home,
@@ -114,6 +94,8 @@ def run_elo(games, params: EloParams, snapshot_at=None):
       snaps - {(season, k): {franchise: rating}} for every requested key: the
               ratings after every game of that season with week <= k, after
               the season-start regression (k = 0 is the preseason).
+    `mov=False` walks plain Elo (multiplier 1) - c-28's baseline; the default
+    is the season model's margin-of-victory walk and is unchanged by c-28.
     """
     want = sorted(set(snapshot_at or ()))
     r: dict[str, float] = {}
@@ -143,17 +125,10 @@ def run_elo(games, params: EloParams, snapshot_at=None):
         take((s, w))
         h, a = franchise(g["home"]), franchise(g["away"])
         rh, ra = r.setdefault(h, MEAN), r.setdefault(a, MEAN)
-        diff = rh - ra + params.hfa
-        p = float(win_prob(diff))
+        diff, p = pregame(rh, ra, params)
         pre.append((i, p))
         margin = g["home_score"] - g["away_score"]
-        result = 1.0 if margin > 0 else (0.0 if margin < 0 else 0.5)
-        if margin == 0:
-            mult = 1.0
-        else:
-            wdiff = diff if margin > 0 else -diff
-            mult = math.log(abs(margin) + 1.0) * MOV_A / (0.001 * wdiff + MOV_A)
-        delta = params.k * mult * (result - p)
+        delta = elo_delta(diff, p, margin, params, mov)
         r[h] = rh + delta
         r[a] = ra - delta
     # snapshots past the last scored game: same season -> as it stands; a

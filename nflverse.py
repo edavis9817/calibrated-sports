@@ -64,6 +64,17 @@ DATASETS = {
         fields=("receptions", "targets", "carries", "receiving_yards",
                 "rushing_yards", "passing_yards", "target_share"),
         note="NOT the frozen player_stats release - see module docstring"),
+    # Team-game totals from the SAME release family as weekly_stats (a-66). 138
+    # columns per team-game, 1999 onward, REG and POST; the store keeps the unit
+    # columns in store.TEAM_WEEK_COLS and the file is archived whole, so widening
+    # is a re-parse. NO `fields`: every name here is also a weekly_stats column,
+    # and the tier guard is keyed on the name alone.
+    "team_stats": Dataset(
+        "team_stats", "stats_team", "stats_team_week_{season}.parquet",
+        LIVE, normalize=True,
+        note="team-game totals incl. passing_epa / rushing_epa; several columns "
+             "are silently zero or null in early seasons - see "
+             "TEAM_STATS_FIRST_SEASON and research/stats_team_audit.py"),
     "games": Dataset(
         "games", "schedules", "games.parquet", LIVE, normalize=True,
         fields=("spread_line", "total_line", "home_moneyline", "away_moneyline"),
@@ -131,6 +142,27 @@ DATASETS = {
     "draft_picks": Dataset("draft_picks", "draft_picks", "draft_picks.parquet",
                            OFFSEASON),
 }
+
+# stats_team columns that are present, populated and NOT COLLECTED for a run of
+# seasons: (first, last) inclusive. Measured by research/stats_team_audit.py over
+# 1999-2026 and pinned to its committed result by tests/test_team_stats.py.
+# def_qb_hits, def_tackles_for_loss and passing_air_yards are ZERO in the hole
+# (the silent-zero class - the same seasons the player file has it); passing_cpoe
+# is NULL. The store holds what the file says; a reader asks here.
+TEAM_STATS_NOT_COLLECTED = {
+    "def_qb_hits": (2003, 2005),
+    "def_tackles_for_loss": (2003, 2011),
+    "passing_air_yards": (2003, 2005),
+    "passing_cpoe": (1999, 2005),
+}
+
+
+def team_stat_collected(column: str, season: int) -> bool:
+    """False where stats_team carries `column` for `season` without it having been
+    collected - a zero there is not a zero. A reader nulls the value instead."""
+    hole = TEAM_STATS_NOT_COLLECTED.get(column)
+    return not (hole and hole[0] <= season <= hole[1])
+
 
 # field -> dataset, built once. Two datasets claiming the same field name would
 # be an ambiguity we want to hear about at import, not at 3pm on a Sunday.

@@ -1,0 +1,2889 @@
+{
+ "generated_by": "research/bias_by_moneyness.py",
+ "preregistration": "docs/C22-bias-by-moneyness-preregistration.md @ 93b9d37",
+ "draws": 2000,
+ "seed": 22,
+ "results": [
+  {
+   "price": "bench",
+   "n": 44198,
+   "games": 814,
+   "gate": {
+    "n": 44198,
+    "games": 814,
+    "est_pp": -2.434761054385921,
+    "lo_pp": -3.1111868887567713,
+    "hi_pp": -1.7662730930858517,
+    "readable": true
+   },
+   "buckets": [
+    {
+     "bucket": "0.00-0.20",
+     "n": 328,
+     "games": 176,
+     "priced": 0.164823527141529,
+     "realized": 0.14329268292682926,
+     "gap": {
+      "n": 328,
+      "games": 176,
+      "est_pp": -2.1530844214699743,
+      "lo_pp": -5.882680910231261,
+      "hi_pp": 1.7564124191275607,
+      "readable": true
+     },
+     "thin": false,
+     "readable": true,
+     "side": "under",
+     "book_cost_over_pp": 0.9775171065493665,
+     "book_cost_under_pp": 5.252525252525253,
+     "overround_median": 1.0628019323671496,
+     "n_priced_at_book": 328,
+     "net_book": {
+      "n": 328,
+      "games": 176,
+      "est_pp": -2.8373580131089806,
+      "lo_pp": -6.906086727681025,
+      "hi_pp": 0.8177713138893327,
+      "readable": true
+     },
+     "fee_pp": 0.9596673072702601,
+     "net_exchange": {
+      "n": 328,
+      "games": 176,
+      "est_pp": 1.193417114199713,
+      "lo_pp": -2.7485574804941524,
+      "hi_pp": 4.978977764558948,
+      "readable": true
+     }
+    },
+    {
+     "bucket": "0.20-0.30",
+     "n": 810,
+     "games": 380,
+     "priced": 0.2564505712005596,
+     "realized": 0.24444444444444444,
+     "gap": {
+      "n": 810,
+      "games": 380,
+      "est_pp": -1.2006126756115152,
+      "lo_pp": -4.019395057698852,
+      "hi_pp": 1.9323295852158866,
+      "readable": true
+     },
+     "thin": false,
+     "readable": true,
+     "side": "under",
+     "book_cost_over_pp": 1.4359829534926787,
+     "book_cost_under_pp": 4.278421999940996,
+     "overround_median": 1.0595238095238095,
+     "n_priced_at_book": 810,
+     "net_book": {
+      "n": 810,
+      "games": 380,
+      "est_pp": -3.0020010675434383,
+      "lo_pp": -6.0912121131864,
+      "hi_pp": -0.07380176301618832,
+      "readable": true
+     },
+     "fee_pp": 1.328770850428006,
+     "net_exchange": {
+      "n": 810,
+      "games": 380,
+      "est_pp": -0.1281581748164902,
+      "lo_pp": -3.33305883451849,
+      "hi_pp": 3.008441719077094,
+      "readable": true
+     }
+    },
+    {
+     "bucket": "0.30-0.40",
+     "n": 1986,
+     "games": 666,
+     "priced": 0.36389631009916285,
+     "realized": 0.32678751258811684,
+     "gap": {
+      "n": 1986,
+      "games": 666,
+      "est_pp": -3.7108797511046023,
+      "lo_pp": -5.832848035515481,
+      "hi_pp": -1.5933128936371201,
+      "readable": true
+     },
+     "thin": false,
+     "readable": true,
+     "side": "under",
+     "book_cost_over_pp": 2.246585190510425,
+     "book_cost_under_pp": 3.885406802843794,
+     "overround_median": 1.0609410430839001,
+     "n_priced_at_book": 1986,
+     "net_book": {
+      "n": 1986,
+      "games": 666,
+      "est_pp": -0.21403962777685087,
+      "lo_pp": -2.3050689535440263,
+      "hi_pp": 1.9133969076327355,
+      "readable": true
+     },
+     "fee_pp": 1.6151860942635317,
+     "net_exchange": {
+      "n": 1986,
+      "games": 666,
+      "est_pp": 2.0956936568410702,
+      "lo_pp": 0.14948851583376024,
+      "hi_pp": 4.294926245031443,
+      "readable": true
+     }
+    },
+    {
+     "bucket": "0.40-0.45",
+     "n": 4853,
+     "games": 809,
+     "priced": 0.429157215190201,
+     "realized": 0.4022254275705749,
+     "gap": {
+      "n": 4853,
+      "games": 809,
+      "est_pp": -2.693178761962609,
+      "lo_pp": -4.056176034056797,
+      "hi_pp": -1.196025289841202,
+      "readable": true
+     },
+     "thin": false,
+     "readable": true,
+     "side": "under",
+     "book_cost_over_pp": 2.6752273943285165,
+     "book_cost_under_pp": 3.593324007508114,
+     "overround_median": 1.0629643564749993,
+     "n_priced_at_book": 4853,
+     "net_book": {
+      "n": 4853,
+      "games": 809,
+      "est_pp": -0.9248213063813123,
+      "lo_pp": -2.282259766625298,
+      "hi_pp": 0.4956957468273383,
+      "readable": true
+     },
+     "fee_pp": 1.7134346061776915,
+     "net_exchange": {
+      "n": 4853,
+      "games": 809,
+      "est_pp": 0.9797441557849176,
+      "lo_pp": -0.40309700239280855,
+      "hi_pp": 2.3891838077958942,
+      "readable": true
+     }
+    },
+    {
+     "bucket": "0.45-0.50",
+     "n": 10522,
+     "games": 811,
+     "priced": 0.4811647727891183,
+     "realized": 0.450769815624406,
+     "gap": {
+      "n": 10522,
+      "games": 811,
+      "est_pp": -3.039495716471231,
+      "lo_pp": -4.124067730432858,
+      "hi_pp": -1.9666035128247925,
+      "readable": true
+     },
+     "thin": false,
+     "readable": true,
+     "side": "under",
+     "book_cost_over_pp": 3.2012969256611568,
+     "book_cost_under_pp": 3.4891282598545903,
+     "overround_median": 1.0660240560658365,
+     "n_priced_at_book": 10522,
+     "net_book": {
+      "n": 10522,
+      "games": 811,
+      "est_pp": -0.35776315107537854,
+      "lo_pp": -1.441200863398118,
+      "hi_pp": 0.6833257817651307,
+      "readable": true
+     },
+     "fee_pp": 1.7461617162937162,
+     "net_exchange": {
+      "n": 10522,
+      "games": 811,
+      "est_pp": 1.2933340001775153,
+      "lo_pp": 0.21763127281885633,
+      "hi_pp": 2.3302489952709236,
+      "readable": true
+     }
+    },
+    {
+     "bucket": "0.50-0.55",
+     "n": 20558,
+     "games": 814,
+     "priced": 0.5094346900577151,
+     "realized": 0.49080649868664267,
+     "gap": {
+      "n": 20558,
+      "games": 814,
+      "est_pp": -1.8628191371072509,
+      "lo_pp": -2.7925753704238057,
+      "hi_pp": -0.8855090358014023,
+      "readable": true
+     },
+     "thin": false,
+     "readable": true,
+     "side": "under",
+     "book_cost_over_pp": 3.367668305459992,
+     "book_cost_under_pp": 3.095450164106439,
+     "overround_median": 1.0650939274792486,
+     "n_priced_at_book": 20558,
+     "net_book": {
+      "n": 20558,
+      "games": 814,
+      "est_pp": -1.1818822063322865,
+      "lo_pp": -2.1257203138288,
+      "hi_pp": -0.2790691251070031,
+      "readable": true
+     },
+     "fee_pp": 1.7481084708988788,
+     "net_exchange": {
+      "n": 20558,
+      "games": 814,
+      "est_pp": 0.11471066620837164,
+      "lo_pp": -0.812844286833242,
+      "hi_pp": 1.0057646358441923,
+      "readable": true
+     }
+    },
+    {
+     "bucket": "0.55-0.60",
+     "n": 4371,
+     "games": 808,
+     "priced": 0.5693169531033236,
+     "realized": 0.5390070921985816,
+     "gap": {
+      "n": 4371,
+      "games": 808,
+      "est_pp": -3.0309860904742063,
+      "lo_pp": -4.54103590419537,
+      "hi_pp": -1.5126230878496265,
+      "readable": true
+     },
+     "thin": false,
+     "readable": true,
+     "side": "under",
+     "book_cost_over_pp": 3.62833615961623,
+     "book_cost_under_pp": 2.707623129759096,
+     "overround_median": 1.0635768326021997,
+     "n_priced_at_book": 4371,
+     "net_book": {
+      "n": 4371,
+      "games": 808,
+      "est_pp": 0.28295297379161055,
+      "lo_pp": -1.1564946497510231,
+      "hi_pp": 1.6310536244635607,
+      "readable": true
+     },
+     "fee_pp": 1.715074112372284,
+     "net_exchange": {
+      "n": 4371,
+      "games": 808,
+      "est_pp": 1.315911978101923,
+      "lo_pp": -0.12997561742483169,
+      "hi_pp": 2.7739038894501764,
+      "readable": true
+     }
+    },
+    {
+     "bucket": "0.60-0.70",
+     "n": 769,
+     "games": 471,
+     "priced": 0.6202317134056424,
+     "realized": 0.5942782834850455,
+     "gap": {
+      "n": 769,
+      "games": 471,
+      "est_pp": -2.595342992059693,
+      "lo_pp": -6.137594736293246,
+      "hi_pp": 1.150503360946003,
+      "readable": true
+     },
+     "thin": false,
+     "readable": true,
+     "side": "under",
+     "book_cost_over_pp": 4.0599888102747395,
+     "book_cost_under_pp": 2.453839716471673,
+     "overround_median": 1.0651289009497966,
+     "n_priced_at_book": 769,
+     "net_book": {
+      "n": 769,
+      "games": 471,
+      "est_pp": 0.10199320649291449,
+      "lo_pp": -3.4524731058335645,
+      "hi_pp": 3.8357999314851234,
+      "readable": true
+     },
+     "fee_pp": 1.6466143415993797,
+     "net_exchange": {
+      "n": 769,
+      "games": 471,
+      "est_pp": 0.9487286504603127,
+      "lo_pp": -2.7609186743672276,
+      "hi_pp": 4.498194569308402,
+      "readable": true
+     }
+    },
+    {
+     "bucket": "0.70-0.80",
+     "n": 1,
+     "games": 1,
+     "priced": 0.7138869504535938,
+     "realized": 1.0,
+     "gap": {
+      "n": 1,
+      "games": 1,
+      "est_pp": 28.611304954640616,
+      "lo_pp": 28.611304954640616,
+      "hi_pp": 28.611304954640616,
+      "readable": false
+     },
+     "thin": true,
+     "readable": false,
+     "side": "over",
+     "book_cost_over_pp": 4.221061052201591,
+     "book_cost_under_pp": 1.6917253483896888,
+     "overround_median": 1.0591278640059127,
+     "n_priced_at_book": 1,
+     "net_book": {
+      "n": 1,
+      "games": 1,
+      "est_pp": 24.390243902439025,
+      "lo_pp": 24.390243902439025,
+      "hi_pp": 24.390243902439025,
+      "readable": false
+     },
+     "fee_pp": 1.4297666069796333,
+     "net_exchange": {
+      "n": 1,
+      "games": 1,
+      "est_pp": 27.181538347660982,
+      "lo_pp": 27.181538347660982,
+      "hi_pp": 27.181538347660982,
+      "readable": false
+     }
+    },
+    {
+     "bucket": "0.80-1.00",
+     "n": 0
+    }
+   ],
+   "zones": [
+    {
+     "zone": "longshot over p<0.40",
+     "all": {
+      "n": 3124,
+      "games": 689,
+      "priced": 0.3151360920076224,
+      "realized": 0.2861715749039693,
+      "gap": {
+       "n": 3124,
+       "games": 689,
+       "est_pp": -2.896451710365307,
+       "lo_pp": -4.567638178781463,
+       "hi_pp": -1.199694590771561,
+       "readable": true
+      },
+      "thin": false,
+      "readable": true,
+      "side": "under",
+      "book_cost_over_pp": 1.978132642785213,
+      "book_cost_under_pp": 3.9024167598530335,
+      "overround_median": 1.0606060606060606,
+      "n_priced_at_book": 3124,
+      "net_book": {
+       "n": 3124,
+       "games": 689,
+       "est_pp": -1.2123421875079246,
+       "lo_pp": -2.832438601492336,
+       "hi_pp": 0.42896094968645554,
+       "readable": true
+      },
+      "fee_pp": 1.4720982230597646,
+      "net_exchange": {
+       "n": 3124,
+       "games": 689,
+       "est_pp": 1.4243534873055423,
+       "lo_pp": -0.19572530785583359,
+       "hi_pp": 3.0235340183266954,
+       "readable": true
+      }
+     },
+     "by_stat": {
+      "receiving_yards": {
+       "n": 3,
+       "games": 3,
+       "priced": 0.3857422427348107,
+       "realized": 0.6666666666666666,
+       "gap": {
+        "n": 3,
+        "games": 3,
+        "est_pp": 28.092442393185596,
+        "lo_pp": -38.8739946380697,
+        "hi_pp": 62.0253164556962,
+        "readable": false
+       },
+       "thin": true,
+       "readable": false,
+       "side": "over",
+       "book_cost_over_pp": 2.7926720285969653,
+       "book_cost_under_pp": 4.391236017380051,
+       "overround_median": 1.0718390804597702,
+       "n_priced_at_book": 3,
+       "net_book": {
+        "n": 3,
+        "games": 3,
+        "est_pp": 25.283446712018137,
+        "lo_pp": -41.66666666666667,
+        "hi_pp": 59.183673469387756,
+        "readable": false
+       },
+       "fee_pp": 1.658490347153024,
+       "net_exchange": {
+        "n": 3,
+        "games": 3,
+        "est_pp": 26.433952046032577,
+        "lo_pp": -40.53734304135011,
+        "hi_pp": 60.376542220797944,
+        "readable": false
+       }
+      },
+      "receptions": {
+       "n": 947,
+       "games": 542,
+       "priced": 0.3767457067419006,
+       "realized": 0.3453009503695882,
+       "gap": {
+        "n": 947,
+        "games": 542,
+        "est_pp": -3.144475637231242,
+        "lo_pp": -6.288738085857267,
+        "hi_pp": -0.03501211120786532,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 2.431151150069555,
+       "book_cost_under_pp": 4.034541713259854,
+       "overround_median": 1.0650011728829463,
+       "n_priced_at_book": 947,
+       "net_book": {
+        "n": 947,
+        "games": 542,
+        "est_pp": -0.9089850210407103,
+        "lo_pp": -4.070306538006662,
+        "hi_pp": 2.0386815170010295,
+        "readable": true
+       },
+       "fee_pp": 1.6411993568177317,
+       "net_exchange": {
+        "n": 947,
+        "games": 542,
+        "est_pp": 1.5032762804135105,
+        "lo_pp": -1.4659376734489447,
+        "hi_pp": 4.672899481846171,
+        "readable": true
+       }
+      },
+      "rush_attempts": {
+       "n": 36,
+       "games": 36,
+       "priced": 0.38648053606805316,
+       "realized": 0.2777777777777778,
+       "gap": {
+        "n": 36,
+        "games": 36,
+        "est_pp": -10.87027582902754,
+        "lo_pp": -24.835960432242704,
+        "hi_pp": 3.232979605637889,
+        "readable": true
+       },
+       "thin": true,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 2.61191158933326,
+       "book_cost_under_pp": 4.194014742685032,
+       "overround_median": 1.0681956499672076,
+       "n_priced_at_book": 36,
+       "net_book": {
+        "n": 36,
+        "games": 36,
+        "est_pp": 6.655382841488605,
+        "lo_pp": -7.333969225075518,
+        "hi_pp": 20.59342892433857,
+        "readable": true
+       },
+       "fee_pp": 1.6589884542366193,
+       "net_exchange": {
+        "n": 36,
+        "games": 36,
+        "est_pp": 9.21128737479092,
+        "lo_pp": -4.752808202944703,
+        "hi_pp": 23.100750691380366,
+        "readable": true
+       }
+      },
+      "sacks": {
+       "n": 2106,
+       "games": 504,
+       "priced": 0.28494728544262427,
+       "realized": 0.2597340930674264,
+       "gap": {
+        "n": 2106,
+        "games": 504,
+        "est_pp": -2.5213192375197906,
+        "lo_pp": -4.505797635640507,
+        "hi_pp": -0.6011344500764673,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 1.6988023443472389,
+       "book_cost_under_pp": 3.8006097079811174,
+       "overround_median": 1.0578703703703702,
+       "n_priced_at_book": 2106,
+       "net_book": {
+        "n": 2106,
+        "games": 504,
+        "est_pp": -1.612773889232671,
+        "lo_pp": -3.605570160950522,
+        "hi_pp": 0.410205735795732,
+        "readable": true
+       },
+       "fee_pp": 1.389630389712403,
+       "net_exchange": {
+        "n": 2106,
+        "games": 504,
+        "est_pp": 1.1316888478073872,
+        "lo_pp": -0.8093345335174837,
+        "hi_pp": 3.1005508588059576,
+        "readable": true
+       }
+      },
+      "tackles_assists": {
+       "n": 32,
+       "games": 30,
+       "priced": 0.3917955618253498,
+       "realized": 0.25,
+       "gap": {
+        "n": 32,
+        "games": 30,
+        "est_pp": -14.179556182534983,
+        "lo_pp": -27.133262531505352,
+        "hi_pp": 0.3371184047624743,
+        "readable": true
+       },
+       "thin": true,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 2.5007026364480933,
+       "book_cost_under_pp": 3.896859346292325,
+       "overround_median": 1.0633356790992259,
+       "n_priced_at_book": 32,
+       "net_book": {
+        "n": 32,
+        "games": 30,
+        "est_pp": 10.251906218953112,
+        "lo_pp": -5.204000722785081,
+        "hi_pp": 23.50400399061297,
+        "readable": true
+       },
+       "fee_pp": 1.6674500563754584,
+       "net_exchange": {
+        "n": 32,
+        "games": 30,
+        "est_pp": 12.512106126159525,
+        "lo_pp": -2.9592101867456684,
+        "hi_pp": 25.86602078297212,
+        "readable": true
+       }
+      }
+     },
+     "by_season": {
+      "2023": {
+       "n": 270,
+       "games": 162,
+       "priced": 0.37997836532304086,
+       "realized": 0.37407407407407406,
+       "gap": {
+        "n": 270,
+        "games": 162,
+        "est_pp": -0.5904291248966709,
+        "lo_pp": -6.208137818489305,
+        "hi_pp": 4.983010958740229,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 2.3630225024954044,
+       "book_cost_under_pp": 3.9024167598530335,
+       "overround_median": 1.0623959646520618,
+       "n_priced_at_book": 270,
+       "net_book": {
+        "n": 270,
+        "games": 162,
+        "est_pp": -3.3481645754804945,
+        "lo_pp": -8.99871158048054,
+        "hi_pp": 2.5540933331971174,
+        "readable": true
+       },
+       "fee_pp": 1.6472645840277194,
+       "net_exchange": {
+        "n": 270,
+        "games": 162,
+        "est_pp": -1.0568354591310498,
+        "lo_pp": -6.820955112536388,
+        "hi_pp": 5.00714145066309,
+        "readable": true
+       }
+      },
+      "2024": {
+       "n": 1502,
+       "games": 265,
+       "priced": 0.2903673271558214,
+       "realized": 0.2596537949400799,
+       "gap": {
+        "n": 1502,
+        "games": 265,
+        "est_pp": -3.071353221574152,
+        "lo_pp": -5.492382864297496,
+        "hi_pp": -0.767873443003516,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 1.8385200203175551,
+       "book_cost_under_pp": 4.328905176362808,
+       "overround_median": 1.0628019323671496,
+       "n_priced_at_book": 1502,
+       "net_book": {
+        "n": 1502,
+        "games": 265,
+        "est_pp": -1.3332357167997977,
+        "lo_pp": -3.8025600629284706,
+        "hi_pp": 1.060809897503297,
+        "readable": true
+       },
+       "fee_pp": 1.394725476877592,
+       "net_exchange": {
+        "n": 1502,
+        "games": 265,
+        "est_pp": 1.6766277446965603,
+        "lo_pp": -0.775787274386203,
+        "hi_pp": 4.0550539336998295,
+        "readable": true
+       }
+      },
+      "2025": {
+       "n": 1352,
+       "games": 262,
+       "priced": 0.3297036001527718,
+       "realized": 0.2980769230769231,
+       "gap": {
+        "n": 1352,
+        "games": 262,
+        "est_pp": -3.162667707584869,
+        "lo_pp": -5.684041405038227,
+        "hi_pp": -0.8722717018704915,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 2.0035433693449844,
+       "book_cost_under_pp": 3.746999714207333,
+       "overround_median": 1.0567465321563683,
+       "n_priced_at_book": 1352,
+       "net_book": {
+        "n": 1352,
+        "games": 262,
+        "est_pp": -0.6515033371018697,
+        "lo_pp": -3.1029845374927247,
+        "hi_pp": 1.738230415790743,
+        "readable": true
+       },
+       "fee_pp": 1.523073775799613,
+       "net_exchange": {
+        "n": 1352,
+        "games": 262,
+        "est_pp": 1.6395939317852544,
+        "lo_pp": -0.857800526636954,
+        "hi_pp": 4.092983044144518,
+        "readable": true
+       }
+      }
+     }
+    },
+    {
+     "zone": "near the money 0.40-0.60",
+     "all": {
+      "n": 40304,
+      "games": 814,
+      "priced": 0.4988824549629387,
+      "realized": 0.4749156411274315,
+      "gap": {
+       "n": 40304,
+       "games": 814,
+       "est_pp": -2.396681383550726,
+       "lo_pp": -3.1041733247220704,
+       "hi_pp": -1.6922239723022956,
+       "readable": true
+      },
+      "thin": false,
+      "readable": true,
+      "side": "under",
+      "book_cost_over_pp": 3.2499690479138312,
+      "book_cost_under_pp": 3.2632855122247006,
+      "overround_median": 1.0650939274792486,
+      "n_priced_at_book": 40304,
+      "net_book": {
+       "n": 40304,
+       "games": 814,
+       "est_pp": -0.7769176415447515,
+       "lo_pp": -1.457526749958969,
+       "hi_pp": -0.07120501394585381,
+       "readable": true
+      },
+      "fee_pp": 1.7398425618435198,
+      "net_exchange": {
+       "n": 40304,
+       "games": 814,
+       "est_pp": 0.6568388217072059,
+       "lo_pp": -0.08800664054560528,
+       "hi_pp": 1.3582849380390232,
+       "readable": true
+      }
+     },
+     "by_stat": {
+      "receiving_yards": {
+       "n": 18737,
+       "games": 814,
+       "priced": 0.5005407679019667,
+       "realized": 0.47915888349255487,
+       "gap": {
+        "n": 18737,
+        "games": 814,
+        "est_pp": -2.138188440941185,
+        "lo_pp": -3.163281277165681,
+        "hi_pp": -1.039662095259563,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 3.152797774029026,
+       "book_cost_under_pp": 3.074575315403616,
+       "overround_median": 1.0622729631551635,
+       "n_priced_at_book": 18737,
+       "net_book": {
+        "n": 18737,
+        "games": 814,
+        "est_pp": -0.9212872115255997,
+        "lo_pp": -1.982156200729006,
+        "hi_pp": 0.1313024003416555,
+        "readable": true
+       },
+       "fee_pp": 1.7492967098404637,
+       "net_exchange": {
+        "n": 18737,
+        "games": 814,
+        "est_pp": 0.3888917311007206,
+        "lo_pp": -0.6382611412920433,
+        "hi_pp": 1.4709185374485294,
+        "readable": true
+       }
+      },
+      "receptions": {
+       "n": 8945,
+       "games": 813,
+       "priced": 0.4973400505126352,
+       "realized": 0.47400782560089433,
+       "gap": {
+        "n": 8945,
+        "games": 813,
+        "est_pp": -2.33322249117408,
+        "lo_pp": -3.448648591426516,
+        "hi_pp": -1.2285402997834045,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 3.2499690479138312,
+       "book_cost_under_pp": 3.2738510733066106,
+       "overround_median": 1.0642681660461464,
+       "n_priced_at_book": 8945,
+       "net_book": {
+        "n": 8945,
+        "games": 813,
+        "est_pp": -0.8963768436632406,
+        "lo_pp": -2.0225374299818073,
+        "hi_pp": 0.15188392916911922,
+        "readable": true
+       },
+       "fee_pp": 1.726926931758006,
+       "net_exchange": {
+        "n": 8945,
+        "games": 813,
+        "est_pp": 0.606295559416074,
+        "lo_pp": -0.4780180892186953,
+        "hi_pp": 1.680156843002355,
+        "readable": true
+       }
+      },
+      "rush_attempts": {
+       "n": 4511,
+       "games": 806,
+       "priced": 0.49963181112580773,
+       "realized": 0.47262247838616717,
+       "gap": {
+        "n": 4511,
+        "games": 806,
+        "est_pp": -2.7009332739640515,
+        "lo_pp": -4.160344679614199,
+        "hi_pp": -1.1802927148815079,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 3.371633260256812,
+       "book_cost_under_pp": 3.3716545056385994,
+       "overround_median": 1.067750677506775,
+       "n_priced_at_book": 4511,
+       "net_book": {
+        "n": 4511,
+        "games": 806,
+        "est_pp": -0.6669911068382125,
+        "lo_pp": -2.072314534209567,
+        "hi_pp": 0.8501653486281381,
+        "readable": true
+       },
+       "fee_pp": 1.7389639904740382,
+       "net_exchange": {
+        "n": 4511,
+        "games": 806,
+        "est_pp": 0.9619692834900138,
+        "lo_pp": -0.5249616046170963,
+        "hi_pp": 2.4319006687239946,
+        "readable": true
+       }
+      },
+      "sacks": {
+       "n": 1040,
+       "games": 446,
+       "priced": 0.469752297218208,
+       "realized": 0.40576923076923077,
+       "gap": {
+        "n": 1040,
+        "games": 446,
+        "est_pp": -6.398306644897719,
+        "lo_pp": -9.341558592051118,
+        "hi_pp": -3.5519084384259916,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 2.794149748963104,
+       "book_cost_under_pp": 3.2586155821072493,
+       "overround_median": 1.0586932447397563,
+       "n_priced_at_book": 1040,
+       "net_book": {
+        "n": 1040,
+        "games": 446,
+        "est_pp": 3.1703322085522734,
+        "lo_pp": 0.09068931559086192,
+        "hi_pp": 6.219425670731289,
+        "readable": true
+       },
+       "fee_pp": 1.7268612814529485,
+       "net_exchange": {
+        "n": 1040,
+        "games": 446,
+        "est_pp": 4.671445363444769,
+        "lo_pp": 1.6274680251610347,
+        "hi_pp": 7.679793481934288,
+        "readable": true
+       }
+      },
+      "tackles_assists": {
+       "n": 7071,
+       "games": 774,
+       "priced": 0.5002457722692913,
+       "realized": 0.47645311837081034,
+       "gap": {
+        "n": 7071,
+        "games": 774,
+        "est_pp": -2.379265389848092,
+        "lo_pp": -3.580313751222076,
+        "hi_pp": -1.306885301684622,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 3.321533588927028,
+       "book_cost_under_pp": 3.321533588927039,
+       "overround_median": 1.0652173913043477,
+       "n_priced_at_book": 7071,
+       "net_book": {
+        "n": 7071,
+        "games": 774,
+        "est_pp": -0.8939312529831709,
+        "lo_pp": -2.0326188595829855,
+        "hi_pp": 0.30306495165305863,
+        "readable": true
+       },
+       "fee_pp": 1.7335989905169897,
+       "net_exchange": {
+        "n": 7071,
+        "games": 774,
+        "est_pp": 0.6456663993311024,
+        "lo_pp": -0.5382235323679351,
+        "hi_pp": 1.7996481691401396,
+        "readable": true
+       }
+      }
+     },
+     "by_season": {
+      "2023": {
+       "n": 11702,
+       "games": 270,
+       "priced": 0.4996771992541064,
+       "realized": 0.49683814732524356,
+       "gap": {
+        "n": 11702,
+        "games": 270,
+        "est_pp": -0.2839051928862838,
+        "lo_pp": -1.5106674532534874,
+        "hi_pp": 0.9628844595285321,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 3.3039688052422522,
+       "book_cost_under_pp": 3.303968805242241,
+       "overround_median": 1.0652173913043477,
+       "n_priced_at_book": 11702,
+       "net_book": {
+        "n": 11702,
+        "games": 270,
+        "est_pp": -2.8495345350674337,
+        "lo_pp": -4.089119420073863,
+        "hi_pp": -1.5910340613371943,
+        "readable": true
+       },
+       "fee_pp": 1.7392623689498368,
+       "net_exchange": {
+        "n": 11702,
+        "games": 270,
+        "est_pp": -1.4553571760635533,
+        "lo_pp": -2.696017649417738,
+        "hi_pp": -0.2191645210100168,
+        "readable": true
+       }
+      },
+      "2024": {
+       "n": 14092,
+       "games": 272,
+       "priced": 0.4991069328632268,
+       "realized": 0.47253760999148453,
+       "gap": {
+        "n": 14092,
+        "games": 272,
+        "est_pp": -2.6569322871742256,
+        "lo_pp": -3.7986235852821655,
+        "hi_pp": -1.5130876016823305,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 3.3930981299402307,
+       "book_cost_under_pp": 3.393098129940242,
+       "overround_median": 1.067750677506775,
+       "n_priced_at_book": 14092,
+       "net_book": {
+        "n": 14092,
+        "games": 272,
+        "est_pp": -0.5804884265835981,
+        "lo_pp": -1.7892665314572676,
+        "hi_pp": 0.5813540299779324,
+        "readable": true
+       },
+       "fee_pp": 1.7397115566671777,
+       "net_exchange": {
+        "n": 14092,
+        "games": 272,
+        "est_pp": 0.9172207305070474,
+        "lo_pp": -0.26825316158490575,
+        "hi_pp": 2.11426162292795,
+        "readable": true
+       }
+      },
+      "2025": {
+       "n": 14510,
+       "games": 272,
+       "priced": 0.49802349974129145,
+       "realized": 0.45954514128187457,
+       "gap": {
+        "n": 14510,
+        "games": 272,
+        "est_pp": -3.847835845941693,
+        "lo_pp": -5.108283070467452,
+        "hi_pp": -2.6406236502047746,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 3.0691422507544974,
+       "book_cost_under_pp": 3.107033744228291,
+       "overround_median": 1.0624314200310265,
+       "n_priced_at_book": 14510,
+       "net_book": {
+        "n": 14510,
+        "games": 272,
+        "est_pp": 0.7038323509273273,
+        "lo_pp": -0.6088501113969222,
+        "hi_pp": 2.033846574683608,
+        "readable": true
+       },
+       "fee_pp": 1.7404377060328295,
+       "net_exchange": {
+        "n": 14510,
+        "games": 272,
+        "est_pp": 2.1073981399088635,
+        "lo_pp": 0.8506589657889924,
+        "hi_pp": 3.4125992914578767,
+        "readable": true
+       }
+      }
+     }
+    },
+    {
+     "zone": "deep ITM over p>=0.60",
+     "all": {
+      "n": 770,
+      "games": 472,
+      "priced": 0.6203533435836268,
+      "realized": 0.5948051948051948,
+      "gap": {
+       "n": 770,
+       "games": 472,
+       "est_pp": -2.554814877843199,
+       "lo_pp": -6.218190102847384,
+       "hi_pp": 1.0115632589343255,
+       "readable": true
+      },
+      "thin": false,
+      "readable": true,
+      "side": "under",
+      "book_cost_over_pp": 4.0599888102747395,
+      "book_cost_under_pp": 2.451079563994371,
+      "overround_median": 1.0651289009497966,
+      "n_priced_at_book": 770,
+      "net_book": {
+       "n": 770,
+       "games": 472,
+       "est_pp": 0.06250616297405343,
+       "lo_pp": -3.598933756163519,
+       "hi_pp": 3.582146695296461,
+       "readable": true
+      },
+      "fee_pp": 1.646332721164809,
+      "net_exchange": {
+       "n": 770,
+       "games": 472,
+       "est_pp": 0.9084821566783905,
+       "lo_pp": -2.7976286248029956,
+       "hi_pp": 4.572359867933084,
+       "readable": true
+      }
+     },
+     "by_stat": {
+      "receiving_yards": {
+       "n": 1,
+       "games": 1,
+       "priced": 0.6112600536193029,
+       "realized": 0.0,
+       "gap": {
+        "n": 1,
+        "games": 1,
+        "est_pp": -61.12600536193029,
+        "lo_pp": -61.12600536193029,
+        "hi_pp": -61.12600536193029,
+        "readable": false
+       },
+       "thin": true,
+       "readable": false,
+       "side": "under",
+       "book_cost_over_pp": 4.391236017380051,
+       "book_cost_under_pp": 2.79267202859696,
+       "overround_median": 1.0718390804597702,
+       "n_priced_at_book": 1,
+       "net_book": {
+        "n": 1,
+        "games": 1,
+        "est_pp": 58.33333333333333,
+        "lo_pp": 58.33333333333333,
+        "hi_pp": 58.33333333333333,
+        "readable": false
+       },
+       "fee_pp": 1.663348403280409,
+       "net_exchange": {
+        "n": 1,
+        "games": 1,
+        "est_pp": 59.46265695864989,
+        "lo_pp": 59.46265695864989,
+        "hi_pp": 59.46265695864989,
+        "readable": false
+       }
+      },
+      "receptions": {
+       "n": 667,
+       "games": 435,
+       "priced": 0.6211878643238509,
+       "realized": 0.5967016491754122,
+       "gap": {
+        "n": 667,
+        "games": 435,
+        "est_pp": -2.448621514843864,
+        "lo_pp": -6.4349545892453435,
+        "hi_pp": 1.3520492820338532,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 4.064593150137863,
+       "book_cost_under_pp": 2.4576943754640146,
+       "overround_median": 1.0653409197656811,
+       "n_priced_at_book": 667,
+       "net_book": {
+        "n": 667,
+        "games": 435,
+        "est_pp": -0.045543224116597975,
+        "lo_pp": -3.921112484708992,
+        "hi_pp": 3.9752595808184035,
+        "readable": true
+       },
+       "fee_pp": 1.6447896308301686,
+       "net_exchange": {
+        "n": 667,
+        "games": 435,
+        "est_pp": 0.8038318840136954,
+        "lo_pp": -2.962686213134189,
+        "hi_pp": 4.858246714116221,
+        "readable": true
+       }
+      },
+      "rush_attempts": {
+       "n": 34,
+       "games": 34,
+       "priced": 0.6158243389043708,
+       "realized": 0.6176470588235294,
+       "gap": {
+        "n": 34,
+        "games": 34,
+        "est_pp": 0.182271991915865,
+        "lo_pp": -14.777904302103769,
+        "hi_pp": 15.42771516555987,
+        "readable": true
+       },
+       "thin": true,
+       "readable": true,
+       "side": "over",
+       "book_cost_over_pp": 4.273764042319206,
+       "book_cost_under_pp": 2.636866564315765,
+       "overround_median": 1.0693475510325579,
+       "n_priced_at_book": 34,
+       "net_book": {
+        "n": 34,
+        "games": 34,
+        "est_pp": -4.03920703729685,
+        "lo_pp": -19.317022494368395,
+        "hi_pp": 11.01192589128778,
+        "readable": true
+       },
+       "fee_pp": 1.6545318533695421,
+       "net_exchange": {
+        "n": 34,
+        "games": 34,
+        "est_pp": -1.4722598614536782,
+        "lo_pp": -16.52611298837204,
+        "hi_pp": 13.609247756890547,
+        "readable": true
+       }
+      },
+      "sacks": {
+       "n": 25,
+       "games": 24,
+       "priced": 0.6236801164742092,
+       "realized": 0.44,
+       "gap": {
+        "n": 25,
+        "games": 24,
+        "est_pp": -18.368011647420907,
+        "lo_pp": -37.25845400921326,
+        "hi_pp": 0.31375119257862816,
+        "readable": true
+       },
+       "thin": true,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 3.749591830676513,
+       "book_cost_under_pp": 2.245225940631496,
+       "overround_median": 1.0578703703703702,
+       "n_priced_at_book": 25,
+       "net_book": {
+        "n": 25,
+        "games": 24,
+        "est_pp": 16.121532960483055,
+        "lo_pp": -1.987956864510379,
+        "hi_pp": 34.776199013278266,
+        "readable": true
+       },
+       "fee_pp": 1.6416966528232313,
+       "net_exchange": {
+        "n": 25,
+        "games": 24,
+        "est_pp": 16.726314994597676,
+        "lo_pp": -2.0332381666278194,
+        "hi_pp": 35.69279816428228,
+        "readable": true
+       }
+      },
+      "tackles_assists": {
+       "n": 43,
+       "games": 42,
+       "priced": 0.6092669434223471,
+       "realized": 0.6511627906976745,
+       "gap": {
+        "n": 43,
+        "games": 42,
+        "est_pp": 4.189584727532732,
+        "lo_pp": -11.086088007602237,
+        "hi_pp": 18.144326827667648,
+        "readable": true
+       },
+       "thin": true,
+       "readable": true,
+       "side": "over",
+       "book_cost_over_pp": 3.9024167598530335,
+       "book_cost_under_pp": 2.431151150069555,
+       "overround_median": 1.0633356790992259,
+       "n_priced_at_book": 43,
+       "net_book": {
+        "n": 43,
+        "games": 42,
+        "est_pp": 0.31579360692922925,
+        "lo_pp": -14.926234030860236,
+        "hi_pp": 14.203720798976754,
+        "readable": true
+       },
+       "fee_pp": 1.666085204529183,
+       "net_exchange": {
+        "n": 43,
+        "games": 42,
+        "est_pp": 2.5234995230035486,
+        "lo_pp": -12.576695879733796,
+        "hi_pp": 16.47428890689645,
+        "readable": true
+       }
+      }
+     },
+     "by_season": {
+      "2023": {
+       "n": 233,
+       "games": 149,
+       "priced": 0.617135271014152,
+       "realized": 0.5708154506437768,
+       "gap": {
+        "n": 233,
+        "games": 149,
+        "est_pp": -4.631982037037516,
+        "lo_pp": -10.999375901826225,
+        "hi_pp": 2.1733836726672036,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 3.876134146426402,
+       "book_cost_under_pp": 2.371402158172442,
+       "overround_median": 1.0620347394540943,
+       "n_priced_at_book": 233,
+       "net_book": {
+        "n": 233,
+        "games": 149,
+        "est_pp": 2.2219666323109237,
+        "lo_pp": -4.529859084061988,
+        "hi_pp": 8.791380060061424,
+        "readable": true
+       },
+       "fee_pp": 1.6521094876788571,
+       "net_exchange": {
+        "n": 233,
+        "games": 149,
+        "est_pp": 2.9798725493586575,
+        "lo_pp": -3.474522487260265,
+        "hi_pp": 9.793792453521672,
+        "readable": true
+       }
+      },
+      "2024": {
+       "n": 227,
+       "games": 149,
+       "priced": 0.6209132517564223,
+       "realized": 0.6079295154185022,
+       "gap": {
+        "n": 227,
+        "games": 149,
+        "est_pp": -1.298373633792014,
+        "lo_pp": -7.716377839244927,
+        "hi_pp": 4.926584220349674,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 4.115017272912014,
+       "book_cost_under_pp": 2.5360082304526688,
+       "overround_median": 1.0666666666666667,
+       "n_priced_at_book": 227,
+       "net_book": {
+        "n": 227,
+        "games": 149,
+        "est_pp": -1.252395233023976,
+        "lo_pp": -7.812795236380116,
+        "hi_pp": 5.495730424368006,
+        "readable": true
+       },
+       "fee_pp": 1.6454043034263626,
+       "net_exchange": {
+        "n": 227,
+        "games": 149,
+        "est_pp": -0.3470306696343485,
+        "lo_pp": -6.75886157681415,
+        "hi_pp": 6.164906585087619,
+        "readable": true
+       }
+      },
+      "2025": {
+       "n": 310,
+       "games": 174,
+       "priced": 0.622362091175443,
+       "realized": 0.603225806451613,
+       "gap": {
+        "n": 310,
+        "games": 174,
+        "est_pp": -1.913628472383017,
+        "lo_pp": -7.787431578810282,
+        "hi_pp": 3.9708861123368244,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 4.2011138624861,
+       "book_cost_under_pp": 2.464778521075231,
+       "overround_median": 1.0666666666666667,
+       "n_priced_at_book": 310,
+       "net_book": {
+        "n": 310,
+        "games": 174,
+        "est_pp": -0.5977250385225211,
+        "lo_pp": -6.400424049623811,
+        "hi_pp": 5.1268251856604214,
+        "readable": true
+       },
+       "fee_pp": 1.6426706702901446,
+       "net_exchange": {
+        "n": 310,
+        "games": 174,
+        "est_pp": 0.2709578020928729,
+        "lo_pp": -5.160766938300015,
+        "hi_pp": 6.001511902499888,
+        "readable": true
+       }
+      }
+     }
+    }
+   ],
+   "T2_contrast_deep_minus_atm": {
+    "n_a": 770,
+    "n_b": 40304,
+    "games": 814,
+    "est_pp": -0.1581334942924735,
+    "lo_pp": -3.8246855916356766,
+    "hi_pp": 3.4946539759109085
+   }
+  },
+  {
+   "price": "all",
+   "n": 92577,
+   "games": 814,
+   "buckets": [
+    {
+     "bucket": "0.00-0.20",
+     "n": 2433,
+     "games": 552,
+     "priced": 0.17669435721933086,
+     "realized": 0.16728318947801069,
+     "gap": {
+      "n": 2433,
+      "games": 552,
+      "est_pp": -0.9411167741320161,
+      "lo_pp": -2.5017277045713104,
+      "hi_pp": 0.7590265822037293,
+      "readable": true
+     },
+     "thin": false,
+     "readable": true,
+     "side": "under",
+     "book_cost_over_pp": 1.295716893480639,
+     "book_cost_under_pp": 6.002118394727551,
+     "overround_median": 1.0737151021353823,
+     "n_priced_at_book": 2433,
+     "net_book": {
+      "n": 2433,
+      "games": 552,
+      "est_pp": -4.888451721227953,
+      "lo_pp": -6.590841894262113,
+      "hi_pp": -3.295954441209728,
+      "readable": true
+     },
+     "fee_pp": 1.0162537512140382,
+     "net_exchange": {
+      "n": 2433,
+      "games": 552,
+      "est_pp": -0.07513697708202154,
+      "lo_pp": -1.6824879819555247,
+      "hi_pp": 1.5416556928236502,
+      "readable": true
+     }
+    },
+    {
+     "bucket": "0.20-0.30",
+     "n": 9771,
+     "games": 790,
+     "priced": 0.2568139609705136,
+     "realized": 0.2562685497901955,
+     "gap": {
+      "n": 9771,
+      "games": 790,
+      "est_pp": -0.05454111803181691,
+      "lo_pp": -1.1751997859836454,
+      "hi_pp": 1.0796942988288745,
+      "readable": true
+     },
+     "thin": false,
+     "readable": true,
+     "side": "under",
+     "book_cost_over_pp": 1.8915768593689264,
+     "book_cost_under_pp": 5.572883828198172,
+     "overround_median": 1.0757575757575757,
+     "n_priced_at_book": 9771,
+     "net_book": {
+      "n": 9771,
+      "games": 790,
+      "est_pp": -5.3961217349902935,
+      "lo_pp": -6.538895226728744,
+      "hi_pp": -4.349127123760604,
+      "readable": true
+     },
+     "fee_pp": 1.330991874202091,
+     "net_exchange": {
+      "n": 9771,
+      "games": 790,
+      "est_pp": -1.276450756170274,
+      "lo_pp": -2.439950167657144,
+      "hi_pp": -0.12248004173222088,
+      "readable": true
+     }
+    },
+    {
+     "bucket": "0.30-0.40",
+     "n": 10447,
+     "games": 805,
+     "priced": 0.3504800576816566,
+     "realized": 0.3387575380492007,
+     "gap": {
+      "n": 10447,
+      "games": 805,
+      "est_pp": -1.1722519632455883,
+      "lo_pp": -2.3242594260676306,
+      "hi_pp": -0.03532179501946388,
+      "readable": true
+     },
+     "thin": false,
+     "readable": true,
+     "side": "under",
+     "book_cost_over_pp": 2.4986056887897456,
+     "book_cost_under_pp": 4.521983255627415,
+     "overround_median": 1.070921985815603,
+     "n_priced_at_book": 10447,
+     "net_book": {
+      "n": 10447,
+      "games": 805,
+      "est_pp": -3.394910488601035,
+      "lo_pp": -4.600371618870497,
+      "hi_pp": -2.1894332748432928,
+      "readable": true
+     },
+     "fee_pp": 1.5877613872483345,
+     "net_exchange": {
+      "n": 10447,
+      "games": 805,
+      "est_pp": -0.41550942400274593,
+      "lo_pp": -1.5350385470118957,
+      "hi_pp": 0.7024586239164867,
+      "readable": true
+     }
+    },
+    {
+     "bucket": "0.40-0.45",
+     "n": 8287,
+     "games": 811,
+     "priced": 0.4272588967249495,
+     "realized": 0.4049716423313624,
+     "gap": {
+      "n": 8287,
+      "games": 811,
+      "est_pp": -2.2287254393587106,
+      "lo_pp": -3.307640057777703,
+      "hi_pp": -1.1478769270987421,
+      "readable": true
+     },
+     "thin": false,
+     "readable": true,
+     "side": "under",
+     "book_cost_over_pp": 2.862620520192305,
+     "book_cost_under_pp": 3.7932528383254116,
+     "overround_median": 1.0667511039605655,
+     "n_priced_at_book": 8287,
+     "net_book": {
+      "n": 8287,
+      "games": 811,
+      "est_pp": -1.6005279766610925,
+      "lo_pp": -2.7031092764564555,
+      "hi_pp": -0.5849928272752096,
+      "readable": true
+     },
+     "fee_pp": 1.711476590666585,
+     "net_exchange": {
+      "n": 8287,
+      "games": 811,
+      "est_pp": 0.5172488486921251,
+      "lo_pp": -0.5875127772060371,
+      "hi_pp": 1.5989922062241615,
+      "readable": true
+     }
+    },
+    {
+     "bucket": "0.45-0.50",
+     "n": 16119,
+     "games": 813,
+     "priced": 0.48167344617962055,
+     "realized": 0.4501519945406043,
+     "gap": {
+      "n": 16119,
+      "games": 813,
+      "est_pp": -3.152145163901634,
+      "lo_pp": -4.134010721290666,
+      "hi_pp": -2.246414134104229,
+      "readable": true
+     },
+     "thin": false,
+     "readable": true,
+     "side": "under",
+     "book_cost_over_pp": 3.248073079369207,
+     "book_cost_under_pp": 3.4605146406388676,
+     "overround_median": 1.0669856459330143,
+     "n_priced_at_book": 16119,
+     "net_book": {
+      "n": 16119,
+      "games": 813,
+      "est_pp": -0.31434825482838724,
+      "lo_pp": -1.2520554239623423,
+      "hi_pp": 0.6691871906718034,
+      "readable": true
+     },
+     "fee_pp": 1.7462497816534952,
+     "net_exchange": {
+      "n": 16119,
+      "games": 813,
+      "est_pp": 1.4058953822481386,
+      "lo_pp": 0.4137029318676523,
+      "hi_pp": 2.370976601199637,
+      "readable": true
+     }
+    },
+    {
+     "bucket": "0.50-0.55",
+     "n": 28477,
+     "games": 814,
+     "priced": 0.5108846539463164,
+     "realized": 0.4930996944902904,
+     "gap": {
+      "n": 28477,
+      "games": 814,
+      "est_pp": -1.7784959456025988,
+      "lo_pp": -2.7345826781879023,
+      "hi_pp": -0.8241512130846855,
+      "readable": true
+     },
+     "thin": false,
+     "readable": true,
+     "side": "under",
+     "book_cost_over_pp": 3.4512983366643657,
+     "book_cost_under_pp": 3.256603225281862,
+     "overround_median": 1.066457762109936,
+     "n_priced_at_book": 28477,
+     "net_book": {
+      "n": 28477,
+      "games": 814,
+      "est_pp": -1.419811812989175,
+      "lo_pp": -2.2661081034561628,
+      "hi_pp": -0.460441745998968,
+      "readable": true
+     },
+     "fee_pp": 1.7478694147977605,
+     "net_exchange": {
+      "n": 28477,
+      "games": 814,
+      "est_pp": 0.03062653080483801,
+      "lo_pp": -0.8679974344564545,
+      "hi_pp": 0.9349561123781029,
+      "readable": true
+     }
+    },
+    {
+     "bucket": "0.55-0.60",
+     "n": 6884,
+     "games": 807,
+     "priced": 0.5714473237686212,
+     "realized": 0.5464846019755956,
+     "gap": {
+      "n": 6884,
+      "games": 807,
+      "est_pp": -2.4962721793025584,
+      "lo_pp": -3.7332676484304947,
+      "hi_pp": -1.2769151561885563,
+      "readable": true
+     },
+     "thin": false,
+     "readable": true,
+     "side": "under",
+     "book_cost_over_pp": 3.79683216751015,
+     "book_cost_under_pp": 2.873866114690454,
+     "overround_median": 1.0670859538784065,
+     "n_priced_at_book": 6884,
+     "net_book": {
+      "n": 6884,
+      "games": 807,
+      "est_pp": -0.3796421296926348,
+      "lo_pp": -1.6400394258769515,
+      "hi_pp": 0.8898423125705425,
+      "readable": true
+     },
+     "fee_pp": 1.7128803191812085,
+     "net_exchange": {
+      "n": 6884,
+      "games": 807,
+      "est_pp": 0.7833918601213494,
+      "lo_pp": -0.494297271578681,
+      "hi_pp": 2.0015329086509164,
+      "readable": true
+     }
+    },
+    {
+     "bucket": "0.60-0.70",
+     "n": 5758,
+     "games": 724,
+     "priced": 0.6463848433107828,
+     "realized": 0.6389371309482459,
+     "gap": {
+      "n": 5758,
+      "games": 724,
+      "est_pp": -0.7447712362536874,
+      "lo_pp": -2.3848443863367366,
+      "hi_pp": 0.696423387707039,
+      "readable": true
+     },
+     "thin": false,
+     "readable": true,
+     "side": "under",
+     "book_cost_over_pp": 4.624439461883401,
+     "book_cost_under_pp": 2.5057063547062275,
+     "overround_median": 1.0718390804597702,
+     "n_priced_at_book": 5758,
+     "net_book": {
+      "n": 5758,
+      "games": 724,
+      "est_pp": -1.7782097669806867,
+      "lo_pp": -3.1833786881175725,
+      "hi_pp": -0.26559673376804666,
+      "readable": true
+     },
+     "fee_pp": 1.5940305325121054,
+     "net_exchange": {
+      "n": 5758,
+      "games": 724,
+      "est_pp": -0.8492592962584179,
+      "lo_pp": -2.3708645271676065,
+      "hi_pp": 0.7292161048144924,
+      "readable": true
+     }
+    },
+    {
+     "bucket": "0.70-0.80",
+     "n": 3858,
+     "games": 531,
+     "priced": 0.7401948530693955,
+     "realized": 0.7415759460860549,
+     "gap": {
+      "n": 3858,
+      "games": 531,
+      "est_pp": 0.13810930166593757,
+      "lo_pp": -1.5780148917098737,
+      "hi_pp": 1.8665852879067986,
+      "readable": true
+     },
+     "thin": false,
+     "readable": true,
+     "side": "over",
+     "book_cost_over_pp": 5.59023315586561,
+     "book_cost_under_pp": 1.9696095402962188,
+     "overround_median": 1.0762420068863747,
+     "n_priced_at_book": 3858,
+     "net_book": {
+      "n": 3858,
+      "games": 531,
+      "est_pp": -5.483171461366034,
+      "lo_pp": -7.17621999838768,
+      "hi_pp": -3.8265043544033803,
+      "readable": true
+     },
+     "fee_pp": 1.3414998717791002,
+     "net_exchange": {
+      "n": 3858,
+      "games": 531,
+      "est_pp": -1.2033905701131626,
+      "lo_pp": -2.8177610387640692,
+      "hi_pp": 0.42301193671953213,
+      "readable": true
+     }
+    },
+    {
+     "bucket": "0.80-1.00",
+     "n": 543,
+     "games": 205,
+     "priced": 0.8177345300704248,
+     "realized": 0.8103130755064457,
+     "gap": {
+      "n": 543,
+      "games": 205,
+      "est_pp": -0.7421454563979168,
+      "lo_pp": -4.539571919520909,
+      "hi_pp": 2.7669390969849497,
+      "readable": true
+     },
+     "thin": false,
+     "readable": true,
+     "side": "under",
+     "book_cost_over_pp": 6.215670790558924,
+     "book_cost_under_pp": 1.3702460850111926,
+     "overround_median": 1.0748663101604279,
+     "n_priced_at_book": 543,
+     "net_book": {
+      "n": 543,
+      "games": 205,
+      "est_pp": -0.6338909882591648,
+      "lo_pp": -4.180192427064823,
+      "hi_pp": 2.7983706001365563,
+      "readable": true
+     },
+     "fee_pp": 1.0426560809903596,
+     "net_exchange": {
+      "n": 543,
+      "games": 205,
+      "est_pp": -0.3005106245924441,
+      "lo_pp": -3.991199320484677,
+      "hi_pp": 3.3688287151482075,
+      "readable": true
+     }
+    }
+   ],
+   "zones": [
+    {
+     "zone": "longshot over p<0.40",
+     "all": {
+      "n": 22651,
+      "games": 807,
+      "priced": 0.29140840344169294,
+      "realized": 0.284755639927597,
+      "gap": {
+       "n": 22651,
+       "games": 807,
+       "est_pp": -0.6652763514095952,
+       "lo_pp": -1.6404002899432284,
+       "hi_pp": 0.3090136079393193,
+       "readable": true
+      },
+      "thin": false,
+      "readable": true,
+      "side": "under",
+      "book_cost_over_pp": 2.095850216571188,
+      "book_cost_under_pp": 5.0949276389556815,
+      "overround_median": 1.073249619482496,
+      "n_priced_at_book": 22651,
+      "net_book": {
+       "n": 22651,
+       "games": 807,
+       "est_pp": -4.418601314942068,
+       "lo_pp": -5.372863396178592,
+       "hi_pp": -3.4749305104273334,
+       "readable": true
+      },
+      "fee_pp": 1.415611239773773,
+      "net_exchange": {
+       "n": 22651,
+       "games": 807,
+       "est_pp": -0.7503348883641778,
+       "lo_pp": -1.7750996312912142,
+       "hi_pp": 0.215745340935176,
+       "readable": true
+      }
+     },
+     "by_stat": {
+      "receiving_yards": {
+       "n": 11899,
+       "games": 607,
+       "priced": 0.29289531112106226,
+       "realized": 0.2935540801748046,
+       "gap": {
+        "n": 11899,
+        "games": 607,
+        "est_pp": 0.06587690537423163,
+        "lo_pp": -1.2155097442843612,
+        "hi_pp": 1.3338146772112494,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "over",
+       "book_cost_over_pp": 2.2558914013879328,
+       "book_cost_under_pp": 5.5102040816326525,
+       "overround_median": 1.0767263427109974,
+       "n_priced_at_book": 11899,
+       "net_book": {
+        "n": 11899,
+        "games": 607,
+        "est_pp": -2.161807507691694,
+        "lo_pp": -3.4251122058609815,
+        "hi_pp": -0.8023094809031005,
+        "readable": true
+       },
+       "fee_pp": 1.4238046919345637,
+       "net_exchange": {
+        "n": 11899,
+        "games": 607,
+        "est_pp": -1.3579277865603325,
+        "lo_pp": -2.6396011217093736,
+        "hi_pp": -0.037366426895437746,
+        "readable": true
+       }
+      },
+      "receptions": {
+       "n": 5702,
+       "games": 763,
+       "priced": 0.3021745350235338,
+       "realized": 0.2881445106980007,
+       "gap": {
+        "n": 5702,
+        "games": 763,
+        "est_pp": -1.4030024325533108,
+        "lo_pp": -2.6346414661945863,
+        "hi_pp": -0.16934333559500092,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 2.1105759396948476,
+       "book_cost_under_pp": 4.945352014954151,
+       "overround_median": 1.0706299691129264,
+       "n_priced_at_book": 5702,
+       "net_book": {
+        "n": 5702,
+        "games": 763,
+        "est_pp": -3.542685830979332,
+        "lo_pp": -4.813119098948087,
+        "hi_pp": -2.2572336951279426,
+        "readable": true
+       },
+       "fee_pp": 1.447311839231376,
+       "net_exchange": {
+        "n": 5702,
+        "games": 763,
+        "est_pp": -0.044309406678065544,
+        "lo_pp": -1.3039963236964673,
+        "hi_pp": 1.3306639389546326,
+        "readable": true
+       }
+      },
+      "rush_attempts": {
+       "n": 52,
+       "games": 52,
+       "priced": 0.3857628853607616,
+       "realized": 0.3269230769230769,
+       "gap": {
+        "n": 52,
+        "games": 52,
+        "est_pp": -5.883980843768478,
+        "lo_pp": -17.564102503663037,
+        "hi_pp": 5.9498575383104315,
+        "readable": true
+       },
+       "thin": true,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 2.701843144689378,
+       "book_cost_under_pp": 4.1666666666666625,
+       "overround_median": 1.06838905775076,
+       "n_priced_at_book": 52,
+       "net_book": {
+        "n": 52,
+        "games": 52,
+        "est_pp": 1.6419369531380303,
+        "lo_pp": -11.562977385634195,
+        "hi_pp": 13.236138950181367,
+        "readable": true
+       },
+       "fee_pp": 1.6576766571870916,
+       "net_exchange": {
+        "n": 52,
+        "games": 52,
+        "est_pp": 4.226304186581387,
+        "lo_pp": -8.98956741477797,
+        "hi_pp": 16.02332245977051,
+        "readable": true
+       }
+      },
+      "sacks": {
+       "n": 4953,
+       "games": 530,
+       "priced": 0.2735870072780515,
+       "realized": 0.25923682616596,
+       "gap": {
+        "n": 4953,
+        "games": 530,
+        "est_pp": -1.4350181112091478,
+        "lo_pp": -3.190193529574196,
+        "hi_pp": 0.2310356897145382,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 1.731220657276994,
+       "book_cost_under_pp": 4.4567693374269695,
+       "overround_median": 1.063063063063063,
+       "n_priced_at_book": 4953,
+       "net_book": {
+        "n": 4953,
+        "games": 530,
+        "est_pp": -3.041876782883552,
+        "lo_pp": -4.76775811286821,
+        "hi_pp": -1.4155449700895228,
+        "readable": true
+       },
+       "fee_pp": 1.3547426611884672,
+       "net_exchange": {
+        "n": 4953,
+        "games": 530,
+        "est_pp": 0.0802754500206808,
+        "lo_pp": -1.628442154932038,
+        "hi_pp": 1.7278400632661421,
+        "readable": true
+       }
+      },
+      "tackles_assists": {
+       "n": 45,
+       "games": 43,
+       "priced": 0.3865583008250838,
+       "realized": 0.28888888888888886,
+       "gap": {
+        "n": 45,
+        "games": 43,
+        "est_pp": -9.766941193619491,
+        "lo_pp": -21.91889488447338,
+        "hi_pp": 4.444793956310438,
+        "readable": true
+       },
+       "thin": true,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 2.5944917549383826,
+       "book_cost_under_pp": 4.006930907515704,
+       "overround_median": 1.0657894736842106,
+       "n_priced_at_book": 45,
+       "net_book": {
+        "n": 45,
+        "games": 43,
+        "est_pp": 5.681230821674337,
+        "lo_pp": -7.432847350394021,
+        "hi_pp": 18.885969861919733,
+        "readable": true
+       },
+       "fee_pp": 1.652143743307682,
+       "net_exchange": {
+        "n": 45,
+        "games": 43,
+        "est_pp": 8.114797450311809,
+        "lo_pp": -4.736715359481331,
+        "hi_pp": 20.756514085245023,
+        "readable": true
+       }
+      }
+     },
+     "by_season": {
+      "2023": {
+       "n": 8517,
+       "games": 269,
+       "priced": 0.2774607865082508,
+       "realized": 0.27944111776447106,
+       "gap": {
+        "n": 8517,
+        "games": 269,
+        "est_pp": 0.19803312562202677,
+        "lo_pp": -1.2165201754726807,
+        "hi_pp": 1.6819851010126645,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "over",
+       "book_cost_over_pp": 2.086261419536195,
+       "book_cost_under_pp": 5.542919303797467,
+       "overround_median": 1.0753569539925965,
+       "n_priced_at_book": 8517,
+       "net_book": {
+        "n": 8517,
+        "games": 269,
+        "est_pp": -1.858912966548084,
+        "lo_pp": -3.3669093102300303,
+        "hi_pp": -0.36498621037470624,
+        "readable": true
+       },
+       "fee_pp": 1.3709341924199137,
+       "net_exchange": {
+        "n": 8517,
+        "games": 269,
+        "est_pp": -1.172901066797887,
+        "lo_pp": -2.750346953512405,
+        "hi_pp": 0.3277828065367132,
+        "readable": true
+       }
+      },
+      "2024": {
+       "n": 10893,
+       "games": 271,
+       "priced": 0.29840619876557234,
+       "realized": 0.29064536858533,
+       "gap": {
+        "n": 10893,
+        "games": 271,
+        "est_pp": -0.7760830180242312,
+        "lo_pp": -2.2512545978702683,
+        "hi_pp": 0.7016903109244725,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 2.1465428276573775,
+       "book_cost_under_pp": 5.038065382892965,
+       "overround_median": 1.072938689217759,
+       "n_priced_at_book": 10893,
+       "net_book": {
+        "n": 10893,
+        "games": 271,
+        "est_pp": -4.260615639760519,
+        "lo_pp": -5.812778278378028,
+        "hi_pp": -2.702183335081952,
+        "readable": true
+       },
+       "fee_pp": 1.440328123973949,
+       "net_exchange": {
+        "n": 10893,
+        "games": 271,
+        "est_pp": -0.6642451059497179,
+        "lo_pp": -2.2645710247554804,
+        "hi_pp": 0.7415101646546425,
+        "readable": true
+       }
+      },
+      "2025": {
+       "n": 3241,
+       "games": 267,
+       "priced": 0.30454165520321996,
+       "realized": 0.2789262573279852,
+       "gap": {
+        "n": 3241,
+        "games": 267,
+        "est_pp": -2.5615397875234787,
+        "lo_pp": -4.345097580561492,
+        "hi_pp": -0.7441155834736745,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 1.9655736072525243,
+       "book_cost_under_pp": 4.328905176362808,
+       "overround_median": 1.0634920634920635,
+       "n_priced_at_book": 3241,
+       "net_book": {
+        "n": 3241,
+        "games": 267,
+        "est_pp": -1.820559143870501,
+        "lo_pp": -3.6957572326492896,
+        "hi_pp": -0.039816648527635515,
+        "readable": true
+       },
+       "fee_pp": 1.4499442828840177,
+       "net_exchange": {
+        "n": 3241,
+        "games": 267,
+        "est_pp": 1.111595504639461,
+        "lo_pp": -0.7067430117917524,
+        "hi_pp": 2.8509518812388897,
+        "readable": true
+       }
+      }
+     }
+    },
+    {
+     "zone": "near the money 0.40-0.60",
+     "all": {
+      "n": 59767,
+      "games": 814,
+      "priced": 0.49838697648169394,
+      "realized": 0.47544631652918834,
+      "gap": {
+       "n": 59767,
+       "games": 814,
+       "est_pp": -2.2940659952505578,
+       "lo_pp": -3.057283000276346,
+       "hi_pp": -1.4974043419415737,
+       "readable": true
+      },
+      "thin": false,
+      "readable": true,
+      "side": "under",
+      "book_cost_over_pp": 3.333605275029028,
+      "book_cost_under_pp": 3.3505969761019716,
+      "overround_median": 1.066742081447964,
+      "n_priced_at_book": 59767,
+      "net_book": {
+       "n": 59767,
+       "games": 814,
+       "est_pp": -1.0269210815578178,
+       "lo_pp": -1.8217658295938015,
+       "hi_pp": -0.28822865413032067,
+       "readable": true
+      },
+      "fee_pp": 1.738356487355329,
+      "net_exchange": {
+       "n": 59767,
+       "games": 814,
+       "est_pp": 0.5557095078952287,
+       "lo_pp": -0.15416513408344001,
+       "hi_pp": 1.281554311617099,
+       "readable": true
+      }
+     },
+     "by_stat": {
+      "receiving_yards": {
+       "n": 36003,
+       "games": 814,
+       "priced": 0.4998281822512975,
+       "realized": 0.47971002416465297,
+       "gap": {
+        "n": 36003,
+        "games": 814,
+        "est_pp": -2.011815808664453,
+        "lo_pp": -3.0365405987760474,
+        "hi_pp": -1.0166364175832459,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 3.3139274518584783,
+       "book_cost_under_pp": 3.3080958222637014,
+       "overround_median": 1.0665856191272192,
+       "n_priced_at_book": 36003,
+       "net_book": {
+        "n": 36003,
+        "games": 814,
+        "est_pp": -1.2741153397010931,
+        "lo_pp": -2.27699983523499,
+        "hi_pp": -0.29886390911241006,
+        "readable": true
+       },
+       "fee_pp": 1.7432722937424199,
+       "net_exchange": {
+        "n": 36003,
+        "games": 814,
+        "est_pp": 0.26854351492203316,
+        "lo_pp": -0.7255469199114261,
+        "hi_pp": 1.308851685760033,
+        "readable": true
+       }
+      },
+      "receptions": {
+       "n": 9245,
+       "games": 813,
+       "priced": 0.49677050425367586,
+       "realized": 0.4732287723093564,
+       "gap": {
+        "n": 9245,
+        "games": 813,
+        "est_pp": -2.3541731944319424,
+        "lo_pp": -3.4567192378407543,
+        "hi_pp": -1.2441430788765462,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 3.3458704287651853,
+       "book_cost_under_pp": 3.3949481944699933,
+       "overround_median": 1.0666883628048678,
+       "n_priced_at_book": 9245,
+       "net_book": {
+        "n": 9245,
+        "games": 813,
+        "est_pp": -1.0105324366992827,
+        "lo_pp": -2.130999696336073,
+        "hi_pp": 0.07468392399351494,
+        "readable": true
+       },
+       "fee_pp": 1.725945128709757,
+       "net_exchange": {
+        "n": 9245,
+        "games": 813,
+        "est_pp": 0.6282280657221853,
+        "lo_pp": -0.4353213090044816,
+        "hi_pp": 1.6568551629778816,
+        "readable": true
+       }
+      },
+      "rush_attempts": {
+       "n": 4949,
+       "games": 807,
+       "priced": 0.49902306177755434,
+       "realized": 0.4718124873711861,
+       "gap": {
+        "n": 4949,
+        "games": 807,
+        "est_pp": -2.7210574406368266,
+        "lo_pp": -4.171353519973403,
+        "hi_pp": -1.2236270711784325,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 3.3930981299402307,
+       "book_cost_under_pp": 3.397308562176282,
+       "overround_median": 1.067750677506775,
+       "n_priced_at_book": 4949,
+       "net_book": {
+        "n": 4949,
+        "games": 807,
+        "est_pp": -0.6947740037413941,
+        "lo_pp": -2.142610040787404,
+        "hi_pp": 0.7534948466086888,
+        "readable": true
+       },
+       "fee_pp": 1.7387158238587421,
+       "net_exchange": {
+        "n": 4949,
+        "games": 807,
+        "est_pp": 0.9823416167780844,
+        "lo_pp": -0.5155680578246524,
+        "hi_pp": 2.4490948164380115,
+        "readable": true
+       }
+      },
+      "sacks": {
+       "n": 1720,
+       "games": 467,
+       "priced": 0.4677124900831201,
+       "realized": 0.413953488372093,
+       "gap": {
+        "n": 1720,
+        "games": 467,
+        "est_pp": -5.375900171102703,
+        "lo_pp": -8.383882971726601,
+        "hi_pp": -2.3400208916848455,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 2.8596280100563587,
+       "book_cost_under_pp": 3.367668305459992,
+       "overround_median": 1.0630353967997415,
+       "n_priced_at_book": 1720,
+       "net_book": {
+        "n": 1720,
+        "games": 467,
+        "est_pp": 2.0624790100837784,
+        "lo_pp": -1.0342815597559487,
+        "hi_pp": 4.980278832840838,
+        "readable": true
+       },
+       "fee_pp": 1.724951132639568,
+       "net_exchange": {
+        "n": 1720,
+        "games": 467,
+        "est_pp": 3.650949038463135,
+        "lo_pp": 0.8020378811292611,
+        "hi_pp": 6.74405898971947,
+        "readable": true
+       }
+      },
+      "tackles_assists": {
+       "n": 7850,
+       "games": 774,
+       "priced": 0.5000008216920537,
+       "realized": 0.47426751592356686,
+       "gap": {
+        "n": 7850,
+        "games": 774,
+        "est_pp": -2.573330576848684,
+        "lo_pp": -3.6631570904252433,
+        "hi_pp": -1.3892965072744652,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 3.3951671601454625,
+       "book_cost_under_pp": 3.404533592976655,
+       "overround_median": 1.0672407302842084,
+       "n_priced_at_book": 7850,
+       "net_book": {
+        "n": 7850,
+        "games": 774,
+        "est_pp": -0.7988118065924471,
+        "lo_pp": -1.9418614984022344,
+        "hi_pp": 0.33054374474719506,
+        "readable": true
+       },
+       "fee_pp": 1.7331384092762958,
+       "net_exchange": {
+        "n": 7850,
+        "games": 774,
+        "est_pp": 0.8401921675723876,
+        "lo_pp": -0.235701048079271,
+        "hi_pp": 1.9771087851316786,
+        "readable": true
+       }
+      }
+     },
+     "by_season": {
+      "2023": {
+       "n": 18806,
+       "games": 270,
+       "priced": 0.498549250970903,
+       "realized": 0.4920238221844092,
+       "gap": {
+        "n": 18806,
+        "games": 270,
+        "est_pp": -0.6525428786493825,
+        "lo_pp": -1.9479606085085723,
+        "hi_pp": 0.6600830085769379,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 3.354464998251472,
+       "book_cost_under_pp": 3.3860547105580174,
+       "overround_median": 1.0672897196261681,
+       "n_priced_at_book": 18806,
+       "net_book": {
+        "n": 18806,
+        "games": 270,
+        "est_pp": -2.680640429679641,
+        "lo_pp": -4.05271276875363,
+        "hi_pp": -1.3294286442852181,
+        "readable": true
+       },
+       "fee_pp": 1.738116445205597,
+       "net_exchange": {
+        "n": 18806,
+        "games": 270,
+        "est_pp": -1.085573566556215,
+        "lo_pp": -2.3747946276275957,
+        "hi_pp": 0.26686213855740437,
+        "readable": true
+       }
+      },
+      "2024": {
+       "n": 21561,
+       "games": 272,
+       "priced": 0.49804754090392006,
+       "realized": 0.4751171095960299,
+       "gap": {
+        "n": 21561,
+        "games": 272,
+        "est_pp": -2.293043130789028,
+        "lo_pp": -3.6215776387924308,
+        "hi_pp": -0.9627330371024864,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 3.3418517790446245,
+       "book_cost_under_pp": 3.371260008428145,
+       "overround_median": 1.0669870880838639,
+       "n_priced_at_book": 21561,
+       "net_book": {
+        "n": 21561,
+        "games": 272,
+        "est_pp": -1.0333661844484299,
+        "lo_pp": -2.2638696396428104,
+        "hi_pp": 0.2800003138575235,
+        "readable": true
+       },
+       "fee_pp": 1.7365678167504313,
+       "net_exchange": {
+        "n": 21561,
+        "games": 272,
+        "est_pp": 0.5564753140385961,
+        "lo_pp": -0.745605379668233,
+        "hi_pp": 1.824367364416483,
+        "readable": true
+       }
+      },
+      "2025": {
+       "n": 19400,
+       "games": 272,
+       "priced": 0.4986069165048029,
+       "realized": 0.45974226804123713,
+       "gap": {
+        "n": 19400,
+        "games": 272,
+        "est_pp": -3.8864648463565765,
+        "lo_pp": -5.217355854034709,
+        "hi_pp": -2.6569824393094357,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 3.306241234027607,
+       "book_cost_under_pp": 3.3080958222637014,
+       "overround_median": 1.0654205607476634,
+       "n_priced_at_book": 19400,
+       "net_book": {
+        "n": 19400,
+        "games": 272,
+        "est_pp": 0.5833268011330852,
+        "lo_pp": -0.6653189643451927,
+        "hi_pp": 1.845187865154108,
+        "readable": true
+       },
+       "fee_pp": 1.740577093519249,
+       "net_exchange": {
+        "n": 19400,
+        "games": 272,
+        "est_pp": 2.145887752837327,
+        "lo_pp": 0.8441420797135452,
+        "hi_pp": 3.38251429031498,
+        "readable": true
+       }
+      }
+     }
+    },
+    {
+     "zone": "deep ITM over p>=0.60",
+     "all": {
+      "n": 10159,
+      "games": 725,
+      "priced": 0.6911689655235216,
+      "realized": 0.6870754995570431,
+      "gap": {
+       "n": 10159,
+       "games": 725,
+       "est_pp": -0.4093465966478604,
+       "lo_pp": -1.805397427215047,
+       "hi_pp": 0.931116196683823,
+       "readable": true
+      },
+      "thin": false,
+      "readable": true,
+      "side": "under",
+      "book_cost_over_pp": 5.0949276389556815,
+      "book_cost_under_pp": 2.279065203422398,
+      "overround_median": 1.0739651384147932,
+      "n_priced_at_book": 10159,
+      "net_book": {
+       "n": 10159,
+       "games": 725,
+       "est_pp": -1.8428391030275315,
+       "lo_pp": -3.2281447250786868,
+       "hi_pp": -0.42332499175776445,
+       "readable": true
+      },
+      "fee_pp": 1.468657994242173,
+      "net_exchange": {
+       "n": 10159,
+       "games": 725,
+       "est_pp": -1.0593113975943125,
+       "lo_pp": -2.4049534758026425,
+       "hi_pp": 0.39045354852766495,
+       "readable": true
+      }
+     },
+     "by_stat": {
+      "receiving_yards": {
+       "n": 5957,
+       "games": 547,
+       "priced": 0.6917872230259957,
+       "realized": 0.6912875608527782,
+       "gap": {
+        "n": 5957,
+        "games": 547,
+        "est_pp": -0.04996621732173869,
+        "lo_pp": -1.7777373115127215,
+        "hi_pp": 1.6570891018491007,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 5.191364346276705,
+       "book_cost_under_pp": 2.3809523809523894,
+       "overround_median": 1.0762527233115469,
+       "n_priced_at_book": 5957,
+       "net_book": {
+        "n": 5957,
+        "games": 547,
+        "est_pp": -2.2799594733829975,
+        "lo_pp": -3.8663140725677327,
+        "hi_pp": -0.60391464845623,
+        "readable": true
+       },
+       "fee_pp": 1.469174309706744,
+       "net_exchange": {
+        "n": 5957,
+        "games": 547,
+        "est_pp": -1.4192080923850052,
+        "lo_pp": -3.072618762346707,
+        "hi_pp": 0.3466307999307258,
+        "readable": true
+       }
+      },
+      "receptions": {
+       "n": 4040,
+       "games": 683,
+       "priced": 0.6932050933688082,
+       "realized": 0.6836633663366337,
+       "gap": {
+        "n": 4040,
+        "games": 683,
+        "est_pp": -0.9541727032174485,
+        "lo_pp": -2.5454749226772893,
+        "hi_pp": 0.5761521765403412,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 4.803886616190612,
+       "book_cost_under_pp": 2.1174477696216885,
+       "overround_median": 1.0697303709351083,
+       "n_priced_at_book": 4040,
+       "net_book": {
+        "n": 4040,
+        "games": 683,
+        "est_pp": -1.1717449180043245,
+        "lo_pp": -2.6906539588375726,
+        "hi_pp": 0.3361211984162849,
+        "readable": true
+       },
+       "fee_pp": 1.4605938130651246,
+       "net_exchange": {
+        "n": 4040,
+        "games": 683,
+        "est_pp": -0.5064211098476761,
+        "lo_pp": -2.0484241172521953,
+        "hi_pp": 1.0396305045264056,
+        "readable": true
+       }
+      },
+      "rush_attempts": {
+       "n": 44,
+       "games": 44,
+       "priced": 0.6145745535186538,
+       "realized": 0.6363636363636364,
+       "gap": {
+        "n": 44,
+        "games": 44,
+        "est_pp": 2.178908284498279,
+        "lo_pp": -13.514877920873442,
+        "hi_pp": 15.820569789028022,
+        "readable": true
+       },
+       "thin": true,
+       "readable": true,
+       "side": "over",
+       "book_cost_over_pp": 4.314945403205778,
+       "book_cost_under_pp": 2.7413213848181686,
+       "overround_median": 1.0695762175838077,
+       "n_priced_at_book": 44,
+       "net_book": {
+        "n": 44,
+        "games": 44,
+        "est_pp": -2.138310477140891,
+        "lo_pp": -15.98727095992731,
+        "hi_pp": 11.730560998101588,
+        "readable": true
+       },
+       "fee_pp": 1.6564319691100862,
+       "net_exchange": {
+        "n": 44,
+        "games": 44,
+        "est_pp": 0.5224763153881928,
+        "lo_pp": -13.317588933582158,
+        "hi_pp": 14.415203478760588,
+        "readable": true
+       }
+      },
+      "sacks": {
+       "n": 63,
+       "games": 47,
+       "priced": 0.626458949655087,
+       "realized": 0.49206349206349204,
+       "gap": {
+        "n": 63,
+        "games": 47,
+        "est_pp": -13.439545759159513,
+        "lo_pp": -28.303585047427216,
+        "hi_pp": 1.4203503962416189,
+        "readable": true
+       },
+       "thin": true,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 3.990383331768521,
+       "book_cost_under_pp": 2.351709204501079,
+       "overround_median": 1.0638001127629901,
+       "n_priced_at_book": 63,
+       "net_book": {
+        "n": 63,
+        "games": 47,
+        "est_pp": 11.099985573711066,
+        "lo_pp": -2.490969682398534,
+        "hi_pp": 25.43405024650492,
+        "readable": true
+       },
+       "fee_pp": 1.6359644141610865,
+       "net_exchange": {
+        "n": 63,
+        "games": 47,
+        "est_pp": 11.803581344998424,
+        "lo_pp": -2.6095941785999504,
+        "hi_pp": 25.46370536944084,
+        "readable": true
+       }
+      },
+      "tackles_assists": {
+       "n": 55,
+       "games": 53,
+       "priced": 0.6100411235368,
+       "realized": 0.7454545454545455,
+       "gap": {
+        "n": 55,
+        "games": 53,
+        "est_pp": 13.541342191774547,
+        "lo_pp": 1.5865574657958261,
+        "hi_pp": 24.30170260820021,
+        "readable": true
+       },
+       "thin": true,
+       "readable": true,
+       "side": "over",
+       "book_cost_over_pp": 4.100700095315224,
+       "book_cost_under_pp": 2.626939067688588,
+       "overround_median": 1.0670892657174853,
+       "n_priced_at_book": 55,
+       "net_book": {
+        "n": 55,
+        "games": 53,
+        "est_pp": 9.434736975962414,
+        "lo_pp": -2.156850892923267,
+        "hi_pp": 20.427734167432607,
+        "readable": true
+       },
+       "fee_pp": 1.663226019401234,
+       "net_exchange": {
+        "n": 55,
+        "games": 53,
+        "est_pp": 11.878116172373312,
+        "lo_pp": 0.7157005435686502,
+        "hi_pp": 22.70740496564683,
+        "readable": true
+       }
+      }
+     },
+     "by_season": {
+      "2023": {
+       "n": 4541,
+       "games": 269,
+       "priced": 0.7073172503965908,
+       "realized": 0.7068927548998019,
+       "gap": {
+        "n": 4541,
+        "games": 269,
+        "est_pp": -0.042449549678890725,
+        "lo_pp": -1.9647563241303452,
+        "hi_pp": 1.7849285414451317,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 5.249079452484084,
+       "book_cost_under_pp": 2.178649237472757,
+       "overround_median": 1.0742659758203799,
+       "n_priced_at_book": 4541,
+       "net_book": {
+        "n": 4541,
+        "games": 269,
+        "est_pp": -2.0974294485403937,
+        "lo_pp": -3.9586878483008467,
+        "hi_pp": -0.1621126409384228,
+        "readable": true
+       },
+       "fee_pp": 1.4171247875475825,
+       "net_exchange": {
+        "n": 4541,
+        "games": 269,
+        "est_pp": -1.3746752378686917,
+        "lo_pp": -3.343503481918079,
+        "hi_pp": 0.47603341278659683,
+        "readable": true
+       }
+      },
+      "2024": {
+       "n": 5240,
+       "games": 270,
+       "priced": 0.6821141219500835,
+       "realized": 0.6763358778625954,
+       "gap": {
+        "n": 5240,
+        "games": 270,
+        "est_pp": -0.5778244087488095,
+        "lo_pp": -2.692793033414307,
+        "hi_pp": 1.38544496292026,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 5.0311801224982915,
+       "book_cost_under_pp": 2.3367215796237795,
+       "overround_median": 1.073972602739726,
+       "n_priced_at_book": 5240,
+       "net_book": {
+        "n": 5240,
+        "games": 270,
+        "est_pp": -1.7512537034315407,
+        "lo_pp": -3.8851458937390255,
+        "hi_pp": 0.34948794508999775,
+        "readable": true
+       },
+       "fee_pp": 1.5008008162110846,
+       "net_exchange": {
+        "n": 5240,
+        "games": 270,
+        "est_pp": -0.9229764074622754,
+        "lo_pp": -2.9486850431772327,
+        "hi_pp": 1.1766140547699189,
+        "readable": true
+       }
+      },
+      "2025": {
+       "n": 378,
+       "games": 186,
+       "priced": 0.6226981155664023,
+       "realized": 0.5978835978835979,
+       "gap": {
+        "n": 378,
+        "games": 186,
+        "est_pp": -2.4814517682804493,
+        "lo_pp": -7.789924637713493,
+        "hi_pp": 2.6316154710918243,
+        "readable": true
+       },
+       "thin": false,
+       "readable": true,
+       "side": "under",
+       "book_cost_over_pp": 4.187430786267987,
+       "book_cost_under_pp": 2.5124907749781986,
+       "overround_median": 1.0666666666666667,
+       "n_priced_at_book": 378,
+       "net_book": {
+        "n": 378,
+        "games": 186,
+        "est_pp": -0.053983904374326354,
+        "lo_pp": -5.277891798537612,
+        "hi_pp": 5.4270414280115995,
+        "readable": true
+       },
+       "fee_pp": 1.642160387054445,
+       "net_exchange": {
+        "n": 378,
+        "games": 186,
+        "est_pp": 0.8392913812260041,
+        "lo_pp": -4.508318593272957,
+        "hi_pp": 6.0123095776324,
+        "readable": true
+       }
+      }
+     }
+    }
+   ],
+   "T2_contrast_deep_minus_atm": {
+    "n_a": 10159,
+    "n_b": 59767,
+    "games": 814,
+    "est_pp": 1.8847193986026973,
+    "lo_pp": 0.7208850766057466,
+    "hi_pp": 2.9928337731095005
+   }
+  }
+ ]
+}

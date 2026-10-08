@@ -96,7 +96,11 @@ def resolve(stadium_id, name, crosswalk, points):
         return None, "offset_not_measured"
     return {"venue_id": venue_id(m["qid"]), "qid": m["qid"], "name": p.get("label") or name,
             "latitude": p["latitude"], "longitude": p["longitude"],
-            "offset_km": p["offset_km"], "roof_type": m["roof_type"]}, None
+            "offset_km": p["offset_km"], "roof_type": m["roof_type"],
+            # Absent from a points file written before a-66, and "" where the source
+            # had nothing: both are None, never a default country or zone.
+            "country_code": p.get("country_code") or None,
+            "timezone": p.get("timezone") or None}, None
 
 
 def playing_conditions(roof_type, nflverse_roof):
@@ -118,6 +122,24 @@ def kickoff_ts(gameday, gametime):
         return None
     return datetime.strptime(f"{gameday} {gametime}", "%Y-%m-%d %H:%M").replace(
         tzinfo=ET).timestamp()
+
+
+def utc_offset_hours(zone, ts):
+    """The zone's offset from UTC at instant `ts`, in hours. At the instant, not a
+    constant: Arizona and London sit a different distance from New York in September
+    and in November."""
+    from datetime import timezone
+    off = datetime.fromtimestamp(ts, timezone.utc).astimezone(ZoneInfo(zone)).utcoffset()
+    return off.total_seconds() / 3600.0
+
+
+def zones_crossed(home_zone, game_zone, ts):
+    """Hours between two zones' clocks at `ts`, the short way round: 18 hours ahead is
+    6 hours behind. None if either zone is unknown - never an assumed zone."""
+    if not home_zone or not game_zone or ts is None:
+        return None
+    d = abs(utc_offset_hours(game_zone, ts) - utc_offset_hours(home_zone, ts))
+    return min(d, 24.0 - d)
 
 
 # ---------------------------------------------------------------------------

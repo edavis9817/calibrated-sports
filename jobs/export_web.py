@@ -118,6 +118,20 @@ REMOTE_STATE_KEY = "_state/upload_state.json"
 #      fresh one-row ledger and overwrite the only record of what was published.
 BOARD_PREFIX = "board/"
 BOARD_STATE_KEY = "_state/board_upload_state.json"
+# THE RECORD'S TREE (a-61). `jobs.record_export` builds `record/` after every Board
+# tick - the record is a view of the ledger, so it runs on the ledger's cadence -
+# into its OWN local tree (config.record_export_dir()) and ships it with
+# `upload(tree="record")`, under its own state key. Not the web tree: the web
+# uploader ships EVERY key that differs, so a five-minute record step uploading
+# WEB_EXPORT_DIR would publish whatever unrelated export happened to be sitting
+# there. Not the Board's tree: that uploader refuses any key outside `board/`,
+# and a Board tick that refuses is the thing that must never happen. Like the
+# Board's tree it deletes nothing and takes no declaration, and the web tree may
+# neither upload into `record/` nor claim it.
+RECORD_PREFIX = "record/"
+RECORD_STATE_KEY = "_state/record_upload_state.json"
+OWN_TREES = {"board": (BOARD_PREFIX, BOARD_STATE_KEY, "BOARD_EXPORT_DIR"),
+             "record": (RECORD_PREFIX, RECORD_STATE_KEY, None)}
 # Non-JSON keys the contract names, each with its kind and its table entry. A
 # non-JSON file matching none of these is never uploaded.
 TABLES = {k: v for k, v in CONTRACT["x-contract"].get("tables", {}).items() if k != "comment"}
@@ -3653,29 +3667,54 @@ def check_append_only(client, bucket, key, data):
 
 
 def _chain_widening(key, old, new):
-    """The ONE widening an append-only table may make, and only once (a-48): a
-    bucket copy written before its table had a hash chain gains exactly the
-    chain's two columns, every other cell unchanged, and the chain it gains must
-    verify. -> the statement it approved, or None when this is not that case
-    (the ordinary row-for-row comparison then runs, and refuses a widening of
-    any other shape). Once the bucket's copy carries the chain this never fires
-    again, because the column sets then match."""
+    """The widenings an append-only table may make (a-48, a-62): a bucket copy
+    written before a column existed gains it, every other cell unchanged. Only
+    the contract's WIDENING columns qualify - the hash chain's two
+    (`hash_chain.prev` / `.row`) and the write stamp (`hash_chain.stamped
+    .column`) - and each has a condition: a chain it gains must verify, and a
+    stamp column it gains must be null on every row the bucket already held
+    (those rows were written before stamps existed; a stamp appearing on one
+    now would be a rewrite). -> the statement it approved, or None when this is
+    not that case (the ordinary row-for-row comparison then runs, and refuses a
+    widening of any other shape). Once the bucket's copy carries every column
+    this never fires again, because the column sets then match."""
     kind, entry = table_for_key(key)
     hc = (entry or {}).get("hash_chain")
     if not hc or not old or not new:
         return None
     chain_cols = (hc["prev"], hc["row"])
+    stamp_col = (hc.get("stamped") or {}).get("column")
+    widening = set(chain_cols) | ({stamp_col} if stamp_col else set())
     full = list(entry["columns"])
-    legacy = [c for c in full if c not in chain_cols]
-    if list(old[0]) != legacy or list(new[0]) != full:
+
+    def shape(cols):
+        missing = [c for c in full if c not in cols]
+        ok = set(missing) <= widening and list(cols) == [c for c in full if c not in missing]
+        return set(missing) if ok else None
+
+    o_miss, n_miss = shape(list(old[0])), shape(list(new[0]))
+    if o_miss is None or n_miss is None or not n_miss < o_miss:
         return None
-    from core import board as B
-    rep = B.verify_chain(new)
-    if not rep.holds:
-        raise AppendOnlyError(f"{key}: adds the hash chain's columns, but the chain does not "
-                              f"verify ({rep.statement}) - refusing")
-    return (f"hash chain added to {len(old)} existing row(s), no other cell changed "
-            f"({rep.statement})")
+    added = o_miss - n_miss
+    said = []
+    if set(chain_cols) & added:
+        if not set(chain_cols) <= added:
+            return None
+        from core import board as B
+        rep = B.verify_chain(new)
+        if not rep.holds:
+            raise AppendOnlyError(f"{key}: adds the hash chain's columns, but the chain does not "
+                                  f"verify ({rep.statement}) - refusing")
+        said.append(f"hash chain added to {len(old)} existing row(s), no other cell changed "
+                    f"({rep.statement})")
+    if stamp_col in added:
+        stamped = [i for i, r in enumerate(new[:len(old)]) if r.get(stamp_col) not in (None, "")]
+        if stamped:
+            raise AppendOnlyError(f"{key}: adds {stamp_col}, and {len(stamped)} row(s) the bucket "
+                                  f"already held now carry one (first: row {stamped[0]}) - a stamp "
+                                  "on an existing row is a rewrite; refusing")
+        said.append(f"{stamp_col} column added, null on all {len(old)} existing row(s)")
+    return "; ".join(said)
 
 
 class TablePairError(RuntimeError):
@@ -3761,21 +3800,26 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
     record under BOARD_STATE_KEY, JSON plus the contract's tables, and it DELETES
     NOTHING - it accepts no declaration, and every append-only table is checked
     against the bucket's copy first. See BOARD_PREFIX for why.
+
+    `tree="record"` (a-61) is the same shape for `record/`: its own tree, its
+    own record under RECORD_STATE_KEY, JSON only, deletes nothing. See RECORD_PREFIX.
     """
-    if tree not in ("web", "board"):
+    if tree not in ("web", *OWN_TREES):
         raise ValueError(f"unknown tree {tree!r}")
     board = tree == "board"
-    if board and refreshed is not None:
-        raise ValueError("the Board's tree deletes nothing and takes no declaration: "
+    own_prefix, own_state_key, own_setting = OWN_TREES.get(tree, (None, None, None))
+    if own_prefix and refreshed is not None:
+        raise ValueError(f"the {tree} tree deletes nothing and takes no declaration: "
                          f"refusing refreshed={refreshed!r}")
-    dest = dest or require_setting("BOARD_EXPORT_DIR" if board else "WEB_EXPORT_DIR")
+    dest = dest or (config.record_export_dir() if tree == "record"
+                    else require_setting(own_setting or "WEB_EXPORT_DIR"))
     if not (config.WEB_R2_ACCESS_KEY_ID and config.WEB_R2_SECRET_ACCESS_KEY):
         log("R2 upload not configured (WEB_R2_ACCESS_KEY_ID / WEB_R2_SECRET_ACCESS_KEY unset) - "
             "local export only")
         return {"configured": False}
     bucket = require_setting("WEB_R2_BUCKET")
     client = client or r2_client()
-    state_key = BOARD_STATE_KEY if board else REMOTE_STATE_KEY
+    state_key = own_state_key or REMOTE_STATE_KEY
     state_path = os.path.join(dest, STATE_FILE)
     state, state_source = load_upload_state(dest, client, bucket, log, state_key=state_key)
 
@@ -3796,18 +3840,32 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
     if on_board:
         raise ValueError(f"declared prefixes {on_board} reach {BOARD_PREFIX!r}, which is "
                          "append-only in the bucket: no upload deletes under it")
+    # And for `record/`, whose only writer is the record tree (a-61).
+    on_record = [p for p in (refreshed or [])
+                 if p.startswith(RECORD_PREFIX) or RECORD_PREFIX.startswith(p)]
+    if on_record:
+        raise ValueError(f"declared prefixes {on_record} reach {RECORD_PREFIX!r}, which only "
+                         "the record tree publishes, and it deletes nothing")
     local = local_keys(dest, tables=board)
-    if board:
-        stray = sorted(k for k in local if not k.startswith(BOARD_PREFIX))
+    if own_prefix:
+        stray = sorted(k for k in local if not k.startswith(own_prefix))
         if stray:
-            raise ValueError(f"{len(stray)} key(s) in the Board's tree lie outside "
-                             f"{BOARD_PREFIX!r} (e.g. {stray[0]}) - it carries the Board only")
-    board_skipped = [] if board else sorted(k for k in local if k.startswith(BOARD_PREFIX))
+            who = "the Board" if board else "the record"
+            raise ValueError(f"{len(stray)} key(s) in {who}'s tree lie outside "
+                             f"{own_prefix!r} (e.g. {stray[0]}) - it carries {who} only")
+    board_skipped = [] if own_prefix else sorted(k for k in local if k.startswith(BOARD_PREFIX))
     for k in board_skipped:
         local.pop(k)
     if board_skipped:
         log(f"  WARN {len(board_skipped)} file(s) under {BOARD_PREFIX} in the web export tree "
             "were NOT uploaded: the Board publishes from its own tree (BOARD_EXPORT_DIR)")
+    record_skipped = [] if own_prefix else sorted(k for k in local if k.startswith(RECORD_PREFIX))
+    for k in record_skipped:
+        local.pop(k)
+    if record_skipped:
+        log(f"  WARN {len(record_skipped)} file(s) under {RECORD_PREFIX} in the web export tree "
+            "were NOT uploaded: the record publishes from its own tree "
+            "(config.record_export_dir())")
     # A `live/` file in the export tree is a stale copy by definition - the only
     # writer of that key is the logger, straight to R2. Uploading it would
     # overwrite a fresh price with an old one. Skipped, and counted.
@@ -3843,6 +3901,7 @@ def upload(dest=None, client=None, dry_run=False, log=print, workers=UPLOAD_WORK
               "withheld_prefixes": sorted({k.split("/")[0] + "/" for k in withheld}),
               "declared_prefixes": declared, "state_source": state_source,
               "live_skipped": len(live_skipped), "board_skipped": len(board_skipped),
+              "record_skipped": len(record_skipped),
               "tree": tree, "append_only": [], "table_pairs": []}
     # a-35: a table shipped in two formats must hold the same rows in both,
     # checked over the whole local tree before anything is put, dry run included.
