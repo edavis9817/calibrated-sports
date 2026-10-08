@@ -1579,11 +1579,15 @@ brief 023 confirmed it against the book close in every season.
       week-3 spreads** (cause not established). Candles carry no book. Any
       depth-conditioned result over those weeks silently excludes them: print the
       per-week denominator against `markets` beside the estimate.
-    - **The fix runs only where the logger runs it.** On 2026-10-08 the code was
-      on a branch and production was at `9518b1e`; week 5's props were mapped
-      by hand runs of `--pending`. Read `logger.log` for
-      `pending mapping: every 600s` before believing this section describes
-      production.
+    - **The fix runs only where the logger runs it, and it has run in production
+      since 2026-10-08 16:35:20Z** (a-68 merged at `d9dd3ba`, logger build
+      `edb5db1b5167`, first pass 16:37:26Z). Until that minute production was at
+      `9518b1e` and week 5's props listed that morning were mapped by a hand run
+      of `--pending` at 16:23Z. `logger.log` prints
+      `pending mapping: every 600s` at every start: read it before believing
+      this section describes whatever is running. A pass that finds nothing
+      pending prints NO line, so a quiet log is not a stopped mapper - read
+      `source_health` (`mapping_pending`), whose row moves every pass.
   - **When nflverse is late,** the export still runs,
     `manifest.current.stale` names the missing week, the log WARNs, and the next
     scheduled run picks the data up.

@@ -100,9 +100,11 @@ printed for props only.
 ## What is fixed, and what is not
 
 - `jobs.map_markets.run_pending` maps what has no row, on the logger's own 600 s timer
-  (a-68). **It is on a branch and was not running in production when this was written.**
-  Until it is merged and the logger restarted, every week repeats weeks 2 and 4 unless the
-  pass is run by hand after the Thursday listing.
+  (a-68). **It has run in production since 2026-10-08 16:35:20Z** (logger build
+  `edb5db1b5167`); every week before that minute is exposed to the mechanism above, and
+  week 5 was mapped in time only because the pass was also run by hand at 16:23Z that day.
+  Whether it keeps a whole slate above 95% in time is not yet observed for a full week:
+  read `python -m research.mapping_lead --weeks 5` after Monday night.
 - `analytics.staleness.check_mapped_rate` now measures the rate **before each market's own
   kickoff**, for the week being priced and the week just played, and `check_unexamined`
   counts markets the mapper has never looked at (a-73). Neither helps unless the gate is
