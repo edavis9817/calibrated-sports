@@ -899,6 +899,14 @@ reads `nfl_games` mode=ro.
   interval (`no better than` when it contains zero), so it can come out otherwise.
   Its figures equal `record.json`'s `by_stage`; `stage_agrees` refuses both files
   if not.
+- **The weeks 1-4 figure carries a `qualifier` wherever it is served (a-75).**
+  f-26 measured that plain Elo's K sat at the top of its fitting grid (40) in 25 of
+  25 seasons, and that with K allowed to 120 the same comparison is -0.0017
+  [-0.0031, -0.0004], one seed - so "no better than plain Elo in weeks 1-4" may only
+  be cited with that sentence. It is `season_stage.qualifier` in weeks 1-4 and
+  `season_stage.other.qualifier` from week 5; null on the weeks 5+ block and in the
+  postseason, where the figure is not served. `statement` is unchanged. See
+  **Required sentences** below.
 - **`market_comparison` is computed, stored and NOT FOR DISPLAY** (Ethan,
   2026-09-30). Figures and names only, no text; `withheld.display` is const
   `false`; not in the metric registry, so the manifest never points a page at it.
@@ -944,6 +952,38 @@ matchup and the forecast can never describe different walks.
   outdoor wind) and `wind_effect_on_total` carries c-31's -0.24 points per mph. The
   total's record was scored with the RECORDED wind, which a pre-game forecast does not
   have; `record_total.json`'s `does_not_cover` says so.
+- **Required sentences: `qualifier` (a-75).** Track F's reliability attack (f-26,
+  f-27) passed these records and returned five figures as citable only with a stated
+  sentence. Each now carries it in the object that holds the figure, as `qualifier`
+  (`GameQualifier`, null where a figure needs none):
+
+  | figure | kind | the sentence says |
+  |---|---|---|
+  | `record_total.json` `vs_close` | `recorded_wind` | scored with recorded wind; without it +0.0056 [+0.0035, +0.0079]; wind is worth 0.0016 [0.0004, 0.0027] |
+  | `record_total.json` `against_baselines[id=league]` | `recorded_wind` | without wind -0.0065 [-0.0078, -0.0052]; moved 0.0010 |
+  | `record_total.json` `against_baselines[id=season_avg]` | `recorded_wind` | without wind -0.0053 [-0.0067, -0.0040]; moved 0.0010 |
+  | `record_spread.json` `against_shape` | `at_mde_uncorrected` | on its own MDE (ratio 1.00); does not survive Bonferroni over 72 (adjusted p 0.38) |
+  | `forecast.json` `season_stage` (weeks 1-4), and every matchup's copy | `comparator_at_grid_max` | plain Elo's K at the grid maximum in 25 of 25 seasons; widened, -0.0017 [-0.0031, -0.0004] |
+
+  - `statement` is the one string to print beside the figure. It is worded at export
+    from `figures`, in code that can produce the other answer; `figures` are F's
+    measurements, **carried** from `research/results/f27_required_sentences.json`
+    (f-27 at `2b5430e`) and never re-derived by the export.
+  - **It is a footnote.** `compared` beside it is unchanged and still comes from the
+    figure's own interval, so `record_spread.json` still words `against_shape` as
+    `worse than`. Whether that verdict should stand is an open decision of Ethan's.
+  - `measured_against` is the figure F attacked, with F's own draw of its interval;
+    `served_matches` is whether the ESTIMATE beside the block still equals it at four
+    decimals. Intervals are bootstrap draws and are not compared: F redrew the stage
+    figure as -0.0008 [-0.0024, +0.0009] beside a served [-0.0024, +0.0007]. False
+    means the figure moved after the sentence was measured. The sentence stays.
+  - `jobs.required_sentences.require` runs in the game gate and refuses a file that
+    serves a registered figure without its sentence, a sentence that is not the one
+    its figures word, and a sentence on a figure nobody registered. The registry is
+    the carried file, keyed `file|holder`, so registering another figure is one entry.
+  - Not covered: the matchup files' `numbers.total.record` copies of the same three
+    total figures (they point at `record_total.json`), and `record.json`'s
+    `by_stage.weeks_1_4`, which publishes the stage figure a second time.
 - **Copies are checked.** A matchup's moneyline figure, margin and stage must equal
   the forecast's, and each `record` copy must equal its owner's
   (`jobs.game_export.matchup_agrees`); a matchup that differs is refused and left

@@ -1,0 +1,82 @@
+{
+  "what": "Figures measured by track F's reliability attack (f-26 run 1, f-27 run 2) that must travel with a published game figure. CARRIED, not re-derived: a-75 copied them from the verdicts and logs named in `source` and re-ran nothing. jobs/required_sentences.py words each sentence from these figures and refuses a file that serves the figure without it.",
+  "source": {
+    "unit": "f-27",
+    "commit": "2b5430e1c5999fb058fcdac021693db7365bd642",
+    "branch": "origin/f-27-vacuous-check",
+    "script": "research/f26_reliability/",
+    "verdicts": "research/f26_reliability/runs/2026-10-08-run2-f27/verdicts.json",
+    "run_1_marker": "_relay/state/f26-marker.json",
+    "store_as_of": "2026-10-08"
+  },
+  "sentences": [
+    {
+      "file": "game/nfl/record_total.json",
+      "holder": "vs_close",
+      "figure": "d_brier",
+      "kind": "recorded_wind",
+      "measured_against": {"estimate": 0.0040, "interval": [0.0019, 0.0063]},
+      "figures": {
+        "without_wind": {"estimate": 0.0056, "interval": [0.0035, 0.0079]},
+        "wind_worth": {"estimate": 0.0016, "interval": [0.0004, 0.0027]}
+      },
+      "read_from": "run2-f27/verdicts.json served_vs_close_record_total (served, no_wind, wind_worth) and run2-f27/c31_served.log"
+    },
+    {
+      "file": "game/nfl/record_total.json",
+      "holder": "against_baselines[id=league]",
+      "figure": "d_brier",
+      "kind": "recorded_wind",
+      "measured_against": {"estimate": -0.0075, "interval": null},
+      "figures": {
+        "without_wind": {"estimate": -0.0065, "interval": [-0.0078, -0.0052]},
+        "wind_worth": {"estimate": 0.0010, "interval": null}
+      },
+      "read_from": "2026-10-08-run1/c31.log line 44 (league: registered -0.0075 | no wind -0.0065 [-0.0078, -0.0052]); no interval was drawn on the difference"
+    },
+    {
+      "file": "game/nfl/record_total.json",
+      "holder": "against_baselines[id=season_avg]",
+      "figure": "d_brier",
+      "kind": "recorded_wind",
+      "measured_against": {"estimate": -0.0063, "interval": null},
+      "figures": {
+        "without_wind": {"estimate": -0.0053, "interval": [-0.0067, -0.0040]},
+        "wind_worth": {"estimate": 0.0010, "interval": null}
+      },
+      "read_from": "2026-10-08-run1/c31.log line 45 (season_avg: registered -0.0063 | no wind -0.0053 [-0.0067, -0.0040]); no interval was drawn on the difference"
+    },
+    {
+      "file": "game/nfl/record_spread.json",
+      "holder": "against_shape",
+      "figure": "d_brier",
+      "kind": "at_mde_uncorrected",
+      "measured_against": {"estimate": 0.0009, "interval": [0.0003, 0.0016]},
+      "figures": {
+        "mde_ratio": 1.00,
+        "intervals_registered": 72,
+        "correction": "Bonferroni",
+        "adjusted_p": 0.38,
+        "alpha": 0.05
+      },
+      "read_from": "run2-f27/c30.log lines 27-35 (pooled_dBrier: Bonferroni over 72, p 0.3786; |estimate| / MDE = 1.00) and the c-30 verdict in both runs"
+    },
+    {
+      "file": "game/nfl/forecast.json",
+      "holder": "season_stage[stage=weeks_1_4]",
+      "figure": "vs_elo_nomov",
+      "kind": "comparator_at_grid_max",
+      "measured_against": {"estimate": -0.0008, "interval": [-0.0024, 0.0009]},
+      "figures": {
+        "parameter": "K",
+        "grid_max": 40,
+        "seasons_at_max": 25,
+        "seasons": 25,
+        "allowed_to": 120,
+        "alternative": {"estimate": -0.0017, "interval": [-0.0031, -0.0004]},
+        "seeds": 1
+      },
+      "read_from": "run2-f27/verdicts.json verdicts.a-63 (registered -0.0008 [-0.0024, +0.0009], widened grid -0.0017 [-0.0031, -0.0004]) and run 1's a-63 verdict (K at the grid maximum 40 in 25 of 25 seasons, allowed to 120, one seed). The interval here is F's own draw; the export serves the same estimate with [-0.0024, +0.0007]"
+    }
+  ]
+}

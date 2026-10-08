@@ -133,6 +133,13 @@ def compared(verdict):
     return c(verdict)
 
 
+def sentence(key, holder, served):
+    """a-75: the sentence a figure may only be cited with, worded from track F's
+    carried figures. `jobs.required_sentences.require` refuses the file without it."""
+    from jobs import required_sentences as RS
+    return RS.qualifier(key, holder, served)
+
+
 def build_record_spread(c30):
     p2b = c30["part2b_book"]["pooled"]
     pooled = c30["part1"]["cells"]["pooled"]["diffs"]["E-N0"]["dBrier"]
@@ -154,7 +161,9 @@ def build_record_spread(c30):
         "against_baselines": [],
         "against_shape": {"label": "the same margin without the key-number shape (a Normal)",
                           "d_brier": gi(pooled),
-                          "compared": compared(gi(pooled)["verdict"])},
+                          "compared": compared(gi(pooled)["verdict"]),
+                          "qualifier": sentence(RECORD_SPREAD_KEY, "against_shape",
+                                                gi(pooled))},
         "push_rates": push,
         "wind_per_mph": None,
         "vs_close": {"benchmark": "the nflverse closing spread's cover price",
@@ -163,6 +172,7 @@ def build_record_spread(c30):
                      "brier_benchmark": r4(p2b["brier_book"]),
                      "d_brier": gi(p2b["E-book"]),
                      "compared": compared(gi(p2b["E-book"])["verdict"]),
+                     "qualifier": None,
                      "display": SHOW_CLOSE},
         "covers": [
             f"{n1['cover_rows']:,} games with a closing spread and no push, 2001 to 2025, "
@@ -199,7 +209,9 @@ def build_record_total(c31):
                        "blocks": "game"},
         "against_baselines": [
             {"id": b, "label": lab, "d_brier": gi(pb[b]["diffs"]["dBrier"]),
-             "compared": compared(gi(pb[b]["diffs"]["dBrier"])["verdict"])}
+             "compared": compared(gi(pb[b]["diffs"]["dBrier"])["verdict"]),
+             "qualifier": sentence(RECORD_TOTAL_KEY, f"against_baselines[id={b}]",
+                                   gi(pb[b]["diffs"]["dBrier"]))}
             for b, lab in labels],
         "against_shape": None,
         "push_rates": [],
@@ -209,6 +221,8 @@ def build_record_total(c31):
                      "brier_benchmark": r4(s2["corp_comparator"]["bs"]),
                      "d_brier": gi(s2["diffs"]["dBrier"]),
                      "compared": compared(gi(s2["diffs"]["dBrier"])["verdict"]),
+                     "qualifier": sentence(RECORD_TOTAL_KEY, "vs_close",
+                                           gi(s2["diffs"]["dBrier"])),
                      "display": SHOW_CLOSE},
         "wind_per_mph": gi(d4),
         "covers": [

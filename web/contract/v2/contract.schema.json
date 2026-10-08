@@ -10574,13 +10574,17 @@
                         "no better than"
                       ],
                       "description": "The words the interval licenses and nothing stronger: `better than` / `worse than` only when it excludes zero."
+                    },
+                    "qualifier": {
+                      "$ref": "#/$defs/GameQualifier"
                     }
                   },
                   "required": [
                     "stage",
                     "games",
                     "vs_elo_nomov",
-                    "compared"
+                    "compared",
+                    "qualifier"
                   ],
                   "additionalProperties": false
                 }
@@ -10589,6 +10593,9 @@
             "statement": {
               "type": "string",
               "minLength": 1
+            },
+            "qualifier": {
+              "$ref": "#/$defs/GameQualifier"
             }
           },
           "required": [
@@ -10598,12 +10605,188 @@
             "games",
             "vs_elo_nomov",
             "compared",
+            "qualifier",
             "other",
             "statement"
           ],
           "additionalProperties": false
         }
       ]
+    },
+    "GameQualifier": {
+      "description": "a-75. A sentence a figure may only be cited with, attached to the object that holds the figure. Null when the figure needs none. Track F's reliability attack (f-26, f-27) returned some game figures as citable only with a stated sentence; `statement` is that sentence, worded at export from `figures`, which are F's measurements carried from research/results/f27_required_sentences.json and never re-derived here. It is a footnote: it does not change the sibling `compared`, which still comes from the figure's own interval. `measured_against` is the figure F attacked, with F's own bootstrap draw of its interval, and `served_matches` says whether the ESTIMATE beside this block still equals it at four decimals (intervals are draws and are not compared) - false means the figure has moved since the sentence was measured, and the sentence stays. jobs/required_sentences.require refuses a file that serves a registered figure without its sentence, or a sentence on a figure nobody registered.",
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "recorded_wind",
+                "at_mde_uncorrected",
+                "comparator_at_grid_max"
+              ]
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            },
+            "measured_against": {
+              "$ref": "#/$defs/GameQualifierFigure"
+            },
+            "served_matches": {
+              "type": "boolean"
+            },
+            "figures": {
+              "anyOf": [
+                {
+                  "description": "recorded_wind. `without_wind` is the same comparison with wind taken out of the model; `wind_worth` is how far recorded wind moves it (a size, never signed), with an interval only where one was drawn on the difference.",
+                  "type": "object",
+                  "properties": {
+                    "without_wind": {
+                      "$ref": "#/$defs/GameQualifierFigure"
+                    },
+                    "wind_worth": {
+                      "$ref": "#/$defs/GameQualifierFigure"
+                    }
+                  },
+                  "required": [
+                    "without_wind",
+                    "wind_worth"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "description": "at_mde_uncorrected. `mde_ratio` is |estimate| over the minimum detectable effect; `adjusted_p` is the p-value after `correction` over `intervals_registered`, read against `alpha`.",
+                  "type": "object",
+                  "properties": {
+                    "mde_ratio": {
+                      "type": "number"
+                    },
+                    "intervals_registered": {
+                      "type": "integer"
+                    },
+                    "correction": {
+                      "type": "string"
+                    },
+                    "adjusted_p": {
+                      "type": "number"
+                    },
+                    "alpha": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "mde_ratio",
+                    "intervals_registered",
+                    "correction",
+                    "adjusted_p",
+                    "alpha"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "description": "comparator_at_grid_max. The comparator's `parameter` was fitted at `grid_max`, the top of its grid, in `seasons_at_max` of `seasons`; `alternative` is the same comparison with the parameter allowed to `allowed_to`, drawn on `seeds` bootstrap seed(s).",
+                  "type": "object",
+                  "properties": {
+                    "parameter": {
+                      "type": "string"
+                    },
+                    "grid_max": {
+                      "type": "number"
+                    },
+                    "seasons_at_max": {
+                      "type": "integer"
+                    },
+                    "seasons": {
+                      "type": "integer"
+                    },
+                    "allowed_to": {
+                      "type": "number"
+                    },
+                    "alternative": {
+                      "$ref": "#/$defs/GameQualifierFigure"
+                    },
+                    "seeds": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "parameter",
+                    "grid_max",
+                    "seasons_at_max",
+                    "seasons",
+                    "allowed_to",
+                    "alternative",
+                    "seeds"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "source": {
+              "type": "object",
+              "properties": {
+                "unit": {
+                  "type": "string"
+                },
+                "commit": {
+                  "type": "string"
+                },
+                "verdicts": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "unit",
+                "commit",
+                "verdicts"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "kind",
+            "statement",
+            "measured_against",
+            "served_matches",
+            "figures",
+            "source"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "GameQualifierFigure": {
+      "description": "a-75. A carried estimate with its 95% interval, or a null interval where none was drawn.",
+      "type": "object",
+      "properties": {
+        "estimate": {
+          "type": "number"
+        },
+        "interval": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          ]
+        }
+      },
+      "required": [
+        "estimate",
+        "interval"
+      ],
+      "additionalProperties": false
     },
     "GameModelRecordFile": {
       "description": "a-64. The scoring record of one of the game models the matchup files quote: the spread (c-28's margin with c-30's key-number shape) or the total (c-31). Read from the unit's committed result file, never recomputed at export.",
@@ -10679,13 +10862,17 @@
                   "worse than",
                   "no better than"
                 ]
+              },
+              "qualifier": {
+                "$ref": "#/$defs/GameQualifier"
               }
             },
             "required": [
               "id",
               "label",
               "d_brier",
-              "compared"
+              "compared",
+              "qualifier"
             ],
             "additionalProperties": false
           }
@@ -10710,12 +10897,16 @@
                     "worse than",
                     "no better than"
                   ]
+                },
+                "qualifier": {
+                  "$ref": "#/$defs/GameQualifier"
                 }
               },
               "required": [
                 "label",
                 "d_brier",
-                "compared"
+                "compared",
+                "qualifier"
               ],
               "additionalProperties": false
             }
@@ -10809,6 +11000,9 @@
                 "no better than"
               ]
             },
+            "qualifier": {
+              "$ref": "#/$defs/GameQualifier"
+            },
             "display": {
               "type": "boolean"
             }
@@ -10822,6 +11016,7 @@
             "brier_benchmark",
             "d_brier",
             "compared",
+            "qualifier",
             "display"
           ],
           "additionalProperties": false

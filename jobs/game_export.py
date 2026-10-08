@@ -292,6 +292,15 @@ def current_games(games, year, now_ts):
     return week, games[idx[0]]["game_type"], idx
 
 
+def stage_sentence(stage, d):
+    """a-75: the weeks 1-4 figure may only be cited with track F's sentence about
+    plain Elo's fitting grid, wherever in the block it is served. Null elsewhere."""
+    from jobs import required_sentences as RS
+    if stage != RS.EARLY_STAGE:
+        return None
+    return RS.qualifier(FORECAST_KEY, RS.STAGE_HOLDER, d)
+
+
 def season_stage(m, week, game_type):
     """Which part of the record speaks for THIS week, against plain Elo, and a
     sentence worded from that part's interval (so it can come out otherwise)."""
@@ -311,7 +320,8 @@ def season_stage(m, week, game_type):
             f"{PLAIN['elo_nomov']}: the difference in forecast error (Brier score) is {fig} "
             f"over {n:,} games, {s0} to {s1}.")
     block = {"stage": stage, "week": week, "game_type": game_type, "games": n,
-             "vs_elo_nomov": d, "compared": compared(d["verdict"])}
+             "vs_elo_nomov": d, "compared": compared(d["verdict"]),
+             "qualifier": stage_sentence(stage, d)}
     if other:
         o = interval(m["stages"][other]["elo_nomov"]["diffs"]["dBrier"])
         ofig = f"{o['estimate']:+.4f} [{o['interval'][0]:+.4f}, {o['interval'][1]:+.4f}]"
@@ -319,7 +329,8 @@ def season_stage(m, week, game_type):
         text += (f" {owhere[0].upper() + owhere[1:]} it has been {compared(o['verdict'])} it: "
                  f"{ofig} over {m['n'][other]:,} games.")
         block["other"] = {"stage": other, "games": m["n"][other], "vs_elo_nomov": o,
-                          "compared": compared(o["verdict"])}
+                          "compared": compared(o["verdict"]),
+                          "qualifier": stage_sentence(other, o)}
     else:
         block["other"] = None
     block["statement"] = text
@@ -404,15 +415,17 @@ def stage_agrees(files):
 
 
 def gate(files):
-    """The contract, the source gate and the metric gate, over whatever built;
+    """The contract, the source gate, the metric gate and the sentence gate (a-75:
+    a figure that may only be cited with a sentence carries it), over whatever built;
     with both files, also the stage check. -> statements; raises on any failure."""
     from jobs import export_web as E
     from jobs import metric_registry as MR
+    from jobs import required_sentences as RS
     from jobs import source_registry
     E.validate_contract(files)
     source_registry.require_declared(files)
     mets = [m for m in MR.GAME_METRICS if MR._files_of(m) <= set(files)]
-    out = [MR.require(dict(files), mets).statement]
+    out = [MR.require(dict(files), mets).statement, RS.require(files)]
     if FORECAST_KEY in files and RECORD_KEY in files:
         out.append(stage_agrees(files))
     return "\n".join(out)

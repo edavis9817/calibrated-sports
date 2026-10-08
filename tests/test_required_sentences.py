@@ -1,0 +1,256 @@
+"""a-75: a figure that may only be cited with a sentence is never served without it.
+
+Run: pytest -q tests/test_required_sentences.py
+
+Track F (f-26, f-27) returned five published game figures as "citable only with a
+stated sentence attached". `jobs.required_sentences` attaches the sentence and
+`require` refuses a file without it. These tests are keyed on each figure's own
+`file|holder` path, read from the registry: a fourth sentence added to the carried
+file is a new parameter here and fails until its builder attaches it.
+
+No test opens a live store: the forecast is a-63's synthetic league and the two
+records are the real committed result files, as in tests/test_game_matchup.py.
+"""
+import copy
+
+import pytest
+
+from jobs import export_web as E
+from jobs import game_export as X
+from jobs import game_matchup as GM
+from jobs import metric_registry as MR
+from jobs import required_sentences as RS
+from tests.test_game_export import NOW, _fake, synthetic_files
+from tests.test_game_matchup import (_build, _matchups, measured,  # noqa: F401 - fixtures
+                                     results_on_this_walk)
+
+EARLY = (-0.0008, -0.0024, 0.0009)          # the weeks 1-4 figure f-27 attacked
+LATE = (-0.003, -0.004, -0.002)
+ALL = (-0.002, -0.003, -0.001)
+
+
+def _stage(week, game_type="REG", early=EARLY):
+    return X.season_stage(_fake({"weeks_1_4": early, "weeks_5_plus": LATE, "all": ALL}),
+                          week, game_type)
+
+
+def _forecast(week, game_type="REG"):
+    """A forecast file whose stage is the chosen week's. Only the stage is read."""
+    return {"kind": X.FORECAST_KIND, "season_stage": _stage(week, game_type)}
+
+
+@pytest.fixture(scope="module")
+def served(tmp_path_factory):
+    """The four files as the export builds them, with the forecast's stage in week 3
+    so the weeks 1-4 figure is the headline; `later` has it in `other`."""
+    files = synthetic_files(tmp_path_factory.mktemp("a75"))
+    files[X.FORECAST_KEY]["season_stage"] = _stage(3)
+    return files
+
+
+def _holders(files):
+    """-> {figure id: [(key, holder)]} for every registered figure the files serve."""
+    out = {}
+    for key, payload in files.items():
+        for fid, _path, blk, _e in RS.located(key, payload):
+            out.setdefault(fid, []).append((key, blk))
+    return out
+
+
+# ------------------------------------------------------- the registry itself
+
+def test_the_registry_is_the_five_figures_f27_returned_and_nothing_else():
+    assert set(RS.REQUIRED) == {
+        "game/nfl/record_total.json|vs_close",
+        "game/nfl/record_total.json|against_baselines[id=league]",
+        "game/nfl/record_total.json|against_baselines[id=season_avg]",
+        "game/nfl/record_spread.json|against_shape",
+        "game/nfl/forecast.json|season_stage[stage=weeks_1_4]"}
+    assert set(RS.REQUIRED) == set(RS.required())
+    assert {e["kind"] for e in RS.required().values()} == set(RS.WORDING)
+
+
+def test_every_registered_figure_is_found_in_what_the_export_builds(served):
+    found = _holders(served)
+    assert set(found) == set(RS.REQUIRED)           # none unlocated: the gate walks all five
+    assert RS.require(served) == ("sentence check: 5 figure(s) that need a sentence carry it, "
+                                  "across 4 file(s)")
+    assert RS.FIELD in MR.resolve(served[GM.RECORD_TOTAL_KEY], "vs_close")
+
+
+# --------------------------------------- served without its sentence: refused
+
+@pytest.mark.parametrize("fid", RS.REQUIRED)
+def test_a_figure_served_without_its_sentence_is_refused(served, fid):
+    files = copy.deepcopy(served)
+    key, blk = _holders(files)[fid][0]
+    figure = RS.required()[fid]["figure"]
+    assert blk[RS.FIELD] is not None and blk[figure]["estimate"] is not None
+    blk[RS.FIELD] = None
+    with pytest.raises(RS.MissingSentence, match="served without its sentence"):
+        RS.require(files)
+    with pytest.raises(RS.MissingSentence, match="served without its sentence"):
+        X.gate({key: files[key]})                   # the export's own gate, so no file writes
+    E.validate_contract({key: files[key]})          # null is legal: only the gate above refuses it
+    del blk[RS.FIELD]                               # the key's absence is the contract's to refuse
+    with pytest.raises(E.ContractError):
+        E.validate_contract({key: files[key]})
+
+
+@pytest.mark.parametrize("fid", RS.REQUIRED)
+def test_a_sentence_that_is_not_the_one_its_figures_word_is_refused(served, fid):
+    files = copy.deepcopy(served)
+    _key, blk = _holders(files)[fid][0]
+    blk[RS.FIELD]["statement"] = "It is fine."
+    with pytest.raises(RS.MissingSentence, match="not the one its figures word"):
+        RS.require(files)
+
+
+def test_a_sentence_on_a_figure_nobody_registered_is_refused(served):
+    files = copy.deepcopy(served)
+    donor = files[GM.RECORD_TOTAL_KEY]["vs_close"][RS.FIELD]
+    assert files[GM.RECORD_SPREAD_KEY]["vs_close"][RS.FIELD] is None
+    files[GM.RECORD_SPREAD_KEY]["vs_close"][RS.FIELD] = donor
+    with pytest.raises(RS.MissingSentence, match="vs_close carries a sentence no registered"):
+        RS.require(files)
+
+
+def _with_fourth(monkeypatch, entry):
+    data = copy.deepcopy(RS.carried())
+    data["sentences"].append(entry)
+    monkeypatch.setattr(RS, "carried", lambda: data)
+
+
+def test_a_fourth_sentence_fails_until_its_builder_attaches_it(served, monkeypatch):
+    """Registering a figure is one entry in the carried file. The file that serves
+    it is refused from that moment, not when someone remembers the builder."""
+    _with_fourth(monkeypatch, {
+        "file": GM.RECORD_SPREAD_KEY, "holder": "vs_close", "figure": "d_brier",
+        "kind": "at_mde_uncorrected",
+        "measured_against": {"estimate": 0.0081, "interval": [0.0054, 0.0107]},
+        "figures": {"mde_ratio": 2.11, "intervals_registered": 72, "correction": "Bonferroni",
+                    "adjusted_p": 0.001, "alpha": 0.05}})
+    with pytest.raises(RS.MissingSentence, match="record_spread.json: vs_close.d_brier is served"):
+        RS.require(served)
+
+
+def test_a_registered_path_that_does_not_resolve_is_a_failure_not_a_skip(served, monkeypatch):
+    _with_fourth(monkeypatch, {
+        "file": GM.RECORD_SPREAD_KEY, "holder": "against_baselines[id=league]",
+        "figure": "d_brier", "kind": "recorded_wind",
+        "measured_against": {"estimate": 0.0, "interval": None}, "figures": {}})
+    with pytest.raises(RS.MissingSentence, match="not where the registry says"):
+        RS.require(served)
+
+
+def test_two_sentences_for_one_figure_are_refused(monkeypatch):
+    _with_fourth(monkeypatch, copy.deepcopy(RS.carried()["sentences"][0]))
+    with pytest.raises(ValueError, match="twice"):
+        RS.required()
+
+
+# ------------------------------------------- the stage figure, wherever it is
+
+def test_the_weeks_1_4_sentence_follows_the_figure_through_the_season():
+    early, late, post = _stage(3), _stage(6), _stage(19, "WC")
+    assert early["qualifier"]["kind"] == "comparator_at_grid_max"
+    assert early["other"]["qualifier"] is None                  # weeks 5+ needs none
+    assert late["qualifier"] is None
+    assert late["other"]["stage"] == "weeks_1_4"
+    assert late["other"]["qualifier"] == early["qualifier"]     # the same sentence, in `other`
+    assert post["qualifier"] is None and post["other"] is None  # the figure is not served
+    for week, gtype, n in ((3, "REG", 1), (6, "REG", 1), (19, "WC", 0)):
+        fc = _forecast(week, gtype)
+        assert len(RS.located(X.FORECAST_KEY, fc)) == n
+        assert RS.require({X.FORECAST_KEY: fc}).startswith(f"sentence check: {n} figure")
+    fc = _forecast(6)
+    fc["season_stage"]["other"]["qualifier"] = None
+    with pytest.raises(RS.MissingSentence, match=r"season_stage\.other\.vs_elo_nomov is served"):
+        RS.require({X.FORECAST_KEY: fc})
+    assert RS.require({X.FORECAST_KEY: {"kind": X.FORECAST_KIND, "season_stage": None}}) \
+        .startswith("sentence check: 0 figure")
+
+
+def test_every_matchup_carries_the_forecasts_stage_sentence_and_is_gated_on_it(
+        measured, monkeypatch, results_on_this_walk):  # noqa: F811
+    files, failed = _build(measured, monkeypatch)
+    assert failed == []
+    mus = _matchups(files)
+    assert mus
+    stage = files[X.FORECAST_KEY]["season_stage"]
+    carrier = stage if stage["stage"] == RS.EARLY_STAGE else stage["other"]
+    assert carrier["stage"] == RS.EARLY_STAGE and carrier["qualifier"] is not None
+    for key, mu in mus.items():
+        assert mu["season_stage"] == stage
+        bad = copy.deepcopy(mu)
+        blk = bad["season_stage"] if stage["stage"] == RS.EARLY_STAGE else bad["season_stage"]["other"]
+        blk["qualifier"] = None
+        with pytest.raises(RS.MissingSentence, match="served without its sentence"):
+            RS.require({key: bad})
+    n = 5 + len(mus)                # record_total 3, record_spread 1, the forecast 1, one a matchup
+    assert RS.require(files).startswith(f"sentence check: {n} figure(s)")
+
+
+# ------------------------------------ the sentences, and that they can differ
+
+def test_the_three_served_sentences_are_f27s_worded_from_the_carried_figures():
+    sp = GM.build_record_spread(GM.load_result(GM.C30_RESULT))
+    tt = GM.build_record_total(GM.load_result(GM.C31_RESULT))
+    assert tt["vs_close"]["qualifier"]["statement"] == (
+        "Scored with each game's recorded wind, which no forecast made before kickoff has. "
+        "With wind taken out of the model the same comparison is +0.0056 [+0.0035, +0.0079]: "
+        "recorded wind moves it by 0.0016 [0.0004, 0.0027], which makes the published figure "
+        "the favourable end.")
+    base = {b["id"]: b["qualifier"]["statement"] for b in tt["against_baselines"]}
+    assert "is -0.0065 [-0.0078, -0.0052]: recorded wind moves it by 0.0010, which" in base["league"]
+    assert "is -0.0053 [-0.0067, -0.0040]: recorded wind moves it by 0.0010, which" in base["season_avg"]
+    assert sp["against_shape"]["qualifier"]["statement"] == (
+        "This estimate sits exactly on its own minimum detectable effect (ratio 1.00) and does "
+        "not survive a Bonferroni correction over the 72 intervals the study registered "
+        "(adjusted p 0.38).")
+    assert _stage(3)["qualifier"]["statement"] == (
+        "Plain Elo's K was held at the top of the fitting grid (40) in 25 of 25 seasons; with K "
+        "allowed to 120 the same comparison is -0.0017 [-0.0031, -0.0004], one seed.")
+    # the sentence is a footnote: the verdict words are still the interval's own
+    assert sp["against_shape"]["compared"] == "worse than"
+    assert sp["vs_close"]["qualifier"] is None
+
+
+def test_the_served_figures_are_the_ones_the_sentences_were_measured_beside():
+    """The two records are read from committed result files, so these hold exactly.
+    If one goes False the figure moved and F's measurement no longer sits beside it."""
+    sp = GM.build_record_spread(GM.load_result(GM.C30_RESULT))
+    tt = GM.build_record_total(GM.load_result(GM.C31_RESULT))
+    got = [sp["against_shape"]["qualifier"], tt["vs_close"]["qualifier"]] + [
+        b["qualifier"] for b in tt["against_baselines"]]
+    assert [q["served_matches"] for q in got] == [True, True, True, True]
+    assert tt["vs_close"]["d_brier"]["estimate"] == 0.004
+    assert tt["vs_close"]["d_brier"]["interval"] == [0.0019, 0.0063]
+    # the estimate is compared, the interval is not: the export's own draw of the stage
+    # figure is [-0.0024, +0.0007] and F's is [-0.0024, +0.0009], for the same -0.0008
+    assert _stage(3)["qualifier"]["served_matches"] is True
+    assert _stage(3, early=(-0.0008, -0.0024, 0.0007))["qualifier"]["served_matches"] is True
+    assert _stage(3, early=(-0.0011, -0.0024, 0.0009))["qualifier"]["served_matches"] is False
+
+
+def test_each_wording_can_come_out_the_other_way():
+    wind = {"without_wind": {"estimate": 0.0056, "interval": [0.0035, 0.0079]},
+            "wind_worth": {"estimate": 0.0016, "interval": None}}
+    assert "the favourable end" in RS._wind(wind, {"estimate": 0.0040})
+    assert "the unfavourable end" in RS._wind(wind, {"estimate": 0.0060})
+    assert "where it was" in RS._wind(wind, {"estimate": 0.0056})
+    mde = {"mde_ratio": 1.0, "intervals_registered": 72, "correction": "Bonferroni",
+           "adjusted_p": 0.38, "alpha": 0.05}
+    assert "sits exactly on" in RS._mde(mde, None) and "does not survive" in RS._mde(mde, None)
+    clear = dict(mde, mde_ratio=1.47, adjusted_p=0.003)
+    assert "is above" in RS._mde(clear, None) and " and survives a " in RS._mde(clear, None)
+    assert "is below" in RS._mde(dict(mde, mde_ratio=0.46), None)
+    grid = {"parameter": "K", "grid_max": 40, "seasons_at_max": 3, "seasons": 25,
+            "allowed_to": 120, "alternative": {"estimate": 0.0, "interval": [-0.001, 0.001]},
+            "seeds": 10}
+    assert "in 3 of 25 seasons" in RS._grid(grid, None) and RS._grid(grid, None).endswith("10 seeds.")
+
+
+def test_a_builder_asking_for_an_unregistered_sentence_raises():
+    with pytest.raises(KeyError):
+        RS.qualifier(GM.RECORD_SPREAD_KEY, "vs_close", {"estimate": 0.0, "interval": [0, 0]})
