@@ -2226,3 +2226,27 @@ while three writer tasks launched from it). a-10 built two production clones pin
   the cutover and the one commit production makes itself (the slug registry).
 - **Once they do, merging to `origin/main` is deploying.** The sync fast-forwards within the
   hour.
+
+## The appealing file (a-70)
+
+`board/nfl/appealing.json` (kind `board_appealing`, `jobs/appealing_export.py`) is every
+pre-kickoff outcome the week's market prices that we hold a model number for, ranked by
+**difference net of cost**. The Board tick writes it into the Board's tree after its own upload,
+so it ships one tick later; it never raises and a failed build leaves the previous file.
+
+- **The sort is a sort.** `ranking.is_a_finding` is `false` by contract const. What is measured
+  about disagreement size is in `ordering`, computed from c-24's AUC, the walk-forward bands and
+  the Board's graded leans - and it can read the other way when they do.
+- **Cost is never flat.** Exchange: half the quoted spread plus the series' taker fee on a
+  100-contract order (`core.fees`). Books: the side's offered implied probability minus its
+  de-vigged one, which scales with price.
+- **A game rung is priced only where the published files agree.** The moneyline must round to
+  `game/nfl/forecast.json`; a spread or total rung is dropped when the game's published matchup
+  withholds that number or this build does not reproduce it. Measured 2026-10-08: the store this
+  clone reads prices the total, the published week-5 matchups withhold it, so all 300 total rows
+  are withheld and counted in `parts`.
+- **The band flag is computed and scoped.** A band is flagged when the whole Wilson interval of
+  its graded cleared rate is below the mean break-even of its prices; it lands on BOOK PROP rows
+  only, the population the Board's ledger measured.
+- **`jobs.board_read._tick` is now a reader in the source registry** (the scan follows the hook
+  into the job's SQL), and `market_depth` has a source row for the first time.

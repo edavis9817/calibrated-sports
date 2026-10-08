@@ -29,6 +29,7 @@
       "sources": "SourcesFile",
       "board_index": "BoardIndexFile",
       "board_read": "BoardReadFile",
+      "board_appealing": "BoardAppealingFile",
       "lab_index": "LabIndexFile",
       "lab_preset": "LabPresetFile",
       "lab_catalogue": "LabCatalogueFile",
@@ -67,6 +68,7 @@
       {"pattern": "^[a-z0-9]+/sources\\.json$", "kind": "sources"},
       {"pattern": "^board/[a-z0-9]+/\\d{4}/wk\\d{2}/index\\.json$", "kind": "board_index"},
       {"pattern": "^board/[a-z0-9]+/\\d{4}/wk\\d{2}/read-\\d{4}-\\d{2}-\\d{2}T\\d{6}Z\\.json$", "kind": "board_read"},
+      {"pattern": "^board/[a-z0-9]+/appealing\\.json$", "kind": "board_appealing"},
       {"pattern": "^lab/[a-z0-9]+/index\\.json$", "kind": "lab_index"},
       {"pattern": "^lab/[a-z0-9]+/presets/[a-z0-9_]+\\.json$", "kind": "lab_preset"},
       {"pattern": "^lab/[a-z0-9]+/catalogue\\.json$", "kind": "lab_catalogue"},
@@ -8764,6 +8766,939 @@
         "superseded",
         "statement",
         "statement_parts"
+      ],
+      "additionalProperties": false
+    },
+    "BoardAppealingFile": {
+      "description": "a-70. Every outcome this week's market prices that we hold a model number for, on games that have not kicked off, ranked (jobs/appealing_export.py). It states a claim, the market's price, our number, the difference, the cost to take the side the difference falls on, depth where an exchange shows it, the gap band and the record of the model that produced the number. NO ROW IS A PICK and the file carries no verdict about any row. `ranking.by` is `net_pp` - the difference net of cost - and `ranking.is_a_finding` is false by const: the sort is a sort. The model orders outcomes worse than the market (c-24), and `ordering` carries what is measured about disagreement size. `parts` lists the four sources with their row counts and, for one that produced nothing, why.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "board_appealing"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "season": {
+          "type": "integer"
+        },
+        "week": {
+          "type": "integer"
+        },
+        "as_of": {
+          "type": "object",
+          "properties": {
+            "instant": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "kickoffs_after": {
+              "$ref": "#/$defs/Timestamp"
+            }
+          },
+          "required": [
+            "instant",
+            "kickoffs_after"
+          ],
+          "additionalProperties": false
+        },
+        "ranking": {
+          "type": "object",
+          "properties": {
+            "by": {
+              "const": "net_pp"
+            },
+            "order": {
+              "const": "descending"
+            },
+            "ties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "is_a_finding": {
+              "const": false
+            },
+            "ordering_note": {
+              "const": "disagreement_size"
+            }
+          },
+          "required": [
+            "by",
+            "order",
+            "ties",
+            "is_a_finding",
+            "ordering_note"
+          ],
+          "additionalProperties": false
+        },
+        "ordering": {
+          "description": "What has been measured about the SIZE of a disagreement, which every row points at. Three measurements, never pooled: the model's AUC against the closing price (c-24), the walk-forward return by gap band, and the Board's own graded leans by band (`gap_bands`). `larger_gap_has_meant_better` and `statement` are computed from those figures by `rule` and read the other way when the figures do.",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "disagreement_size"
+            },
+            "larger_gap_has_meant_better": {
+              "type": "boolean"
+            },
+            "rule": {
+              "type": "string"
+            },
+            "model_vs_close_auc": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "estimate": {
+                      "type": "number"
+                    },
+                    "interval": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "verdict": {
+                      "enum": [
+                        "above",
+                        "below",
+                        "contains_zero"
+                      ]
+                    },
+                    "statement": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "estimate",
+                    "interval",
+                    "verdict",
+                    "statement"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "walkforward_bands": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "market": {
+                    "type": "string"
+                  },
+                  "lo_pp": {
+                    "type": "number"
+                  },
+                  "hi_pp": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "n": {
+                    "type": "integer"
+                  },
+                  "games": {
+                    "type": "integer"
+                  },
+                  "cleared": {
+                    "type": "number"
+                  },
+                  "interval": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "roi": {
+                    "type": "number"
+                  },
+                  "roi_interval": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "roi_verdict": {
+                    "enum": [
+                      "above",
+                      "below",
+                      "contains_zero"
+                    ]
+                  }
+                },
+                "required": [
+                  "market",
+                  "lo_pp",
+                  "hi_pp",
+                  "n",
+                  "games",
+                  "cleared",
+                  "interval",
+                  "roi",
+                  "roi_interval",
+                  "roi_verdict"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "walkforward_source": {
+              "type": "string"
+            },
+            "walkforward_scope": {
+              "type": "string"
+            },
+            "live_scope": {
+              "type": "string"
+            },
+            "not_on_this_branch": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "statement": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "larger_gap_has_meant_better",
+            "rule",
+            "model_vs_close_auc",
+            "walkforward_bands",
+            "walkforward_source",
+            "walkforward_scope",
+            "live_scope",
+            "not_on_this_branch",
+            "statement"
+          ],
+          "additionalProperties": false
+        },
+        "gap_bands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "lo_pp": {
+                "type": "number"
+              },
+              "hi_pp": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "graded": {
+                "type": "integer"
+              },
+              "cleared": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "rate": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "interval": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                ]
+              },
+              "interval_method": {
+                "const": "wilson_95"
+              },
+              "weeks": {
+                "type": "integer"
+              },
+              "breakeven": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "priced": {
+                "type": "integer"
+              },
+              "flagged": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "lo_pp",
+              "hi_pp",
+              "graded",
+              "cleared",
+              "rate",
+              "interval",
+              "interval_method",
+              "weeks",
+              "breakeven",
+              "priced",
+              "flagged"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "gap_bands_scope": {
+          "type": "object",
+          "properties": {
+            "population": {
+              "type": "string"
+            },
+            "flag_rule": {
+              "type": "string"
+            },
+            "flag_applies_to": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "population",
+            "flag_rule",
+            "flag_applies_to",
+            "source"
+          ],
+          "additionalProperties": false
+        },
+        "records": {
+          "type": "object",
+          "properties": {
+            "moneyline": {
+              "$ref": "#/$defs/BoardAppealingRecord"
+            },
+            "spread": {
+              "$ref": "#/$defs/BoardAppealingRecord"
+            },
+            "total": {
+              "$ref": "#/$defs/BoardAppealingRecord"
+            },
+            "prop": {
+              "$ref": "#/$defs/BoardAppealingRecord"
+            }
+          },
+          "additionalProperties": false
+        },
+        "parts": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "enum": [
+                  "game_exchange",
+                  "game_books",
+                  "prop_books",
+                  "prop_exchange"
+                ]
+              },
+              "rows": {
+                "type": "integer"
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "dropped": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "rows",
+              "reason",
+              "dropped"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/BoardAppealingRow"
+          }
+        },
+        "not_covered": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "definitions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "season",
+        "week",
+        "as_of",
+        "ranking",
+        "ordering",
+        "gap_bands",
+        "gap_bands_scope",
+        "records",
+        "parts",
+        "rows",
+        "not_covered",
+        "definitions"
+      ],
+      "additionalProperties": false
+    },
+    "BoardAppealingRow": {
+      "description": "One priced outcome. `claim` is the outcome as worded; `market_price.p` and `model.p` are both the probability of that claim; `difference_pp` is model minus market in points. `side` is arithmetic, not advice: `claim` when the model's number is at or above the market's, `against` when below - and `cost`, `depth` and `net_pp` are for that side. `flagged` is true only on a book prop whose gap band the file's `gap_bands` flags. `record` keys into the file's `records`; `ordering_note` into `ordering`.",
+      "type": "object",
+      "properties": {
+        "rank": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "row_id": {
+          "type": "string"
+        },
+        "market": {
+          "enum": [
+            "moneyline",
+            "spread",
+            "total",
+            "prop"
+          ]
+        },
+        "venue": {
+          "enum": [
+            "kalshi",
+            "books"
+          ]
+        },
+        "game_id": {
+          "type": "string"
+        },
+        "kickoff": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "claim": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "subject_type": {
+              "enum": [
+                "team",
+                "game",
+                "player"
+              ]
+            },
+            "subject": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "stat": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "line": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "direction": {
+              "enum": [
+                "wins",
+                "by_more_than",
+                "over"
+              ]
+            }
+          },
+          "required": [
+            "text",
+            "subject_type",
+            "subject",
+            "name",
+            "stat",
+            "line",
+            "direction"
+          ],
+          "additionalProperties": false
+        },
+        "market_price": {
+          "type": "object",
+          "properties": {
+            "p": {
+              "type": "number"
+            },
+            "basis": {
+              "enum": [
+                "exchange_mid",
+                "median_devig_mult"
+              ]
+            },
+            "bid": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "ask": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "books": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "read_at": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "instrument": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "p",
+            "basis",
+            "bid",
+            "ask",
+            "books",
+            "read_at",
+            "instrument"
+          ],
+          "additionalProperties": false
+        },
+        "model": {
+          "type": "object",
+          "properties": {
+            "p": {
+              "type": "number"
+            },
+            "model": {
+              "enum": [
+                "game_moneyline",
+                "game_spread",
+                "game_total",
+                "prop_baseline"
+              ]
+            },
+            "as_of": {
+              "$ref": "#/$defs/Timestamp"
+            }
+          },
+          "required": [
+            "p",
+            "model",
+            "as_of"
+          ],
+          "additionalProperties": false
+        },
+        "difference_pp": {
+          "type": "number"
+        },
+        "side": {
+          "enum": [
+            "claim",
+            "against"
+          ]
+        },
+        "cost": {
+          "type": "object",
+          "properties": {
+            "total_pp": {
+              "type": "number"
+            },
+            "half_spread_pp": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "fee_pp": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "book_margin_pp": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "basis": {
+              "enum": [
+                "exchange_touch_taker",
+                "book_devig"
+              ]
+            },
+            "ticket": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "fee_series": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "fee_multiplier": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "price": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "total_pp",
+            "half_spread_pp",
+            "fee_pp",
+            "book_margin_pp",
+            "basis",
+            "ticket",
+            "fee_series",
+            "fee_multiplier",
+            "price"
+          ],
+          "additionalProperties": false
+        },
+        "net_pp": {
+          "type": "number"
+        },
+        "depth": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "touch_price": {
+                  "type": "number"
+                },
+                "touch_size": {
+                  "type": "number"
+                },
+                "fills_ticket": {
+                  "type": "boolean"
+                },
+                "vwap_100": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "vwap_500": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "vwap_1000": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "slip_100_pp": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "read_at": {
+                  "$ref": "#/$defs/Timestamp"
+                }
+              },
+              "required": [
+                "touch_price",
+                "touch_size",
+                "fills_ticket",
+                "vwap_100",
+                "vwap_500",
+                "vwap_1000",
+                "slip_100_pp",
+                "read_at"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "gap_band": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "lo_pp": {
+                  "type": "number"
+                },
+                "hi_pp": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "lo_pp",
+                "hi_pp"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "flagged": {
+          "type": "boolean"
+        },
+        "record": {
+          "enum": [
+            "moneyline",
+            "spread",
+            "total",
+            "prop"
+          ]
+        },
+        "ordering_note": {
+          "const": "disagreement_size"
+        }
+      },
+      "required": [
+        "rank",
+        "row_id",
+        "market",
+        "venue",
+        "game_id",
+        "kickoff",
+        "claim",
+        "market_price",
+        "model",
+        "difference_pp",
+        "side",
+        "cost",
+        "net_pp",
+        "depth",
+        "gap_band",
+        "flagged",
+        "record",
+        "ordering_note"
+      ],
+      "additionalProperties": false
+    },
+    "BoardAppealingRecord": {
+      "description": "The record of the model behind a row's number, READ from the file named in `file` (the three game records) or from R15 and the Board's ledger (the prop model). `beats` is each baseline it was scored against, with the Brier difference and the word computed from its interval; `vs_close` is the same against the closing price. Nothing here is restated by hand.",
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "The key of the record file these figures were read from."
+        },
+        "generated_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "beats": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "d_brier": {
+                "$ref": "#/$defs/GameInterval"
+              },
+              "compared": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "d_brier",
+              "compared"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "beats_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "vs_close": {
+          "type": "object",
+          "properties": {
+            "d_brier": {
+              "$ref": "#/$defs/GameInterval"
+            },
+            "compared": {
+              "type": "string"
+            },
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "type": "boolean"
+            },
+            "register": {
+              "type": "string"
+            },
+            "season": {
+              "type": "integer"
+            },
+            "games": {
+              "type": "integer"
+            },
+            "source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "d_brier",
+            "compared",
+            "path",
+            "display"
+          ],
+          "additionalProperties": false
+        },
+        "published": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "graded": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "published": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "cleared": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "missed": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "rate": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "breakeven": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "graded",
+                "published",
+                "cleared",
+                "missed",
+                "rate",
+                "breakeven"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "file",
+        "generated_at",
+        "beats",
+        "beats_reason",
+        "vs_close",
+        "published"
       ],
       "additionalProperties": false
     },

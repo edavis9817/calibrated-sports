@@ -738,27 +738,20 @@ def numbers(g, row, fc, km, tot, tot_why, feats, rec_ml, rec_sp, rec_tt, sp_why)
 # assembly
 # =============================================================================
 
-def build(m, forecast, record, now_ts, con=None, log=print, ctx=None, pace=None,
-          pace_err=None):
-    """-> ({key: body}, {key: error}). `forecast` and `record` are the bodies
-    jobs.game_export built this run. A matchup that fails on its own is reported and
-    the others are still built. `ctx` and `pace` are read from the stores unless
-    given (the tests give them; nothing else should)."""
+def prepare(m, week, now_ts, con=None, ctx=None, pace=None, pace_err=None):
+    """-> everything the per-game model objects are built from, read once: the
+    walk's parameters and margin sd, c-30's and c-31's frozen fits (and why either
+    is withheld), the schedule context, team pace, the rating snapshots and the
+    total's factor states. `build` and jobs.appealing_export both start here, so a
+    rung priced there and a matchup built here are one computation (a-70)."""
     from jobs import season_model as S
-    from models import key_margin as KM
+    from models import season as M
     from research import game_forecast as GF
     from research import game_total as T
     games, year, walk = m["games"], m["year"], m["walk"]
-    out, failed = {}, {}
-    if not forecast["games"]:
-        return out, failed
     params = walk.params(year)
     sigma_exact = GF.margin_sigmas(games, walk, [year])[year]
     c30, c31, problems = frozen(year, params.as_dict(), sigma_exact)
-    rec_sp = build_record_spread(c30)
-    rec_tt = build_record_total(c31)
-    out[RECORD_SPREAD_KEY] = rec_sp
-    out[RECORD_TOTAL_KEY] = rec_tt
     if ctx is None:
         own = con is None
         con = S.market_log_ro() if own else con
@@ -767,19 +760,12 @@ def build(m, forecast, record, now_ts, con=None, log=print, ctx=None, pace=None,
         finally:
             if own:
                 con.close()
-    if "forecast" not in ctx:
-        ctx["forecast"], ctx["forecast_reason"] = read_forecasts(
-            now_ts, [r["game_id"] for r in forecast["games"]])
     by_id = {g["game_id"]: g for g in games}
     if pace is None:
         pace, pace_err = read_pace(by_id)
-    cross, points = venues()
-    week = forecast["week"]
-    cutoff = now_ts
-    from models import season as M
     _pre, snaps = M.run_elo(
         games, params, snapshot_at=[(year, k) for k in range(0, week)] + [(year, 99)])
-    ok, n_tg, n_cov = pace_complete(games, year, cutoff, pace)
+    ok, n_tg, n_cov = pace_complete(games, year, now_ts, pace)
     states = T.factor_states(games, pace) if ok and "total" not in problems else {}
     tot_why = problems.get("total") or (None if ok else (
         pace_err or f"team pace is built for {n_cov} of the {n_tg} team-games played this "
@@ -791,6 +777,67 @@ def build(m, forecast, record, now_ts, con=None, log=print, ctx=None, pace=None,
                and (r["roof"] or "") in ("outdoors", "open")
                and by_id.get(gid) and 2000 <= by_id[gid]["season"] < year]
     assumed = r1(sum(outdoor) / len(outdoor)) if outdoor else None
+    return {"params": params, "sigma": sigma_exact, "c30": c30, "c31": c31,
+            "problems": problems, "ctx": ctx, "by_id": by_id, "pace": pace,
+            "pace_err": pace_err, "snaps": snaps, "states": states, "tot_why": tot_why,
+            "assumed": assumed}
+
+
+def game_objects(P, m, gid, as_of):
+    """-> (i, g, fc, km, tot, feats, why the total is absent). The three model
+    objects for one game, from `prepare`'s state: c-28's forecast, c-30's
+    key-number margin on it (None when the fit is withheld) and c-31's total (None
+    with the reason)."""
+    from models import key_margin as KM
+    from research import game_total as T
+    games, year = m["games"], m["year"]
+    snaps, ctx = P["snaps"], P["ctx"]
+    i = next(j for j, x in enumerate(games) if x["game_id"] == gid)
+    g = games[i]
+    # p_home as published is rounded to 4 dp; the objects take the walk's own value
+    rh = snaps[(year, 99)].get(G.franchise(g["home"]), G.MEAN)
+    ra = snaps[(year, 99)].get(G.franchise(g["away"]), G.MEAN)
+    _d, p = G.pregame(rh, ra, P["params"])
+    fc = G.GameForecast(game_id=gid, home=g["home"], away=g["away"], as_of=as_of,
+                        p_home=p, sigma_m=P["sigma"], mu_t=0.0, sigma_t=1.0)
+    km = None
+    if "spread" not in P["problems"]:
+        f30 = P["c30"]["fits"][str(year)]
+        km = KM.KeyMarginForecast(base=fc, w=tuple(f30["w"]), t=f30["t"])
+    tot, feats = None, None
+    if not P["tot_why"]:
+        if (i, "home") in P["states"] and (i, "away") in P["states"]:
+            wx = T.weather_x(((ctx["sched"].get(gid) or {}).get("roof") or "", None))
+            tot, feats = total_forecast(g, i, games, P["c31"], year, P["states"], fc, wx,
+                                        P["assumed"])
+    why = P["tot_why"] or (None if tot else "no factor state for one of the teams")
+    return i, g, fc, km, tot, feats, why
+
+
+def build(m, forecast, record, now_ts, con=None, log=print, ctx=None, pace=None,
+          pace_err=None):
+    """-> ({key: body}, {key: error}). `forecast` and `record` are the bodies
+    jobs.game_export built this run. A matchup that fails on its own is reported and
+    the others are still built. `ctx` and `pace` are read from the stores unless
+    given (the tests give them; nothing else should)."""
+    games, year = m["games"], m["year"]
+    out, failed = {}, {}
+    if not forecast["games"]:
+        return out, failed
+    week = forecast["week"]
+    P = prepare(m, week, now_ts, con=con, ctx=ctx, pace=pace, pace_err=pace_err)
+    c30, c31, problems, ctx = P["c30"], P["c31"], P["problems"], P["ctx"]
+    pace, pace_err, snaps, tot_why, assumed = (P["pace"], P["pace_err"], P["snaps"],
+                                               P["tot_why"], P["assumed"])
+    rec_sp = build_record_spread(c30)
+    rec_tt = build_record_total(c31)
+    out[RECORD_SPREAD_KEY] = rec_sp
+    out[RECORD_TOTAL_KEY] = rec_tt
+    if "forecast" not in ctx:
+        ctx["forecast"], ctx["forecast_reason"] = read_forecasts(
+            now_ts, [r["game_id"] for r in forecast["games"]])
+    cross, points = venues()
+    cutoff = now_ts
     wind_fit = gi(c31["diagnostics"]["D4"]["i_full_stack"])
     stadium = {gid: (r["stadium"] if r else None) for gid, r in ctx["sched"].items()}
     for g in games:
@@ -800,25 +847,8 @@ def build(m, forecast, record, now_ts, con=None, log=print, ctx=None, pace=None,
     for gid, frow in fc_by_id.items():
         key = f"{MATCHUP_DIR}{gid}.json"
         try:
-            i = next(j for j, x in enumerate(games) if x["game_id"] == gid)
-            g = games[i]
-            # p_home as published is rounded to 4 dp; the objects take the walk's own value
-            rh = snaps[(year, 99)].get(G.franchise(g["home"]), G.MEAN)
-            ra = snaps[(year, 99)].get(G.franchise(g["away"]), G.MEAN)
-            _d, p = G.pregame(rh, ra, params)
-            fc = G.GameForecast(game_id=gid, home=g["home"], away=g["away"],
-                                as_of=forecast["as_of"]["instant"],
-                                p_home=p, sigma_m=sigma_exact, mu_t=0.0, sigma_t=1.0)
-            km = None
-            if "spread" not in problems:
-                f30 = c30["fits"][str(year)]
-                km = KM.KeyMarginForecast(base=fc, w=tuple(f30["w"]), t=f30["t"])
-            tot, feats = None, None
-            if not tot_why:
-                if (i, "home") in states and (i, "away") in states:
-                    wx = T.weather_x(((ctx["sched"].get(gid) or {}).get("roof") or "", None))
-                    tot, feats = total_forecast(g, i, games, c31, year, states, fc, wx, assumed)
-            this_tot_why = tot_why or (None if tot else "no factor state for one of the teams")
+            i, g, fc, km, tot, feats, this_tot_why = game_objects(
+                P, m, gid, forecast["as_of"]["instant"])
             home, away = G.franchise(g["home"]), G.franchise(g["away"])
             body = {
                 "season": year, "week": week, "game_id": gid,

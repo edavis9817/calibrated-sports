@@ -373,6 +373,9 @@ SPORT_TABLE_SOURCES = {
         "market_outcome": ("kalshi.ladders", "polymarket", "oddsapi"),
         "markets": ("kalshi.ladders", "polymarket", "oddsapi"),
         "quotes": ("kalshi.ladders", "kalshi.price_history", "polymarket", "oddsapi"),
+        # a-70: the logger's depth reads of the exchanges' books (touch size, VWAP
+        # at 100 / 500 / 1,000 contracts). Never read by an export before a-70.
+        "market_depth": ("kalshi.ladders", "polymarket"),
         "predictions": ("calibrated.model",),
         "model_version_equivalence": ("calibrated.model",),
     },
@@ -445,6 +448,10 @@ LOADERS = {
             "history", "posted_record", "model_prob", "kalshi_mid", "settle")},
         # --tick's choice of WHICH week to read; no row of it reaches a file.
         "jobs.board_read.weeks_in_play": (),
+        # a-70: the tick runs jobs.appealing_export.publish, whose SQL the scan
+        # follows from here: Kalshi's mapped rungs, their live quotes and depth, the
+        # benchmark books' game lines, and the schedule.
+        "jobs.board_read._tick": ("board_appealing",),
         # a-32: the Lab library. `lab.universe` builds the table every preset runs
         # over (jobs/lab_publish.py writes the files from it); every table it reads
         # reaches the preset files, and the index inherits them through KIND_INPUTS.
@@ -506,6 +513,14 @@ NARROW = {
         ("jobs.board_read.kalshi_mid", "market_outcome"): ("kalshi.ladders",),
         ("jobs.board_read.kalshi_mid", "quotes"): ("kalshi.ladders",),
         ("jobs.board_read.posted_record", "outcomes"): ("oddsapi",),
+        # a-70: appealing_export reads Kalshi's mapped markets (venue = 'kalshi',
+        # source = 'live') and depth, and the Odds API books' game lines (venue
+        # 'oddsapi:*', source = 'live'). No Polymarket row and no backfilled candle.
+        ("jobs.board_read._tick", "outcomes"): ("kalshi.ladders",),
+        ("jobs.board_read._tick", "market_outcome"): ("kalshi.ladders",),
+        ("jobs.board_read._tick", "markets"): ("oddsapi",),
+        ("jobs.board_read._tick", "quotes"): ("kalshi.ladders", "oddsapi"),
+        ("jobs.board_read._tick", "market_depth"): ("kalshi.ladders",),
         # a-32: every price in the Lab universe is an Odds API historical close
         # (quotes.source = 'oddsapi_historical'); outcomes are read whole but only
         # those joined to an Odds API close become rows.
@@ -545,6 +560,9 @@ KIND_INPUTS = {
         # a-57: record/{sport}/published.json is a projection of the Board's lean
         # ledger alone, which board_read's producer writes.
         "record.published": ("board_read",),
+        # a-70: the book-prop rows are the Board's latest read as published, and the
+        # gap bands are its ledger's graded leans.
+        "board_appealing": ("board_read",),
     },
     "cfb": {},
     "mlb": {},
@@ -604,6 +622,14 @@ KIND_EXTRA = {
                          "openmeteo"),
         "game.matchup_index": ("nflverse.schedule", "calibrated.game_models"),
         "game.model_record": ("calibrated.game_models",),
+        # a-70: jobs/appealing_export.py. Its SQL is attributed through
+        # jobs.board_read._tick (LOADERS) and the Board's reads through KIND_INPUTS;
+        # these are the reads that are not SQL the scan sees: the game model
+        # (jobs.season_model's schedule load, team pace from play-by-play in the
+        # analytics store for the total, the committed c-30 / c-31 fits) and the
+        # committed walk-forward bands it reports disagreement size from.
+        "board_appealing": ("nflverse.schedule", "nflverse.pbp", "calibrated.game_models",
+                            "calibrated.walkforward"),
         # a-45: jobs/lab_publish.py's catalogue. Its ranges also come from the
         # analytics column survey (analytics.metrics.derive_range, run by
         # lab.catalogue.ranges when the universe is built), which measures the

@@ -1043,6 +1043,13 @@ def _tick(season, dest, upload, now_ts, db, client, log):
     rec = record_export.publish(dest, now_ts=now_ts, upload=upload, client=client, log=log)
     out["record"] = {k: rec[k] for k in ("built", "written", "unbuilt", "failed")}
     out["record"]["uploaded"] = (rec["upload"] or {}).get("uploaded")
+    # a-70: what the week's market prices beside our numbers, ranked, written into
+    # this tree AFTER this tick's upload - the next tick's upload ships it. Like the
+    # record step it never raises and never replaces its file with a failed build.
+    from jobs import appealing_export
+    ap = appealing_export.publish(dest, now_ts=now_ts, log=log, db=db)
+    out["appealing"] = {k: ap[k] for k in ("rows", "parts", "written")}
+    out["appealing"]["failed"] = [f["error"] for f in ap["failed"]]
     log(json.dumps(out, default=str))
     if out["failed"]:
         raise TickFailed(f"{len(out['failed'])} of {len(due)} due week(s) failed: "
