@@ -1,0 +1,49 @@
+captured 6580 cover rows (985 on 3; 5162 with a book price) in 14s
+
+== 1. REPRODUCE (c-30's code, today's store; book price re-derived here from nfl_games)
+   cover rows               measured +6580.00000  published +6580.0000  -> REPRODUCES
+   rows on 3                measured +985.00000  published +985.0000  -> REPRODUCES
+   rows with a book price   measured +5162.00000  published +5162.0000  -> REPRODUCES
+   on3_dMCB est             measured +0.00099  published +0.0010  -> REPRODUCES
+   on3_dMCB lo              measured +0.00047  published +0.0005  -> REPRODUCES
+   on3_dMCB hi              measured +0.00139  published +0.0014  -> REPRODUCES
+   pooled_dBrier est        measured +0.00091  published +0.0009  -> REPRODUCES
+   pooled_dBrier lo         measured +0.00025  published +0.0003  -> REPRODUCES
+   pooled_dBrier hi         measured +0.00155  published +0.0016  -> REPRODUCES
+   book_dBrier est          measured +0.00813  published +0.0081  -> REPRODUCES
+   book_dBrier lo           measured +0.00540  published +0.0054  -> REPRODUCES
+   book_dBrier hi           measured +0.01072  published +0.0107  -> REPRODUCES
+
+######## on3_dMCB (n 985)  +0.0010 [+0.0005, +0.0014] SE 0.00024 *
+== 2. rows x5 inside their game: blocked width x1.000 (passes); iid width x0.436 (expected 0.447; check discriminates)
+   game         ( 985 blocks) +0.0010 [+0.0005, +0.0014] SE 0.00024 *
+   season-week  ( 417 blocks) +0.0010 [+0.0005, +0.0014] SE 0.00023 *
+   season       (  25 blocks) +0.0010 [+0.0005, +0.0013] SE 0.00021 *
+   10 seeds: share excluding zero 1.00; lower bound from +0.00045 to +0.00052
+== 4. z +4.12 (p 0.00004); Bonferroni over c-30's own 72 registered intervals: p 0.0028 -> survives
+== 5. |estimate| / MDE = 1.47
+
+######## pooled_dBrier (n 6580)  +0.0009 [+0.0003, +0.0016] SE 0.00033 *
+== 2. rows x5 inside their game: blocked width x1.000 (passes); iid width x0.438 (expected 0.447; check discriminates)
+   game         (6580 blocks) +0.0009 [+0.0003, +0.0016] SE 0.00033 *
+   season-week  ( 530 blocks) +0.0009 [+0.0003, +0.0016] SE 0.00031 *
+   season       (  25 blocks) +0.0009 [+0.0004, +0.0015] SE 0.00027 *
+   10 seeds: share excluding zero 1.00; lower bound from +0.00025 to +0.00031
+== 4. z +2.79 (p 0.00526); Bonferroni over c-30's own 72 registered intervals: p 0.3786 -> DOES NOT SURVIVE
+== 5. |estimate| / MDE = 1.00  -> AT ITS MDE
+
+######## book_dBrier (n 5162)  +0.0081 [+0.0054, +0.0107] SE 0.00138 *
+== 2. rows x5 inside their game: blocked width x1.000 (passes); iid width x0.468 (expected 0.447; check discriminates)
+   game         (5162 blocks) +0.0081 [+0.0055, +0.0108] SE 0.00135 *
+   season-week  ( 418 blocks) +0.0081 [+0.0053, +0.0109] SE 0.00144 *
+   season       (  20 blocks) +0.0081 [+0.0061, +0.0101] SE 0.00104 *
+   10 seeds: share excluding zero 1.00; lower bound from +0.00540 to +0.00560
+== 4. z +5.90 (p 0.00000); Bonferroni over c-30's own 72 registered intervals: p 0.0000 -> survives
+== 5. |estimate| / MDE = 2.11
+
+== 3. LEAKAGE: scramble every result at or after a cutoff; no earlier forecast (E, N0, N1) may move
+   cutoff 1202081400: 1806 earlier forecasts x 3 arms checked, 0 moved; 4723 LATER forecasts moved (the check can see a change)
+   cutoff 1477859100: 3999 earlier forecasts x 3 arms checked, 0 moved; 2551 LATER forecasts moved (the check can see a change)
+   cutoff 1705786200: 6009 earlier forecasts x 3 arms checked, 0 moved; 563 LATER forecasts moved (the check can see a change)
+
+wrote D:/temp/f26/c30.json (98s)

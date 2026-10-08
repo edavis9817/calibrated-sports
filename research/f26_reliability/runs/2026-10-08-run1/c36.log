@@ -1,0 +1,44 @@
+#### T2b: market move on model move, read against 1 ("the market moves less than the model")
+== 1. REPRODUCE from the unit's committed rows (arithmetic only): n 128, move_w on dmodel
+   coefficient measured +0.7238  published +0.724 -> REPRODUCES
+   lo under this file's own seed +0.6502  published +0.652 -> consistent (|diff| 0.0018, tolerance 0.25 SE = 0.0098)
+   hi under this file's own seed +0.8043  published +0.803 -> consistent (|diff| 0.0013, tolerance 0.25 SE = 0.0098)
+== 2. BLOCKS (statistic is coefficient minus 1)
+   rows x5 inside their team: blocked width x1.000 (passes); iid width x0.439 (expected 0.447; check discriminates)
+   team     ( 32 blocks) -0.276 [-0.350, -0.196] SE 0.0390 *
+   game     ( 64 blocks) -0.276 [-0.363, -0.188] SE 0.0455 *
+   week     (  4 blocks) -0.276 [-0.276, -0.276] SE 0.0000 *   (<5 blocks: not read)
+   10 seeds: share excluding the null 1.00
+== 4. z -7.08 against 1; Bonferroni over the unit's own 3: p 0.0000 -> survives
+== 5. |estimate - null| / MDE = 2.53 -> CLEAR its MDE
+== 3. LEAKAGE: NOT RUN. Rows only; the unit's pipeline was not re-executed.
+
+#### T3-P registered primary: gap, read against 0
+== 1. REPRODUCE from the unit's committed rows (arithmetic only): n 128, move_p on gap,win,lvl,win_lvl
+   coefficient measured +0.0500  published +0.050 -> REPRODUCES
+   lo under this file's own seed -0.0244  published -0.022 -> consistent (|diff| 0.0024, tolerance 0.25 SE = 0.0098)
+   hi under this file's own seed +0.1318  published +0.132 -> consistent (|diff| 0.0002, tolerance 0.25 SE = 0.0098)
+== 2. BLOCKS (statistic is coefficient minus 0)
+   rows x5 inside their team: blocked width x1.000 (passes); iid width x0.418 (expected 0.447; check discriminates)
+   team     ( 32 blocks) +0.050 [-0.024, +0.132] SE 0.0390
+   game     ( 64 blocks) +0.050 [-0.021, +0.119] SE 0.0362
+   week     (  4 blocks) +0.050 [+0.050, +0.050] SE 0.0000 *   (<5 blocks: not read)
+   10 seeds: share excluding the null 0.00
+== 4. z +1.28 against 0; Bonferroni over the unit's own 3: p 0.6011 -> does not survive
+== 5. |estimate - null| / MDE = 0.46 -> BELOW its MDE
+== 3. LEAKAGE: NOT RUN. Rows only; the unit's pipeline was not re-executed.
+
+#### the same slope WITHOUT the level control (c-36: +0.143, z 4.8, 'the mechanical channel')
+== 1. REPRODUCE from the unit's committed rows (arithmetic only): n 128, move_p on gap,win
+   coefficient measured +0.1428  published +0.143 -> REPRODUCES
+   lo under this file's own seed +0.0861  published +0.084 -> consistent (|diff| 0.0021, tolerance 0.25 SE = 0.0073)
+   hi under this file's own seed +0.2016  published +0.205 -> consistent (|diff| 0.0034, tolerance 0.25 SE = 0.0073)
+== 2. BLOCKS (statistic is coefficient minus 0)
+   rows x5 inside their team: blocked width x1.000 (passes); iid width x0.426 (expected 0.447; check discriminates)
+   team     ( 32 blocks) +0.143 [+0.086, +0.202] SE 0.0293 *
+   game     ( 64 blocks) +0.143 [+0.088, +0.208] SE 0.0305 *
+   week     (  4 blocks) +0.143 [+0.143, +0.143] SE 0.0000 *   (<5 blocks: not read)
+   10 seeds: share excluding the null 1.00
+== 4. z +4.87 against 0; Bonferroni over the unit's own 3: p 0.0000 -> survives
+== 5. |estimate - null| / MDE = 1.74 -> CLEAR its MDE
+== 3. LEAKAGE: NOT RUN. Rows only; the unit's pipeline was not re-executed.

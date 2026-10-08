@@ -1,0 +1,73 @@
+224 machine reports (0 unreadable []); window opens 2026-09-30T01:38:40-04:00; 28 units in it, 9 with an interval claim
+  c-32  score 5  published by a-70; names its MDE; headline interval excludes zero 11 intervals  headline +0.104 [+0.039, +0.176]
+  c-31  score 5  published by a-64,a-66,a-70; names its MDE; headline interval excludes zero 11 intervals  headline -0.0075 [-0.0090,-0.0060]
+  c-30  score 5  published by a-63,a-64,a-70; names its MDE; headline interval excludes zero  9 intervals  headline +0.0010 [+0.0005, +0.0014]
+  a-63  score 3  published by a-64,b-97,b-98                           2 intervals  headline -0.0170 [-0.0222, -0.0118]
+  c-36  score 2  names its MDE; headline interval excludes zero       13 intervals  headline 0.72 [0.65, 0.80]
+  c-35  score 1  names its MDE                                         9 intervals  headline +0.40pp [-9.3, +8.0]
+  c-34  score 1  names its MDE                                         6 intervals  headline +0.00010 [-0.00022, +0.00040]
+  c-29  score 1  names its MDE                                         4 intervals  headline -0.08pp [-0.34, +0.24]
+  c-33  score 0  -                                                     3 intervals  headline 2.81 [2.15, 3.60]
+  no interval stated (not targets for this checklist): b-92, a-60, b-93, a-61, a-62, b-94, b-96, b-95, a-64, b-97, a-65, f-24, a-66, a-67, a-68, f-25, a-69, b-98, a-70
+
+needs_ethan: 87 items raised by the 28 units in the window (515 across all 224 reports)
+  of them 'merge / merge order / deploy this branch' asks (one CLASS, a different branch each): 19
+  repeat an earlier unit's item at Jaccard >= 0.4: 9
+  repeat an earlier unit's item at Jaccard >= 0.5: 6
+  repeat an earlier unit's item at Jaccard >= 0.6: 1
+  0.62 a-69  Merge a-68 and restart the logger before about 17:00Z Thursday 2026-10-08.
+       ~ a-68  Merge a-68-prop-mapping-collapse to origin/main and restart the logger before about 17:00Z on Thursday 2026-10-08.
+  0.56 c-30  Decide c-18's flip: merge c-18-flip / c-18-extended-export, or record the row as abandoned
+       ~ c-18  Merge c-18-extended-export, then c-18-flip
+  0.50 b-94  Merge order for b-94
+       ~ b-77  Merge order with a-48
+  0.50 a-69  check_fit.py was moved out of the production clone to code\prod\_set-aside\calibrated-sports\.
+       ~ a-67  Move check_fit.py out of code\prod\calibrated-sports
+  0.50 b-98  Whether the matchup page shows the model's loss to the closing price, which a-63 withheld and production's matchup files now switch on
+       ~ b-97  Whether the matchup page shows the model's loss to the closing price, or holds it back as a-63 decided
+  0.50 b-98  Merging b-98-integration to main, which deploys
+       ~ b-04  Merge b-integration into main, which is what deploys
+  0.47 a-68  Hold week 4's Kalshi prop quotes before 2026-10-15: python -m jobs.hold_weeks --week 4.
+       ~ c-32  Track A: hold 2026 week 4 Kalshi game/spread/total quotes (jobs.hold_weeks --week 4) so c-32 can be re-run with week 4 after 10-05
+  0.45 a-69  Repoint Weekly Refresh at the production clone, and decide first what the sync does with a slug commit made there.
+       ~ a-67  Repoint Weekly Refresh at the production clone
+  0.44 a-66  Merging a-66-close-data-gaps (stacked on a-64-matchup) to main
+       ~ a-64  Merging a-64-matchup to main
+  0.38 a-61  Merge c-20, c-21, c-24, then a-57, then a-61 to origin/main.
+       ~ a-57  Merge order: a-57 carries unmerged c-19..c-24 via c-20/c-21/c-24.
+  0.38 f-25  Point the Weekly Refresh task at code\prod\calibrated-sports
+       ~ a-15  Cut the Weekly Refresh task over to code\prod (raised by a-14, still open)
+  0.33 a-63  Merge a-63-game-forecast-publish to main
+       ~ c-28  Whether to publish the game forecast with its scored record on the site
+  0.33 b-97  Merge order: a-64 and a refresh before this branch
+       ~ b-94  Merge order for b-94
+  0.31 b-95  Receipts: 'Nothing was deleted' missing, '03 Rows in the ledger' in its place
+       ~ b-77  §03 heading once the chain lands: keep 'Rows in the ledger', or restore 'Nothing was deleted'
+  0.30 a-67  Move check_fit.py out of code\prod\calibrated-sports
+       ~ a-48  Find the second writer in code/calibrated-sports
+  0.29 b-95  The analytics family's left rail, which no board has
+       ~ a-11  The rank '#' column on the Analytics board
+  0.29 a-64  Merging a-64-matchup to main
+       ~ b-09  Merging b-08 + b-09 into b-integration / main
+  0.29 a-66  Ingest stats_team into the live store: from code\prod\calibrated-sports after merge, python -m jobs.ingest_nflverse --dataset team_stats --season 1999
+       ~ a-15  Re-derive the live store from the archive: python -m jobs.ingest_nflverse --from-archive --dataset pbp, then --dataset weekly_stats
+  0.29 a-69  Merge branch a-69-prod-sync to main.
+       ~ b-89  Which b-89 branch to merge
+  0.27 f-24  Queue a unit to rebuild the 2026 spine, NGS tables and metrics
+       ~ b-72  Queue a Teams-index unit and a Lines rebuild unit.
+  0.27 f-25  Merge f-25-rebuild-2026-spine to main
+       ~ f-24  Queue a unit to rebuild the 2026 spine, NGS tables and metrics
+  0.27 a-70  Merge a-70-appealing to origin/main, with a-66 and a-68 which it contains.
+       ~ a-08  Merge a-08-team-series to origin/main
+  0.26 a-62  Merge order: a-62 (and the a-57/a-61 stack under it) must not reach origin/main, and so production, until the site's ledger reader accepts the 28-colu
+       ~ a-48  Merge order: track b's ledger reader (accepting 25 or 27 columns) must be DEPLOYED before a-48 reaches origin/main
+  0.25 a-65  Queue a fix unit for after the slate
+       ~ b-72  Queue a Teams-index unit and a Lines rebuild unit.
+  0.25 a-65  Backfill 14:50-15:28Z Kalshi prices from candlesticks
+       ~ b-11  Choose the durable fix for Kalshi prices
+  0.25 a-67  Repoint Weekly Refresh at the production clone
+       ~ a-65  Cut the logger over to the production clone
+  0.25 a-69  Restart the Live Snapshot task.
+       ~ b-46  Register the live snapshot task and the post-game refresh on the prod clone (DECISIONS-2026-09-26 §1)
+  0.25 a-69  Set PROD_SYNC_HEALTHCHECK_URL in the production clone's .env.
+       ~ a-67  Repoint Weekly Refresh at the production clone

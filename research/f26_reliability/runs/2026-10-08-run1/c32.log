@@ -1,0 +1,45 @@
+re-run store {'nfl_games': '2026-10-08', 'nfl_teams': '2026-09-16'}; recorded store {'nfl_games': '2026-09-30', 'nfl_teams': '2026-09-16'}
+
+== 1. REPRODUCE (c-32's own script, today's store)
+   moneyline slope  measured +0.1043  published +0.104  -> REPRODUCES
+   moneyline lo     measured +0.0393  published +0.039  -> REPRODUCES
+   moneyline hi     measured +0.1759  published +0.176  -> REPRODUCES
+   spread slope     measured +0.1056  published +0.106  -> REPRODUCES
+   spread lo        measured +0.0269  published +0.027  -> REPRODUCES
+   spread hi        measured +0.1780  published +0.178  -> REPRODUCES
+   total slope      measured -0.0189  published -0.026  -> DOES NOT REPRODUCE
+   total lo         measured -0.1730  published -0.174  -> DOES NOT REPRODUCE
+   total hi         measured +0.1309  published +0.112  -> DOES NOT REPRODUCE
+   moneyline per-game drift since the recorded run: model 0, open 0, close 0
+   spread    per-game drift since the recorded run: model 0, open 0, close 0
+   total     per-game drift since the recorded run: model 1.31, open 0, close 0
+   moneyline open and close re-read from quotes by this file: max |diff| 0 over 32 games; open bid-ask width median 0.010, max 0.020
+
+######## MONEYLINE (n 32, slope +0.1043)
+== 2. rows x5 inside their game: blocked width x1.000 (passes); iid width x0.439 (expected 0.447; check discriminates)
+   THROUGH c-32's boot(): copies of a game x0.389 - it has no block argument and narrows on ANY repeated row; valid here only because rows == distinct games (32 == 32, asserted)
+   game             (32 blocks) +0.104 [+0.043, +0.177] SE 0.0341 *
+   kickoff instant  (12 blocks) +0.104 [+0.057, +0.192] SE 0.0353 *
+   kickoff UTC day  ( 8 blocks) +0.104 [+0.061, +0.346] SE 0.1292 *
+   20 seeds, game blocks: share excluding zero 1.00; lower bound from +0.040 to +0.045
+== 3. as-of: the model's rating ancestry ends (+5h) before the open quote in 32 of 32 games (min slack 0.1h); planted early open -> FIRES
+== 4. z +3.09 (p 0.0020); Bonferroni k=2 p 0.004, k=12 p 0.024 -> survives
+== 5. |estimate| / MDE = 1.10  -> AT ITS MDE
+== 6. permutation null (model numbers shuffled across games, 20000 perms): null slope mean +0.032, sd 0.011, 95th pct +0.051; share >= observed 0.0000
+   close-open on model AND open jointly: coefficient on the model +0.099 [-0.035, +0.229] SE 0.0680  (corr(model, open) 0.83)
+   leave one game out: slope from +0.089 to +0.122
+
+######## SPREAD (n 32, slope +0.1056)
+== 2. rows x5 inside their game: blocked width x1.000 (passes); iid width x0.431 (expected 0.447; check discriminates)
+   THROUGH c-32's boot(): copies of a game x0.417 - it has no block argument and narrows on ANY repeated row; valid here only because rows == distinct games (32 == 32, asserted)
+   game             (32 blocks) +0.106 [+0.027, +0.183] SE 0.0385 *
+   kickoff instant  (12 blocks) +0.106 [+0.042, +0.210] SE 0.0449 *
+   kickoff UTC day  ( 8 blocks) +0.106 [+0.058, +0.426] SE 0.1099 *
+   20 seeds, game blocks: share excluding zero 1.00; lower bound from +0.022 to +0.035
+== 4. z +2.76 (p 0.0058); Bonferroni k=2 p 0.012, k=12 p 0.070 -> DOES NOT SURVIVE
+== 5. |estimate| / MDE = 0.98  -> AT ITS MDE
+== 6. permutation null (model numbers shuffled across games, 20000 perms): null slope mean +0.032, sd 0.012, 95th pct +0.053; share >= observed 0.0000
+   close-open on model AND open jointly: coefficient on the model +0.080 [-0.058, +0.206] SE 0.0674  (corr(model, open) 0.83)
+   leave one game out: slope from +0.089 to +0.122
+
+wrote D:/temp/f26/c32.json

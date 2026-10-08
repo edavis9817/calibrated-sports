@@ -1,0 +1,59 @@
+store versions {'nfl_games': '2026-10-08', 'nfl_teams': '2026-09-16'} (c-28 ran at nfl_games 2026-09-30)
+built 6743 Part-1 games in 10s
+
+== 1. REPRODUCE (today's store, c-28's fitting code, own Brier arithmetic)
+   n Part-1 games                         measured +6743.000000  published +6743.0000  -> REPRODUCES
+   dBrier vs home                         measured -0.025529  published -0.0255  -> REPRODUCES
+   dBrier vs record                       measured -0.016229  published -0.0162  -> REPRODUCES
+   dBrier vs elo_nomov                    measured -0.002668  published -0.0027  -> REPRODUCES
+   n moneyline-close games                measured +5281.000000  published +5281.0000  -> REPRODUCES
+   dBrier vs nflverse moneyline close     measured +0.009155  published +0.0092  -> REPRODUCES
+   registered draw (seed 24) vs home      -0.0255 [-0.0288, -0.0221]
+   registered draw (seed 24) vs record    -0.0162 [-0.0189, -0.0135]
+   registered draw (seed 24) vs elo_nomov -0.0027 [-0.0035, -0.0018]
+
+== 2. BLOCKS: rows x5 inside their block must not narrow; coarser blocks
+   home      blocked width x1.000 (passes)   iid width x0.446 (expected 0.447; check discriminates)
+   record    blocked width x1.000 (passes)   iid width x0.449 (expected 0.447; check discriminates)
+   elo_nomov blocked width x1.000 (passes)   iid width x0.446 (expected 0.447; check discriminates)
+   ml_close  blocked width x1.000 (passes)   iid width x0.443 (expected 0.447; check discriminates)
+   home      game            (6743 blocks) -0.0255 [-0.0287, -0.0224] SE 0.00164 *
+   home      season-week     ( 530 blocks) -0.0255 [-0.0286, -0.0224] SE 0.00162 *
+   home      season          (  25 blocks) -0.0255 [-0.0283, -0.0229] SE 0.00139 *
+   home      home franchise  (  32 blocks) -0.0255 [-0.0294, -0.0218] SE 0.00190 *
+   record    game            (6743 blocks) -0.0162 [-0.0188, -0.0137] SE 0.00132 *
+   record    season-week     ( 530 blocks) -0.0162 [-0.0188, -0.0136] SE 0.00132 *
+   record    season          (  25 blocks) -0.0162 [-0.0184, -0.0141] SE 0.00112 *
+   record    home franchise  (  32 blocks) -0.0162 [-0.0197, -0.0129] SE 0.00179 *
+   elo_nomov game            (6743 blocks) -0.0027 [-0.0036, -0.0017] SE 0.00046 *
+   elo_nomov season-week     ( 530 blocks) -0.0027 [-0.0035, -0.0018] SE 0.00044 *
+   elo_nomov season          (  25 blocks) -0.0027 [-0.0036, -0.0018] SE 0.00046 *
+   elo_nomov home franchise  (  32 blocks) -0.0027 [-0.0035, -0.0017] SE 0.00045 *
+   elo_nomov over 10 seeds: share excluding zero 1.00, hi in [-0.0018, -0.0017]
+   THROUGH GF.boot_many: copies inside their game x1.000 (passes); copies as new games x0.424 (expected 0.447; check discriminates)
+
+== 3. LEAKAGE
+   3a info-set audit of the rating walk: 0 games (0 in Part 1) entered with a LATER kickoff in their ratings' ancestry; by season {}; furthest look-ahead 0.0 days
+      planted (one 2019 week-12 game rescheduled to week 1): audit reports 113 -> FIRES
+   3b results at/after ts 1128344400 scrambled: 1119 earlier forecasts x 4 arms checked, 0 moved
+   3b results at/after ts 1292187900 scrambled: 2594 earlier forecasts x 4 arms checked, 0 moved
+   3b results at/after ts 1450646700 scrambled: 3947 earlier forecasts x 4 arms checked, 0 moved
+   3b results at/after ts 1607288700 scrambled: 5240 earlier forecasts x 4 arms checked, 0 moved
+   3b results at/after ts 1737248400 scrambled: 6454 earlier forecasts x 4 arms checked, 0 moved
+      planted (forecast reads its own result): 3 forecasts moved -> FIRES
+   3c parameters refitted on a store truncated before each season: 50 fits checked, 0 differ []
+      planted (season T uses season T+1's parameters): differs in 6 seasons [2001, 2003, 2005, 2006, 2007, 2009] -> FIRES
+
+== 4. SPECIFICATIONS
+   home      z -15.1  Bonferroni survives at k=3 True, k=32 True, k=1000 True   |est|/MDE 5.38
+   record    z -12.5  Bonferroni survives at k=3 True, k=32 True, k=1000 True   |est|/MDE 4.47
+   elo_nomov z -6.0  Bonferroni survives at k=3 True, k=32 True, k=1000 True   |est|/MDE 2.14
+   ml_close  z +7.7  Bonferroni survives at k=3 True, k=32 True, k=1000 True   |est|/MDE 2.74
+   4b K grid [10.0, 15.0, 20.0, 25.0, 30.0, 40.0]: plain Elo's fitted K is the grid maximum in 25 of 25 scored seasons (MOV at an edge: 0)
+      plain Elo refitted walk-forward with K up to 120: fitted K values [40.0, 50.0] (at new max in 0 seasons)
+      Brier: model 0.2206 | plain Elo registered grid 0.2232 | plain Elo widened grid 0.2233
+      dBrier(model - plain Elo), widened grid: -0.0027 [-0.0036, -0.0019] SE 0.00041 *   |est|/MDE 2.42   excl. zero in 100% of 10 seeds
+      REG week_1_4: registered -0.0008 [-0.0024, +0.0009] SE 0.00082 | widened -0.0017 [-0.0031, -0.0004] SE 0.00070 *
+      REG week_5_plus: registered -0.0032 [-0.0042, -0.0021] SE 0.00054 * | widened -0.0029 [-0.0039, -0.0019] SE 0.00050 *
+
+wrote D:/temp/f26/c28.json (251s)
