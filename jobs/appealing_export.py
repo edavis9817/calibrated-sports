@@ -641,7 +641,11 @@ def part_game_books(con, now_ts, games, models, counts):
                     counts["spread model withheld"] += 1
                     continue
                 p = km.prob_cover(line)
-                claim = {"text": f"{g['home']} wins by more than {line:g}", "subject_type": "team",
+                # `line` is the margin the home team must win by; below zero it is
+                # getting points, and "wins by more than -7" is not a sentence
+                text = (f"{g['home']} wins by more than {line:g}" if line > 0 else
+                        f"{g['home']} wins, or loses by fewer than {-line:g}")
+                claim = {"text": text, "subject_type": "team",
                          "subject": g["home"], "name": g["home"], "stat": "margin", "line": line,
                          "direction": "by_more_than"}
                 model = "game_spread"
