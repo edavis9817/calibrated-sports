@@ -1,0 +1,198 @@
+FBS-FBS games loaded 18,991, completed 18,500, equal-score rows dropped 0
+MOV grid 207,360 points 326s; points dropped for a non-positive multiplier denominator 29,505
+plain grid 9,600 points 3s
+
+-- fitted constants by season (MOV | plain) and sigma_m
+   2005  k    40 hfa   85 reg 0.30 a None cap None conf_w 1.0 entry  -300 | k    80 hfa   85 reg 0.20 conf_w 1.0 entry  -300 | sigma_m 16.8
+   2006  k    40 hfa   70 reg 0.30 a None cap None conf_w 1.0 entry  -400 | k    80 hfa   70 reg 0.20 conf_w 1.0 entry  -400 | sigma_m 16.7
+   2007  k    40 hfa   70 reg 0.40 a None cap None conf_w 1.0 entry  -400 | k   100 hfa   70 reg 0.30 conf_w 1.0 entry  -400 | sigma_m 16.7
+   2008  k    40 hfa   70 reg 0.40 a None cap None conf_w 1.0 entry  -400 | k    80 hfa   70 reg 0.20 conf_w 1.0 entry  -400 | sigma_m 16.5
+   2009  k    30 hfa   70 reg 0.30 a None cap None conf_w 1.0 entry  -400 | k    80 hfa   55 reg 0.30 conf_w 1.0 entry  -400 | sigma_m 16.8
+   2010  k    30 hfa   70 reg 0.30 a None cap None conf_w 1.0 entry  -400 | k    80 hfa   70 reg 0.20 conf_w 1.0 entry  -400 | sigma_m 16.6
+   2011  k    40 hfa   70 reg 0.40 a None cap None conf_w 1.0 entry  -400 | k    80 hfa   55 reg 0.30 conf_w 1.0 entry  -400 | sigma_m 16.3
+   2012  k    40 hfa   70 reg 0.40 a None cap None conf_w 1.0 entry  -400 | k    80 hfa   55 reg 0.30 conf_w 1.0 entry  -400 | sigma_m 16.3
+   2013  k    40 hfa   55 reg 0.40 a None cap None conf_w 1.0 entry  -400 | k    80 hfa   55 reg 0.30 conf_w 1.0 entry  -400 | sigma_m 16.3
+   2014  k    40 hfa   55 reg 0.40 a None cap None conf_w 1.0 entry  -400 | k    80 hfa   55 reg 0.30 conf_w 1.0 entry  -400 | sigma_m 16.3
+   2015  k    40 hfa   55 reg 0.40 a None cap None conf_w 1.0 entry  -400 | k    80 hfa   55 reg 0.30 conf_w 1.0 entry  -400 | sigma_m 16.3
+   2016  k    40 hfa   55 reg 0.40 a None cap None conf_w 1.0 entry  -400 | k    80 hfa   55 reg 0.30 conf_w 1.0 entry  -400 | sigma_m 16.3
+   2017  k    40 hfa   55 reg 0.40 a None cap None conf_w 1.0 entry  -400 | k    80 hfa   55 reg 0.30 conf_w 1.0 entry  -400 | sigma_m 16.3
+   2018  k    40 hfa   55 reg 0.40 a None cap None conf_w 1.0 entry  -400 | k    80 hfa   55 reg 0.30 conf_w 1.0 entry  -400 | sigma_m 16.4
+   2019  k    40 hfa   55 reg 0.40 a None cap None conf_w 1.0 entry  -400 | k    80 hfa   55 reg 0.30 conf_w 1.0 entry  -400 | sigma_m 16.3
+   2020  k    40 hfa   55 reg 0.40 a None cap None conf_w 1.0 entry  -300 | k    80 hfa   55 reg 0.30 conf_w 1.0 entry  -400 | sigma_m 16.4
+   2021  k    40 hfa   55 reg 0.40 a None cap None conf_w 1.0 entry  -300 | k    80 hfa   55 reg 0.30 conf_w 1.0 entry  -300 | sigma_m 16.4
+   2022  k    40 hfa   55 reg 0.40 a None cap None conf_w 1.0 entry  -300 | k    80 hfa   55 reg 0.30 conf_w 1.0 entry  -300 | sigma_m 16.4
+   2023  k    40 hfa   55 reg 0.40 a None cap None conf_w 1.0 entry  -300 | k    80 hfa   55 reg 0.30 conf_w 1.0 entry  -300 | sigma_m 16.4
+   2024  k    40 hfa   55 reg 0.40 a None cap None conf_w 1.0 entry  -300 | k    80 hfa   55 reg 0.30 conf_w 1.0 entry  -300 | sigma_m 16.3
+   2025  k    40 hfa   55 reg 0.40 a None cap None conf_w 1.0 entry  -300 | k    80 hfa   55 reg 0.30 conf_w 1.0 entry  -300 | sigma_m 16.3
+   2026  k    40 hfa   55 reg 0.40 a None cap None conf_w 1.0 entry  -300 | k    80 hfa   55 reg 0.30 conf_w 1.0 entry  -300 | sigma_m 16.3
+   grid edges hit, MOV: {"a=None (last)": [2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026], "cap=None (last)": [2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026], "conf_w=1.0 (last)": [2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026], "entry=-400.0 (last)": [2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019]}
+   grid edges hit, plain: {"conf_w=1.0 (last)": [2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026], "entry=-400.0 (last)": [2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020]}
+
+-- constants, NFL (c-28's 2026 fit) beside college (2026 fit; range over 2005-2025 fits)
+   k                                  NFL 20.0               college 40.0     range 30.0, 40.0
+   hfa (Elo points)                   NFL 50.0               college 55.0     range 55.0, 70.0, 85.0
+   preseason regression               NFL 0.5                college 0.4      range 0.3, 0.4
+   multiplier damping a               NFL 2.2                college None     range None
+   blowout cap (points)               NFL None               college None     range None
+   conference weight in the target    NFL not in the model   college 1.0      range 1.0
+   entry offset                       NFL 0.0                college -300.0   range -300.0, -400.0
+   home advantage on a neutral site   NFL applied (no flag)  college 0.0      
+   sigma_m (points)                   NFL 13.5               college 16.3     
+   plain Elo k                        NFL 40.0               college 80.0     
+   plain Elo hfa                      NFL 50.0               college 55.0     
+   plain Elo regression               NFL 0.3333333333333333 college 0.3      
+
+######## PART 1 - against settlement, 2005-2025, FBS-FBS decisive games (PRIMARY)
+
+== P1 model vs home: n 15,508  n_blocks 15508  realized 0.5808  (40s)
+   model      BS 0.1819 = MCB 0.0012 - DSC 0.0628 + UNC 0.2435   AUC 0.7932
+   comparator BS 0.2434 = MCB 0.0002 - DSC 0.0003 + UNC 0.2435   AUC 0.5069
+   dBrier  (model - comparator) -0.0615 [-0.0644, -0.0583]* SE 0.0016  MDE 0.0044  -> below
+   dMCB    (model - comparator) +0.0010 [+0.0011, +0.0018]* SE 0.0002  MDE 0.0005  -> above
+   dDSC    (model - comparator) +0.0625 [+0.0600, +0.0657]* SE 0.0015  MDE 0.0041  -> above
+   dAUC    (model - comparator) +0.2863 [+0.2750, +0.2972]* SE 0.0057  MDE 0.0160  -> above
+
+== P1 model vs record: n 15,508  n_blocks 15508  realized 0.5808  (42s)
+   model      BS 0.1819 = MCB 0.0012 - DSC 0.0628 + UNC 0.2435   AUC 0.7932
+   comparator BS 0.2199 = MCB 0.0041 - DSC 0.0277 + UNC 0.2435   AUC 0.6810
+   dBrier  (model - comparator) -0.0380 [-0.0406, -0.0352]* SE 0.0014  MDE 0.0039  -> below
+   dMCB    (model - comparator) -0.0029 [-0.0036, -0.0015]* SE 0.0005  MDE 0.0015  -> below
+   dDSC    (model - comparator) +0.0351 [+0.0329, +0.0378]* SE 0.0013  MDE 0.0035  -> above
+   dAUC    (model - comparator) +0.1122 [+0.1045, +0.1194]* SE 0.0039  MDE 0.0109  -> above
+
+== P1 model vs elo_nomov: n 15,508  n_blocks 15508  realized 0.5808  (66s)
+   model      BS 0.1819 = MCB 0.0012 - DSC 0.0628 + UNC 0.2435   AUC 0.7932
+   comparator BS 0.1861 = MCB 0.0011 - DSC 0.0585 + UNC 0.2435   AUC 0.7823
+   dBrier  (model - comparator) -0.0042 [-0.0049, -0.0034]* SE 0.0004  MDE 0.0011  -> below
+   dMCB    (model - comparator) +0.0001 [-0.0002, +0.0004]  SE 0.0002  MDE 0.0004  -> contains 0
+   dDSC    (model - comparator) +0.0043 [+0.0035, +0.0050]* SE 0.0004  MDE 0.0011  -> above
+   dAUC    (model - comparator) +0.0109 [+0.0092, +0.0128]* SE 0.0009  MDE 0.0025  -> above
+
+   PRIMARY VERDICT: dBrier vs home below, record below, elo_nomov below -> SUCCESS: beats all three baselines
+
+-- not verdicts: season-week blocks, cuts (dBrier, model - baseline)
+   week blocks: vs home                         n 15,508 blocks    408  BS 0.1819 vs 0.2434  dBrier -0.0615 [-0.0647, -0.0583]* SE 0.0016 -> below
+   week blocks: vs record                       n 15,508 blocks    408  BS 0.1819 vs 0.2199  dBrier -0.0380 [-0.0412, -0.0348]* SE 0.0016 -> below
+   week blocks: vs elo_nomov                    n 15,508 blocks    408  BS 0.1819 vs 0.1861  dBrier -0.0042 [-0.0049, -0.0034]* SE 0.0004 -> below
+   regular weeks 1-4: vs home                   n  3,881 blocks  3,881  BS 0.1638 vs 0.2347  dBrier -0.0709 [-0.0771, -0.0649]* SE 0.0031 -> below
+   regular weeks 1-4: vs record                 n  3,881 blocks  3,881  BS 0.1638 vs 0.2263  dBrier -0.0625 [-0.0686, -0.0557]* SE 0.0032 -> below
+   regular weeks 1-4: vs elo_nomov              n  3,881 blocks  3,881  BS 0.1638 vs 0.1666  dBrier -0.0028 [-0.0040, -0.0016]* SE 0.0006 -> below
+   regular weeks 5+: vs home                    n 10,847 blocks 10,847  BS 0.1844 vs 0.2461  dBrier -0.0617 [-0.0654, -0.0579]* SE 0.0019 -> below
+   regular weeks 5+: vs record                  n 10,847 blocks 10,847  BS 0.1844 vs 0.2143  dBrier -0.0299 [-0.0328, -0.0271]* SE 0.0015 -> below
+   regular weeks 5+: vs elo_nomov               n 10,847 blocks 10,847  BS 0.1844 vs 0.1888  dBrier -0.0045 [-0.0053, -0.0035]* SE 0.0004 -> below
+   postseason: vs home                          n    780 blocks    780  BS 0.2378 vs 0.2490  dBrier -0.0112 [-0.0222, -0.0000]* SE 0.0056 -> below
+   postseason: vs record                        n    780 blocks    780  BS 0.2378 vs 0.2656  dBrier -0.0279 [-0.0418, -0.0138]* SE 0.0072 -> below
+   postseason: vs elo_nomov                     n    780 blocks    780  BS 0.2378 vs 0.2449  dBrier -0.0071 [-0.0115, -0.0027]* SE 0.0022 -> below
+   conference games: vs home                    n 10,581 blocks 10,581  BS 0.1900 vs 0.2488  dBrier -0.0588 [-0.0627, -0.0552]* SE 0.0019 -> below
+   conference games: vs record                  n 10,581 blocks 10,581  BS 0.1900 vs 0.2170  dBrier -0.0270 [-0.0298, -0.0241]* SE 0.0015 -> below
+   conference games: vs elo_nomov               n 10,581 blocks 10,581  BS 0.1900 vs 0.1946  dBrier -0.0046 [-0.0055, -0.0037]* SE 0.0005 -> below
+   non-conference games: vs home                n  4,927 blocks  4,927  BS 0.1645 vs 0.2318  dBrier -0.0673 [-0.0726, -0.0620]* SE 0.0027 -> below
+   non-conference games: vs record              n  4,927 blocks  4,927  BS 0.1645 vs 0.2260  dBrier -0.0615 [-0.0669, -0.0558]* SE 0.0029 -> below
+   non-conference games: vs elo_nomov           n  4,927 blocks  4,927  BS 0.1645 vs 0.1678  dBrier -0.0032 [-0.0044, -0.0020]* SE 0.0006 -> below
+   neutral site: vs home                        n  1,122 blocks  1,122  BS 0.2215 vs 0.2498  dBrier -0.0283 [-0.0383, -0.0183]* SE 0.0052 -> below
+   neutral site: vs record                      n  1,122 blocks  1,122  BS 0.2215 vs 0.2544  dBrier -0.0329 [-0.0443, -0.0216]* SE 0.0057 -> below
+   neutral site: vs elo_nomov                   n  1,122 blocks  1,122  BS 0.2215 vs 0.2272  dBrier -0.0057 [-0.0091, -0.0023]* SE 0.0017 -> below
+   2005 n 664: home -0.0583 below | record -0.0428 below | elo_nomov -0.0045 below
+   2006 n 714: home -0.0648 below | record -0.0363 below | elo_nomov -0.0029 contains 0
+   2007 n 712: home -0.0577 below | record -0.0420 below | elo_nomov -0.0044 below
+   2008 n 717: home -0.0617 below | record -0.0425 below | elo_nomov -0.0065 below
+   2009 n 714: home -0.0708 below | record -0.0501 below | elo_nomov -0.0040 below
+   2010 n 718: home -0.0640 below | record -0.0341 below | elo_nomov -0.0048 below
+   2011 n 715: home -0.0608 below | record -0.0306 below | elo_nomov -0.0035 contains 0
+   2012 n 732: home -0.0747 below | record -0.0415 below | elo_nomov -0.0045 below
+   2013 n 737: home -0.0829 below | record -0.0516 below | elo_nomov -0.0049 below
+   2014 n 760: home -0.0630 below | record -0.0407 below | elo_nomov -0.0022 contains 0
+   2015 n 765: home -0.0779 below | record -0.0403 below | elo_nomov -0.0038 below
+   2016 n 760: home -0.0521 below | record -0.0351 below | elo_nomov -0.0030 below
+   2017 n 776: home -0.0561 below | record -0.0333 below | elo_nomov -0.0048 below
+   2018 n 772: home -0.0632 below | record -0.0464 below | elo_nomov -0.0043 below
+   2019 n 774: home -0.0628 below | record -0.0377 below | elo_nomov -0.0041 below
+   2020 n 534: home -0.0545 below | record -0.0263 below | elo_nomov -0.0055 below
+   2021 n 770: home -0.0569 below | record -0.0293 below | elo_nomov -0.0020 contains 0
+   2022 n 776: home -0.0432 below | record -0.0255 below | elo_nomov -0.0045 below
+   2023 n 792: home -0.0603 below | record -0.0331 below | elo_nomov -0.0030 contains 0
+   2024 n 798: home -0.0461 below | record -0.0344 below | elo_nomov -0.0074 below
+   2025 n 808: home -0.0597 below | record -0.0420 below | elo_nomov -0.0035 below
+   per-season interval counts: {'home': {'below': 21, 'contains 0': 0, 'above': 0}, 'record': {'below': 21, 'contains 0': 0, 'above': 0}, 'elo_nomov': {'below': 16, 'contains 0': 5, 'above': 0}}
+
+-- sensitivity S1: FBS-FCS games walked against one pooled FCS team (model = S1, comparator = primary)
+
+== S1 pooled-FCS walk vs primary: n 15,508  n_blocks 15508  realized 0.5808  (63s)
+   model      BS 0.1814 = MCB 0.0012 - DSC 0.0632 + UNC 0.2435   AUC 0.7942
+   comparator BS 0.1819 = MCB 0.0012 - DSC 0.0628 + UNC 0.2435   AUC 0.7932
+   dBrier  (model - comparator) -0.0005 [-0.0008, -0.0002]* SE 0.0002  MDE 0.0004  -> below
+   dMCB    (model - comparator) -0.0000 [-0.0002, +0.0002]  SE 0.0001  MDE 0.0003  -> contains 0
+   dDSC    (model - comparator) +0.0004 [+0.0001, +0.0008]* SE 0.0002  MDE 0.0005  -> above
+   dAUC    (model - comparator) +0.0010 [+0.0004, +0.0017]* SE 0.0003  MDE 0.0010  -> above
+
+-- arm N: the NFL constants carried across unchanged {'k': 20.0, 'hfa': 50.0, 'regress': 0.5, 'a': 2.2, 'cap': None, 'conf_w': 0.0, 'entry': 0.0} (model = college fit, comparator = arm N)
+
+== college fit vs arm N: n 15,508  n_blocks 15508  realized 0.5808  (63s)
+   model      BS 0.1819 = MCB 0.0012 - DSC 0.0628 + UNC 0.2435   AUC 0.7932
+   comparator BS 0.1929 = MCB 0.0074 - DSC 0.0580 + UNC 0.2435   AUC 0.7809
+   dBrier  (model - comparator) -0.0110 [-0.0125, -0.0094]* SE 0.0008  MDE 0.0022  -> below
+   dMCB    (model - comparator) -0.0062 [-0.0074, -0.0050]* SE 0.0006  MDE 0.0017  -> below
+   dDSC    (model - comparator) +0.0048 [+0.0035, +0.0060]* SE 0.0006  MDE 0.0018  -> above
+   dAUC    (model - comparator) +0.0123 [+0.0092, +0.0152]* SE 0.0016  MDE 0.0044  -> above
+
+-- 2026 to date, descriptive (no interval): n 271  Brier model 0.1608  home 0.2311  record 0.2277  elo_nomov 0.1653
+
+######## PART 2 - against a price, where one is on disk
+   CFBD census: {"ml_rows": 8288, "ml_outside_overround": 15, "spread_rows": 39004}
+
+   2a LABEL: the provider's last value, read after the game, no capture time - not a timestamped close
+
+== 2a CFBD moneyline 2021-2025 (median over providers): n 3,768  n_blocks 3768  realized 0.5709  (12s)
+   model      BS 0.1960 = MCB 0.0029 - DSC 0.0519 + UNC 0.2450   AUC 0.7604
+   comparator BS 0.1853 = MCB 0.0024 - DSC 0.0621 + UNC 0.2450   AUC 0.7874
+   dBrier  (model - comparator) +0.0107 [+0.0070, +0.0144]* SE 0.0019  MDE 0.0052  -> above
+   dMCB    (model - comparator) +0.0004 [-0.0008, +0.0019]  SE 0.0007  MDE 0.0018  -> contains 0
+   dDSC    (model - comparator) -0.0102 [-0.0138, -0.0067]* SE 0.0018  MDE 0.0049  -> below
+   dAUC    (model - comparator) -0.0271 [-0.0362, -0.0185]* SE 0.0045  MDE 0.0125  -> below
+   2a price vs home (same games)                n  3,768 blocks  3,768  BS 0.1853 vs 0.2447  dBrier -0.0595 [-0.0656, -0.0530]* SE 0.0032 -> below
+   2a price vs record (same games)              n  3,768 blocks  3,768  BS 0.1853 vs 0.2256  dBrier -0.0403 [-0.0460, -0.0346]* SE 0.0029 -> below
+   2a price vs elo_nomov (same games)           n  3,768 blocks  3,768  BS 0.1853 vs 0.2001  dBrier -0.0148 [-0.0188, -0.0109]* SE 0.0020 -> below
+   2a: 3,768 of 3,944 eligible games carry a moneyline; Brier(model)/Brier(price) 1.0577
+   beside it, c-28's NFL gap to the nflverse moneyline close: dBrier +0.0092, Brier ratio 1.0433628453181485. A smaller college gap is not by itself evidence of a softer market: base uncertainty differs and this college price is not a timestamped close.
+
+   2b sign check: corr(-spread, home margin) +0.668 on 9,822 games
+
+== 2b margin: model mu vs CFBD spread 2013-2025: n 9,822  n_blocks 9822
+   MSE model 277.81  comparator 244.14   MAE model 13.23  comparator 12.32
+   dMSE (model - comparator) +33.67 [+30.11, +37.37]* SE 1.8899  MDE 5.29  -> above
+
+== 2b cover: model P(margin > line) vs 0.5: n 9,652  n_blocks 9652  realized 0.4939  (23s)
+   model      BS 0.2696 = MCB 0.0197 - DSC 0.0001 + UNC 0.2500   AUC 0.4944
+   comparator BS 0.2500 = MCB 0.0000 - DSC 0.0000 + UNC 0.2500   AUC 0.5000
+   dBrier  (model - comparator) +0.0196 [+0.0169, +0.0222]* SE 0.0014  MDE 0.0038  -> above
+   dMCB    (model - comparator) +0.0197 [+0.0174, +0.0225]* SE 0.0013  MDE 0.0037  -> above
+   dDSC    (model - comparator) +0.0001 [+0.0001, +0.0006]* SE 0.0001  MDE 0.0004  -> above
+   dAUC    (model - comparator) -0.0056 [-0.0171, +0.0056]  SE 0.0058  MDE 0.0163  -> contains 0
+   2b hit rate, model's side, |mu - line| >= 0: n 9,652  0.4980 [0.4880, 0.5075]  vs 0.5: contains   vs break-even 0.5238: not above
+   2b hit rate, model's side, |mu - line| >= 3: n 5,831  0.4905 [0.4776, 0.5035]  vs 0.5: contains   vs break-even 0.5238: not above
+   2b hit rate, model's side, |mu - line| >= 7: n 2,141  0.4951 [0.4736, 0.5175]  vs 0.5: contains   vs break-even 0.5238: not above
+
+   2c Odds API census: {"events": 278, "matched": 274, "missed": 4, "ambiguous": 0, "outside_overround": 0, "no_fresh_pair": 86}
+   2c: 168 completed FBS-FBS 2026 games with a timestamped pre-kickoff h2h; median quote age 453s, median books 10.0
+
+== 2c Odds API pre-kickoff h2h 2026 (timestamped): n 168  n_blocks 168  realized 0.5833  (1s)
+   model      BS 0.1745 = MCB 0.0157 - DSC 0.0843 + UNC 0.2431   AUC 0.8093
+   comparator BS 0.1424 = MCB 0.0179 - DSC 0.1185 + UNC 0.2431   AUC 0.8778
+   dBrier  (model - comparator) +0.0321 [+0.0147, +0.0495]* SE 0.0089  MDE 0.0250  -> above
+   dMCB    (model - comparator) -0.0022 [-0.0146, +0.0093]  SE 0.0060  MDE 0.0169  -> contains 0
+   dDSC    (model - comparator) -0.0343 [-0.0562, -0.0124]* SE 0.0112  MDE 0.0313  -> below
+   dAUC    (model - comparator) -0.0685 [-0.1123, -0.0264]* SE 0.0218  MDE 0.0609  -> below
+
+   2d Kalshi probe census: {"closes": 204, "side_unmatched": 0, "no_game": 0, "games": 103}
+
+== 2d Kalshi probe moneyline close, one weekend: n 45  n_blocks 45  realized 0.6444  (1s)
+   model      BS 0.1814 = MCB 0.0252 - DSC 0.0730 + UNC 0.2291   AUC 0.7931
+   comparator BS 0.1492 = MCB 0.0366 - DSC 0.1165 + UNC 0.2291   AUC 0.8696
+   dBrier  (model - comparator) +0.0322 [+0.0019, +0.0644]* SE 0.0163  MDE 0.0457  -> above
+   dMCB    (model - comparator) -0.0113 [-0.0324, +0.0195]  SE 0.0129  MDE 0.0360  -> contains 0
+   dDSC    (model - comparator) -0.0436 [-0.0780, +0.0027]  SE 0.0202  MDE 0.0565  -> contains 0
+   dAUC    (model - comparator) -0.0765 [-0.1770, +0.0115]  SE 0.0467  MDE 0.1307  -> contains 0
+
+   READING (registered rule): the method is the limit
+   COST: not run: the model beats no price
+   registered intervals: 32, 22 exclude zero; no multiplicity correction
