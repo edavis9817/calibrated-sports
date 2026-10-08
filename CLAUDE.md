@@ -1520,6 +1520,35 @@ brief 023 confirmed it against the book close in every season.
     would have written `public/data` and pushed. Re-enable it once §2 is live.
   - **`jobs/map_markets.py` must run before the market export.** Nothing else
     maps new Kalshi markets: week-2 props sat at 0 of 89 mapped until it ran.
+  - **MAPPING RUNS ON THE LISTING'S CLOCK, NOT THE WEEK'S (a-68, 2026-10-08).**
+    "Nothing else maps new Kalshi markets" was the defect, not a footnote. The
+    refresh maps at 13:00Z Tue/Wed/Thu; **Kalshi lists the bulk of a week's props
+    at about 17:00Z on THURSDAY** (552 of 1,502 in one hour on 09-24, 571 of 1,589
+    on 10-01) and keeps listing through Sunday. So a slate was first mapped the
+    following Tuesday, after every game on it: outcomes existing before their own
+    kickoff were **95 of 1,482 in week 2 and 87 of 1,589 in week 4**. Week 3 read
+    1,281 of 1,502 only because units ran the job by hand on 09-24, 09-26 and
+    09-28. Measured from `outcomes.created_ts`, which a re-map does not rewrite -
+    `market_outcome.mapped_ts` is refreshed by every full pass and says nothing
+    about when a market was FIRST mapped.
+    - **Nothing was broken, which is why nothing reported it.** Discovery found
+      every market, the mapper resolved all but 3 of 6,385 (one nickname), and
+      the join held. A market nobody has LOOKED AT has no `market_outcome` row,
+      so it is in no census of `unmapped_reason` - the reason census read clean
+      throughout. Count listed markets against `markets`, never against the
+      mapper's own output.
+    - **The collapse was not at week 4.** a-67's table (1,482 / 1,502 / 87 / 0)
+      was read on a Tuesday morning before that week's refresh: weeks 2 and 3
+      looked full because their following Tuesday had already caught them up.
+      Week 2 failed the same way and nobody noticed.
+    - The logger now runs `jobs.map_markets.run_pending` every
+      `MAP_PENDING_EVERY` (600 s): markets with no row, link-only waits the venue
+      still lists, then the book-prop join for the slate in play, writing only
+      links that changed. One rule (`map_row`) serves it and the weekly full pass.
+      `python -m jobs.map_markets --pending` is the same pass by hand.
+    - `analytics.staleness.check_mapped_rate` is the gate: per series, the share
+      of the current week's `KXNFLREC` / `KXNFLRSHATT` markets carrying an
+      outcome, RED under 0.95, with the week read from the ticker's own date.
   - **When nflverse is late,** the export still runs,
     `manifest.current.stale` names the missing week, the log WARNs, and the next
     scheduled run picks the data up.

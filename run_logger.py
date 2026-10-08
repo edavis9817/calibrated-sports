@@ -35,7 +35,8 @@ import config
 import nflverse
 import store
 from core import single_instance
-from jobs import capture_depth, ingest_nflverse, prune_quotes, publish_live_prices, rotate_raw
+from jobs import (capture_depth, ingest_nflverse, map_markets, prune_quotes,
+                  publish_live_prices, rotate_raw)
 from venues.base import RateLimiter
 from venues.kalshi import KalshiClient
 from venues.oddsapi import OddsApiClient
@@ -594,6 +595,51 @@ async def depth_worker():
             pass
 
 
+async def map_pending_once(run=None):
+    """One pending-mapping pass. Returns its census, or None when it failed.
+
+    Never raises: mapping is what the Board, the depth allowlist and the
+    kickoff tiers lean on, and it is still not worth one quote. The work is
+    SQLite and goes to a thread for the reason the kickoff map does.
+    """
+    run = map_markets.run_pending if run is None else run
+    try:
+        stats = (await asyncio.to_thread(run))["stats"]
+    except Exception as e:                        # noqa: BLE001 - never fatal
+        log(f"mapping      ERROR {type(e).__name__}: {e}")
+        _record_health("mapping_pending", False, f"{type(e).__name__}: {e}")
+        return None
+    looked = sum(n for k, n in stats.items() if k.endswith(":pending"))
+    if looked or stats.get("oddsapi_props:changed"):
+        log("mapping      " + ", ".join(
+            f"{k}={v}" for k, v in sorted(stats.items()) if v))
+    return stats
+
+
+async def mapping_worker():
+    """Map newly listed markets on the logger's own timer (a-68).
+
+    In-process for the reason retention and depth are: a policy that depends
+    on a scheduler entry is the one that already failed. Mapping ran three
+    mornings a week and the venue lists on Thursday afternoon, so most of a
+    slate had no outcome until every game on it was over - and nothing failed,
+    because a market nobody has looked at has no reason row to count.
+    """
+    if config.MAP_PENDING_EVERY <= 0:
+        log("pending mapping DISABLED (MAP_PENDING_EVERY=0)")
+        return
+    wait = config.MAP_PENDING_START_DELAY
+    while not _stop.is_set():
+        try:
+            await asyncio.wait_for(_stop.wait(), timeout=wait)
+        except asyncio.TimeoutError:
+            pass
+        if _stop.is_set():
+            break
+        await map_pending_once()
+        wait = config.MAP_PENDING_EVERY
+
+
 async def live_prices_worker(publisher=None):
     """Publish the site's live prices to R2 from the book the pollers fill.
 
@@ -707,6 +753,10 @@ async def main():
             log("!" * 68)
         else:
             log(f"shard audit: {audit['on_disk']} raw files, all registered")
+        log("pending mapping: " + (
+            f"every {config.MAP_PENDING_EVERY:g}s, first after "
+            f"{config.MAP_PENDING_START_DELAY:g}s"
+            if config.MAP_PENDING_EVERY > 0 else "OFF (MAP_PENDING_EVERY=0)"))
         log("healthcheck: " + ("pinging every "
             f"{config.DEADMAN_CHECK_EVERY:g}s while liveness is healthy"
             if config.HEALTHCHECK_URL else
@@ -732,7 +782,8 @@ async def main():
         await asyncio.gather(*(venue_worker(c) for c in polled),
                              *(snapshot_worker(c) for c in snapshot),
                              watchdog(http, names), maintenance(),
-                             depth_worker(), live_prices_worker())
+                             depth_worker(), live_prices_worker(),
+                             mapping_worker())
 
 
 def _handle_signal(*_):

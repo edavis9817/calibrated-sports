@@ -354,6 +354,14 @@ TIER_ON_KICKOFF = os.getenv("TIER_ON_KICKOFF", "1") == "1"
 # How often to rebuild the market -> kickoff map. It only changes when
 # discovery finds new markets or the schedule moves.
 KICKOFF_MAP_EVERY = float(os.getenv("KICKOFF_MAP_EVERY", 300))
+# How often the logger maps markets that have no `market_outcome` row yet
+# (jobs.map_markets.run_pending). Matched to discovery, which is what finds
+# them: Kalshi lists most of a week's props on Thursday around 17:00Z and
+# mapping ran only inside the weekly refresh at 13:00Z Tue/Wed/Thu, so a slate
+# went unmapped until the following Tuesday (a-68). 0 switches it off.
+MAP_PENDING_EVERY = float(os.getenv("MAP_PENDING_EVERY", 600))
+# The first pass waits this long after start so discovery has landed once.
+MAP_PENDING_START_DELAY = float(os.getenv("MAP_PENDING_START_DELAY", 120))
 
 # The Odds API is snapshot-scheduled (see venues/oddsapi.py), not polled. It
 # has no business in the cadence tiers: it was burning a 10s loop to print

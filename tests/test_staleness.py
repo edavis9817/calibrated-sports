@@ -39,7 +39,7 @@ def db(path, script, rows=()):
 
 def world(tmp_path, pace_weeks=(1, 2, 3), spine_pull="2026-10-05", metric_ts=NOW - DAY,
           nfl_weather_kick=None, targets_2026=5, depth_shard_day="2026-10-06",
-          poly_rows=4, extra_code=None, reader=True, parser=True):
+          poly_rows=4, extra_code=None, reader=True, parser=True, props_mapped=4):
     store = tmp_path / "store"
     root = tmp_path / "repo"
     store.mkdir(parents=True)
@@ -56,7 +56,16 @@ def world(tmp_path, pace_weeks=(1, 2, 3), spine_pull="2026-10-05", metric_ts=NOW
         CREATE TABLE raw_shards (venue, day);
         CREATE TABLE poll_log (ts, venue, endpoint, n_markets, n_quotes);
         CREATE TABLE market_depth (ts, venue, market_id);
+        CREATE TABLE markets (venue, market_id, market_type, first_seen);
+        CREATE TABLE market_outcome (venue, market_id, outcome_id, unmapped_reason);
         """, [
+        # a-68: the current week's priority props, four rungs per series, listed two days ago
+        ("INSERT INTO markets VALUES (?,?,?,?)",
+         [("kalshi", "%s-26OCT05KCJAX-P%d" % (s, i), "prop", NOW - 2 * DAY)
+          for s in ("KXNFLREC", "KXNFLRSHATT") for i in range(4)]),
+        ("INSERT INTO market_outcome VALUES (?,?,?,?)",
+         [("kalshi", "%s-26OCT05KCJAX-P%d" % (s, i), "o%d" % i, None)
+          for s in ("KXNFLREC", "KXNFLRSHATT") for i in range(props_mapped)]),
         ("INSERT INTO nfl_games VALUES (?,?,?,?,?,?,?)", games),
         ("INSERT INTO nfl_player_week VALUES (?,?,?,?,?)", pw),
         ("INSERT INTO nflverse_versions VALUES (?,?,?)",
@@ -108,6 +117,7 @@ def world(tmp_path, pace_weeks=(1, 2, 3), spine_pull="2026-10-05", metric_ts=NOW
             Q = ["SELECT * FROM nfl_games JOIN nfl_player_week", "SELECT 1 FROM nflverse_versions",
                  "SELECT 1 FROM source_health", "SELECT 1 FROM raw_shards", "SELECT 1 FROM poll_log",
                  "SELECT 1 FROM market_depth", "SELECT 1 FROM weather_at_kickoff",
+                 "SELECT 1 FROM markets JOIN market_outcome",
                  "SELECT 1 FROM feeds_raw_files", "SELECT 1 FROM injury_reports", "SELECT 1 FROM f_spine_build", "SELECT 1 FROM f_ngs_build",
                  "SELECT 1 FROM f_onfield_build", "SELECT 1 FROM f_pbp_files", "SELECT 1 FROM f_metrics"]
             """ + ('PARSED = "depth_charts_{season}.parquet"' if parser else "")),
