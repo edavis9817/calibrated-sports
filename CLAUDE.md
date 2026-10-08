@@ -2250,3 +2250,21 @@ so it ships one tick later; it never raises and a failed build leaves the previo
   only, the population the Board's ledger measured.
 - **`jobs.board_read._tick` is now a reader in the source registry** (the scan follows the hook
   into the job's SQL), and `market_depth` has a source row for the first time.
+- **The flipping input of a ledgered lean is the player's own prior mean, on misses and clears
+  alike** (c-40, `research/counterfactual_ledger.py`, pre-registered at `8ce15b1`;
+  `docs/findings/c40-counterfactual-ledger.md`). NFL Board ledger snapshot of 2026-10-08, weeks 3-4,
+  31 games, 477 of 496 graded leans rebuilt to their ledgered probability. Smallest proportional
+  change to ONE input of `models.baseline` that puts the model on the other side: `own_mean` is
+  that input on 66.1% of missed leans (+0.461 over the 1/5 null [+0.369, +0.557], Holm p 2e-19
+  over 80 tests) and on 68.0% of cleared ones; missed minus cleared -0.019 [-0.099, +0.067]. So the
+  concentration describes the model's arithmetic and does NOT say which input was wrong on a miss.
+  - **A share against a uniform null needs the cleared rows beside it.** The brief's success
+    condition (one input above 1/k) was met by structure alone; only the missed-minus-cleared
+    contrast could have come out the other way.
+  - **Ceiling:** 0 of 227 missed leans are unflippable inside x20, which says little; 1.3% flip
+    within a 10% change, 22.5% within 25%, 52.9% within 50%. Median |gap| is 14.67 points and 378
+    of 477 leans are in the 8+ band - a lean that far out is not one small input error away.
+  - **The ledger's model has no rating and no home term.** Every lean is `baseline-usage`; its
+    inputs are own mean, group mean, weight, dispersion and the line.
+  - **`np.std` of 2,000 identical floats is ~1e-17, not 0.0.** `se == 0` let 19 zero-variance
+    tests into a Holm family at p = 0. Compare against a tolerance.
