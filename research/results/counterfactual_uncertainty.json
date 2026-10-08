@@ -1,0 +1,1482 @@
+{
+ "unit": "c-42",
+ "preregistration": "docs/C42-uncertainty-scale-preregistration.md",
+ "base": "c-40 rows, research/results/counterfactual_ledger_rows.json",
+ "ledger_sha256": "760b93be22fb1464df139457b011a67687ba1c70a013ba06f8e55a90d225306d",
+ "n_rows": 477,
+ "n_missed": 227,
+ "n_cleared": 250,
+ "inputs": [
+  "own_mean",
+  "group_mean",
+  "dispersion"
+ ],
+ "excluded_by_name": {
+  "weight": "no fit yields a standard error for it: n is exact and the constants are judgment calls",
+  "line": "a posted line is exact; one listed line across the benchmark books on 409 of 477 leans"
+ },
+ "null_share": 0.3333333333333333,
+ "specifications_tried": 1,
+ "family_size": 48,
+ "registered_mde": {
+  "T1": {
+   "share 1/3": 0.136,
+   "share 0.5 (worst)": 0.144,
+   "share 0.8": 0.115,
+   "share 0.9": 0.086
+  },
+  "T2": {
+   "worst case": 0.128
+  }
+ },
+ "verdict": {
+  "verdict": "same_ranking",
+  "words": "own_mean ranks first on both scales and above the 1/3 null",
+  "first_input": "own_mean",
+  "c40_first_input": "own_mean",
+  "share_missed": 0.973568281938326,
+  "share_cleared": 0.98,
+  "t1": {
+   "slice": "all",
+   "test": "T1",
+   "input": "own_mean",
+   "estimate": 0.6402349486049927,
+   "n_missed": 227,
+   "n_cleared": 250,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": 0.6149425287356323,
+   "hi": 0.658470781755325,
+   "se": 0.011367505044211584,
+   "p": 0.0,
+   "mde": 0.03182901412379243,
+   "ratio_to_mde": 20.114821845091715,
+   "note": null,
+   "p_holm": 0.0,
+   "reading": "detected"
+  },
+  "t2": {
+   "slice": "all",
+   "test": "T2",
+   "input": "own_mean",
+   "estimate": -0.006431718061673974,
+   "n_missed": 227,
+   "n_cleared": 250,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.03633081860823528,
+   "hi": 0.021927374729084802,
+   "se": 0.014809009848394629,
+   "p": 0.6640625098763056,
+   "mde": 0.041465227575504957,
+   "ratio_to_mde": 0.1551111241331623,
+   "note": null,
+   "p_holm": 1.0,
+   "reading": "not detected"
+  },
+  "t2_interval_contains_zero": true,
+  "cleared_statement": "a ranking that is identical on misses and clears is not a diagnostic of a miss, on either scale",
+  "inputs_over_represented_on_misses": []
+ },
+ "slices": [
+  {
+   "slice": "all",
+   "n_rows": 477,
+   "n_games": 31,
+   "missed": {
+    "n": 227,
+    "n_with_flip": 227,
+    "share": {
+     "own_mean": 0.973568281938326,
+     "group_mean": 0.02643171806167401,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 221,
+     "group_mean": 6,
+     "dispersion": 0
+    }
+   },
+   "cleared": {
+    "n": 250,
+    "n_with_flip": 250,
+    "share": {
+     "own_mean": 0.98,
+     "group_mean": 0.02,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 245,
+     "group_mean": 5,
+     "dispersion": 0
+    }
+   }
+  },
+  {
+   "slice": "market=receptions",
+   "n_rows": 344,
+   "n_games": 31,
+   "missed": {
+    "n": 164,
+    "n_with_flip": 164,
+    "share": {
+     "own_mean": 0.9878048780487805,
+     "group_mean": 0.012195121951219513,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 162,
+     "group_mean": 2,
+     "dispersion": 0
+    }
+   },
+   "cleared": {
+    "n": 180,
+    "n_with_flip": 180,
+    "share": {
+     "own_mean": 0.9722222222222222,
+     "group_mean": 0.027777777777777776,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 175,
+     "group_mean": 5,
+     "dispersion": 0
+    }
+   }
+  },
+  {
+   "slice": "market=rush_attempts",
+   "n_rows": 133,
+   "n_games": 31,
+   "missed": {
+    "n": 63,
+    "n_with_flip": 63,
+    "share": {
+     "own_mean": 0.9365079365079365,
+     "group_mean": 0.06349206349206349,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 59,
+     "group_mean": 4,
+     "dispersion": 0
+    }
+   },
+   "cleared": {
+    "n": 70,
+    "n_with_flip": 70,
+    "share": {
+     "own_mean": 1.0,
+     "group_mean": 0.0,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 70,
+     "group_mean": 0,
+     "dispersion": 0
+    }
+   }
+  },
+  {
+   "slice": "side=over",
+   "n_rows": 118,
+   "n_games": 31,
+   "missed": {
+    "n": 60,
+    "n_with_flip": 60,
+    "share": {
+     "own_mean": 1.0,
+     "group_mean": 0.0,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 60,
+     "group_mean": 0,
+     "dispersion": 0
+    }
+   },
+   "cleared": {
+    "n": 58,
+    "n_with_flip": 58,
+    "share": {
+     "own_mean": 1.0,
+     "group_mean": 0.0,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 58,
+     "group_mean": 0,
+     "dispersion": 0
+    }
+   }
+  },
+  {
+   "slice": "side=under",
+   "n_rows": 359,
+   "n_games": 31,
+   "missed": {
+    "n": 167,
+    "n_with_flip": 167,
+    "share": {
+     "own_mean": 0.9640718562874252,
+     "group_mean": 0.03592814371257485,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 161,
+     "group_mean": 6,
+     "dispersion": 0
+    }
+   },
+   "cleared": {
+    "n": 192,
+    "n_with_flip": 192,
+    "share": {
+     "own_mean": 0.9739583333333334,
+     "group_mean": 0.026041666666666668,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 187,
+     "group_mean": 5,
+     "dispersion": 0
+    }
+   }
+  },
+  {
+   "slice": "band=4-6",
+   "n_rows": 64,
+   "n_games": 26,
+   "missed": {
+    "n": 41,
+    "n_with_flip": 41,
+    "share": {
+     "own_mean": 1.0,
+     "group_mean": 0.0,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 41,
+     "group_mean": 0,
+     "dispersion": 0
+    }
+   },
+   "cleared": {
+    "n": 23,
+    "n_with_flip": 23,
+    "share": {
+     "own_mean": 1.0,
+     "group_mean": 0.0,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 23,
+     "group_mean": 0,
+     "dispersion": 0
+    }
+   }
+  },
+  {
+   "slice": "band=6-8",
+   "n_rows": 35,
+   "n_games": 19,
+   "missed": {
+    "n": 14,
+    "n_with_flip": 14,
+    "share": {
+     "own_mean": 1.0,
+     "group_mean": 0.0,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 14,
+     "group_mean": 0,
+     "dispersion": 0
+    }
+   },
+   "cleared": {
+    "n": 21,
+    "n_with_flip": 21,
+    "share": {
+     "own_mean": 1.0,
+     "group_mean": 0.0,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 21,
+     "group_mean": 0,
+     "dispersion": 0
+    }
+   }
+  },
+  {
+   "slice": "band=8+",
+   "n_rows": 378,
+   "n_games": 31,
+   "missed": {
+    "n": 172,
+    "n_with_flip": 172,
+    "share": {
+     "own_mean": 0.9651162790697675,
+     "group_mean": 0.03488372093023256,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 166,
+     "group_mean": 6,
+     "dispersion": 0
+    }
+   },
+   "cleared": {
+    "n": 206,
+    "n_with_flip": 206,
+    "share": {
+     "own_mean": 0.9757281553398058,
+     "group_mean": 0.024271844660194174,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 201,
+     "group_mean": 5,
+     "dispersion": 0
+    }
+   }
+  }
+ ],
+ "tests": [
+  {
+   "slice": "all",
+   "test": "T1",
+   "input": "own_mean",
+   "estimate": 0.6402349486049927,
+   "n_missed": 227,
+   "n_cleared": 250,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": 0.6149425287356323,
+   "hi": 0.658470781755325,
+   "se": 0.011367505044211584,
+   "p": 0.0,
+   "mde": 0.03182901412379243,
+   "ratio_to_mde": 20.114821845091715,
+   "note": null,
+   "p_holm": 0.0,
+   "reading": "detected"
+  },
+  {
+   "slice": "all",
+   "test": "T2",
+   "input": "own_mean",
+   "estimate": -0.006431718061673974,
+   "n_missed": 227,
+   "n_cleared": 250,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.03633081860823528,
+   "hi": 0.021927374729084802,
+   "se": 0.014809009848394629,
+   "p": 0.6640625098763056,
+   "mde": 0.041465227575504957,
+   "ratio_to_mde": 0.1551111241331623,
+   "note": null,
+   "p_holm": 1.0,
+   "reading": "not detected"
+  },
+  {
+   "slice": "all",
+   "test": "T1",
+   "input": "group_mean",
+   "estimate": -0.3069016152716593,
+   "n_missed": 227,
+   "n_cleared": 250,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.3251374484219917,
+   "hi": -0.28160919540229884,
+   "se": 0.011367505044211584,
+   "p": 1.5536622703108973e-160,
+   "mde": 0.03182901412379243,
+   "ratio_to_mde": 9.642196710147175,
+   "note": null,
+   "p_holm": 6.680747762336859e-159,
+   "reading": "detected"
+  },
+  {
+   "slice": "all",
+   "test": "T2",
+   "input": "group_mean",
+   "estimate": 0.006431718061674009,
+   "n_missed": 227,
+   "n_cleared": 250,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.0219273747290848,
+   "hi": 0.036330818608235275,
+   "se": 0.014809009848394627,
+   "p": 0.6640625098763038,
+   "mde": 0.04146522757550495,
+   "ratio_to_mde": 0.1551111241331632,
+   "note": null,
+   "p_holm": 1.0,
+   "reading": "not detected"
+  },
+  {
+   "slice": "all",
+   "test": "T1",
+   "input": "dispersion",
+   "estimate": -0.3333333333333333,
+   "n_missed": 227,
+   "n_cleared": 250,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.3333333333333333,
+   "hi": -0.3333333333333333,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "all",
+   "test": "T2",
+   "input": "dispersion",
+   "estimate": 0.0,
+   "n_missed": 227,
+   "n_cleared": 250,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": 0.0,
+   "hi": 0.0,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "market=receptions",
+   "test": "T1",
+   "input": "own_mean",
+   "estimate": 0.6544715447154472,
+   "n_missed": 164,
+   "n_cleared": 180,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": 0.6382494122257053,
+   "hi": 0.6666666666666667,
+   "se": 0.00806770338659965,
+   "p": 0.0,
+   "mde": 0.02258956948247902,
+   "ratio_to_mde": 28.972289410963327,
+   "note": null,
+   "p_holm": 0.0,
+   "reading": "detected"
+  },
+  {
+   "slice": "market=receptions",
+   "test": "T2",
+   "input": "own_mean",
+   "estimate": 0.015582655826558267,
+   "n_missed": 164,
+   "n_cleared": 180,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.007555852442516178,
+   "hi": 0.047591393571845,
+   "se": 0.014664579101732715,
+   "p": 0.287961095398789,
+   "mde": 0.0410608214848516,
+   "ratio_to_mde": 0.37950180398380756,
+   "note": null,
+   "p_holm": 1.0,
+   "reading": "not detected"
+  },
+  {
+   "slice": "market=receptions",
+   "test": "T1",
+   "input": "group_mean",
+   "estimate": -0.3211382113821138,
+   "n_missed": 164,
+   "n_cleared": 180,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.3333333333333333,
+   "hi": -0.30491607889237204,
+   "se": 0.008067703386599637,
+   "p": 0.0,
+   "mde": 0.02258956948247898,
+   "ratio_to_mde": 14.216216543267741,
+   "note": null,
+   "p_holm": 0.0,
+   "reading": "detected"
+  },
+  {
+   "slice": "market=receptions",
+   "test": "T2",
+   "input": "group_mean",
+   "estimate": -0.015582655826558264,
+   "n_missed": 164,
+   "n_cleared": 180,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.04759139357184505,
+   "hi": 0.007555852442516237,
+   "se": 0.014664579101732715,
+   "p": 0.2879610953987891,
+   "mde": 0.0410608214848516,
+   "ratio_to_mde": 0.3795018039838075,
+   "note": null,
+   "p_holm": 1.0,
+   "reading": "not detected"
+  },
+  {
+   "slice": "market=receptions",
+   "test": "T1",
+   "input": "dispersion",
+   "estimate": -0.3333333333333333,
+   "n_missed": 164,
+   "n_cleared": 180,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.3333333333333333,
+   "hi": -0.3333333333333333,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "market=receptions",
+   "test": "T2",
+   "input": "dispersion",
+   "estimate": 0.0,
+   "n_missed": 164,
+   "n_cleared": 180,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": 0.0,
+   "hi": 0.0,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "market=rush_attempts",
+   "test": "T1",
+   "input": "own_mean",
+   "estimate": 0.6031746031746033,
+   "n_missed": 63,
+   "n_cleared": 70,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": 0.5141242937853108,
+   "hi": 0.6666666666666667,
+   "se": 0.0389187092270551,
+   "p": 3.5608255884341073e-54,
+   "mde": 0.10897238583575428,
+   "ratio_to_mde": 5.535114226862226,
+   "note": null,
+   "p_holm": 1.4243302353736429e-52,
+   "reading": "detected"
+  },
+  {
+   "slice": "market=rush_attempts",
+   "test": "T2",
+   "input": "own_mean",
+   "estimate": -0.06349206349206349,
+   "n_missed": 63,
+   "n_cleared": 70,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.15254237288135597,
+   "hi": 0.0,
+   "se": 0.03891870922705509,
+   "p": 0.10280550463000462,
+   "mde": 0.10897238583575425,
+   "ratio_to_mde": 0.5826436028276029,
+   "note": null,
+   "p_holm": 1.0,
+   "reading": "not detected"
+  },
+  {
+   "slice": "market=rush_attempts",
+   "test": "T1",
+   "input": "group_mean",
+   "estimate": -0.2698412698412698,
+   "n_missed": 63,
+   "n_cleared": 70,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.3333333333333333,
+   "hi": -0.18079096045197737,
+   "se": 0.038918709227055086,
+   "p": 4.106733412758997e-12,
+   "mde": 0.10897238583575423,
+   "ratio_to_mde": 2.4762353120173124,
+   "note": null,
+   "p_holm": 1.601626030976009e-10,
+   "reading": "detected"
+  },
+  {
+   "slice": "market=rush_attempts",
+   "test": "T2",
+   "input": "group_mean",
+   "estimate": 0.06349206349206349,
+   "n_missed": 63,
+   "n_cleared": 70,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": 0.0,
+   "hi": 0.15254237288135594,
+   "se": 0.038918709227055086,
+   "p": 0.10280550463000462,
+   "mde": 0.10897238583575423,
+   "ratio_to_mde": 0.5826436028276029,
+   "note": null,
+   "p_holm": 1.0,
+   "reading": "not detected"
+  },
+  {
+   "slice": "market=rush_attempts",
+   "test": "T1",
+   "input": "dispersion",
+   "estimate": -0.3333333333333333,
+   "n_missed": 63,
+   "n_cleared": 70,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.3333333333333333,
+   "hi": -0.3333333333333333,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "market=rush_attempts",
+   "test": "T2",
+   "input": "dispersion",
+   "estimate": 0.0,
+   "n_missed": 63,
+   "n_cleared": 70,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": 0.0,
+   "hi": 0.0,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "side=over",
+   "test": "T1",
+   "input": "own_mean",
+   "estimate": 0.6666666666666667,
+   "n_missed": 60,
+   "n_cleared": 58,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": 0.6666666666666667,
+   "hi": 0.6666666666666667,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "side=over",
+   "test": "T2",
+   "input": "own_mean",
+   "estimate": 0.0,
+   "n_missed": 60,
+   "n_cleared": 58,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": 0.0,
+   "hi": 0.0,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "side=over",
+   "test": "T1",
+   "input": "group_mean",
+   "estimate": -0.3333333333333333,
+   "n_missed": 60,
+   "n_cleared": 58,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.3333333333333333,
+   "hi": -0.3333333333333333,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "side=over",
+   "test": "T2",
+   "input": "group_mean",
+   "estimate": 0.0,
+   "n_missed": 60,
+   "n_cleared": 58,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": 0.0,
+   "hi": 0.0,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "side=over",
+   "test": "T1",
+   "input": "dispersion",
+   "estimate": -0.3333333333333333,
+   "n_missed": 60,
+   "n_cleared": 58,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.3333333333333333,
+   "hi": -0.3333333333333333,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "side=over",
+   "test": "T2",
+   "input": "dispersion",
+   "estimate": 0.0,
+   "n_missed": 60,
+   "n_cleared": 58,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": 0.0,
+   "hi": 0.0,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "side=under",
+   "test": "T1",
+   "input": "own_mean",
+   "estimate": 0.6307385229540918,
+   "n_missed": 167,
+   "n_cleared": 192,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": 0.5930409346532813,
+   "hi": 0.6555570902394108,
+   "se": 0.016349235350460553,
+   "p": 0.0,
+   "mde": 0.04577785898128955,
+   "ratio_to_mde": 13.778244264588455,
+   "note": null,
+   "p_holm": 0.0,
+   "reading": "detected"
+  },
+  {
+   "slice": "side=under",
+   "test": "T2",
+   "input": "own_mean",
+   "estimate": -0.00988647704590817,
+   "n_missed": 167,
+   "n_cleared": 192,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.05244944896903618,
+   "hi": 0.027874198414397155,
+   "se": 0.020250647975834604,
+   "p": 0.6254043127877664,
+   "mde": 0.05670181433233689,
+   "ratio_to_mde": 0.1743590952480323,
+   "note": null,
+   "p_holm": 1.0,
+   "reading": "not detected"
+  },
+  {
+   "slice": "side=under",
+   "test": "T1",
+   "input": "group_mean",
+   "estimate": -0.29740518962075846,
+   "n_missed": 167,
+   "n_cleared": 192,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.3222237569060773,
+   "hi": -0.25970760131994797,
+   "se": 0.016349235350460557,
+   "p": 6.107541242263159e-74,
+   "mde": 0.045777858981289554,
+   "ratio_to_mde": 6.4967037829863274,
+   "note": null,
+   "p_holm": 2.504091909327895e-72,
+   "reading": "detected"
+  },
+  {
+   "slice": "side=under",
+   "test": "T2",
+   "input": "group_mean",
+   "estimate": 0.009886477045908181,
+   "n_missed": 167,
+   "n_cleared": 192,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.027874198414397183,
+   "hi": 0.05244944896903622,
+   "se": 0.020250647975834604,
+   "p": 0.6254043127877661,
+   "mde": 0.05670181433233689,
+   "ratio_to_mde": 0.17435909524803248,
+   "note": null,
+   "p_holm": 1.0,
+   "reading": "not detected"
+  },
+  {
+   "slice": "side=under",
+   "test": "T1",
+   "input": "dispersion",
+   "estimate": -0.3333333333333333,
+   "n_missed": 167,
+   "n_cleared": 192,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.3333333333333333,
+   "hi": -0.3333333333333333,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "side=under",
+   "test": "T2",
+   "input": "dispersion",
+   "estimate": 0.0,
+   "n_missed": 167,
+   "n_cleared": 192,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": 0.0,
+   "hi": 0.0,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "band=4-6",
+   "test": "T1",
+   "input": "own_mean",
+   "estimate": 0.6666666666666667,
+   "n_missed": 41,
+   "n_cleared": 23,
+   "n_games": 26,
+   "draws_used": 2000,
+   "lo": 0.6666666666666667,
+   "hi": 0.6666666666666667,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "band=4-6",
+   "test": "T2",
+   "input": "own_mean",
+   "estimate": 0.0,
+   "n_missed": 41,
+   "n_cleared": 23,
+   "n_games": 26,
+   "draws_used": 2000,
+   "lo": 0.0,
+   "hi": 0.0,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "band=4-6",
+   "test": "T1",
+   "input": "group_mean",
+   "estimate": -0.3333333333333333,
+   "n_missed": 41,
+   "n_cleared": 23,
+   "n_games": 26,
+   "draws_used": 2000,
+   "lo": -0.3333333333333333,
+   "hi": -0.3333333333333333,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "band=4-6",
+   "test": "T2",
+   "input": "group_mean",
+   "estimate": 0.0,
+   "n_missed": 41,
+   "n_cleared": 23,
+   "n_games": 26,
+   "draws_used": 2000,
+   "lo": 0.0,
+   "hi": 0.0,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "band=4-6",
+   "test": "T1",
+   "input": "dispersion",
+   "estimate": -0.3333333333333333,
+   "n_missed": 41,
+   "n_cleared": 23,
+   "n_games": 26,
+   "draws_used": 2000,
+   "lo": -0.3333333333333333,
+   "hi": -0.3333333333333333,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "band=4-6",
+   "test": "T2",
+   "input": "dispersion",
+   "estimate": 0.0,
+   "n_missed": 41,
+   "n_cleared": 23,
+   "n_games": 26,
+   "draws_used": 2000,
+   "lo": 0.0,
+   "hi": 0.0,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "band=6-8",
+   "test": "T1",
+   "input": "own_mean",
+   "estimate": 0.6666666666666667,
+   "n_missed": 14,
+   "n_cleared": 21,
+   "n_games": 19,
+   "draws_used": 2000,
+   "lo": 0.6666666666666667,
+   "hi": 0.6666666666666667,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "band=6-8",
+   "test": "T2",
+   "input": "own_mean",
+   "estimate": 0.0,
+   "n_missed": 14,
+   "n_cleared": 21,
+   "n_games": 19,
+   "draws_used": 2000,
+   "lo": 0.0,
+   "hi": 0.0,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "band=6-8",
+   "test": "T1",
+   "input": "group_mean",
+   "estimate": -0.3333333333333333,
+   "n_missed": 14,
+   "n_cleared": 21,
+   "n_games": 19,
+   "draws_used": 2000,
+   "lo": -0.3333333333333333,
+   "hi": -0.3333333333333333,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "band=6-8",
+   "test": "T2",
+   "input": "group_mean",
+   "estimate": 0.0,
+   "n_missed": 14,
+   "n_cleared": 21,
+   "n_games": 19,
+   "draws_used": 2000,
+   "lo": 0.0,
+   "hi": 0.0,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "band=6-8",
+   "test": "T1",
+   "input": "dispersion",
+   "estimate": -0.3333333333333333,
+   "n_missed": 14,
+   "n_cleared": 21,
+   "n_games": 19,
+   "draws_used": 2000,
+   "lo": -0.3333333333333333,
+   "hi": -0.3333333333333333,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "band=6-8",
+   "test": "T2",
+   "input": "dispersion",
+   "estimate": 0.0,
+   "n_missed": 14,
+   "n_cleared": 21,
+   "n_games": 19,
+   "draws_used": 2000,
+   "lo": 0.0,
+   "hi": 0.0,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "band=8+",
+   "test": "T1",
+   "input": "own_mean",
+   "estimate": 0.6317829457364341,
+   "n_missed": 172,
+   "n_cleared": 206,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": 0.6021302750310692,
+   "hi": 0.6559139784946237,
+   "se": 0.01429155008389984,
+   "p": 0.0,
+   "mde": 0.040016340234919553,
+   "ratio_to_mde": 15.788124101991713,
+   "note": null,
+   "p_holm": 0.0,
+   "reading": "detected"
+  },
+  {
+   "slice": "band=8+",
+   "test": "T2",
+   "input": "own_mean",
+   "estimate": -0.010611876270038345,
+   "n_missed": 172,
+   "n_cleared": 206,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.04848142770188084,
+   "hi": 0.026715473592543063,
+   "se": 0.018670481068080603,
+   "p": 0.5697788498594021,
+   "mde": 0.05227734699062569,
+   "ratio_to_mde": 0.202991867049819,
+   "note": null,
+   "p_holm": 1.0,
+   "reading": "not detected"
+  },
+  {
+   "slice": "band=8+",
+   "test": "T1",
+   "input": "group_mean",
+   "estimate": -0.29844961240310075,
+   "n_missed": 172,
+   "n_cleared": 206,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.3225806451612903,
+   "hi": -0.2687969416977361,
+   "se": 0.014291550083899844,
+   "p": 7.653134673684532e-97,
+   "mde": 0.04001634023491956,
+   "ratio_to_mde": 7.4581935941924025,
+   "note": null,
+   "p_holm": 3.2143165629475036e-95,
+   "reading": "detected"
+  },
+  {
+   "slice": "band=8+",
+   "test": "T2",
+   "input": "group_mean",
+   "estimate": 0.010611876270038383,
+   "n_missed": 172,
+   "n_cleared": 206,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.02671547359254313,
+   "hi": 0.04848142770188084,
+   "se": 0.018670481068080606,
+   "p": 0.5697788498594007,
+   "mde": 0.052277346990625695,
+   "ratio_to_mde": 0.2029918670498197,
+   "note": null,
+   "p_holm": 1.0,
+   "reading": "not detected"
+  },
+  {
+   "slice": "band=8+",
+   "test": "T1",
+   "input": "dispersion",
+   "estimate": -0.3333333333333333,
+   "n_missed": 172,
+   "n_cleared": 206,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": -0.3333333333333333,
+   "hi": -0.3333333333333333,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  },
+  {
+   "slice": "band=8+",
+   "test": "T2",
+   "input": "dispersion",
+   "estimate": 0.0,
+   "n_missed": 172,
+   "n_cleared": 206,
+   "n_games": 31,
+   "draws_used": 2000,
+   "lo": 0.0,
+   "hi": 0.0,
+   "se": 0.0,
+   "p": 1.0,
+   "mde": null,
+   "ratio_to_mde": null,
+   "note": "zero-variance bootstrap: p = 1",
+   "p_holm": 1.0,
+   "reading": "no variance"
+  }
+ ],
+ "ceiling_missed": {
+  "n_missed": 227,
+  "no_single_input_flip": 0,
+  "median_nearest_se": 3.1141323630735456,
+  "caps": [
+   {
+    "cap_se": 1.0,
+    "n_reached": 7,
+    "share_reached": 0.030837004405286344
+   },
+   {
+    "cap_se": 2.0,
+    "n_reached": 59,
+    "share_reached": 0.2599118942731278
+   },
+   {
+    "cap_se": 3.0,
+    "n_reached": 107,
+    "share_reached": 0.4713656387665198
+   },
+   {
+    "cap_se": 5.0,
+    "n_reached": 155,
+    "share_reached": 0.6828193832599119
+   }
+  ],
+  "per_input": {
+   "own_mean": {
+    "n_can_flip": 223,
+    "n_cannot_or_no_se": 4,
+    "median_se_distance": 3.0831305824686295
+   },
+   "group_mean": {
+    "n_can_flip": 227,
+    "n_cannot_or_no_se": 0,
+    "median_se_distance": 15.05213388521429
+   },
+   "dispersion": {
+    "n_can_flip": 60,
+    "n_cannot_or_no_se": 167,
+    "median_se_distance": 21.12829553483063
+   }
+  }
+ },
+ "ceiling_cleared": {
+  "n_missed": 250,
+  "no_single_input_flip": 0,
+  "median_nearest_se": 3.3646210305361595,
+  "caps": [
+   {
+    "cap_se": 1.0,
+    "n_reached": 1,
+    "share_reached": 0.004
+   },
+   {
+    "cap_se": 2.0,
+    "n_reached": 51,
+    "share_reached": 0.204
+   },
+   {
+    "cap_se": 3.0,
+    "n_reached": 108,
+    "share_reached": 0.432
+   },
+   {
+    "cap_se": 5.0,
+    "n_reached": 176,
+    "share_reached": 0.704
+   }
+  ],
+  "per_input": {
+   "own_mean": {
+    "n_can_flip": 245,
+    "n_cannot_or_no_se": 5,
+    "median_se_distance": 3.327686779757899
+   },
+   "group_mean": {
+    "n_can_flip": 249,
+    "n_cannot_or_no_se": 1,
+    "median_se_distance": 15.927488602739151
+   },
+   "dispersion": {
+    "n_can_flip": 60,
+    "n_cannot_or_no_se": 190,
+    "median_se_distance": 20.36745990964489
+   }
+  }
+ },
+ "descriptive": {
+  "uncertainty_scale": {
+   "missed": {
+    "n_with_flip": 227,
+    "share": {
+     "own_mean": 0.973568281938326,
+     "group_mean": 0.02643171806167401,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 221,
+     "group_mean": 6,
+     "dispersion": 0
+    },
+    "order": [
+     "own_mean",
+     "group_mean",
+     "dispersion"
+    ]
+   },
+   "cleared": {
+    "n_with_flip": 250,
+    "share": {
+     "own_mean": 0.98,
+     "group_mean": 0.02,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 245,
+     "group_mean": 5,
+     "dispersion": 0
+    },
+    "order": [
+     "own_mean",
+     "group_mean",
+     "dispersion"
+    ]
+   }
+  },
+  "proportional_scale_same_three_inputs": {
+   "missed": {
+    "n_with_flip": 227,
+    "share": {
+     "own_mean": 0.8458149779735683,
+     "group_mean": 0.15418502202643172,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 192,
+     "group_mean": 35,
+     "dispersion": 0
+    },
+    "order": [
+     "own_mean",
+     "group_mean",
+     "dispersion"
+    ]
+   },
+   "cleared": {
+    "n_with_flip": 250,
+    "share": {
+     "own_mean": 0.84,
+     "group_mean": 0.16,
+     "dispersion": 0.0
+    },
+    "count": {
+     "own_mean": 210,
+     "group_mean": 40,
+     "dispersion": 0
+    },
+    "order": [
+     "own_mean",
+     "group_mean",
+     "dispersion"
+    ]
+   }
+  },
+  "proportional_scale_c40_five_inputs_counts": {
+   "missed": {
+    "own_mean": 150,
+    "group_mean": 25,
+    "line": 52
+   },
+   "cleared": {
+    "own_mean": 170,
+    "group_mean": 33,
+    "line": 46,
+    "weight": 1
+   }
+  },
+  "row_agreement_three_inputs": {
+   "n": 477,
+   "same": 409,
+   "share": 0.8574423480083857,
+   "transitions": {
+    "group_mean->group_mean": 9,
+    "group_mean->own_mean": 66,
+    "own_mean->group_mean": 2,
+    "own_mean->own_mean": 400
+   }
+  },
+  "prediction_own_nearer_than_group": {
+   "n": 468,
+   "holds": 466,
+   "share": 0.9957264957264957
+  },
+  "no_standard_error": {
+   "own_mean": {
+    "fewer than 2 prior games": 5,
+    "zero variance": 4
+   },
+   "group_mean": {},
+   "dispersion": {
+    "fewer than 2 prior games": 5
+   }
+  },
+  "relative_se_median": {
+   "own_mean": 0.14401152409121903,
+   "group_mean": 0.0653728479518118,
+   "dispersion": 0.09293344421346951
+  },
+  "direction_differs_from_log_nearest": {
+   "own_mean": 0,
+   "group_mean": 0,
+   "dispersion": 0
+  }
+ },
+ "bootstrap": {
+  "draws": 2000,
+  "seed": 42,
+  "block": "game",
+  "dispersion_se_draws": 1000
+ }
+}

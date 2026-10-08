@@ -2268,3 +2268,20 @@ so it ships one tick later; it never raises and a failed build leaves the previo
     inputs are own mean, group mean, weight, dispersion and the line.
   - **`np.std` of 2,000 identical floats is ~1e-17, not 0.0.** `se == 0` let 19 zero-variance
     tests into a Holm family at p = 0. Compare against a tolerance.
+  - **The ranking is not a product of the proportional ruler - and the agreement is about
+    structure, not about misses** (c-42, `research/counterfactual_uncertainty.py`, pre-registered
+    at `b69b376`; `docs/findings/c42-uncertainty-scale.md`). Same 477 leans, each input moved in
+    units of its own as-of standard error: `own_mean` is the flipping input on 97.4% of missed
+    leans (+0.640 over the 1/3 null [+0.615, +0.658], 48-test Holm family) and 98.0% of cleared
+    ones; missed minus cleared -0.006 [-0.036, +0.022]. On the same three inputs the proportional
+    scale gives 84.6% / 84.0%. The registered inequality `w * SE_own > (1 - w) * SE_group` holds
+    on 466 of 468 rows: the heavily weighted input (median w 0.73) is also the loosely known one
+    (median relative SE 14% against the group mean's 6.5%).
+    - **Only three of the five inputs have an as-of uncertainty.** No fit yields a standard error
+      for the shrink weight (n is exact, the constants are judgment calls), and a posted line is
+      exact - 409 of 477 leans have ONE listed line across the three benchmark books. Where the
+      LINE would rank on an uncertainty scale is not known; it was c-40's second input (22.9%).
+    - **Ceiling in standard errors:** the median missed lean needs its nearest input moved 3.1 of
+      its own sampling SEs (cleared 3.4); 3.1% flip within 1 SE, 26.0% within 2, 47.1% within 3.
+      The SE is sampling error only - it leaves out season-to-season drift - so this is not a
+      significance statement about any lean.
