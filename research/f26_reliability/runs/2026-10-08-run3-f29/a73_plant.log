@@ -1,0 +1,20 @@
+read 6851 Kalshi REC/RSHATT markets at 10-08 20:15:07Z (now); a-73 read at 10-08 17:24:00Z
+unplaced tickers 0 of 6851; ticker week != outcome week on 0 mapped markets
+week 5, first seen by 17:24:00Z    listed  556  unexamined   0  refused   0  mapped  556  outcome before kickoff  555  late 1
+week 5, everything listed now      listed  556  unexamined   0  refused   0  mapped  556  outcome before kickoff  555  late 1
+
+P1  is outcomes.created_ts this market's own first mapping?
+    outcome created BEFORE the market was first seen: 1 of 556 mapped
+    outcome shared with another Kalshi market: 0; outcome also linked by a non-Kalshi venue: 517
+    market_outcome.mapped_ts - outcomes.created_ts: min 0 s, median 3 s, max 172775 s (mapped_ts is rewritten by a full pass, so it bounds the first mapping from ABOVE)
+    markets whose LATEST mapping write is at or after kickoff: 1 (0 means in-time holds on the upper bound too)
+
+P2  the 17:15:38Z listing: discovery against the venue's own open time
+    388 markets first seen within 5 s of it; 388 mapped; created - first_seen 131 to 137 s
+    first_seen - Kalshi open_ts: min 38 s, median 38 s, max 38 s (n 388); created - open_ts max 175 s
+    methods on the batch: {'kalshi:series+alias:display': 378, 'kalshi:series+alias:display+season': 10}
+    whole week: first_seen - open_ts min 38 s, median 38 s, p90 378 s, max 378 s
+
+P3  could 'before its own kickoff' have failed at the reading?
+    week-5 games carrying a listed prop: 11; kicked off by the a-73 reading: 1; by now: 1; first kickoff 10-08 16:22:44Z
+    listed props per game: {'2026_05_CHI_GB': 69, '2026_05_CIN_MIA': 28, '2026_05_CLE_NYJ': 44, '2026_05_HOU_TEN': 85, '2026_05_IND_PIT': 62, '2026_05_LV_NE': 48, '2026_05_MIN_NO': 39, '2026_05_NYG_WAS': 13, '2026_05_PHI_JAX': 72, '2026_05_TB_DAL': 96}

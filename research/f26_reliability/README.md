@@ -111,6 +111,19 @@ Where the claim is a regression on a shared term (c-32: close−open on model−
 add the null the claim actually needs — a permutation of the model across games and
 the joint coefficient with the shared term held fixed. Zero is the wrong null there.
 
+## Claims without an interval (run 3)
+
+A census ("556 of 556 mapped before kickoff") has no interval, so the selector does not rank
+it and steps 2, 4 and 5 do not apply. It is still attacked when a brief names it: re-count it
+with the attacker's own query, then ask of each column it leans on **could this have read
+otherwise at the moment it was read** - a timestamp standing in for an event, a first-seen
+standing in for a listing, a condition that every row passes because nothing it tests has
+happened yet. Plant the failing row in memory and show the count move.
+
+**A hash that is identical before and after is evidence only if the unit could have moved it.**
+Diff the files the hashed job imports first; if the unit touched none of them the hash is a
+restatement of the diff. Then plant a change and show the hash moves.
+
 ## Verdicts
 
 - **citable** — survived every step that was run; the report names the steps.
@@ -141,10 +154,26 @@ so the hand count is a floor.
     attack_c30.py    c-30's spread record (published by a-64)      pipeline re-run, all five steps
     attack_c31.py    c-31's total record (published by a-64)       pipeline re-run, all five steps
     attack_c32.py    c-32's line-move slope                        own script re-run + permutation null
+    census_a73.py    a-73's mapping census (no interval)            own count on the live store, mode=ro; three
+                     proxies measured (created_ts, first_seen vs open_ts, kickoffs still ahead); --plant
+    attack_c39.py    c-39's college game model                      pipeline re-run, steps 1-3b; ~25 min, so give
+                     the background job an explicit timeout - run 3's was stopped at the harness's 30 minutes
+    tail_c39.py      c-39 steps 3c, 4, 5 from the recorded fits   valid only after attack_c39.py step 1 prints
+                     `0 of 21 seasons differ`
+    identity_c39.py  c-39's NFL season-model hash, and a plant that moves it
+    attack_c37.py    c-37's yards result, from its scratch rows     arithmetic only, NO leakage step
+    attack_c29.py    c-29's CLV record                              own script re-run, compared lean by lean
+    receipts_blocks.py  the Receipts hit rate, from the Board ledger   per-lean interval against block intervals
     attack_rows.py   any coefficient published with its rows       arithmetic only, NO leakage step;
                      --src/--boot hand the rows to the target's own bootstrap (without them the
                      blocks step prints NOT RUN, it does not pass)
     runs/            one verdict file per run
+
+Only an adapter that hands rows to a target's bootstrap is named `attack_*.py`; `tests/test_f26_reliability.py`
+requires `duplication_through` in every one. A census (`census_a73.py`), the second half of a split run
+(`tail_c39.py`) and a re-draw whose target function is not runnable from here (`receipts_blocks.py`: the
+Receipts interval is computed by the site, in TypeScript) are named otherwise, and their verdicts say the
+through test was NOT RUN.
 
 ## What a clean result from each step does NOT cover (f-27, pinned in `selfcheck.py`)
 

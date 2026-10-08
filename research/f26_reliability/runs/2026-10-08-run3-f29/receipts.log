@@ -1,0 +1,8 @@
+graded rows 496 distinct lean_id 496 events [{'event': 'graded', 'count': 496}] weeks [{'week': 3, 'count': 194}, {'week': 4, 'count': 302}]
+hit rate 0.5161  Wilson per lean [0.4722, 0.5598]  normal [0.4721, 0.5601]  (b-99 read 51.6 [47.2, 56.0] off production)
+  lean (iid)   (496 blocks) 0.5161 [0.4718, 0.5585] SE 0.0227 width x1.00 of per-lean
+  game         ( 31 blocks) 0.5161 [0.4693, 0.5608] SE 0.0233 width x1.06 of per-lean
+  player-game  (368 blocks) 0.5161 [0.4661, 0.5656] SE 0.0246 width x1.15 of per-lean
+  kickoff slot ( 12 blocks) 0.5161 [0.4670, 0.5452] SE 0.0196 width x0.90 of per-lean
+  week         (  2 blocks) 0.5161 [0.5066, 0.5309] SE 0.0088 width x0.28 of per-lean  NOT READ (<5 blocks)
+leans per player-game 1.35, per game 16.0

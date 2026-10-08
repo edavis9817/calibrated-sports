@@ -1,0 +1,56 @@
+53733 rows in the file, 18666 with a bench price; 814 distinct games, 513 distinct players, 10016 player-games
+N-half column: min 0.500 max 0.500 (a constant 0.5 must be exactly that)
+
+== 1. REPRODUCE from the rows (pipeline NOT re-run)
+   bench rungs            measured +18666.000000  published +18666.0000  -> REPRODUCES
+   games                  measured +814.000000  published +814.0000  -> REPRODUCES
+   Brier Y - half         measured +0.016619  published +0.0166  -> REPRODUCES
+   Brier Y - prior        measured -0.013272  published -0.0133  -> REPRODUCES
+   Brier Y - p_bench      measured +0.016811  published +0.0168  -> REPRODUCES
+   rc.Pop.boot (seed 24, 2000 draws) Y - half   +0.0166 [+0.0136, +0.0196] SE 0.00152   published [+0.0136, +0.0196] -> bounds match
+   rc.Pop.boot (seed 24, 2000 draws) Y - prior  -0.0133 [-0.0169, -0.0099] SE 0.00178   published [-0.0169, -0.0099] -> bounds match
+   2023 n  5261: Y - half +0.0162   Y - prior -0.0080   Y - p_bench +0.0165
+   2024 n  6294: Y - half +0.0195   Y - prior -0.0168   Y - p_bench +0.0196
+   2025 n  7111: Y - half +0.0144   Y - prior -0.0141   Y - p_bench +0.0146
+
+== 2. BLOCKS: THROUGH rc.Pop.boot (the target's function), then coarser blocks
+   half   THROUGH rc.Pop.boot (18666 rows, 814 units): copies inside their block x1.000, copies as new blocks x0.436 (expected 0.447) -> honours_blocks
+   prior  THROUGH rc.Pop.boot (18666 rows, 814 units): copies inside their block x1.000, copies as new blocks x0.512 (expected 0.447) -> honours_blocks
+   half    descriptive: 18666 rows in 814 games; an unblocked interval would be x0.71 the width
+   half    game         ( 814 blocks) +0.0166 [+0.0137, +0.0197] SE 0.00154 *
+   half    season-week  (  54 blocks) +0.0166 [+0.0134, +0.0199] SE 0.00166 *
+   half    player       ( 513 blocks) +0.0166 [+0.0136, +0.0197] SE 0.00156 *
+   half    season       (   3 blocks) +0.0166 [+0.0144, +0.0195] SE 0.00127  (<5 blocks: NOT READ)
+   prior   descriptive: 18666 rows in 814 games; an unblocked interval would be x0.73 the width
+   prior   game         ( 814 blocks) -0.0133 [-0.0168, -0.0098] SE 0.00183 *
+   prior   season-week  (  54 blocks) -0.0133 [-0.0163, -0.0100] SE 0.00163 *
+   prior   player       ( 513 blocks) -0.0133 [-0.0171, -0.0093] SE 0.00204 *
+   prior   season       (   3 blocks) -0.0133 [-0.0168, -0.0080] SE 0.00204  (<5 blocks: NOT READ)
+   p_bench descriptive: 18666 rows in 814 games; an unblocked interval would be x0.71 the width
+   p_bench game         ( 814 blocks) +0.0168 [+0.0138, +0.0199] SE 0.00154 *
+   p_bench season-week  (  54 blocks) +0.0168 [+0.0136, +0.0201] SE 0.00166 *
+   p_bench player       ( 513 blocks) +0.0168 [+0.0138, +0.0199] SE 0.00156 *
+   p_bench season       (   3 blocks) +0.0168 [+0.0146, +0.0196] SE 0.00125  (<5 blocks: NOT READ)
+
+== 3. LEAKAGE: NOT RUN. The pipeline was not re-run; nothing here says the forecasts are as-of.
+   (Reasoning, not a check: a leak would flatter the model, and the claim is that the model LOSES.)
+
+== 4-5. SPECIFICATIONS AND MDE
+   the result file has NO registered_intervals.count; it lists 58 tests, and that count is used as k (the attacker's count of the unit's own list, not the unit's statement)
+   half    game        blocks: SE 0.00152 z +10.9  Bonferroni survives k=58 True, k=1000 True  |est|/MDE 3.90 (clear)
+   half    player      blocks: SE 0.00158 z +10.5  Bonferroni survives k=58 True, k=1000 True  |est|/MDE 3.75 (clear)
+   half    season-week blocks: SE 0.00163 z +10.2  Bonferroni survives k=58 True, k=1000 True  |est|/MDE 3.63 (clear)
+   prior   game        blocks: SE 0.00179 z -7.4  Bonferroni survives k=58 True, k=1000 True  |est|/MDE 2.65 (clear)
+   prior   player      blocks: SE 0.00197 z -6.7  Bonferroni survives k=58 True, k=1000 True  |est|/MDE 2.40 (clear)
+   prior   season-week blocks: SE 0.00164 z -8.1  Bonferroni survives k=58 True, k=1000 True  |est|/MDE 2.90 (clear)
+   p_bench game        blocks: SE 0.00152 z +11.0  Bonferroni survives k=58 True, k=1000 True  |est|/MDE 3.94 (clear)
+   p_bench player      blocks: SE 0.00158 z +10.6  Bonferroni survives k=58 True, k=1000 True  |est|/MDE 3.79 (clear)
+   p_bench season-week blocks: SE 0.00164 z +10.3  Bonferroni survives k=58 True, k=1000 True  |est|/MDE 3.67 (clear)
+   stated MDE 0.0043 against 2.8 x the game-block SE re-measured here 0.0043 -> consistent
+
+== 4b. THE SPECIFICATION NOBODY COUNTED: is 'loses to 0.5' a property of the model or of its level?
+   mean model P(over) 0.4100, realized over rate 0.4793, mean p_bench 0.5005
+   model + its own mean gap (in-sample, the most favourable shift) Brier - N-half +0.0118 [+0.0095, +0.0141] SE 0.00119 *
+   model shrunk halfway to 0.5                                    Brier - N-half +0.0030 [+0.0015, +0.0044] SE 0.00075 *
+
+wrote D:/temp/f29/c37.json

@@ -1,0 +1,45 @@
+D:\temp\f29\c-39src\models\cfb_game.py:204: RuntimeWarning: overflow encountered in exp
+  p = 1.0 / (1.0 + np.exp(-diff * c400))
+loaded 18991 games; MOV grid 207360 points, 29505 dropped as `bad` over the whole walk (509s)
+
+== 1. REPRODUCE (today's cfb.db, c-39's fitting code, own Brier arithmetic)
+   n Part-1 games               measured +15508.000000  published +15508.0000  -> REPRODUCES
+   dBrier vs home               measured -0.061471  published -0.0615  -> REPRODUCES
+   dBrier vs record             measured -0.037956  published -0.0380  -> REPRODUCES
+   dBrier vs elo_nomov          measured -0.004164  published -0.0042  -> REPRODUCES
+   n CFBD-moneyline games       measured +3768.000000  published +3768.0000  -> REPRODUCES
+   dBrier vs CFBD moneyline     measured +0.010681  published +0.0107  -> REPRODUCES
+   fitted constants vs the committed result file: 0 of 21 seasons differ []
+
+== 2. BLOCKS: every arm THROUGH GF.boot_many (the function behind compare()'s intervals)
+   elo_nomov THROUGH GF.boot_many (15508 rows, 15508 units): copies inside their block x1.000, copies as new blocks x0.387 (expected 0.447) -> honours_blocks
+   ml        THROUGH GF.boot_many (3768 rows, 3768 units): copies inside their block x1.000, copies as new blocks x0.440 (expected 0.447) -> honours_blocks
+   home, record: THROUGH NOT RUN (same function, same rows-per-game; z < -25) - named, not passed
+   home      game            (15508 blocks) -0.0615 [-0.0644, -0.0583] SE 0.00156 *
+   home      season-week     (  408 blocks) -0.0615 [-0.0647, -0.0581] SE 0.00167 *
+   home      season          (   21 blocks) -0.0615 [-0.0658, -0.0575] SE 0.00212 *
+   home      home team       (  137 blocks) -0.0615 [-0.0659, -0.0573] SE 0.00218 *
+   home      home conference (   14 blocks) -0.0615 [-0.0685, -0.0548] SE 0.00356 *
+   record    game            (15508 blocks) -0.0380 [-0.0405, -0.0353] SE 0.00138 *
+   record    season-week     (  408 blocks) -0.0380 [-0.0411, -0.0348] SE 0.00160 *
+   record    season          (   21 blocks) -0.0380 [-0.0409, -0.0350] SE 0.00152 *
+   record    home team       (  137 blocks) -0.0380 [-0.0417, -0.0342] SE 0.00187 *
+   record    home conference (   14 blocks) -0.0380 [-0.0446, -0.0316] SE 0.00329 *
+   elo_nomov game            (15508 blocks) -0.0042 [-0.0049, -0.0034] SE 0.00038 *
+   elo_nomov season-week     (  408 blocks) -0.0042 [-0.0049, -0.0034] SE 0.00040 *
+   elo_nomov season          (   21 blocks) -0.0042 [-0.0047, -0.0036] SE 0.00029 *
+   elo_nomov home team       (  137 blocks) -0.0042 [-0.0049, -0.0034] SE 0.00038 *
+   elo_nomov home conference (   14 blocks) -0.0042 [-0.0048, -0.0036] SE 0.00030 *
+   ml        game            ( 3768 blocks) +0.0107 [+0.0068, +0.0142] SE 0.00189 *
+   ml        season-week     (  103 blocks) +0.0107 [+0.0069, +0.0146] SE 0.00197 *
+   ml        season          (    5 blocks) +0.0107 [+0.0081, +0.0132] SE 0.00138 *
+   ml        home team       (  136 blocks) +0.0107 [+0.0071, +0.0142] SE 0.00179 *
+   ml        home conference (   11 blocks) +0.0107 [+0.0080, +0.0134] SE 0.00139 *
+
+== 3. LEAKAGE (full-pipeline scramble NOT RUN - see the module docstring)
+   3a info-set audit of the rating walk: 0 games (0 in Part 1) entered with a kickoff at or after their own in their ratings' ancestry; furthest 0.00 days; start_ts null on 0 rows
+      planted (one 2019 postseason game dated before the 2019 opener, audited on TRUE kickoffs): 0 -> 465 : FIRES
+   3b scores at/after ts 1287849600 scrambled, scalar walk at 11 fitted parameter sets: 42537 earlier forecasts checked, 0 moved (127373 later ones moved - proves the scramble ran, nothing more)
+   3b scores at/after ts 1510459200 scrambled, scalar walk at 11 fitted parameter sets: 102344 earlier forecasts checked, 0 moved (67458 later ones moved - proves the scramble ran, nothing more)
+   3b scores at/after ts 1725737400 scrambled, scalar walk at 11 fitted parameter sets: 153472 earlier forecasts checked, 0 moved (16537 later ones moved - proves the scramble ran, nothing more)
+      planted (the misdated game, cutoff mid-2019): 1243 earlier forecasts moved -> FIRES

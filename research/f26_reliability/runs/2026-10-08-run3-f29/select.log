@@ -1,0 +1,28 @@
+236 machine reports (0 unreadable []); window opens 2026-09-30T01:38:40-04:00; 33 units in it, 9 with an interval claim
+  a-75  score 4  published (own files); names its MDE                  1 intervals  headline -0.0008 [-0.0024, +0.0007]
+  b-104 score 3  published (own files)                                 1 intervals  headline +0.0009 [+0.0003, +0.0016]
+  b-99  score 3  published by b-100,b-104                              1 intervals  headline 51.6 [47.2, 56.0]
+  c-37  score 2  names its MDE; headline interval excludes zero       10 intervals  headline +0.0166 [+0.0136, +0.0196]
+  c-39  score 1  headline interval excludes zero                       3 intervals  headline +0.0107 [+0.0070, +0.0144]
+  c-35  score 1  names its MDE                                         9 intervals  headline +0.40pp [-9.3, +8.0]
+  c-34  score 1  names its MDE                                         6 intervals  headline +0.00010 [-0.00022, +0.00040]
+  c-29  score 1  names its MDE                                         4 intervals  headline -0.08pp [-0.34, +0.24]
+  c-33  score 0  -                                                     3 intervals  headline 2.81 [2.15, 3.60]
+  no interval stated (not targets for this checklist): b-92, a-60, b-93, a-61, a-62, b-94, b-96, b-95, a-64, b-97, a-65, f-24, a-66, a-67, a-68, f-25, a-69, b-98, a-70, a-72, b-100, b-103, a-73, b-105
+
+10 of the 33 window units are new since the last recorded run
+needs_ethan: 31 items raised by those 10 units (550 across all 236 reports)
+  of them 'merge / merge order / deploy this branch' asks (one CLASS, a different branch each): 8
+  repeat an earlier unit's item at Jaccard >= 0.4: 3
+  repeat an earlier unit's item at Jaccard >= 0.5: 1
+  repeat an earlier unit's item at Jaccard >= 0.6: 1
+  0.82 a-73  Hold week 4's Kalshi prop quotes before 2026-10-15: python -m jobs.hold_weeks --week 4 from the production clone.
+       ~ a-68  Hold week 4's Kalshi prop quotes before 2026-10-15: python -m jobs.hold_weeks --week 4.
+  0.47 a-73  Carry slug commit 8a87fa1 to origin/main and repoint the Weekly Refresh task at code\prod\calibrated-sports.
+       ~ f-25  Point the Weekly Refresh task at code\prod\calibrated-sports
+  0.42 b-100 Run the three-engine browser gate and the geometry gate on f48bab3 before any merge.
+       ~ b-99  Run the three-engine browser gate on fd9f5b9 before this branch is merged anywhere.
+  0.38 a-72  Merge order for a-72 against the web repo
+       ~ b-50  Merge order for the stacked web branches
+  0.25 b-103 Whether to revendor the contract as its own unit
+       ~ b-22  Merge b-22-revendor-contract to web main

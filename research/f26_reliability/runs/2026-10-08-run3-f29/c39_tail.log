@@ -1,0 +1,24 @@
+== the recorded-fit route gives the same headline (else this file's premise is false)
+   dBrier vs home         measured -0.061471  published -0.0615  -> REPRODUCES
+   dBrier vs record       measured -0.037956  published -0.0380  -> REPRODUCES
+   dBrier vs elo_nomov    measured -0.004164  published -0.0042  -> REPRODUCES
+   dBrier vs ml           measured +0.010681  published +0.0107  -> REPRODUCES
+
+== 3c. PARAMETERS refitted on a store truncated before 2006
+D:\temp\f29\c-39src\models\cfb_game.py:204: RuntimeWarning: overflow encountered in exp
+  p = 1.0 / (1.0 + np.exp(-diff * c400))
+   MOV fit EQUALS the walk's, plain fit EQUALS; grid points dropped as `bad` as of then: 20999 (29,505 over the whole walk)
+      planted (season 2006 given season 2007's parameters): FIRES
+      ONE season of 21 checked this way (2 fits). The other 20 rest on 3b and on the fitted damping constant being None in every season, which the `bad` mask cannot remove.
+
+== 4-5. SPECIFICATIONS (k = c-39's own 32 registered intervals) AND MDE
+   home      z -39.7  Bonferroni survives k=3 True, k=32 True, k=1000 True   |est|/MDE 14.18 (clear)  stated MDE 0.0044 vs re-measured 0.0043 -> consistent
+   record    z -27.5  Bonferroni survives k=3 True, k=32 True, k=1000 True   |est|/MDE 9.83 (clear)  stated MDE 0.0039 vs re-measured 0.0039 -> consistent
+   elo_nomov z -11.1  Bonferroni survives k=3 True, k=32 True, k=1000 True   |est|/MDE 3.96 (clear)  stated MDE 0.0011 vs re-measured 0.0011 -> consistent
+   ml        z +5.8  Bonferroni survives k=3 True, k=32 True, k=1000 True   |est|/MDE 2.08 (clear)
+
+== 4b. THE COMPARATOR'S OWN GRID: plain Elo's entry offset
+   plain Elo on a grid edge, seasons of 21: {'k': 0, 'hfa': 0, 'regress': 0, 'entry': 15}
+   refitted walk-forward with entry allowed to -800: fitted entry values [-500.0, -400.0, -300.0] (0 seasons on the new edge); Brier plain 0.1861 -> 0.1861; dBrier(model - plain) -0.0042 [-0.0049, -0.0035] SE 0.00037 *
+
+wrote D:/temp/f29/c39_tail.json (79s)

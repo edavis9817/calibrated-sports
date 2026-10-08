@@ -1,0 +1,24 @@
+== 1. REPRODUCE (c-29's script re-run today; compared on the 119 published lean ids)
+   0 of 119 published leans are no longer scored today; largest per-lean change in touch CLV 0.0000 pp
+   same ids, c-29's game_bootstrap today: -0.08 [-0.34, +0.24] MDE 0.41 n 119 games 11   published -0.08 [-0.34, +0.24] MDE 0.41
+   the record as it would be written today (weeks [3, 4]): -0.06 [-0.35, +0.22] MDE 0.40 n 364 games 27
+
+== 2. BLOCKS: THROUGH CR.game_bootstrap
+   published week 3  THROUGH clv_record.game_bootstrap (119 rows, 11 units): copies inside their block x1.000, copies as new blocks x0.425 (expected 0.447) -> honours_blocks
+   today, all weeks  THROUGH clv_record.game_bootstrap (364 rows, 27 units): copies inside their block x1.000, copies as new blocks x0.442 (expected 0.447) -> honours_blocks
+   today, all weeks  game         ( 27 blocks) -0.06 [-0.34, +0.21] SE 0.139
+   today, all weeks  week         (  2 blocks) -0.06 [-0.08, -0.05] SE 0.011  (<5 blocks: NOT READ)
+   today, all weeks  player       (224 blocks) -0.06 [-0.38, +0.25] SE 0.163
+   today, all weeks  kickoff slot (  9 blocks) -0.06 [-0.66, +0.29] SE 0.244
+
+== 3. LEAKAGE, from the scored rows (the pipeline's own as-of assertions are not re-proved here)
+   364 scored leans: 0 with a close at/after kickoff, a read at/after kickoff, or an entry captured after the read
+      planted (one of each, in memory): 3 reported -> FIRES
+
+== 4-5. SPECIFICATIONS AND MDE
+   published         z -0.53  |est|/MDE 0.19 (below)  stated MDE 0.41 vs 2.8 x SE 0.41 -> consistent
+   same ids today    z -0.53  |est|/MDE 0.19 (below)  stated MDE 0.41 vs 2.8 x SE 0.41 -> consistent
+   today, all weeks  z -0.40  |est|/MDE 0.14 (below)  stated MDE 0.40 vs 2.8 x SE 0.40 -> consistent
+   the headline is a null: there is nothing for a correction over its 44 stratum intervals to remove
+
+wrote D:/temp/f29/c29.json

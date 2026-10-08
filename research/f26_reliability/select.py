@@ -38,7 +38,7 @@ import sys
 
 WINDOW_START = "2026-09-30T01:38:40-04:00"          # f-23 finished
 PRIOR_ATTACKS = {"a-57": "f-22", "c-27": "f-23"}    # attacked before the marker existed
-SELF_TRACK_ATTACKS = re.compile(r"^f-2[1236]$")     # the adversarial units themselves are not targets
+SELF_TRACK_ATTACKS = re.compile(r"^f-2[1236789]$")  # the adversarial units themselves (f-27 repair, f-29 run 3) are not targets
 INTERVAL = re.compile(r"([+-]?\d+\.\d+)(?:pp|c|%)?\s*\[\s*([+-]?\d+\.\d+)\s*,\s*([+-]?\d+\.\d+)\s*\]")
 PUBLISHES = re.compile(r"(^|/)(jobs/[a-z_]*export[a-z_]*\.py|jobs/game_[a-z_]+\.py|web/contract/|app/|lib/)")
 MERGE_ASK = re.compile(r"\bmerg(e|ing)\b|\bto (origin/)?main\b", re.I)
@@ -203,7 +203,7 @@ def main(argv):
         for u, v in run["verdicts"].items():
             if u not in reports:
                 raise SystemExit("verdict for %s, which has no machine report" % u)
-            marker["verdicts"][u] = {"by": "f-26", "run": run["run_id"], "verdict": v}
+            marker["verdicts"][u] = {"by": run.get("by", "f-26"), "run": run["run_id"], "verdict": v}
         for u, why in (run.get("declined") or {}).items():
             marker["declined"][u] = {"run": run["run_id"], "why": why}
         marker["seen"] = sorted(set(marker.get("seen") or []) | set(win))
