@@ -1,0 +1,11 @@
+243 machine reports (0 unreadable []); window opens 2026-09-30T01:38:40-04:00; 32 units in it, 7 with an interval claim
+  a-75  score 4  published (own files); names its MDE                  1 intervals  headline -0.0008 [-0.0024, +0.0007]
+  c-38  score 1  names its MDE                                         9 intervals  headline -0.0028 [-0.0071, +0.0012]
+  c-41  score 1  names its MDE                                         5 intervals  headline -0.00047 [-0.00074, -0.00019]
+  c-35  score 1  names its MDE                                         9 intervals  headline +0.40pp [-9.3, +8.0]
+  c-34  score 1  names its MDE                                         6 intervals  headline +0.00010 [-0.00022, +0.00040]
+  c-40  score 0  -                                                     3 intervals  headline -0.019 [-0.099, +0.067]
+  c-33  score 0  -                                                     3 intervals  headline 2.81 [2.15, 3.60]
+  no interval stated (not targets for this checklist): b-92, a-60, b-93, a-61, a-62, b-94, b-96, b-95, a-64, b-97, a-65, f-24, a-66, a-67, a-68, f-25, a-69, b-98, a-70, a-72, b-100, b-103, b-105, a-74, a-71
+
+marker written: C:/Users/Ethan Davis/code/_relay\state\f26-marker.json (15 verdicts, 3 runs)

@@ -1,0 +1,13 @@
+{
+ "run_id": "f-30 college build",
+ "by": "f-30",
+ "at": "2026-10-08T17:55-04:00",
+ "code": "origin/f-30-verify-cfb-build (stacked on origin/f-29-reliability-run3; research/f30_cfb_build/)",
+ "verdicts": {
+  "a-72": "CITABLE (a conformance census, no interval: steps 2 and 5 do not apply). a-72's own diff tool with its 400-file sample lifted returns the sampled totals over every file - missing 0, undeclared 1, declared 21, cfb_only 15 on 4,002/19,328 NFL and 14,327/40,563 college player files - and an independent walker agrees on player_season and differs on player_summary only inside identity.ids, a map the tool marks opaque and never compares (NFL gsis/pfr/pff/sleeper/yahoo, college espn only, undeclared). No NFL path is carried by fewer than 1 in 400 files (least 379 of 4,002). Plant: one key in 2,000 files is missed by the sampled tool on 16 of 20 seeds and reported by the full run. The export itself was not re-run; the tree attacked is the staged one generated 2026-10-08T07:28:10Z. Outside the claim: 17 staged player pages are the feed's team-total row, and 85 players' slugs differ across their own roster seasons.",
+  "c-39": "CITABLE for settlement and the hash; the 168-game price figure CITABLE ONLY WITH A STATED SENTENCE. Part 1 reproduces with its intervals exactly (three arms, n 15,508, max abs diff 0.0 through GF.boot_many, model fits from the committed file, plain Elo refitted 21 of 21 equal). Hash 12b91365 on a981315 and e8ff867, plant moves it; 0 of 11 changed files are among the 9 the hashed run imports, so it could not have failed. 2c +0.0321 [+0.0147, +0.0495] n 168 reproduces, honours blocks, survives k=32 (p_adj 0.0102) not k=1000, 1.29x its MDE: three weeks of one season; sign established, size not. 2b hit rate 0.4980 reproduces as a powered null (break-even 5.1 SE above). No committed text words the CFBD moneyline as a close."
+ },
+ "declined": {
+  "b-103": "NOT ATTACKED: rendering the college pages was excluded by the brief. Its own not_established (one team, one receiver, paper ground only, shoot.mjs not extended) stands as a Track B gap."
+ }
+}

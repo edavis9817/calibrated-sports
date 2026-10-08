@@ -38,7 +38,7 @@ import sys
 
 WINDOW_START = "2026-09-30T01:38:40-04:00"          # f-23 finished
 PRIOR_ATTACKS = {"a-57": "f-22", "c-27": "f-23"}    # attacked before the marker existed
-SELF_TRACK_ATTACKS = re.compile(r"^f-2[1236789]$")  # the adversarial units themselves (f-27 repair, f-29 run 3) are not targets
+SELF_TRACK_ATTACKS = re.compile(r"^f-(2[1236789]|30)$")  # the adversarial units themselves (f-27 repair, f-29 run 3, f-30 college build) are not targets
 INTERVAL = re.compile(r"([+-]?\d+\.\d+)(?:pp|c|%)?\s*\[\s*([+-]?\d+\.\d+)\s*,\s*([+-]?\d+\.\d+)\s*\]")
 PUBLISHES = re.compile(r"(^|/)(jobs/[a-z_]*export[a-z_]*\.py|jobs/game_[a-z_]+\.py|web/contract/|app/|lib/)")
 MERGE_ASK = re.compile(r"\bmerg(e|ing)\b|\bto (origin/)?main\b", re.I)

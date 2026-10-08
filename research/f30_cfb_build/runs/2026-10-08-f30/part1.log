@@ -1,0 +1,6 @@
+plain-Elo comparator refitted here: 21 of 21 seasons equal the committed fit
+vs home      n 15508 (pub 15508)  today -0.0615 [-0.0644, -0.0583]  published -0.0615 [-0.0644, -0.0583]  max abs diff 0.0e+00 -> REPRODUCES WITH ITS INTERVAL
+vs record    n 15508 (pub 15508)  today -0.0380 [-0.0406, -0.0352]  published -0.0380 [-0.0406, -0.0352]  max abs diff 0.0e+00 -> REPRODUCES WITH ITS INTERVAL
+vs elo_nomov n 15508 (pub 15508)  today -0.0042 [-0.0049, -0.0034]  published -0.0042 [-0.0049, -0.0034]  max abs diff 0.0e+00 -> REPRODUCES WITH ITS INTERVAL
+0 of 3 arms fail to reproduce (34s)
+rc=0
