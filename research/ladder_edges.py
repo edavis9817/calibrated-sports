@@ -4,8 +4,10 @@
     python -m research.ladder_edges --cache D:/temp/c35/rows.json --json-out D:/temp/c35/result.json
 
 PRE-REGISTRATION: docs/C35-ladder-edges-preregistration.md, committed at
-f1db87c BEFORE this script existed. This file implements it; it does not
-extend it. The comments here say only where the code carries a rule out.
+f1db87c BEFORE this script existed. This file implements it. Five changes were
+made AFTER the first run and are marked ADDENDUM 1 in the code and in the
+pre-registration: one bug fix toward the registered definition, one display
+rule, and three post hoc descriptive tables that sit outside every BH family. The comments here say only where the code carries a rule out.
 
 `market_log.db` is opened `mode=ro` only (here, and by research.walkforward's
 workers). `--extract` is the only step that reads it; it writes a scratch JSON
@@ -208,7 +210,8 @@ class Blocks:
         self.gidx = [np.array(v) for _g, v in sorted(groups.items())]
         self.n, self.G = len(block_keys), len(self.gidx)
 
-    def boot(self, fn, draws=BOOT, seed=SEED):
+    def boot(self, fn, draws=None, seed=SEED):
+        draws = BOOT if draws is None else draws      # read at call time, not frozen at import
         est = fn(np.arange(self.n)) if self.n else None
         out = {"est": est, "lo": None, "hi": None, "se": None, "games": self.G, "n": self.n}
         if self.G < 2 or est is None:
@@ -460,6 +463,57 @@ def build_ladders(rows):
     return ladders
 
 
+def cell_depth_join(ladders, grp, cell, sign, size=100):
+    """ADDENDUM 1(e), POST HOC. The executable version of a Q1-A cell that
+    survived BH: every leg at its `market_depth` VWAP plus the taker fee.
+    sign < 0 (cell overpriced): SELL it - NO on the lower rung, YES on the upper;
+    pays 1 unless X lands in the cell. sign > 0: BUY it - YES lower, NO upper; pays
+    1, and 2 if X lands in it. A tail cell is one leg. -> rows of
+    (game, net per position, cost over mid, thinner-leg touch size), and a census."""
+    key, rows, census = str(size), [], Counter()
+    for l in ladders:
+        if grp not in groups_of(l["stat"], l["pos"]) or len(l["rungs"]) < MIN_RUNGS:
+            continue
+        by = dict(zip(l["lines"], l["rungs"]))
+        x = int(round(l["x"]))
+        if cell == "below lowest rung":
+            legs, hit, q = [(l["lines"][0], "no" if sign > 0 else "yes")], x < l["lines"][0], 1 - l["surv"][0]
+        elif cell == "above highest rung":
+            legs, hit, q = [(l["lines"][-1], "yes" if sign > 0 else "no")], x > l["lines"][-1], l["surv"][-1]
+        else:
+            if l["central"] is None:
+                continue
+            xx = math.ceil(l["lines"][l["central"]]) + int(cell.split("=")[1])
+            lo_, hi_ = xx - 0.5, xx + 0.5
+            if xx == 0 or lo_ not in by or hi_ not in by:
+                continue
+            hit, q = x == xx, by[lo_]["k"] - by[hi_]["k"]
+            legs = [(lo_, "yes"), (hi_, "no")] if sign > 0 else [(lo_, "no"), (hi_, "yes")]
+        census["ladders with the cell"] += 1
+        cost = mid = 0.0
+        sizes = []
+        for line, side in legs:
+            r = by[line]
+            d = r["depth"].get("buy_yes" if side == "yes" else "buy_no")
+            ex = rung_exec(r["k"], d.get(key) if d else None, size, r["mid"], side) if d else None
+            if ex is None:
+                cost = None
+                break
+            cost += ex["allin"]
+            mid += r["k"] if side == "yes" else 1 - r["k"]
+            sizes.append(d["size"] or 0)
+        if cost is None:
+            census["a leg has no depth at this size"] += 1
+            continue
+        census["every leg has depth"] += 1
+        if len(legs) == 1:
+            pay = float(hit) if sign > 0 else 1.0 - float(hit)
+        else:
+            pay = 1.0 + float(hit) if sign > 0 else 1.0 - float(hit)
+        rows.append((l["game"], pay - cost, cost - mid, min(sizes), q))
+    return rows, census
+
+
 def mean_diff(a, b):
     a, b = np.asarray(a, float), np.asarray(b, float)
     return lambda idx: float((a[idx] - b[idx]).mean()) if len(idx) else None
@@ -483,7 +537,6 @@ def q1(ladders, ref, out):
     reft = defaultdict(Counter)
     for _T, stat, pos, line, _pb, actual in ref:
         reft[(stat, pos, line)][int(round(actual))] += 1
-        reft[(stat, None, line)][int(round(actual))] += 1
     for grp in GROUPS:
         gl = [l for l in L if grp in groups_of(l["stat"], l["pos"])]
         if not gl:
@@ -512,6 +565,26 @@ def q1(ladders, ref, out):
             r.update(implied=float(q.mean()), realised=float(hit.mean()))
             res["A"][grp][name] = r
             tests.append((f"A|{grp}|{name}", r))
+        # ---- ADDENDUM 1(c), POST HOC, descriptive, outside the BH family: the cell
+        # between consecutive quoted rungs, indexed from the central rung. Rush-attempt
+        # rungs sit 3 apart, so no unit cell exists there and Q1-A is tails only.
+        pc = defaultdict(list)
+        for l in gl:
+            if l["central"] is None:
+                continue
+            q = ladder_cells(l["lines"], l["surv"])
+            j = cell_index(l["lines"], l["x"])
+            for i in range(1, len(l["lines"])):          # cell i lies between rung i-1 and rung i
+                rel = i - l["central"]                    # 0: just below the central rung; 1: just above
+                if -2 <= rel <= 3:
+                    pc[rel].append((l["game"], float(j == i), q[i]))
+        res.setdefault("posthoc_rung_cells", {})[grp] = {}
+        for rel in sorted(pc):
+            hit = np.array([v[1] for v in pc[rel]])
+            qq = np.array([v[2] for v in pc[rel]])
+            r = Blocks([v[0] for v in pc[rel]]).boot(mean_diff(hit, qq))
+            r.update(implied=float(qq.mean()), realised=float(hit.mean()))
+            res["posthoc_rung_cells"][grp][str(rel)] = r
         # ---- B: level and dispersion of the mid-PIT
         t, v = [], []
         for l in gl:
@@ -534,7 +607,10 @@ def q1(ladders, ref, out):
             c = l["central"]
             if c is None or not (REF_BAND[0] <= l["raw"][c] <= REF_BAND[1]):
                 continue
-            key = (l["stat"], l["pos"] if grp.endswith(("WR", "TE", "RB")) else None, l["lines"][c])
+            # ADDENDUM 1(a): the ladder's OWN position in every group, as registered.
+            # The first run pooled positions for the -all groups, which let 2023-25
+            # rows with no position (played, no stat row, actual 0) into the type.
+            key = (l["stat"], l["pos"], l["lines"][c])
             hist = reft.get(key)
             n = sum(hist.values()) if hist else 0
             if n < REF_MIN_N:
@@ -572,6 +648,9 @@ def q1(ladders, ref, out):
             i = [n for n, _ in tests].index(f"A|{grp}|{name}")
             out(f"     A {name:<19} implied {r['implied']:.4f} realised {r['realised']:.4f}  diff "
                 f"{fmt(r)}{'  BH' if i in keep else ''}")
+        for rel, r in res["posthoc_rung_cells"][grp].items():
+            out(f"     POST HOC rung cell {int(rel):+d} (0 = just below the central rung) implied "
+                f"{r['implied']:.4f} realised {r['realised']:.4f}  diff {fmt(r)}")
         c = res["C"][grp]
         out(f"     C reference (descriptive): ladders {c['ladders_used']}, dropped n<30 "
             f"{c['dropped_ref_n_lt_30']}, mean central mid {c['kalshi_central_mid_mean']}")
@@ -581,12 +660,36 @@ def q1(ladders, ref, out):
     surv = [(tests[i][0], tests[i][1]) for i in sorted(keep)]
     shape = [n for n, _ in surv if "level M" not in n]
     res["bh_survivors"] = [{"name": n, "est": r["est"], "lo": r["lo"], "hi": r["hi"]} for n, r in surv]
-    ranked = sorted(tests, key=lambda t: -abs(t[1]["est"] / t[1]["se"]) if t[1]["se"] else 0)
+    # ADDENDUM 1(b): an interval on < 5 games is not read, so it is not ranked either
+    ranked = sorted((t for t in tests if t[1]["games"] >= MIN_GAMES),
+                    key=lambda t: -abs(t[1]["est"] / t[1]["se"]) if t[1]["se"] else 0)
     res["ranked_by_absz"] = [{"name": n, "z": r["est"] / r["se"], "est": r["est"],
                               "mde": 2.8 * r["se"]} for n, r in ranked[:10] if r["se"]]
     out("  largest |z| (registered family):")
     for e in res["ranked_by_absz"][:8]:
         out(f"    {e['name']:<44} z {e['z']:+.2f}  est {e['est']:+.4f}  MDE {e['mde']:.4f}")
+    res["survivor_depth_join"] = {}
+    for n, r in surv:
+        kind, grp, cell = n.split("|")
+        if kind != "A":
+            continue
+        dj, cen = cell_depth_join(L, grp, cell, r["est"])
+        if dj:
+            net = np.array([v[1] for v in dj])
+            iv = Blocks([v[0] for v in dj]).boot(mean_diff(net, np.zeros(len(net))))
+            cost_c = float(100 * np.mean([v[2] for v in dj]))
+            edge_at_mid = float(100 * abs(r["est"]))
+            out(f"  POST HOC depth join for BH survivor {n} ({'sell' if r['est'] < 0 else 'buy'} the cell, "
+                f"100 contracts a leg): {dict(cen)}")
+            out(f"    cost over mid {cost_c:.2f}c against a {edge_at_mid:.2f}pp gap at the mid; thinner-leg "
+                f"touch size p50 {np.median([v[3] for v in dj]):.0f}; realised net pp "
+                f"{fmt(iv, 2, 100)}")
+            res["survivor_depth_join"][n] = {"census": dict(cen), "cost_c": cost_c, "gap_pp": edge_at_mid,
+                                             "realised_net": iv,
+                                             "thin_leg_touch_p50": float(np.median([v[3] for v in dj]))}
+        else:
+            out(f"  POST HOC depth join for BH survivor {n}: no ladder has depth on every leg {dict(cen)}")
+            res["survivor_depth_join"][n] = {"census": dict(cen)}
     res["verdict"] = ("the ladder's implied shape departs from what happened: " + "; ".join(shape)
                       if shape else "no detectable departure of the implied shape")
     res["n_tests"] = len(tests)
@@ -827,6 +930,8 @@ def q3(ladders, out):
                     f"{rtab[name]['cost_c_mean']:.2f}c  break-even view p50 {rtab[name]['be_p50']:.3f}  "
                     f"EV pp at view " + "  ".join(f"{v}: {rtab[name]['ev_pp'][str(v)]:+.2f}" for v in VIEWS)
                     + f"  (same rung as central {same:.2f})")
+                out(f"          per dollar staked, % at view " + "  ".join(
+                    f"{v}: {100 * rtab[name]['ev_per_dollar'][str(v)]:+.1f}" for v in VIEWS))
             # cross-fitted worth of the choice
             half = {g: i % 2 for i, g in enumerate(games)}
             evp = {name: np.array([view_ev(r["k"], r["allin"], PRIMARY_VIEW, side) for r in pick])
@@ -842,6 +947,22 @@ def q3(ladders, out):
             out(f"     CROSS-FITTED worth of the choice at view {PRIMARY_VIEW} (pp/contract): "
                 f"{fmt(cf, 2, 100)}   rule chosen on each half: {chosen}")
             tests.append((f"{size}|{side}", cf))
+            # ADDENDUM 1(d), POST HOC, outside the BH family: the same cross-fit on
+            # EV PER DOLLAR STAKED, at every stated view.
+            pd_cf = {}
+            for v in VIEWS:
+                evd = {name: np.array([view_ev(r["k"], r["allin"], v, side) / r["allin"] for r in pick])
+                       for name, pick in rule.items()}
+                dd = np.zeros(len(elig))
+                ch = {}
+                for a in (0, 1):
+                    bst = max(evd, key=lambda n: evd[n][h == a].mean() if (h == a).any() else -9)
+                    ch[a] = bst
+                    dd[h == 1 - a] = (evd[bst] - evd["central"])[h == 1 - a]
+                r_ = Blocks(g_of).boot(mean_diff(dd, np.zeros(len(dd))))
+                pd_cf[str(v)] = {"crossfit": r_, "chosen": {str(k): n for k, n in ch.items()}}
+                out(f"     POST HOC per-dollar cross-fit, view {v} (% of stake): {fmt(r_, 2, 100)}   "
+                    f"chosen: {ch}")
             # descriptive best-of-n
             best_minus = defaultdict(list)
             where = Counter()
@@ -860,7 +981,8 @@ def q3(ladders, out):
                 f"{desc['worst']:.2f}pp; best rung's YES mid: {dict(where)}")
             res[key][side] = {"ladders": len(elig), "games": len(games), "read": True, "buckets": bk,
                               "rules": rtab, "crossfit": cf, "chosen": {str(k): v for k, v in chosen.items()},
-                              "best_minus_pp": desc, "best_rung_where": dict(where)}
+                              "best_minus_pp": desc, "best_rung_where": dict(where),
+                              "posthoc_per_dollar_crossfit": pd_cf}
     keep = bh([pval(r) for _n, r in tests]) if tests else set()
     res["n_tests"] = len(tests)
     res["bh_survivors"] = [tests[i][0] for i in sorted(keep)]

@@ -188,3 +188,41 @@ in Q3 is descriptive.
   (maker, fee-free on these series) - briefs 018/019 and c-20 measured that path.
 - The fee is computed at the VWAP; a multi-level fill is billed per fill, which can add a
   cent of rounding per level.
+
+---
+
+## Addendum 1 - written AFTER the first full run (2026-10-08), with the results in view
+
+The first run used `research/ladder_edges.py` exactly as committed at `cc7a5dd`
+("as first written"). Five things changed afterwards. None
+changes a registered interval: the diff of the result JSON before and after touches only
+the Q1-C reference column and the |z| ranking list, and adds keys.
+
+- **(a) Bug fix toward the registered definition, Q1-C.** For the two `-all` groups the
+  first run typed the 2023-25 reference by (stat, line) with positions pooled, where this
+  file says (stat, position, line). Pooling let in 2023-25 rows with no position at all
+  (played, no stat row, settled at 0), which moved mass out of the cells near the line.
+  Now keyed on each ladder's own position in every group. Q1-C is descriptive; no verdict
+  read it.
+- **(b) Display rule.** The "largest |z|" list ranked an interval on 4 games first. It was
+  never read (p = 1 in BH by the rule above) and it is now not ranked either.
+- **(c) POST HOC table, outside the BH family: cells between consecutive quoted rungs.**
+  Rush-attempt rungs sit 3 apart, which I had not looked at before registering, so no unit
+  cell exists there and Q1-A covers rush attempts on its two tails only (48 registered
+  Q1 intervals exist, not 55). The table indexes the cell between consecutive rungs from
+  the central rung, for every group.
+- **(d) Q3 per-dollar.** "Per dollar" is registered as a reported quantity and the first
+  run computed it without printing it. It is now printed per rule, and a POST HOC cross-fit
+  on EV per dollar staked is added at every stated view. It is outside the BH family and
+  carries no verdict.
+- **(e) POST HOC depth join for any Q1-A cell that survives BH.** The brief's rule is that
+  no candidate is reported without its `market_depth` join. The registered Q1 has no
+  executable arm, so one is added for survivors only: every leg at its VWAP at 100
+  contracts plus the taker fee, realised net with a game-block interval.
+
+Also changed, with no effect on any number: `Blocks.boot` reads `BOOT` at call time rather
+than freezing it in a default argument (CLAUDE.md, the default-argument row).
+
+**Replication target fixed now, before week 5 settles.** The one registered survivor is
+receptions-RB, cell d=+1, realised BELOW implied. If this is re-run on weeks 5+, that cell
+and that direction are the test; nothing else from this run is a hypothesis.
