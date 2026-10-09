@@ -194,6 +194,10 @@ def test_check_refuses_a_tree_whose_latest_read_dropped_a_published_lean(env):
     ipath = os.path.join(J.week_dir(env["dest"], 2026, 3), "index.json")
     ix = json.load(open(ipath))
     ix["leans"]["upcoming"] = 1
+    # a-80: "agree" now includes the market list - the index counts the read's
+    # rows per market too, so a doctored index has to doctor that as well.
+    ix["model_markets"] = B.model_markets(doc["rows"], tuple(config.BOARD_MARKETS.values()),
+                                          config.BOARD_MODEL_STATS)
     json.dump(ix, open(ipath, "w"))
     with pytest.raises(AssertionError, match="receptions:7.5 over is not on the read"):
         J.check_tree(env["dest"], log=lambda *_: None)

@@ -91,7 +91,7 @@
         "formats": ["parquet", "csv"],
         "append_only": true,
         "sources_as": "board_read",
-        "description": "The Board's lean ledger: append-only EVENTS, never mutable rows. One `published` event when a lean first appears at a read, and at most one terminal event later - `graded` (result cleared / missed / push) or `void` (with void_reason). A later file must equal the earlier one row for row, plus rows at the end. The CSV is the same rows as the parquet, written in the same step. HASH CHAIN (a-48): every row carries prev_hash (the previous row's row_hash; 64 zeros on row 0) and row_hash = sha256 over the UTF-8 bytes of a JSON array with no whitespace: [hash_chain.tag, each column in hash_chain.covers order as text or null, prev_hash]. Cells are canonical so the parquet and the CSV hash identically: strings as-is, int64 as a decimal integer, float64 as ECMAScript Number.prototype.toString writes it (String(n) - `1790528400`, `4.5`, `-146`), null and the empty string both as null. Editing or removing any row fails its hash and every one after it; a row appended leaves every earlier hash unchanged. The chain covers every event column: the ledger is events, so nothing in a row changes after it is written - grading appends a graded row. WRITTEN_AT (a-62): `written_at` is when the producer WROTE the row, stamped from its own wall clock at write time and never taken from a caller, unlike read_at / event_at, which a replayed read names. Null on rows written before a-62. A row carrying it is hashed under hash_chain.stamped.tag with the stamp after the event cells - [stamped.tag, each covers column, written_at, prev_hash] - and a row without it exactly as above, so no hash written before a-62 moves. A file written before a-62 lacks the column; it gains it null on every existing row. The published record counts a lean only if its written_at, where present, is before its kickoff_ts.",
+        "description": "The Board's lean ledger: append-only EVENTS, never mutable rows. One `published` event when a lean first appears at a read, and at most one terminal event later - `graded` (result cleared / missed / push) or `void` (with void_reason). A later file must equal the earlier one row for row, plus rows at the end. The CSV is the same rows as the parquet, written in the same step. HASH CHAIN (a-48): every row carries prev_hash (the previous row's row_hash; 64 zeros on row 0) and row_hash = sha256 over the UTF-8 bytes of a JSON array with no whitespace: [hash_chain.tag, each column in hash_chain.covers order as text or null, prev_hash]. Cells are canonical so the parquet and the CSV hash identically: strings as-is, int64 as a decimal integer, float64 as ECMAScript Number.prototype.toString writes it (String(n) - `1790528400`, `4.5`, `-146`), null and the empty string both as null. Editing or removing any row fails its hash and every one after it; a row appended leaves every earlier hash unchanged. The chain covers every event column: the ledger is events, so nothing in a row changes after it is written - grading appends a graded row. WRITTEN_AT (a-62): `written_at` is when the producer WROTE the row, stamped from its own wall clock at write time and never taken from a caller, unlike read_at / event_at, which a replayed read names. Null on rows written before a-62. A row carrying it is hashed under hash_chain.stamped.tag with the stamp after the event cells - [stamped.tag, each covers column, written_at, prev_hash] - and a row without it exactly as above, so no hash written before a-62 moves. A file written before a-62 lacks the column; it gains it null on every existing row. The published record counts a lean only if its written_at, where present, is before its kickoff_ts. PRICE (a-80): `price` is the lean-side median American price at the read that published the lean, and an American price is at or below -100 or at or above +100. A `published` row written from a-80 on carries null rather than a number strictly between them (the median of two books on opposite sides of even money - their mean). Published rows written before a-80 that carry such a number keep it, because no row is rewritten, and each one's terminal row copies it; the writer refuses any other row that would.",
         "hash_chain": {
           "tag": "cs-board-ledger-chain-v1",
           "digest": "sha256",
@@ -2459,6 +2459,11 @@
           "required": ["graded", "upcoming", "live", "void"],
           "additionalProperties": false
         },
+        "model_markets": {
+          "description": "a-80: which markets the model prices, one entry per market the Board lists, counted over the latest read's rows. It exists so a page never infers WHY a row's model price is null from the read itself: a read in which every fit of a modelled market failed is otherwise indistinguishable from a market the model does not price. Optional: indexes written before a-80 carry none, and a reader that finds none knows only that a null model price is 'not modelled, or a fit that failed'.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/BoardModelMarket"}
+        },
         "definitions": {
           "type": "object",
           "properties": {
@@ -2468,6 +2473,7 @@
             "longshot": {"type": "string"},
             "void": {"type": "string"},
             "published_lean": {"type": "string"},
+            "model_markets": {"type": "string"},
             "ledger_head": {"type": "string"}
           },
           "required": ["line", "gap_pp", "lean", "longshot", "void", "published_lean"],
@@ -2476,6 +2482,24 @@
       },
       "required": ["schema_version", "generated_at", "kind", "sport", "season", "week", "reads", "latest", "lean_threshold_pp", "lean_threshold_log", "model_version", "verdict", "leans", "definitions"],
       "additionalProperties": false
+    },
+
+    "BoardModelMarket": {
+      "description": "One market the Board lists and what the model does with it (a-80). A market is MODELLED if the model has a specification for it this week, whether or not any line in it priced; it is not_modelled only if no specification exists. A fit that was attempted and failed is modelled, never not_modelled - so in a modelled market a row whose model price is null is a failed fit, and `fit_failed` counts them. `lines` is the market's rows on the latest read, `priced` those carrying a model price. modelled_fit_failed: a specification, at least one line, none priced. modelled_priced: a specification otherwise - `fit_failed` may still be above zero, and with `lines` 0 nothing was attempted. For a modelled market lines = priced + fit_failed.",
+      "type": "object",
+      "properties": {
+        "market": {"type": "string"},
+        "state": {"enum": ["modelled_priced", "modelled_fit_failed", "not_modelled"]},
+        "lines": {"type": "integer", "minimum": 0},
+        "priced": {"type": "integer", "minimum": 0},
+        "fit_failed": {"type": "integer", "minimum": 0}
+      },
+      "required": ["market", "state", "lines", "priced", "fit_failed"],
+      "additionalProperties": false,
+      "allOf": [
+        {"if": {"properties": {"state": {"const": "not_modelled"}}}, "then": {"properties": {"fit_failed": {"const": 0}}}},
+        {"if": {"properties": {"state": {"const": "modelled_fit_failed"}}}, "then": {"properties": {"priced": {"const": 0}, "lines": {"minimum": 1}, "fit_failed": {"minimum": 1}}}}
+      ]
     },
 
     "BoardThresholdEntry": {
@@ -2548,7 +2572,7 @@
         "model_p_over": {"description": "The model's P(over) at this read. Null for a market the model does not price, or a fit that failed.", "type": ["number", "null"]},
         "gap_pp": {"description": "Model minus market, probability points, signed. Null when either side is null.", "type": ["number", "null"]},
         "lean": {"enum": ["over", "under", null]},
-        "lean_price": {"description": "Median American price on the lean side across the benchmark books at this read.", "type": ["number", "null"]},
+        "lean_price": {"description": "Median American price on the lean side across the benchmark books at this read. Null when there is no lean, when no book prices the side, and (a-80) when that median is not an American price - two books on opposite sides of even money, whose mean falls strictly between -100 and +100. Rows priced before a-80 may still carry such a number.", "type": ["number", "null"]},
         "band": {"description": "The walk-forward base rate for leans this size in this market. Null when the row carries no lean, or when the walk-forward has no record for the band - never an object with no sample.", "anyOf": [{"$ref": "#/$defs/BoardBand"}, {"type": "null"}]},
         "last10": {"type": "array", "items": {"$ref": "#/$defs/BoardGame"}, "maxItems": 10},
         "rates": {"$ref": "#/$defs/BoardRates"},

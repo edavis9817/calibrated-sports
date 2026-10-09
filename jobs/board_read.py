@@ -471,6 +471,13 @@ def fresh_rows(con, season, week, read_ts, games, counts):
                                        if B.hold(q.get("over"), q.get("under")) is not None else None)})
             if side and q.get(side) is not None:
                 lean_prices.append(q[side])
+        # a-80: the median of two books on opposite sides of even money is not an
+        # American price (+102 and -110 give -4.0). Withheld and counted, never
+        # repaired; every valid median is exactly what it was.
+        lean_price = statistics.median(lean_prices) if lean_prices else None
+        if lean_price is not None and B.recordable_price(lean_price) is None:
+            counts["lean price withheld: median of the books is not an American price"] += 1
+            lean_price = None
         rows.append({
             "row_id": B.row_id(season, week, g["away"], g["home"], gsis, market, line),
             "claim_id": B.claim_id(g["game_id"], gsis, market),
@@ -485,7 +492,7 @@ def fresh_rows(con, season, week, read_ts, games, counts):
             "kalshi_mid": kalshi_mid(con, season, week, gsis, market, line, read_ts),
             "model_p_over": None if p_model is None else round(p_model, 4),
             "gap_pp": gap, "lean": side,
-            "lean_price": statistics.median(lean_prices) if lean_prices else None,
+            "lean_price": lean_price,
             "band": band_payload(bands, market, gap, counts) if side else None,
             "last10": [{"game_id": h["game_id"], "value": h["value"],
                         "cleared": None if h["value"] is None or h["value"] == line
@@ -592,6 +599,17 @@ def write_ledger(dest, old, new_events, log=None):
     migrating = bool(old) and not B.is_chained(old)
     stamp = B.iso(wall_clock())
     new_events = [dict(e, **{B.STAMP_COLUMN: stamp}) for e in new_events]
+    # a-80: THE PRICE GATE, at the one writer. A number in the open interval
+    # (-100, +100) is not an American price; `ledger_events` withholds it, and
+    # this refuses the write if one arrives anyway. Rows already in the ledger
+    # are not re-read here - the leans published with one before a-80 keep it,
+    # and their terminal copies pass only by matching it (`price_gap_events`).
+    gap = B.price_gap_events(old, new_events)
+    if gap:
+        raise E.ContractError(
+            f"{len(gap)} new ledger event(s) carry a price that is not an American price "
+            f"(strictly between -100 and +100), e.g. {gap[0]['event']} {gap[0]['lean_id']} at "
+            f"{gap[0]['price']} - refusing the write; nothing appended")
     rows = B.extend_chain(old, new_events)
     B.assert_append_only(old, rows)
     schema = ledger_schema()
@@ -828,6 +846,10 @@ def run(season, week, dest, read_ts=None, db=None, log=print):
              "ledger_head": None if head is None else dict(head, as_of=read_iso),
              "leans": {s: sum(1 for l in week_leans if states[l] == s)
                        for s in (B.S_GRADED, B.S_UPCOMING, B.S_LIVE, B.S_VOID)},
+             # a-80: which markets the model prices, so a page never has to infer
+             # "not modelled" from a read in which nothing happened to price.
+             "model_markets": B.model_markets(rows, tuple(config.BOARD_MARKETS.values()),
+                                              config.BOARD_MODEL_STATS),
              "definitions": {
                  "line": "the main line AT THIS READ: the listed threshold whose median de-vigged "
                          "over probability across DraftKings, FanDuel and BetMGM is closest to 0.5. "
@@ -845,6 +867,14 @@ def run(season, week, dest, read_ts=None, db=None, log=print):
                                    "priced_at, flagged line_moved_after_publication or "
                                    "lean_changed_after_publication. So every published lean is on "
                                    "every later read, as exactly one row.",
+                 "model_markets": "one entry per market the Board lists, counted over the latest "
+                                  "read's rows. not_modelled: the model has no specification "
+                                  "for the market, so no price was attempted. "
+                                  "modelled_fit_failed: it has one, the read lists at least one "
+                                  "line, and none priced. modelled_priced: it has one otherwise; "
+                                  "fit_failed counts the lines in it whose fit failed, and with "
+                                  "lines 0 nothing was attempted. A null model price in a "
+                                  "modelled market is always a failed fit.",
                  "ledger_head": "the Board ledger's last row as this read left it: index (0-based) "
                                 "and row count, its row_hash and event_at. Each row's row_hash is "
                                 "sha256 over its cells plus the previous row's hash, so a head "

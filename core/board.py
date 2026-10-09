@@ -95,6 +95,91 @@ def american_to_decimal(odds):
     return 1.0 + (o / 100.0 if o > 0 else 100.0 / (-o))
 
 
+def recordable_price(price):
+    """-> `price` when it is a valid American price, else None (a-80).
+
+    An American price is at or below -100 or at or above +100; nothing lies
+    between. The lean-side price is the arithmetic MEDIAN of the benchmark books'
+    American prices, and with exactly two books quoting the side that is their
+    mean: +102 and -110 give -4.0, which is no price at all. Measured 2026-10-08
+    on the published ledger: 17 of 630 published leans carried one (15 graded, 2
+    open), every one of them two books on opposite sides of even money
+    (research/board_price_gap.py). Such a number is WITHHELD - null on the row
+    and on the ledger - never repaired: no valid price is computed differently,
+    and what the right two-book price is belongs to a decision, not to this."""
+    if price is None:
+        return None
+    return price if american_to_prob(price) is not None else None
+
+
+def price_gap_events(old, new_events):
+    """-> the new events that would put a number that is not an American price
+    into the ledger (a-80); empty is the only answer `write_ledger` accepts.
+
+    WHAT IS GRANDFATHERED, AND HOW. Rows already in the ledger are never
+    rewritten, so the published leans that carry such a number keep it. Their
+    terminal events (graded, void) are built as COPIES of the published row and
+    must carry the same price, or the lean would be graded at a price it was not
+    published at. So: a new `published` event may not carry one at all; a new
+    terminal event may carry one only if it equals the price on its own
+    published row. No list of lean ids is exempt - the exemption is the copy."""
+    published = {e["lean_id"]: e for e in list(old) + list(new_events)
+                 if e["event"] == "published"}
+    bad = []
+    for e in new_events:
+        p = e.get("price")
+        if p is None or american_to_prob(p) is not None:
+            continue
+        pub = published.get(e["lean_id"])
+        if e["event"] == "published" or pub is None or pub.get("price") != p:
+            bad.append(e)
+    return bad
+
+
+# ------------------------------------------------------------------ which markets the model prices (a-80)
+
+M_PRICED, M_FIT_FAILED, M_NOT_MODELLED = "modelled_priced", "modelled_fit_failed", "not_modelled"
+
+
+def model_markets(rows, markets, model_stats):
+    """One entry per market the Board lists, in `markets` order:
+    {market, state, lines, priced, fit_failed}, counted over a read's rows.
+
+    THE RULE, written before the data was looked at (a-80). A market is MODELLED
+    if the model has a specification for it - it is in `model_stats` - whether or
+    not any line in it priced. It is NOT MODELLED only if no specification
+    exists. A fit that was attempted and failed is modelled-fit-failed, never
+    not-modelled.
+
+    The read can tell the three apart: `model_prob` returns null for a market
+    outside `model_stats` without attempting anything, and for a market inside
+    it only when the fit raised. So a null model price in a modelled market IS a
+    failed fit, and `fit_failed` counts those rows.
+
+      not_modelled         no specification. Every row's model price is null and
+                           none was attempted.
+      modelled_fit_failed  a specification, at least one line on the read, and
+                           not one of them priced.
+      modelled_priced      a specification otherwise. `fit_failed` may still be
+                           above zero: those lines failed, the market did not.
+                           With no line listed (`lines` 0) nothing was attempted,
+                           so nothing failed."""
+    out = []
+    # A market with rows on the read is never left out: a row kept from an earlier
+    # read of the week outlives a market dropped from the config mid-week.
+    markets = list(markets) + sorted({r["market"] for r in rows} - set(markets))
+    for m in markets:
+        mine = [r for r in rows if r["market"] == m]
+        priced = sum(1 for r in mine if r.get("model_p_over") is not None)
+        modelled = m in model_stats
+        failed = len(mine) - priced if modelled else 0
+        state = (M_NOT_MODELLED if not modelled else
+                 M_FIT_FAILED if mine and not priced else M_PRICED)
+        out.append({"market": m, "state": state, "lines": len(mine), "priced": priced,
+                    "fit_failed": failed})
+    return out
+
+
 def devig_mult(over_odds, under_odds):
     """Multiplicative de-vig of a two-way market -> P(over), or None.
 
@@ -569,7 +654,8 @@ def ledger_events(ledger, rows, read_at_iso, settle_lean, pulled_claims,
     """New events to APPEND for this read. Never returns an edit.
 
     published   a lean on a board row at this read that the ledger has never
-                seen, priced at this read's lean-side median price
+                seen, priced at this read's lean-side median price (null when
+                that median is not a valid American price - `recordable_price`)
     graded      a published lean with no terminal event whose settlement is now
                 available - settled on ITS OWN line, not the board's current one
     void        market pulled before kickoff, or settlement voided (inactive,
@@ -601,7 +687,7 @@ def ledger_events(ledger, rows, read_at_iso, settle_lean, pulled_claims,
                   line=float(r["line"]), side=side, read_at=read_at_iso,
                   kickoff_ts=float(r["kickoff_ts"]), mkt_p_over=r["mkt_p_over"],
                   mkt_books=r["mkt_books"], model_p_over=r["model_p_over"],
-                  gap_pp=r["gap_pp"], price=r.get("lean_price"),
+                  gap_pp=r["gap_pp"], price=recordable_price(r.get("lean_price")),
                   band=(f"{band.get('lo_pp'):g}-{band.get('hi_pp'):g}"
                         if band.get("hi_pp") is not None else
                         f"{band.get('lo_pp'):g}+" if band else None),
@@ -889,6 +975,32 @@ def row_partition(rows):
     return counts
 
 
+def model_market_problems(entries, rows):
+    """a-80: an index's `model_markets` against the rows of its latest read. The
+    schema can say each count is a non-negative integer; it cannot say they are
+    the read's. An index written before a-80 carries none and is not checked."""
+    if entries is None:
+        return []
+    problems = []
+    names = [e.get("market") for e in entries]
+    if len(set(names)) != len(names):
+        problems.append(f"model_markets names a market more than once: {names}")
+    missing = sorted({r.get("market") for r in rows} - set(names))
+    if missing:
+        problems.append(f"model_markets omits market(s) the read has rows in: {missing}")
+    for e in entries:
+        mine = [r for r in rows if r.get("market") == e.get("market")]
+        priced = sum(1 for r in mine if r.get("model_p_over") is not None)
+        if (e.get("lines"), e.get("priced")) != (len(mine), priced):
+            problems.append(f"model_markets {e.get('market')}: index says {e.get('lines')} lines / "
+                            f"{e.get('priced')} priced, the read has {len(mine)} / {priced}")
+        elif e.get("state") != M_NOT_MODELLED and e.get("fit_failed") != len(mine) - priced:
+            problems.append(f"model_markets {e.get('market')}: a modelled market with {len(mine)} "
+                            f"lines and {priced} priced has {len(mine) - priced} failed fits, "
+                            f"not {e.get('fit_failed')}")
+    return problems
+
+
 def index_reconciles(index, read):
     """-> the statement it approved; raises otherwise. The FILE-level half of the
     partition (a-35), checkable with no ledger: a week's index and the read it
@@ -924,6 +1036,7 @@ def index_reconciles(index, read):
         diff = ", ".join(f"{s} index {want[s]} / read {got[s]}" for s in LEAN_STATES
                          if got[s] != want[s])
         problems.append(f"lean counts do not reconcile with the latest read's rows: {diff}")
+    problems.extend(model_market_problems(index.get("model_markets"), rows))
     if problems:
         raise AssertionError("; ".join(problems))
     return (f"{index['season']} wk{int(index['week']):02d}: {sum(got.values())} leans = "

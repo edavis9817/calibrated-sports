@@ -2250,3 +2250,30 @@ so it ships one tick later; it never raises and a failed build leaves the previo
   only, the population the Board's ledger measured.
 - **`jobs.board_read._tick` is now a reader in the source registry** (the scan follows the hook
   into the job's SQL), and `market_depth` has a source row for the first time.
+
+## Which markets the model prices, and the price that is not a price (a-80)
+
+- **`board_index.model_markets` says why a model price is null; a page does not infer it.** One
+  entry per market the Board lists - `{market, state, lines, priced, fit_failed}` - counted over
+  the latest read's rows and reconciled against them by `core.board.index_reconciles`. Three
+  states, no fourth: `modelled_priced`, `modelled_fit_failed`, `not_modelled`. **Modelled means a
+  specification exists** (`config.BOARD_MODEL_STATS`), whether or not any line priced.
+  `jobs.board_read.model_prob` returns null for a market outside that list without attempting
+  anything, and inside it only when the fit raised, so **a null model price in a modelled market
+  is always a failed fit**. Optional key: an index written before a-80 carries none.
+- **An American price is at or below -100 or at or above +100.** The Board's lean price is the
+  arithmetic median of the benchmark books' American prices, and with exactly TWO books on the
+  lean side that is their mean: -105 and +112 give 3.5. Measured 2026-10-08 on the served ledger
+  (`python -m research.board_price_gap --site ... --cache ...`): 17 of 630 published leans, all 17
+  two books on opposite sides of even money, 630 of 630 medians reproduced from the publishing
+  read's own books. 15 graded (7 in week 3, 8 in week 4), 2 open in week 5.
+  - **Withheld, not repaired.** `core.board.recordable_price` nulls it on the row and on the
+    ledger and the read counts it; every valid median is exactly what it was. What a two-book
+    price SHOULD be (a median in probability or decimal space) is a decision nobody has taken.
+  - **The gate is `core.board.price_gap_events`, at `write_ledger`.** A new `published` row may
+    not carry one. The leans published with one before a-80 keep it - no ledger row is ever
+    rewritten - and each one's terminal row passes only by copying its own published row's price.
+    That is an exemption, structural rather than a list of ids, and the count of exempt leans is
+    whatever the ledger holds on the day this reaches production, not 17.
+  - **The (-100, +100) test cannot see every two-book straddle.** +400 and -110 give +145, a
+    valid-looking number that is no book's price. 0 of 630 on 2026-10-08; the script counts them.
