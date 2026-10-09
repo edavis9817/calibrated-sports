@@ -18,6 +18,13 @@ No constant here is carried from the NFL. `run` is the scalar walk; `grid_fit`
 is the same walk over a whole parameter grid at once and returns per-season
 log-loss sums, which is all the walk-forward fit reads.
 
+A grid point whose multiplier denominator reaches <= 0 has no defined update.
+Whether that excludes it from a fit is decided AS OF the season being fitted
+(c-49, docs/C49-grid-fit-asof-preregistration.md): `grid_fit` records the
+season each point first went bad and `best_params` refuses a point for season
+T only if that season is before T. One mask over the whole walk let a game of
+2026 remove a point from 2005's choice (f-32).
+
 Which games enter is the CALLER's rule (FBS against FBS only, in c-39): this
 module walks the list it is given. A game dict carries game_id, season,
 start_ts, home, away, home_conf, away_conf, neutral, home_score, away_score,
@@ -34,6 +41,7 @@ import numpy as np
 from models.game import MEAN, win_prob
 
 P_CLIP = 1e-9          # models.season.log_loss's clip
+NEVER = 9999           # first_bad of a grid point whose denominator never reached <= 0
 
 
 @dataclass(frozen=True)
@@ -96,13 +104,18 @@ def _conf_means(r, conf, season):
 
 
 def run(games, params: CfbParams, mov: bool = True, hfa_on_neutral: bool = False,
-        snapshot_seasons=()):
+        snapshot_seasons=(), undefined: list | None = None):
     """Walk every completed game in (season, start_ts, game_id) order.
 
     Returns (pre, ratings, snaps): pre is [(index, p_home)] computed BEFORE the
     game updated anything; ratings the final {team: rating}; snaps
     {season: {team: rating}} taken after that season's preseason regression.
     `hfa_on_neutral` exists only for arm N (the NFL walk has no neutral site).
+
+    A game whose multiplier denominator is <= 0 raises - unless `undefined` is
+    a list, in which case the game takes `grid_fit`'s substitution (denominator
+    1.0) and its (index, season) is appended. A point chosen as of season T can
+    go bad in a later game, and that game must not take T's forecasts with it.
     """
     conf = conferences(games)
     r: dict = {}
@@ -133,7 +146,14 @@ def run(games, params: CfbParams, mov: bool = True, hfa_on_neutral: bool = False
         pre.append((i, p))
         margin = g["home_score"] - g["away_score"]
         result = 1.0 if margin > 0 else 0.0
-        mult = multiplier(margin, diff if margin > 0 else -diff, params) if mov else 1.0
+        wdiff = diff if margin > 0 else -diff
+        if (mov and undefined is not None and params.a is not None
+                and 0.001 * wdiff + params.a <= 0):
+            undefined.append((i, s))
+            m = abs(margin) if params.cap is None else min(abs(margin), params.cap)
+            mult = math.log(m + 1.0) * params.a
+        else:
+            mult = multiplier(margin, wdiff, params) if mov else 1.0
         delta = params.k * mult * (result - p)
         r[h] = rh + delta
         r[a] = ra - delta
@@ -148,9 +168,12 @@ def log_loss(p, y):
 def grid_fit(games, params_list, mov: bool = True):
     """`run` over every grid point at once.
 
-    Returns (seasons, sums, counts): sums[s, j] is grid point j's summed log
-    loss over the `fit` games of seasons[s]; counts[s] the games. A point whose
-    multiplier denominator ever reaches <= 0 gets nan and can never be chosen.
+    Returns (seasons, sums, counts, first_bad): sums[s, j] is grid point j's
+    summed log loss over the `fit` games of seasons[s]; counts[s] the games;
+    first_bad[j] the season of the first game in which point j's multiplier
+    denominator reached <= 0, or NEVER. Nothing is masked here: from that game
+    on the point walks with the denominator replaced by 1.0, and `best_params`
+    decides, as of the season it fits, whether the point may be chosen.
     """
     P = len(params_list)
     k = np.array([p.k for p in params_list])
@@ -169,7 +192,7 @@ def grid_fit(games, params_list, mov: bool = True):
     sidx = {s: j for j, s in enumerate(seasons)}
     sums = np.zeros((len(seasons), P))
     counts = np.zeros(len(seasons), dtype=int)
-    bad = np.zeros(P, dtype=bool)
+    first_bad = np.full(P, NEVER, dtype=np.int32)
     r: dict = {}
     first = season = None
     c400 = math.log(10.0) / 400.0
@@ -211,25 +234,27 @@ def grid_fit(games, params_list, mov: bool = True):
         if mov:
             logm = np.log(np.minimum(abs(margin), caps) + 1.0)[cap_idx]
             den = 0.001 * (diff if win else -diff) + a
-            bad |= (~a_none) & (den <= 0)
+            first_bad[(~a_none) & (den <= 0) & (first_bad == NEVER)] = s
             mult = np.where(a_none, logm, logm * a / np.where(den <= 0, 1.0, den))
         else:
             mult = 1.0
         delta = k * mult * ((1.0 if win else 0.0) - p)
         r[h] = rh + delta
         r[aw] = ra - delta
-    sums[:, bad] = np.nan
-    return seasons, sums, counts
+    return seasons, sums, counts, first_bad
 
 
-def best_params(params_list, seasons, sums, counts, fit_from, year):
+def best_params(params_list, seasons, sums, counts, first_bad, fit_from, year):
     """The first grid point with the lowest mean log loss on fit_from..year-1
-    (jobs.season_model.best_params's rule). -> (params, mean log loss, games)."""
+    (jobs.season_model.best_params's rule), among the points that had not gone
+    bad in any game of a season before `year`. -> (params, mean log loss, games)."""
     m = np.array([fit_from <= s < year for s in seasons])
     n = int(counts[m].sum())
     if not n:
         raise ValueError("no fit games in %d..%d" % (fit_from, year - 1))
     mean = sums[m].sum(axis=0) / n
-    mean = np.where(np.isnan(mean), np.inf, mean)
+    mean = np.where(np.isnan(mean) | (np.asarray(first_bad) < year), np.inf, mean)
     j = int(np.argmin(mean))
+    if not np.isfinite(mean[j]):
+        raise ValueError("no grid point is defined through %d" % (year - 1))
     return params_list[j], float(mean[j]), n

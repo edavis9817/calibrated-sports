@@ -69,7 +69,8 @@ def test_grid_walk_is_the_scalar_walk():
     plist = [C.CfbParams(*v) for v in itertools.product(
         [20.0, 60.0], [0.0, 70.0], [0.0, 0.4], [2.2, None], [21.0, None], [0.0, 0.5, 1.0], [0.0, -200.0])]
     for mov in (True, False):
-        seasons, sums, counts = C.grid_fit(games, plist, mov=mov)
+        seasons, sums, counts, first_bad = C.grid_fit(games, plist, mov=mov)
+        assert (first_bad == C.NEVER).all()
         assert seasons == [2001, 2002, 2003] and counts.sum() == len(games) - 1
         for j in range(0, len(plist), 7):
             pre = C.run(games, plist[j], mov=mov)[0]
@@ -77,7 +78,7 @@ def test_grid_walk_is_the_scalar_walk():
                 want = sum(C.log_loss(p, 1.0 if games[i]["home_score"] > games[i]["away_score"] else 0.0)
                            for i, p in pre if games[i]["season"] == s and games[i]["fit"])
                 assert abs(sums[s_i, j] - want) < 1e-9
-        p, ll, n = C.best_params(plist, seasons, sums, counts, 2001, 2003)
+        p, ll, n = C.best_params(plist, seasons, sums, counts, first_bad, 2001, 2003)
         mean = sums[:2].sum(axis=0) / counts[:2].sum()
         assert ll == pytest.approx(mean.min()) and n == counts[:2].sum()
         assert p == plist[int(np.argmin(mean))]

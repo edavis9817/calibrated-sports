@@ -132,12 +132,13 @@ class Walk:
 
     def __init__(self, games, plist, mov):
         self.games, self.plist, self.mov = games, plist, mov
-        self.seasons, self.sums, self.counts = C.grid_fit(games, plist, mov=mov)
-        self._pre, self.fits = {}, {}
+        self.seasons, self.sums, self.counts, self.first_bad = C.grid_fit(games, plist, mov=mov)
+        self._pre, self.fits, self.undefined = {}, {}, {}
 
     def params(self, year):
         if year not in self.fits:
-            p, ll, n = C.best_params(self.plist, self.seasons, self.sums, self.counts, FIT_FROM, year)
+            p, ll, n = C.best_params(self.plist, self.seasons, self.sums, self.counts, self.first_bad,
+                                     FIT_FROM, year)
             self.fits[year] = {"params": p, "fit_log_loss": ll, "fit_games": n}
             # the vectorised walk must BE the scalar walk on the point it chose
             pre = self.pre(p)
@@ -151,8 +152,11 @@ class Walk:
 
     def pre(self, params):
         if params not in self._pre:
-            pre, _r, _s = C.run(self.games, params, mov=self.mov)
+            # a point chosen as of T may go bad later: substituted and recorded, never raised (c-49)
+            und = []
+            pre, _r, _s = C.run(self.games, params, mov=self.mov, undefined=und)
             self._pre[params] = dict(pre)
+            self.undefined[params] = und
         return self._pre[params]
 
     def p(self, i):
@@ -387,7 +391,7 @@ def main(argv=None):
     gm, gp = grid(GRID_MOV), grid(GRID_PLAIN)
     walk = Walk(games, gm, mov=True)
     out(f"MOV grid {len(gm):,} points {time.time() - t0:.0f}s; "
-        f"points dropped for a non-positive multiplier denominator {int(np.isnan(walk.sums[0]).sum()):,}")
+        f"points with a non-positive multiplier denominator in some game {int((walk.first_bad != C.NEVER).sum()):,}")
     t0 = time.time()
     walk0 = Walk(games, gp, mov=False)
     out(f"plain grid {len(gp):,} points {time.time() - t0:.0f}s")
