@@ -424,7 +424,7 @@ FIELDS = ("max_batch_s", "took_max_exec", "took_max_commit",
           "writer_wait_max", "writer_hold_max", "denial_hi_max", "denial_lo_max")
 
 
-def summarize(paths):
+def summarize(paths, pool=False):
     rows = []
     for p in paths:
         with open(p, encoding="utf-8") as f:
@@ -434,7 +434,7 @@ def summarize(paths):
         return 1
     keys = {}
     for r in rows:
-        keys.setdefault((r.get("tag", ""), r["load"], r["arm"],
+        keys.setdefault(("pooled" if pool else r.get("tag", ""), r["load"], r["arm"],
                          r.get("writer_sync", "")), []).append(r)
     for (tag, load, arm, sync), g in sorted(keys.items()):
         busy = [r["cpu_busy"] for r in g if r.get("cpu_busy") is not None]
@@ -453,6 +453,35 @@ def summarize(paths):
             if v:
                 print(f"  {k:28s} min {q(v, 0):<8} p50 {q(v, .5):<8} p90 {q(v, .9):<8} "
                       f"max {q(v, 1):<8} >= {BOUND_S}: {sum(x >= BOUND_S for x in v)}")
+        over = [r for r in g if r.get("max_batch_s", 0) >= BOUND_S and "took_max_exec" in r]
+        if over:
+            # where the slowest batch of an over-the-bound run spent its time
+            ex_ = sum(r["took_max_exec"] > r["took_max_commit"] for r in over)
+            uw = sum(r["took_max_exec_under_writer"] >= 0.5 * r["took_max"] for r in over)
+            print(f"  of {len(over)} runs over the bound: slowest batch mostly in "
+                  f"execute {ex_}, mostly in commit {len(over) - ex_}; writer held the "
+                  f"lock for half or more of it in {uw}")
+            seen = [r for r in over if r.get("denial_hi_max") is not None]
+            if seen:
+                print(f"  and the third connection saw a refusal >= {BOUND_S}s in "
+                      f"{sum(r['denial_hi_max'] >= BOUND_S for r in seen)} of those "
+                      f"{len(seen)}")
+        det = [r for r in g if r.get("commit_s") and r.get("denial_top")]
+        if det and arm == "prune":
+            # which batch the slowest commit was, and which the longest refusal
+            slow = [max(range(len(r["commit_s"])), key=r["commit_s"].__getitem__)
+                    for r in det]
+            top = [r["denial_top"][0]["batches"] for r in det]
+            print(f"  slowest commit is batch {max(set(slow), key=slow.count)} in "
+                  f"{slow.count(max(set(slow), key=slow.count))} of {len(det)} runs; "
+                  f"longest refusal is inside batch 0 in "
+                  f"{sum(b == [0] for b in top)} of {len(det)}, inside the "
+                  f"slowest-commit batch in "
+                  f"{sum(k in b for k, b in zip(slow, top))}")
+            print(f"  first batch's commit   p50 {q([r['commit_s'][0] for r in det], .5)} "
+                  f"max {q([r['commit_s'][0] for r in det], 1)};   slowest commit   "
+                  f"p50 {q([max(r['commit_s']) for r in det], .5)} "
+                  f"max {q([max(r['commit_s']) for r in det], 1)}")
         cold = [r for r in g if r.get("i") == 0 and r.get("fresh")]
         warm = [r for r in g if r.get("i", 0) > 0 and r.get("fresh")]
         if cold and warm:
@@ -483,10 +512,12 @@ def main(argv=None):
                     help="run the test itself under the load, one process per run")
     ap.add_argument("--child", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--summarize", nargs="+", default=None)
+    ap.add_argument("--pool", action="store_true",
+                    help="with --summarize: one group per load and arm, across tags")
     args = ap.parse_args(argv)
 
     if args.summarize:
-        return summarize(args.summarize)
+        return summarize(args.summarize, args.pool)
 
     root = args.root or tempfile.mkdtemp(prefix="lock_hold_probe_")
     os.makedirs(root, exist_ok=True)
