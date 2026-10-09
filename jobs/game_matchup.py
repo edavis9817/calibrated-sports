@@ -679,9 +679,19 @@ def pace_complete(games, year, cutoff, pace):
     return cov == len(tg), len(tg), cov
 
 
-def close_ref(key, path, d_brier, verdict_word):
+def close_ref(key, path, d_brier, verdict_word, qualifier):
+    """A copy of a record's figure. a-77: it prints the digits, so it carries the
+    owner's sentence as well as the pointer; `qualifier` is the owner's, null when
+    that figure needs none. `jobs.required_sentences.require` refuses the copy of a
+    registered figure without it."""
     return {"record": key, "path": path, "d_brier": d_brier, "compared": verdict_word,
-            "display": SHOW_CLOSE}
+            "qualifier": qualifier, "display": SHOW_CLOSE}
+
+
+def beat_ref(b):
+    """A copy of one `beats` row, with the owner's sentence (a-77)."""
+    return {"id": b["id"], "d_brier": b["d_brier"], "compared": b["compared"],
+            "qualifier": b.get("qualifier")}
 
 
 def numbers(g, row, fc, km, tot, tot_why, feats, rec_ml, rec_sp, rec_tt, sp_why):
@@ -692,10 +702,10 @@ def numbers(g, row, fc, km, tot, tot_why, feats, rec_ml, rec_sp, rec_tt, sp_why)
           "market": {"p_home_win": r4(p_mkt)},
           "difference": {"p_home_win": r4(fc.p_home - p_mkt) if p_mkt is not None else None},
           "record": {"file": "game/nfl/record.json",
-                     "beats": [{"id": b["id"], "d_brier": b["d_brier"], "compared": b["compared"]}
-                               for b in rec_ml["baselines"]],
+                     "beats": [beat_ref(b) for b in rec_ml["baselines"]],
                      "vs_close": close_ref("game/nfl/record.json", "market_comparison.d_brier",
-                                           mc["d_brier"], compared(mc["d_brier"]["verdict"]))}}
+                                           mc["d_brier"], compared(mc["d_brier"]["verdict"]),
+                                           None)}}
     sl = line.get("spread_line")
     if km is not None:
         mean = km.margin_mean()
@@ -722,7 +732,8 @@ def numbers(g, row, fc, km, tot, tot_why, feats, rec_ml, rec_sp, rec_tt, sp_why)
                          "beats": [],
                          "vs_close": close_ref(RECORD_SPREAD_KEY, "vs_close.d_brier",
                                                rec_sp["vs_close"]["d_brier"],
-                                               rec_sp["vs_close"]["compared"])}}
+                                               rec_sp["vs_close"]["compared"],
+                                               rec_sp["vs_close"]["qualifier"])}}
     tl = line.get("total_line")
     mk_po = devig(line.get("over_odds"), line.get("under_odds"))
     if tot is not None:
@@ -739,12 +750,11 @@ def numbers(g, row, fc, km, tot, tot_why, feats, rec_ml, rec_sp, rec_tt, sp_why)
                  "p_over": r4(model_t["p_over"] - mk_po) if model_t["p_over"] is not None
                  and mk_po is not None else None},
              "record": {"file": RECORD_TOTAL_KEY,
-                        "beats": [{"id": b["id"], "d_brier": b["d_brier"],
-                                   "compared": b["compared"]}
-                                  for b in rec_tt["against_baselines"]],
+                        "beats": [beat_ref(b) for b in rec_tt["against_baselines"]],
                         "vs_close": close_ref(RECORD_TOTAL_KEY, "vs_close.d_brier",
                                               rec_tt["vs_close"]["d_brier"],
-                                              rec_tt["vs_close"]["compared"])}}
+                                              rec_tt["vs_close"]["compared"],
+                                              rec_tt["vs_close"]["qualifier"])}}
     return {"moneyline": ml, "spread": spread, "total": total}
 
 

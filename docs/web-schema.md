@@ -981,9 +981,22 @@ matchup and the forecast can never describe different walks.
     serves a registered figure without its sentence, a sentence that is not the one
     its figures word, and a sentence on a figure nobody registered. The registry is
     the carried file, keyed `file|holder`, so registering another figure is one entry.
-  - Not covered: the matchup files' `numbers.total.record` copies of the same three
-    total figures (they point at `record_total.json`), and `record.json`'s
-    `by_stage.weeks_1_4`, which publishes the stage figure a second time.
+  - **Every place a qualified figure is printed with its own digits carries the
+    sentence (a-77).** a-75 measured two places it had left bare; both now carry it:
+    - `record.json` `by_stage.weeks_1_4.vs.elo_nomov.qualifier` - the stage figure's
+      second home, registered as a sixth entry in the carried file (one measurement,
+      two places; `stage_agrees` refuses the record and the forecast carrying
+      different sentences for it). `qualifier` is required on all six `by_stage`
+      comparisons and null on the other five.
+    - every matchup's `numbers.{market}.record` - `qualifier` on each `beats` row and
+      on `vs_close`, holding the OWNER'S block unchanged. On `numbers.total.record`
+      all three are the recorded-wind sentence; on the moneyline's and the spread's
+      copies it is null, because those figures need none.
+  - **The rule: digits carry the sentence, a pointer alone does not.** The matchup
+    copy has both - the interval and `file` / `path` - and a reader of that file sees
+    the number, so it is treated as digits. The gate finds these copies by walking the
+    matchup's own pointers back to the registry, so a record figure registered later
+    is refused bare in its matchup copy from that moment.
 - **Copies are checked.** A matchup's moneyline figure, margin and stage must equal
   the forecast's, and each `record` copy must equal its owner's
   (`jobs.game_export.matchup_agrees`); a matchup that differs is refused and left

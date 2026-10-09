@@ -28,6 +28,13 @@ store every export and can move. The sentence stays attached either way - absenc
 would be the worse error - and the flag says whether the ESTIMATE it sits beside
 is still the one F attacked, at four decimals. `measured_against.interval` is F's
 own draw and is carried for the reader, not compared.
+
+a-77: A COPY PRINTED WITH ITS OWN DIGITS CARRIES THE SENTENCE TOO. A matchup file
+repeats each record's figures under `numbers.{market}.record` - the interval
+itself, beside a pointer to the owning file. A reader of that file sees the
+number, so the pointer does not stand in for the sentence. `_copies` finds those
+by walking the matchup's own pointers back to the registry, so a figure
+registered tomorrow is required in its copies from that moment too.
 """
 from __future__ import annotations
 
@@ -41,6 +48,10 @@ FIELD = "qualifier"
 STAGE_HOLDER = "season_stage[stage=weeks_1_4]"
 STAGE_KINDS = ("game.forecast", "game.matchup")     # the matchup carries the forecast's stage
 EARLY_STAGE = "weeks_1_4"
+MATCHUP_KIND = "game.matchup"
+# the holder a record file keeps a `beats` row under, by the matchup's market
+BEATS_HOLDER = {"moneyline": "baselines", "spread": "against_baselines",
+                "total": "against_baselines"}
 
 
 class MissingSentence(RuntimeError):
@@ -158,12 +169,35 @@ def _stage_holders(payload):
     return out
 
 
+def _copies(payload):
+    """a-77: every copy of a registered record figure a matchup file prints with
+    its own digits -> [(figure id, path, block, entry)]. Found from the matchup's
+    own pointers (`record.file`, `vs_close.path`, a `beats` row's id), never from
+    a list of paths kept here. An unknown market RAISES: a record block this walk
+    cannot read is not one that passed."""
+    out, req = [], required()
+    for market, blk in payload["numbers"].items():
+        if market not in BEATS_HOLDER:
+            raise MissingSentence(f"numbers.{market}: a market the sentence check cannot walk")
+        rec = blk["record"]
+        base = f"numbers.{market}.record"
+        vc = rec["vs_close"]
+        rows = [(vc["path"], f"{base}.vs_close", vc)] + [
+            (f"{BEATS_HOLDER[market]}[id={b['id']}].d_brier", f"{base}.beats[id={b['id']}]", b)
+            for b in rec["beats"]]
+        for owner_path, path, row in rows:
+            for fid, e in req.items():
+                if e["file"] == rec["file"] and owner_path == f"{e['holder']}.{e['figure']}":
+                    out.append((fid, path, row, e))
+    return out
+
+
 def located(key, payload):
     """-> [(figure id, path, holder, entry)] for every registered figure this file
     serves. A registered path that does not resolve RAISES: a figure the gate could
     not find is not a figure that passed."""
     from jobs import metric_registry as MR
-    out = []
+    out = _copies(payload) if payload.get("kind") == MATCHUP_KIND else []
     for fid, e in required().items():
         if e["holder"] == STAGE_HOLDER:
             if payload.get("kind") in STAGE_KINDS:

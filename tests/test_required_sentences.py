@@ -8,6 +8,11 @@ stated sentence attached". `jobs.required_sentences` attaches the sentence and
 `file|holder` path, read from the registry: a fourth sentence added to the carried
 file is a new parameter here and fails until its builder attaches it.
 
+a-77 closed the two places a-75 measured it had missed: `record.json`'s
+`by_stage.weeks_1_4` (a sixth registry entry for the stage figure's second home) and
+every matchup file's `numbers.{market}.record` copies, which print the figure's own
+digits beside a pointer and so carry the owner's sentence, not the pointer alone.
+
 No test opens a live store: the forecast is a-63's synthetic league and the two
 records are the real committed result files, as in tests/test_game_matchup.py.
 """
@@ -60,7 +65,10 @@ def _holders(files):
 # ------------------------------------------------------- the registry itself
 
 def test_the_registry_is_the_five_figures_f27_returned_and_nothing_else():
+    """Five figures at six places: the weeks 1-4 figure is published in the forecast
+    and again in the record's `by_stage` (a-77), and f-27 named both."""
     assert set(RS.REQUIRED) == {
+        "game/nfl/record.json|by_stage.weeks_1_4.vs.elo_nomov",
         "game/nfl/record_total.json|vs_close",
         "game/nfl/record_total.json|against_baselines[id=league]",
         "game/nfl/record_total.json|against_baselines[id=season_avg]",
@@ -72,8 +80,8 @@ def test_the_registry_is_the_five_figures_f27_returned_and_nothing_else():
 
 def test_every_registered_figure_is_found_in_what_the_export_builds(served):
     found = _holders(served)
-    assert set(found) == set(RS.REQUIRED)           # none unlocated: the gate walks all five
-    assert RS.require(served) == ("sentence check: 5 figure(s) that need a sentence carry it, "
+    assert set(found) == set(RS.REQUIRED)           # none unlocated: the gate walks all six
+    assert RS.require(served) == ("sentence check: 6 figure(s) that need a sentence carry it, "
                                   "across 4 file(s)")
     assert RS.FIELD in MR.resolve(served[GM.RECORD_TOTAL_KEY], "vs_close")
 
@@ -187,8 +195,179 @@ def test_every_matchup_carries_the_forecasts_stage_sentence_and_is_gated_on_it(
         blk["qualifier"] = None
         with pytest.raises(RS.MissingSentence, match="served without its sentence"):
             RS.require({key: bad})
-    n = 5 + len(mus)                # record_total 3, record_spread 1, the forecast 1, one a matchup
+    # record_total 3, record_spread 1, the forecast 1, the record's by_stage 1; and each
+    # matchup prints four: the stage figure and the total record's three (a-77)
+    n = 6 + 4 * len(mus)
     assert RS.require(files).startswith(f"sentence check: {n} figure(s)")
+
+
+# ------------------------------- a-77: the record's second copy of the stage figure
+
+BY_STAGE = "game/nfl/record.json|by_stage.weeks_1_4.vs.elo_nomov"
+GRID = ("Plain Elo's K was held at the top of the fitting grid (40) in 25 of 25 seasons; with K "
+        "allowed to 120 the same comparison is -0.0017 [-0.0031, -0.0004], one seed.")
+
+
+def _record(early=EARLY):
+    """The record's `by_stage`, built by the export's own `stage_block`. Every baseline
+    is given the SAME interval, so only the registry can tell plain Elo's apart."""
+    def cmp(est, lo, hi):
+        return {"corp_model": {"bs": 0.21}, "corp_comparator": {"bs": 0.22},
+                "diffs": {"dBrier": {"est": est, "lo": lo, "hi": hi, "se": 0.001,
+                                     "games": 500, "n": 500}}}
+    m = {"n": {"weeks_1_4": 300, "weeks_5_plus": 600},
+         "stages": {st: {b: cmp(*v) for b, _l, _d in X.BASELINES}
+                    for st, v in (("weeks_1_4", early), ("weeks_5_plus", LATE))}}
+    return {"kind": X.RECORD_KIND,
+            "by_stage": {st: X.stage_block(m, st) for st in ("weeks_1_4", "weeks_5_plus")}}
+
+
+def test_the_records_by_stage_carries_the_grid_sentence_on_the_one_figure_that_needs_it():
+    rec = _record()
+    got = {(st, b): blk["qualifier"] for st, s in rec["by_stage"].items()
+           for b, blk in s["vs"].items()}
+    assert len(got) == 6                                        # two stages, three baselines
+    carried = {k for k, q in got.items() if q is not None}
+    assert carried == {("weeks_1_4", "elo_nomov")}
+    q = got[("weeks_1_4", "elo_nomov")]
+    assert q["statement"] == GRID                               # worded from the carried numbers
+    assert q["kind"] == "comparator_at_grid_max" and q["served_matches"] is True
+    assert _record(early=(-0.0011, -0.0024, 0.0009))["by_stage"]["weeks_1_4"]["vs"][
+        "elo_nomov"]["qualifier"]["served_matches"] is False
+
+
+def test_the_two_places_the_stage_figure_is_registered_carry_one_measurement():
+    """Two registry entries, one measurement of F's. Nothing but this stops the copy
+    in the carried file drifting from the entry it was copied from."""
+    req = RS.required()
+    a, b = req[BY_STAGE], req["game/nfl/forecast.json|season_stage[stage=weeks_1_4]"]
+    for k in ("kind", "measured_against", "figures"):       # `figure` is each file's own field name
+        assert a[k] == b[k], k
+    assert _record()["by_stage"]["weeks_1_4"]["vs"]["elo_nomov"]["qualifier"] == \
+        _stage(3)["qualifier"] == _stage(6)["other"]["qualifier"]
+
+
+@pytest.mark.parametrize("week", [3, 6])
+def test_the_stage_check_refuses_the_record_and_the_forecast_wording_one_figure_twice(week):
+    files = {X.RECORD_KEY: _record(), X.FORECAST_KEY: _forecast(week)}
+    assert X.stage_agrees(files).startswith("stage check: 2 stage figure(s) agree")
+    drift = copy.deepcopy(files)
+    drift[X.RECORD_KEY]["by_stage"]["weeks_1_4"]["vs"]["elo_nomov"]["qualifier"]["statement"] = "x"
+    with pytest.raises(RuntimeError, match="different sentences for one figure"):
+        X.stage_agrees(drift)
+    bare = copy.deepcopy(files)
+    bare[X.RECORD_KEY]["by_stage"]["weeks_1_4"]["vs"]["elo_nomov"]["qualifier"] = None
+    with pytest.raises(RuntimeError, match="different sentences for one figure"):
+        X.stage_agrees(bare)
+    with pytest.raises(RS.MissingSentence,
+                       match=r"record\.json: by_stage\.weeks_1_4\.vs\.elo_nomov\.d_brier is "
+                             r"served without its sentence"):
+        RS.require({X.RECORD_KEY: bare[X.RECORD_KEY]})
+
+
+# ------------------------------------- a-77: the matchup's copies of record figures
+
+COPIES = {      # where a matchup prints a registered record figure -> the figure's id
+    "numbers.total.record.vs_close": "game/nfl/record_total.json|vs_close",
+    "numbers.total.record.beats[id=league]":
+        "game/nfl/record_total.json|against_baselines[id=league]",
+    "numbers.total.record.beats[id=season_avg]":
+        "game/nfl/record_total.json|against_baselines[id=season_avg]"}
+
+
+@pytest.fixture
+def matchups(measured, monkeypatch, results_on_this_walk):  # noqa: F811
+    files, failed = _build(measured, monkeypatch)
+    assert failed == []
+    mus = _matchups(files)
+    assert mus
+    return files, mus
+
+
+def test_a_matchup_copy_printed_with_its_digits_carries_the_owners_sentence(matchups):
+    files, mus = matchups
+    tt = files[GM.RECORD_TOTAL_KEY]
+    wind = tt["vs_close"]["qualifier"]["statement"]
+    assert wind.startswith("Scored with each game's recorded wind")
+    assert "+0.0056 [+0.0035, +0.0079]" in wind                 # the carried numbers
+    for key, mu in mus.items():
+        got = {path: (fid, blk) for fid, path, blk, _e in RS.located(key, mu)}
+        stage = [p for p in got if p.startswith("season_stage")]
+        assert len(stage) == 1 and set(got) - set(stage) == set(COPIES)     # the walk's coverage
+        for path, fid in COPIES.items():
+            assert got[path][0] == fid
+            _file, holder = fid.split("|")
+            owner = MR.resolve(tt, holder)
+            blk = got[path][1]
+            assert blk["d_brier"]["estimate"] is not None           # digits, not only a pointer
+            assert blk["d_brier"] == owner["d_brier"]
+            assert blk["qualifier"] is not None and blk["qualifier"] == owner["qualifier"]
+        assert mu["numbers"]["total"]["record"]["vs_close"]["qualifier"]["statement"] == wind
+        # the moneyline's and the spread's copies are of figures that need none
+        for market in ("moneyline", "spread"):
+            rec = mu["numbers"][market]["record"]
+            assert rec["vs_close"]["qualifier"] is None
+            assert all(b["qualifier"] is None for b in rec["beats"])
+
+
+@pytest.mark.parametrize("path", sorted(COPIES))
+def test_a_matchup_copy_served_without_its_sentence_is_refused(matchups, path):
+    _files, mus = matchups
+    for key, mu in mus.items():
+        bad = copy.deepcopy(mu)
+        blk = MR.resolve(bad, path)
+        assert blk["qualifier"] is not None
+        blk["qualifier"] = None
+        with pytest.raises(RS.MissingSentence) as x:
+            RS.require({key: bad})
+        assert f"{key}: {path}.d_brier is served without its sentence" in str(x.value)
+        with pytest.raises(RS.MissingSentence, match="served without its sentence"):
+            X.gate({key: bad})                      # the export's own gate
+        E.validate_contract({key: bad})             # null is legal; the gate is what refuses
+        del blk["qualifier"]
+        with pytest.raises(E.ContractError):
+            E.validate_contract({key: bad})
+        wrong = copy.deepcopy(mu)
+        MR.resolve(wrong, path)["qualifier"]["statement"] = "It is fine."
+        with pytest.raises(RS.MissingSentence, match="not the one its figures word"):
+            RS.require({key: wrong})
+
+
+def test_a_sentence_on_a_matchup_copy_nobody_registered_is_refused(matchups):
+    _files, mus = matchups
+    key, mu = next(iter(mus.items()))
+    bad = copy.deepcopy(mu)
+    bad["numbers"]["spread"]["record"]["vs_close"]["qualifier"] = copy.deepcopy(
+        bad["numbers"]["total"]["record"]["vs_close"]["qualifier"])
+    with pytest.raises(RS.MissingSentence,
+                       match=r"numbers\.spread\.record\.vs_close carries a sentence no registered"):
+        RS.require({key: bad})
+
+
+def test_registering_a_record_figure_requires_it_in_the_matchup_copy_too(matchups, monkeypatch):
+    """The copies are found from the matchup's own pointers, not from a list here: a
+    figure registered tomorrow is refused bare in its copy from that moment."""
+    _files, mus = matchups
+    key, mu = next(iter(mus.items()))
+    assert RS.require({key: mu}).startswith("sentence check: 4 figure(s)")
+    _with_fourth(monkeypatch, {
+        "file": GM.RECORD_SPREAD_KEY, "holder": "vs_close", "figure": "d_brier",
+        "kind": "at_mde_uncorrected",
+        "measured_against": {"estimate": 0.0081, "interval": [0.0054, 0.0107]},
+        "figures": {"mde_ratio": 2.11, "intervals_registered": 72, "correction": "Bonferroni",
+                    "adjusted_p": 0.001, "alpha": 0.05}})
+    with pytest.raises(RS.MissingSentence,
+                       match=r"numbers\.spread\.record\.vs_close\.d_brier is served without"):
+        RS.require({key: mu})
+
+
+def test_a_market_the_copy_walk_cannot_read_is_a_failure_not_a_skip(matchups):
+    _files, mus = matchups
+    key, mu = next(iter(mus.items()))
+    bad = copy.deepcopy(mu)
+    bad["numbers"]["first_half"] = copy.deepcopy(bad["numbers"]["total"])
+    with pytest.raises(RS.MissingSentence, match="first_half: a market the sentence check"):
+        RS.require({key: bad})
 
 
 # ------------------------------------ the sentences, and that they can differ

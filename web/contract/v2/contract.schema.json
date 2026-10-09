@@ -10108,12 +10108,16 @@
                         },
                         "d_brier": {
                           "$ref": "#/$defs/GameInterval"
+                        },
+                        "qualifier": {
+                          "$ref": "#/$defs/GameQualifier"
                         }
                       },
                       "required": [
                         "brier_model",
                         "brier_baseline",
-                        "d_brier"
+                        "d_brier",
+                        "qualifier"
                       ],
                       "additionalProperties": false
                     },
@@ -10134,12 +10138,16 @@
                         },
                         "d_brier": {
                           "$ref": "#/$defs/GameInterval"
+                        },
+                        "qualifier": {
+                          "$ref": "#/$defs/GameQualifier"
                         }
                       },
                       "required": [
                         "brier_model",
                         "brier_baseline",
-                        "d_brier"
+                        "d_brier",
+                        "qualifier"
                       ],
                       "additionalProperties": false
                     },
@@ -10160,12 +10168,16 @@
                         },
                         "d_brier": {
                           "$ref": "#/$defs/GameInterval"
+                        },
+                        "qualifier": {
+                          "$ref": "#/$defs/GameQualifier"
                         }
                       },
                       "required": [
                         "brier_model",
                         "brier_baseline",
-                        "d_brier"
+                        "d_brier",
+                        "qualifier"
                       ],
                       "additionalProperties": false
                     }
@@ -10210,12 +10222,16 @@
                         },
                         "d_brier": {
                           "$ref": "#/$defs/GameInterval"
+                        },
+                        "qualifier": {
+                          "$ref": "#/$defs/GameQualifier"
                         }
                       },
                       "required": [
                         "brier_model",
                         "brier_baseline",
-                        "d_brier"
+                        "d_brier",
+                        "qualifier"
                       ],
                       "additionalProperties": false
                     },
@@ -10236,12 +10252,16 @@
                         },
                         "d_brier": {
                           "$ref": "#/$defs/GameInterval"
+                        },
+                        "qualifier": {
+                          "$ref": "#/$defs/GameQualifier"
                         }
                       },
                       "required": [
                         "brier_model",
                         "brier_baseline",
-                        "d_brier"
+                        "d_brier",
+                        "qualifier"
                       ],
                       "additionalProperties": false
                     },
@@ -10262,12 +10282,16 @@
                         },
                         "d_brier": {
                           "$ref": "#/$defs/GameInterval"
+                        },
+                        "qualifier": {
+                          "$ref": "#/$defs/GameQualifier"
                         }
                       },
                       "required": [
                         "brier_model",
                         "brier_baseline",
-                        "d_brier"
+                        "d_brier",
+                        "qualifier"
                       ],
                       "additionalProperties": false
                     }
@@ -10614,7 +10638,7 @@
       ]
     },
     "GameQualifier": {
-      "description": "a-75. A sentence a figure may only be cited with, attached to the object that holds the figure. Null when the figure needs none. Track F's reliability attack (f-26, f-27) returned some game figures as citable only with a stated sentence; `statement` is that sentence, worded at export from `figures`, which are F's measurements carried from research/results/f27_required_sentences.json and never re-derived here. It is a footnote: it does not change the sibling `compared`, which still comes from the figure's own interval. `measured_against` is the figure F attacked, with F's own bootstrap draw of its interval, and `served_matches` says whether the ESTIMATE beside this block still equals it at four decimals (intervals are draws and are not compared) - false means the figure has moved since the sentence was measured, and the sentence stays. jobs/required_sentences.require refuses a file that serves a registered figure without its sentence, or a sentence on a figure nobody registered.",
+      "description": "a-75. A sentence a figure may only be cited with, attached to the object that holds the figure. Null when the figure needs none. Track F's reliability attack (f-26, f-27) returned some game figures as citable only with a stated sentence; `statement` is that sentence, worded at export from `figures`, which are F's measurements carried from research/results/f27_required_sentences.json and never re-derived here. It is a footnote: it does not change the sibling `compared`, which still comes from the figure's own interval. `measured_against` is the figure F attacked, with F's own bootstrap draw of its interval, and `served_matches` says whether the ESTIMATE beside this block still equals it at four decimals (intervals are draws and are not compared) - false means the figure has moved since the sentence was measured, and the sentence stays. jobs/required_sentences.require refuses a file that serves a registered figure without its sentence, or a sentence on a figure nobody registered. a-77: the same figure is registered at every place it is printed with its own digits - record.json's by_stage.weeks_1_4.vs.elo_nomov, and each matchup file's numbers.{market}.record copies (`beats` rows and `vs_close`) - and the sentence is the owner's, block for block.",
       "anyOf": [
         {
           "type": "null"
@@ -11228,18 +11252,22 @@
                               "worse than",
                               "no better than"
                             ]
+                          },
+                          "qualifier": {
+                            "$ref": "#/$defs/GameQualifier"
                           }
                         },
                         "required": [
                           "id",
                           "d_brier",
-                          "compared"
+                          "compared",
+                          "qualifier"
                         ],
                         "additionalProperties": false
                       }
                     },
                     "vs_close": {
-                      "description": "A copy of the owning record's figure, refused at export unless it equals it.",
+                      "description": "A copy of the owning record's figure, refused at export unless it equals it. a-77: the copy prints the digits, so it carries the owner's `qualifier` too; a pointer alone does not stand in for a required sentence.",
                       "type": "object",
                       "properties": {
                         "record": {
@@ -11258,6 +11286,9 @@
                             "no better than"
                           ]
                         },
+                        "qualifier": {
+                          "$ref": "#/$defs/GameQualifier"
+                        },
                         "display": {
                           "type": "boolean"
                         }
@@ -11267,6 +11298,7 @@
                         "path",
                         "d_brier",
                         "compared",
+                        "qualifier",
                         "display"
                       ],
                       "additionalProperties": false
@@ -11423,18 +11455,22 @@
                               "worse than",
                               "no better than"
                             ]
+                          },
+                          "qualifier": {
+                            "$ref": "#/$defs/GameQualifier"
                           }
                         },
                         "required": [
                           "id",
                           "d_brier",
-                          "compared"
+                          "compared",
+                          "qualifier"
                         ],
                         "additionalProperties": false
                       }
                     },
                     "vs_close": {
-                      "description": "A copy of the owning record's figure, refused at export unless it equals it.",
+                      "description": "A copy of the owning record's figure, refused at export unless it equals it. a-77: the copy prints the digits, so it carries the owner's `qualifier` too; a pointer alone does not stand in for a required sentence.",
                       "type": "object",
                       "properties": {
                         "record": {
@@ -11453,6 +11489,9 @@
                             "no better than"
                           ]
                         },
+                        "qualifier": {
+                          "$ref": "#/$defs/GameQualifier"
+                        },
                         "display": {
                           "type": "boolean"
                         }
@@ -11462,6 +11501,7 @@
                         "path",
                         "d_brier",
                         "compared",
+                        "qualifier",
                         "display"
                       ],
                       "additionalProperties": false
@@ -11631,18 +11671,22 @@
                               "worse than",
                               "no better than"
                             ]
+                          },
+                          "qualifier": {
+                            "$ref": "#/$defs/GameQualifier"
                           }
                         },
                         "required": [
                           "id",
                           "d_brier",
-                          "compared"
+                          "compared",
+                          "qualifier"
                         ],
                         "additionalProperties": false
                       }
                     },
                     "vs_close": {
-                      "description": "A copy of the owning record's figure, refused at export unless it equals it.",
+                      "description": "A copy of the owning record's figure, refused at export unless it equals it. a-77: the copy prints the digits, so it carries the owner's `qualifier` too; a pointer alone does not stand in for a required sentence.",
                       "type": "object",
                       "properties": {
                         "record": {
@@ -11661,6 +11705,9 @@
                             "no better than"
                           ]
                         },
+                        "qualifier": {
+                          "$ref": "#/$defs/GameQualifier"
+                        },
                         "display": {
                           "type": "boolean"
                         }
@@ -11670,6 +11717,7 @@
                         "path",
                         "d_brier",
                         "compared",
+                        "qualifier",
                         "display"
                       ],
                       "additionalProperties": false

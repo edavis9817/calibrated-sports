@@ -202,13 +202,27 @@ def measure(log=print, draws=None):
 # the record
 # =============================================================================
 
+def record_stage_sentence(stage, baseline, d):
+    """a-77: the record publishes the weeks 1-4 figure against plain Elo a second
+    time, in `by_stage`, and it carries track F's sentence there too. Asked of the
+    registry by the figure's own path, so which of the six comparisons need one is
+    the carried file's to say; null for the rest."""
+    from jobs import required_sentences as RS
+    holder = f"by_stage.{stage}.vs.{baseline}"
+    if RS.figure_id(RECORD_KEY, holder) not in RS.required():
+        return None
+    return RS.qualifier(RECORD_KEY, holder, d)
+
+
 def stage_block(m, stage):
     out = {"games": m["n"][stage], "vs": {}}
     for b, _l, _d in BASELINES:
         r = m["stages"][stage][b]
+        d = interval(r["diffs"]["dBrier"])
         out["vs"][b] = {"brier_model": r4(r["corp_model"]["bs"]),
                         "brier_baseline": r4(r["corp_comparator"]["bs"]),
-                        "d_brier": interval(r["diffs"]["dBrier"])}
+                        "d_brier": d,
+                        "qualifier": record_stage_sentence(stage, b, d)}
     return out
 
 
@@ -411,6 +425,16 @@ def stage_agrees(files):
         if got != owner(stage):
             raise RuntimeError(f"{FORECAST_KEY} season_stage {stage} is {got}, but "
                                f"{RECORD_KEY} says {owner(stage)} - refusing both")
+    # a-77: one figure, two files - and so one sentence. The registry holds an entry
+    # for each place; this is what refuses the two entries drifting apart.
+    for blk in (st, st["other"]):
+        if blk is None or blk["stage"] == "all":
+            continue
+        theirs = rec["by_stage"][blk["stage"]]["vs"]["elo_nomov"]["qualifier"]
+        if blk["qualifier"] != theirs:
+            raise RuntimeError(f"{FORECAST_KEY} season_stage {blk['stage']} and {RECORD_KEY} "
+                               f"by_stage carry different sentences for one figure - "
+                               f"refusing both")
     return f"stage check: {len(pairs)} stage figure(s) agree with the record"
 
 

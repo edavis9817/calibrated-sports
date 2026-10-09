@@ -77,6 +77,23 @@
         "seeds": 1
       },
       "read_from": "run2-f27/verdicts.json verdicts.a-63 (registered -0.0008 [-0.0024, +0.0009], widened grid -0.0017 [-0.0031, -0.0004]) and run 1's a-63 verdict (K at the grid maximum 40 in 25 of 25 seasons, allowed to 120, one seed). The interval here is F's own draw; the export serves the same estimate with [-0.0024, +0.0007]"
+    },
+    {
+      "file": "game/nfl/record.json",
+      "holder": "by_stage.weeks_1_4.vs.elo_nomov",
+      "figure": "d_brier",
+      "kind": "comparator_at_grid_max",
+      "measured_against": {"estimate": -0.0008, "interval": [-0.0024, 0.0009]},
+      "figures": {
+        "parameter": "K",
+        "grid_max": 40,
+        "seasons_at_max": 25,
+        "seasons": 25,
+        "allowed_to": 120,
+        "alternative": {"estimate": -0.0017, "interval": [-0.0031, -0.0004]},
+        "seeds": 1
+      },
+      "read_from": "a-77. The SAME measurement as the forecast.json entry above, registered at the second place it is published: run2-f27/verdicts.json verdicts.a-63 names both ('THE SENTENCE IS NOT ATTACHED where published (forecast.json season_stage.statement, record.json by_stage ...)'). Nothing was re-read from F's logs or re-measured; measured_against and figures are copied from the entry above, and tests/test_required_sentences.py refuses the two differing"
     }
   ]
 }
