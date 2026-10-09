@@ -2007,6 +2007,34 @@ the agent — stated as options with a recommendation, not as a question without
   - **c-28's published identity hash `2a2ca2dc...0b16` is stale; the current one is
     `12b91365...49dd`.** The model files have no diff since `d1b259d`; `nfl_games` was re-ingested
     (2026-09-30 -> 2026-10-08). Compare the hash against one taken on the same data version.
+- **A scores-only total model beats the same two baselines in the same order in BOTH sports, and
+  the ordering survives re-weighting college to the NFL's game environments** (c-44,
+  `research/cross_sport_total.py`, pre-registered at `c92f98e`; `docs/findings/cross-sport-total.md`).
+  One function builds the model for both sports from final scores only (as-of offence and defence
+  points, shrunk); NFL 5,698 games and college FBS-FBS 15,508, scored 2005-2025 in both, against
+  settlement, squared error. Model < team-pair mean < league-and-season mean in the NFL, in college,
+  and in college at the NFL's distribution of `e` = pair mean minus league mean: 17 of 17 primary
+  tests Holm-significant. **This is NOT c-31's NFL total model**, which reads plays and wind and
+  cannot be built for college. "Works" means beats two naive baselines; it loses to the price.
+  - **Against the league mean the college advantage is mostly the spread of environments**: skill
+    gap +0.0794 raw, +0.0134 [+0.0008, +0.0265] re-weighted - below its own MDE (0.0187), Holm p
+    0.044, and zero is inside the interval on the Brier scale and with the re-weighting reversed.
+    Do not quote a remainder. A game 6+ points from the league mean is 3.4% of NFL games and 27.5%
+    of college games.
+  - **Against the pair mean it is NOT the spread**: +0.0230 raw, +0.0183 [+0.0110, +0.0258]
+    re-weighted, excluding zero in all three views. Why (an unshrunk 12-game mean on an uneven
+    schedule is noisier) is an inference, untested.
+  - **The NFL model-over-pair-mean leg is thin**: -1.73 points² on 186. It fails Holm in weeks 1-4
+    and in 2005-2014, where its MDE exceeds the effect.
+  - **Points² is not one unit across sports** (total variance 201 against 327). Compare on skill,
+    `1 - MSE(model)/MSE(baseline)`, or on a Brier.
+  - **A pre-run MDE that reads no outcome: `SE(d) ~ 2 sigma rms(m - b) / sqrt(n)`** from the two
+    forecasts and the training sd of the target. It landed within 5% of the bootstrap's on every
+    primary per-sport test (`--mde-only`, committed before the outcome run).
+  - **The college total price is CFBD's last value and is not a timestamped close.** f-30's
+    2026 weeks 3-5 check was on the MONEYLINE and c-15's on the spread; nothing covers a total or
+    a backfill season. Model minus price, 2013-2025 both sports: NFL +9.59 [+7.15, +12.08] (ratio
+    1.054), college +16.52 [+13.63, +19.48] (1.062). No between-sport interval, by registration.
 - **CFB line sources are layers, not substitutes:** CFBD for 2013-2019 (unreachable elsewhere) and
   as the free 2020-2025 layer; the Odds API is the forward source (bulk game lines, ~3 credits a
   slate); Kalshi/Polymarket are exchange probabilities, never presented as a book line. CFBD lines
