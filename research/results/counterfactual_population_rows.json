@@ -1,0 +1,1293 @@
+{
+ "unit": "c-46",
+ "ledger_sha256": "760b93be22fb1464df139457b011a67687ba1c70a013ba06f8e55a90d225306d",
+ "n": 19,
+ "note": "the 19 leans c-40 excluded, in c-40's row shape; fit_basis says which facts the fit was rebuilt on",
+ "rows": [
+  {
+   "lean_id": "d590e3ffcaf32186",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_DET_CAR",
+   "gsis_id": "00-0031610",
+   "pos": "TE",
+   "team": "CAR",
+   "market": "receptions",
+   "line": 2.5,
+   "side": "under",
+   "read_at": "2026-10-02T01:04:48Z",
+   "result": "missed",
+   "actual": 3.0,
+   "model_p_over": 0.4169,
+   "mkt_p_over": 0.583,
+   "gap_pp": -16.61,
+   "band": "8+",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 2.8333333333333335,
+    "group_mean": 1.7534938884748903,
+    "weight": 0.6666666666666666,
+    "dispersion": 4.102906202756014,
+    "line": 2.5,
+    "prior_games": 12,
+    "role": 2,
+    "team_changed": false,
+    "coach_changed": false
+   },
+   "flip": {
+    "own_mean": {
+     "value": 4.303188832795723,
+     "distance": 0.4179024620523487
+    },
+    "group_mean": {
+     "value": 4.693204887399638,
+     "distance": 0.9845053886831105
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": {
+     "value": 1.5,
+     "distance": 0.5108256237659907,
+     "steps": -1
+    }
+   },
+   "flipping_input": "own_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 3.687919182716965,
+     "distance": 0.2636085170460817
+    },
+    "group_mean": {
+     "value": 3.462665587242149,
+     "distance": 0.6804283881375777
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": null
+   },
+   "withdraw_input": "own_mean"
+  },
+  {
+   "lean_id": "2410ed3c0d6f249d",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_DET_CAR",
+   "gsis_id": "00-0036555",
+   "pos": "RB",
+   "team": "CAR",
+   "market": "receptions",
+   "line": 2.5,
+   "side": "under",
+   "read_at": "2026-10-02T01:04:48Z",
+   "result": "cleared",
+   "actual": 1.0,
+   "model_p_over": 0.3861,
+   "mkt_p_over": 0.542,
+   "gap_pp": -15.59,
+   "band": "8+",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 2.1666666666666665,
+    "group_mean": 2.736888111888112,
+    "weight": 0.75,
+    "dispersion": 3.6011067404817405,
+    "line": 2.5,
+    "prior_games": 18,
+    "role": 1,
+    "team_changed": false,
+    "coach_changed": false
+   },
+   "flip": {
+    "own_mean": {
+     "value": 3.3903073733027,
+     "distance": 0.44773069963931467
+    },
+    "group_mean": {
+     "value": 6.407810231796225,
+     "distance": 0.8506960456768748
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": {
+     "value": 1.5,
+     "distance": 0.5108256237659907,
+     "steps": -1
+    }
+   },
+   "flipping_input": "own_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 2.8713781717122466,
+     "distance": 0.28160222548218083
+    },
+    "group_mean": {
+     "value": 4.8510226270248324,
+     "distance": 0.5723679842697506
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": null
+   },
+   "withdraw_input": "own_mean"
+  },
+  {
+   "lean_id": "3f2b1b9ba48df518",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_DET_CAR",
+   "gsis_id": "00-0039065",
+   "pos": "TE",
+   "team": "DET",
+   "market": "receptions",
+   "line": 4.5,
+   "side": "under",
+   "read_at": "2026-10-02T01:04:48Z",
+   "result": "missed",
+   "actual": 8.0,
+   "model_p_over": 0.4152,
+   "mkt_p_over": 0.491,
+   "gap_pp": -7.58,
+   "band": "6-8",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 4.5,
+    "group_mean": 3.8014212562248555,
+    "weight": 0.6666666666666666,
+    "dispersion": 5.652966575481169,
+    "line": 4.5,
+    "prior_games": 12,
+    "role": 1,
+    "team_changed": false,
+    "coach_changed": false
+   },
+   "flip": {
+    "own_mean": {
+     "value": 5.536527935980199,
+     "distance": 0.20729018115049502
+    },
+    "group_mean": {
+     "value": 5.874477128185211,
+     "distance": 0.4352420450094435
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": {
+     "value": 3.5,
+     "distance": 0.25131442828090605,
+     "steps": -1
+    }
+   },
+   "flipping_input": "own_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 4.8158479353997015,
+     "distance": 0.06783473585627157
+    },
+    "group_mean": {
+     "value": 4.433117127024232,
+     "distance": 0.15372796542772965
+    },
+    "weight": {
+     "value": 0.972166687023512,
+     "distance": 0.3772371075912758
+    },
+    "dispersion": null,
+    "line": null
+   },
+   "withdraw_input": "own_mean"
+  },
+  {
+   "lean_id": "a5d428bdf44fb2d8",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_DET_CAR",
+   "gsis_id": "00-0039139",
+   "pos": "RB",
+   "team": "DET",
+   "market": "receptions",
+   "line": 4.5,
+   "side": "under",
+   "read_at": "2026-10-02T01:04:48Z",
+   "result": "cleared",
+   "actual": 4.0,
+   "model_p_over": 0.407,
+   "mkt_p_over": 0.5271,
+   "gap_pp": -12.01,
+   "band": "8+",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 4.75,
+    "group_mean": 2.736888111888112,
+    "weight": 0.7692307692307693,
+    "dispersion": 7.774108251870257,
+    "line": 4.5,
+    "prior_games": 20,
+    "role": 1,
+    "team_changed": false,
+    "coach_changed": false
+   },
+   "flip": {
+    "own_mean": {
+     "value": 6.073282330714327,
+     "distance": 0.24575458728512817
+    },
+    "group_mean": {
+     "value": 7.079489407299746,
+     "distance": 0.9503802381053355
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": {
+     "value": 2.5,
+     "distance": 0.587786664902119,
+     "steps": -2
+    }
+   },
+   "flipping_input": "own_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 5.415335838404888,
+     "distance": 0.13109028050261218
+    },
+    "group_mean": {
+     "value": 4.878831831594017,
+     "distance": 0.578084263051004
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": {
+     "value": 3.5,
+     "distance": 0.25131442828090605,
+     "steps": -1
+    }
+   },
+   "withdraw_input": "own_mean"
+  },
+  {
+   "lean_id": "3e8474fc2cbe7064",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_DET_CAR",
+   "gsis_id": "00-0039150",
+   "pos": "QB",
+   "team": "CAR",
+   "market": "rush_attempts",
+   "line": 2.5,
+   "side": "under",
+   "read_at": "2026-10-02T01:04:48Z",
+   "result": "missed",
+   "actual": 3.0,
+   "model_p_over": 0.4462,
+   "mkt_p_over": 0.5467,
+   "gap_pp": -10.05,
+   "band": "8+",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 3.0,
+    "group_mean": 3.889640946927724,
+    "weight": 0.76,
+    "dispersion": 13.264968770845424,
+    "line": 2.5,
+    "prior_games": 19,
+    "role": 1,
+    "team_changed": false,
+    "coach_changed": false
+   },
+   "flip": {
+    "own_mean": {
+     "value": 4.12983066078149,
+     "distance": 0.31962411523213263
+    },
+    "group_mean": {
+     "value": 7.531822216170952,
+     "distance": 0.6608201549060357
+    },
+    "weight": null,
+    "dispersion": {
+     "value": 4.289968425471746,
+     "distance": 1.128847260451852
+    },
+    "line": {
+     "value": 0.5,
+     "distance": 1.6094379124341003,
+     "steps": -2
+    }
+   },
+   "flipping_input": "own_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 3.4773040893044183,
+     "distance": 0.147645017911761
+    },
+    "group_mean": {
+     "value": 5.407430283329505,
+     "distance": 0.32945713436449564
+    },
+    "weight": {
+     "value": 0.3241811012879152,
+     "distance": 0.8520161190526476
+    },
+    "dispersion": {
+     "value": 8.17589003442765,
+     "distance": 0.48393704976482044
+    },
+    "line": {
+     "value": 1.5,
+     "distance": 0.5108256237659907,
+     "steps": -1
+    }
+   },
+   "withdraw_input": "own_mean"
+  },
+  {
+   "lean_id": "158c3f90f614a4a6",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_DET_CAR",
+   "gsis_id": "00-0040669",
+   "pos": "WR",
+   "team": "DET",
+   "market": "receptions",
+   "line": 1.5,
+   "side": "under",
+   "read_at": "2026-10-02T01:04:48Z",
+   "result": "missed",
+   "actual": 4.0,
+   "model_p_over": 0.2969,
+   "mkt_p_over": 0.4858,
+   "gap_pp": -18.89,
+   "band": "8+",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 1.2352941176470589,
+    "group_mean": 1.0585537217636392,
+    "weight": 0.7391304347826086,
+    "dispersion": 2.5286953509329684,
+    "line": 1.5,
+    "prior_games": 17,
+    "role": 4,
+    "team_changed": false,
+    "coach_changed": false
+   },
+   "flip": {
+    "own_mean": {
+     "value": 2.323374129287442,
+     "distance": 0.6317114015171473
+    },
+    "group_mean": {
+     "value": 4.141447088078045,
+     "distance": 1.3641417019121866
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": {
+     "value": 0.5,
+     "distance": 1.0986122886681098,
+     "steps": -1
+    }
+   },
+   "flipping_input": "own_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 1.9236998405263888,
+     "distance": 0.44294123836336996
+    },
+    "group_mean": {
+     "value": 3.0090366032550593,
+     "distance": 1.0447163991312665
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": null
+   },
+   "withdraw_input": "own_mean"
+  },
+  {
+   "lean_id": "6df257f7d6e35259",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_TEN_BAL",
+   "gsis_id": "00-0034837",
+   "pos": "WR",
+   "team": "TEN",
+   "market": "receptions",
+   "line": 0.5,
+   "side": "over",
+   "read_at": "2026-10-04T15:39:48Z",
+   "result": "cleared",
+   "actual": 1.0,
+   "model_p_over": 0.669,
+   "mkt_p_over": 0.6279,
+   "gap_pp": 4.1,
+   "band": "4-6",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 2.111111111111111,
+    "group_mean": 1.093062467529031,
+    "weight": 0.42,
+    "dispersion": 2.7903411448593864,
+    "line": 0.5,
+    "prior_games": 9,
+    "role": 4,
+    "team_changed": false,
+    "coach_changed": true
+   },
+   "flip": {
+    "own_mean": {
+     "value": 1.6188779921360736,
+     "distance": 0.2654810899892101
+    },
+    "group_mean": {
+     "value": 0.7825194090107013,
+     "distance": 0.3342199129487543
+    },
+    "weight": {
+     "value": 0.16851741371104378,
+     "distance": 0.9132156213586372
+    },
+    "dispersion": {
+     "value": 4.1214388201233625,
+     "distance": 0.3900384680791984
+    },
+    "line": {
+     "value": 1.5,
+     "distance": 1.0986122886681098,
+     "steps": 1
+    }
+   },
+   "flipping_input": "own_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 2.104000859505537,
+     "distance": 0.003373698444604871
+    },
+    "group_mean": {
+     "value": 1.0884958144784198,
+     "distance": 0.004186603455426543
+    },
+    "weight": {
+     "value": 0.4162976537543077,
+     "distance": 0.00885419304166309
+    },
+    "dispersion": {
+     "value": 2.805053355980523,
+     "distance": 0.005258698032135856
+    },
+    "line": null
+   },
+   "withdraw_input": "own_mean"
+  },
+  {
+   "lean_id": "f037d1efd0c618d1",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_NE_BUF",
+   "gsis_id": "00-0040734",
+   "pos": "RB",
+   "team": "NE",
+   "market": "receptions",
+   "line": 1.5,
+   "side": "over",
+   "read_at": "2026-10-04T16:24:48Z",
+   "result": "missed",
+   "actual": 0.0,
+   "model_p_over": 0.4366,
+   "mkt_p_over": 0.3907,
+   "gap_pp": 4.59,
+   "band": "4-6",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 1.894736842105263,
+    "group_mean": 1.273935689718127,
+    "weight": 0.76,
+    "dispersion": 3.6431393071364955,
+    "line": 1.5,
+    "prior_games": 19,
+    "role": 2,
+    "team_changed": false,
+    "coach_changed": false
+   },
+   "flip": {
+    "own_mean": {
+     "value": 1.51148335175749,
+     "distance": 0.22598843849767633
+    },
+    "group_mean": {
+     "value": 0.4375223098152848,
+     "distance": 1.0687386574688076
+    },
+    "weight": {
+     "value": 0.22033951752580277,
+     "distance": 1.2381488150513364
+    },
+    "dispersion": {
+     "value": 7.467902240483171,
+     "distance": 0.7177683781685059
+    },
+    "line": {
+     "value": 2.5,
+     "distance": 0.5108256237659907,
+     "steps": 1
+    }
+   },
+   "flipping_input": "own_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 1.8683284148112207,
+     "distance": 0.014035824009170809
+    },
+    "group_mean": {
+     "value": 1.2019764007056544,
+     "distance": 0.05814387428378675
+    },
+    "weight": {
+     "value": 0.7213132537269938,
+     "distance": 0.052244919162087414
+    },
+    "dispersion": {
+     "value": 3.831492558654871,
+     "distance": 0.050408672306675506
+    },
+    "line": null
+   },
+   "withdraw_input": "own_mean"
+  },
+  {
+   "lean_id": "b8d09df4166c3d6f",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_NE_BUF",
+   "gsis_id": "00-0041395",
+   "pos": "TE",
+   "team": "NE",
+   "market": "receptions",
+   "line": 0.5,
+   "side": "under",
+   "read_at": "2026-10-04T16:24:48Z",
+   "result": "missed",
+   "actual": 1.0,
+   "model_p_over": 0.485,
+   "mkt_p_over": 0.5931,
+   "gap_pp": -10.8,
+   "band": "8+",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 1.0,
+    "group_mean": 1.0023192275261867,
+    "weight": 0.25,
+    "dispersion": 2.1718263916768725,
+    "line": 0.5,
+    "prior_games": 2,
+    "role": 3,
+    "team_changed": false,
+    "coach_changed": false
+   },
+   "flip": {
+    "own_mean": {
+     "value": 2.5457917656471714,
+     "distance": 0.9344417079636065
+    },
+    "group_mean": {
+     "value": 1.5175831494085776,
+     "distance": 0.4148024938608146
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": null
+   },
+   "flipping_input": "group_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 1.6551124136431103,
+     "distance": 0.5038689301737457
+    },
+    "group_mean": {
+     "value": 1.2206900320738943,
+     "distance": 0.19709975664526583
+    },
+    "weight": null,
+    "dispersion": {
+     "value": 1.526860752712276,
+     "distance": 0.3523546367347822
+    },
+    "line": null
+   },
+   "withdraw_input": "group_mean"
+  },
+  {
+   "lean_id": "dbb73120bac35460",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_DEN_SF",
+   "gsis_id": "00-0031408",
+   "pos": "WR",
+   "team": "SF",
+   "market": "receptions",
+   "line": 3.5,
+   "side": "under",
+   "read_at": "2026-10-04T17:54:48Z",
+   "result": "missed",
+   "actual": 5.0,
+   "model_p_over": 0.3233,
+   "mkt_p_over": 0.5272,
+   "gap_pp": -20.38,
+   "band": "8+",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 3.8181818181818183,
+    "group_mean": 1.093062467529031,
+    "weight": 0.6470588235294118,
+    "dispersion": 4.23558253947655,
+    "line": 3.5,
+    "prior_games": 11,
+    "role": 4,
+    "team_changed": false,
+    "coach_changed": false
+   },
+   "flip": {
+    "own_mean": {
+     "value": 5.851104646664802,
+     "distance": 0.42685612642262183
+    },
+    "group_mean": {
+     "value": 4.820087653081168,
+     "distance": 1.483808753262851
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": {
+     "value": 1.5,
+     "distance": 0.8472978603872037,
+     "steps": -2
+    }
+   },
+   "flipping_input": "own_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 5.164737700185945,
+     "distance": 0.3020799717091387
+    },
+    "group_mean": {
+     "value": 3.561748251203274,
+     "distance": 1.1812681462005503
+    },
+    "weight": {
+     "value": 0.9710162193252584,
+     "distance": 0.4059059641610583
+    },
+    "dispersion": null,
+    "line": {
+     "value": 2.5,
+     "distance": 0.3364722366212129,
+     "steps": -1
+    }
+   },
+   "withdraw_input": "own_mean"
+  },
+  {
+   "lean_id": "4d4ee4fb3412b164",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_KC_LV",
+   "gsis_id": "00-0038134",
+   "pos": "RB",
+   "team": "KC",
+   "market": "receptions",
+   "line": 3.5,
+   "side": "under",
+   "read_at": "2026-10-04T17:54:48Z",
+   "result": "cleared",
+   "actual": 1.0,
+   "model_p_over": 0.2167,
+   "mkt_p_over": 0.4026,
+   "gap_pp": -18.59,
+   "band": "8+",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 2.1,
+    "group_mean": 2.7435230891113247,
+    "weight": 0.7692307692307693,
+    "dispersion": 3.5368477544325962,
+    "line": 3.5,
+    "prior_games": 20,
+    "role": 1,
+    "team_changed": false,
+    "coach_changed": false
+   },
+   "flip": {
+    "own_mean": {
+     "value": 3.708499871770506,
+     "distance": 0.5686901028879119
+    },
+    "group_mean": {
+     "value": 8.105189328346363,
+     "distance": 1.0832616209511536
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": {
+     "value": 1.5,
+     "distance": 0.8472978603872037,
+     "steps": -2
+    }
+   },
+   "flipping_input": "own_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 3.161817754772829,
+     "distance": 0.40920975633515744
+    },
+    "group_mean": {
+     "value": 6.282915605020777,
+     "distance": 0.8285912476421631
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": {
+     "value": 2.5,
+     "distance": 0.3364722366212129,
+     "steps": -1
+    }
+   },
+   "withdraw_input": "line"
+  },
+  {
+   "lean_id": "007afc57fca86b96",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_DET_CAR",
+   "gsis_id": "00-0038840",
+   "pos": "WR",
+   "team": "CAR",
+   "market": "receptions",
+   "line": 2.5,
+   "side": "under",
+   "read_at": "2026-10-04T18:24:48Z",
+   "result": "cleared",
+   "actual": 2.0,
+   "model_p_over": 0.1356,
+   "mkt_p_over": 0.5139,
+   "gap_pp": -37.82,
+   "band": "8+",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 1.0,
+    "group_mean": 1.093062467529031,
+    "weight": 0.75,
+    "dispersion": 2.6232225194393703,
+    "line": 2.5,
+    "prior_games": 18,
+    "role": 4,
+    "team_changed": false,
+    "coach_changed": false
+   },
+   "flip": {
+    "own_mean": {
+     "value": 3.750325641218188,
+     "distance": 1.3218426738703317
+    },
+    "group_mean": {
+     "value": 9.344039391183603,
+     "distance": 2.145755281822182
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": null
+   },
+   "flipping_input": "own_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 3.2447273229745957,
+     "distance": 1.177031316725373
+    },
+    "group_mean": {
+     "value": 7.836272648523081,
+     "distance": 1.969779933905679
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": null
+   },
+   "withdraw_input": "own_mean"
+  },
+  {
+   "lean_id": "e1a652beae96a850",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_LAC_SEA",
+   "gsis_id": "00-0038797",
+   "pos": "RB",
+   "team": "SEA",
+   "market": "rush_attempts",
+   "line": 12.5,
+   "side": "under",
+   "read_at": "2026-10-04T18:59:48Z",
+   "result": "missed",
+   "actual": 21.0,
+   "model_p_over": 0.1968,
+   "mkt_p_over": 0.5239,
+   "gap_pp": -32.7,
+   "band": "8+",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 7.85,
+    "group_mean": 7.157844450924462,
+    "weight": 0.7692307692307693,
+    "dispersion": 51.360591540760126,
+    "line": 12.5,
+    "prior_games": 20,
+    "role": 2,
+    "team_changed": false,
+    "coach_changed": false
+   },
+   "flip": {
+    "own_mean": {
+     "value": 16.97506169205061,
+     "distance": 0.7712317759325343
+    },
+    "group_mean": {
+     "value": 40.17846875412943,
+     "distance": 1.7251223677008327
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": {
+     "value": 4.5,
+     "distance": 1.0216512475319814,
+     "steps": -8
+    }
+   },
+   "flipping_input": "own_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 15.257591128668729,
+     "distance": 0.664563626337368
+    },
+    "group_mean": {
+     "value": 33.27273821535746,
+     "distance": 1.536529508173365
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": {
+     "value": 5.5,
+     "distance": 0.8209805520698302,
+     "steps": -7
+    }
+   },
+   "withdraw_input": "own_mean"
+  },
+  {
+   "lean_id": "c03c81ad33742a44",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_LAC_SEA",
+   "gsis_id": "00-0039299",
+   "pos": "RB",
+   "team": "SEA",
+   "market": "rush_attempts",
+   "line": 8.5,
+   "side": "under",
+   "read_at": "2026-10-04T18:59:48Z",
+   "result": "cleared",
+   "actual": 7.0,
+   "model_p_over": 0.1023,
+   "mkt_p_over": 0.5513,
+   "gap_pp": -44.9,
+   "band": "8+",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 2.8461538461538463,
+    "group_mean": 3.7246624663033328,
+    "weight": 0.6842105263157895,
+    "dispersion": 19.783638473475957,
+    "line": 8.5,
+    "prior_games": 13,
+    "role": 3,
+    "team_changed": false,
+    "coach_changed": false
+   },
+   "flip": {
+    "own_mean": {
+     "value": 13.450494240947956,
+     "distance": 1.5530472967289044
+    },
+    "group_mean": {
+     "value": 27.328453012907733,
+     "distance": 1.9929521596932633
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": {
+     "value": 0.5,
+     "distance": 2.833213344056216,
+     "steps": -8
+    }
+   },
+   "flipping_input": "own_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 12.04613554272596,
+     "distance": 1.442775351469673
+    },
+    "group_mean": {
+     "value": 24.047319358714315,
+     "distance": 1.8650472945104122
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": null
+   },
+   "withdraw_input": "own_mean"
+  },
+  {
+   "lean_id": "49035ca5bf9c2030",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_KC_LV",
+   "gsis_id": "00-0039894",
+   "pos": "WR",
+   "team": "KC",
+   "market": "receptions",
+   "line": 3.5,
+   "side": "under",
+   "read_at": "2026-10-04T19:44:49Z",
+   "result": "missed",
+   "actual": 4.0,
+   "model_p_over": 0.3752,
+   "mkt_p_over": 0.4165,
+   "gap_pp": -4.13,
+   "band": "4-6",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 3.0588235294117645,
+    "group_mean": 3.3412637087982966,
+    "weight": 0.7391304347826086,
+    "dispersion": 4.494083719991421,
+    "line": 3.5,
+    "prior_games": 17,
+    "role": 2,
+    "team_changed": false,
+    "coach_changed": false
+   },
+   "flip": {
+    "own_mean": {
+     "value": 3.6388192298866837,
+     "distance": 0.17362886710469838
+    },
+    "group_mean": {
+     "value": 4.984584860143903,
+     "distance": 0.4000010307836914
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": {
+     "value": 2.5,
+     "distance": 0.3364722366212129,
+     "steps": -1
+    }
+   },
+   "flipping_input": "own_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 3.068194722062643,
+     "distance": 0.003058975695419022
+    },
+    "group_mean": {
+     "value": 3.36781542130909,
+     "distance": 0.007915199871297456
+    },
+    "weight": {
+     "value": 0.715191333474772,
+     "distance": 0.032924300948077426
+    },
+    "dispersion": {
+     "value": 4.260836660386299,
+     "distance": 0.05329626272199087
+    },
+    "line": null
+   },
+   "withdraw_input": "own_mean"
+  },
+  {
+   "lean_id": "18e8b1f2e4d4d9d8",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_DET_CAR",
+   "gsis_id": "00-0037614",
+   "pos": "WR",
+   "team": "CAR",
+   "market": "receptions",
+   "line": 1.5,
+   "side": "under",
+   "read_at": "2026-10-04T23:39:49Z",
+   "result": "missed",
+   "actual": 3.0,
+   "model_p_over": 0.5273,
+   "mkt_p_over": 0.5751,
+   "gap_pp": -4.78,
+   "band": "4-6",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 2.3333333333333335,
+    "group_mean": 1.2624576971374573,
+    "weight": 0.7142857142857143,
+    "dispersion": 3.4757945479847616,
+    "line": 1.5,
+    "prior_games": 15,
+    "role": 4,
+    "team_changed": false,
+    "coach_changed": false
+   },
+   "flip": {
+    "own_mean": {
+     "value": 2.8066780097863737,
+     "distance": 0.18470372068233715
+    },
+    "group_mean": {
+     "value": 2.445819388270037,
+     "distance": 0.6613198205226095
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": {
+     "value": 0.5,
+     "distance": 1.0986122886681098,
+     "steps": -1
+    }
+   },
+   "flipping_input": "own_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 2.371689689690938,
+     "distance": 0.016304789968943682
+    },
+    "group_mean": {
+     "value": 1.340072337155647,
+     "distance": 0.05966322106962557
+    },
+    "weight": {
+     "value": 0.7442852769532063,
+     "distance": 0.04114135574413964
+    },
+    "dispersion": {
+     "value": 3.2842979882909806,
+     "distance": 0.056670172878646306
+    },
+    "line": null
+   },
+   "withdraw_input": "own_mean"
+  },
+  {
+   "lean_id": "4930056f4a243643",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_DET_CAR",
+   "gsis_id": "00-0037614",
+   "pos": "WR",
+   "team": "CAR",
+   "market": "receptions",
+   "line": 2.5,
+   "side": "under",
+   "read_at": "2026-10-05T00:09:49Z",
+   "result": "missed",
+   "actual": 3.0,
+   "model_p_over": 0.3225,
+   "mkt_p_over": 0.387,
+   "gap_pp": -6.45,
+   "band": "6-8",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 2.3333333333333335,
+    "group_mean": 1.2624576971374573,
+    "weight": 0.7142857142857143,
+    "dispersion": 3.4757945479847616,
+    "line": 2.5,
+    "prior_games": 15,
+    "role": 4,
+    "team_changed": false,
+    "coach_changed": false
+   },
+   "flip": {
+    "own_mean": {
+     "value": 2.9902947284634864,
+     "distance": 0.24807409355002133
+    },
+    "group_mean": {
+     "value": 2.904861184962828,
+     "distance": 0.8333252299075022
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": {
+     "value": 1.5,
+     "distance": 0.5108256237659907,
+     "steps": -1
+    }
+   },
+   "flipping_input": "own_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 2.4871494688921225,
+     "distance": 0.06383940270537719
+    },
+    "group_mean": {
+     "value": 1.6382581051323999,
+     "distance": 0.26057317197026353
+    },
+    "weight": {
+     "value": 0.8220630028126767,
+     "distance": 0.1405339955156342
+    },
+    "dispersion": null,
+    "line": null
+   },
+   "withdraw_input": "own_mean"
+  },
+  {
+   "lean_id": "8dd0f84a20a39f91",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_ATL_NO",
+   "gsis_id": "00-0033906",
+   "pos": "RB",
+   "team": "NO",
+   "market": "receptions",
+   "line": 3.5,
+   "side": "under",
+   "read_at": "2026-10-05T01:14:48Z",
+   "result": "missed",
+   "actual": 5.0,
+   "model_p_over": 0.3353,
+   "mkt_p_over": 0.4144,
+   "gap_pp": -7.91,
+   "band": "6-8",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 3.0,
+    "group_mean": 2.749245464144845,
+    "weight": 0.6842105263157895,
+    "dispersion": 4.281037900438056,
+    "line": 3.5,
+    "prior_games": 13,
+    "role": 1,
+    "team_changed": false,
+    "coach_changed": false
+   },
+   "flip": {
+    "own_mean": {
+     "value": 3.9205479450474487,
+     "distance": 0.2676191372655413
+    },
+    "group_mean": {
+     "value": 4.743766011747625,
+     "distance": 0.5455048401358625
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": {
+     "value": 2.5,
+     "distance": 0.3364722366212129,
+     "steps": -1
+    }
+   },
+   "flipping_input": "own_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 3.3037167283461217,
+     "distance": 0.09643582734235985
+    },
+    "group_mean": {
+     "value": 3.4072983755614525,
+     "distance": 0.21459321470050716
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": null
+   },
+   "withdraw_input": "own_mean"
+  },
+  {
+   "lean_id": "b78b33ef98645919",
+   "season": 2026,
+   "week": 4,
+   "game_id": "2026_04_ATL_NO",
+   "gsis_id": "00-0039424",
+   "pos": "WR",
+   "team": "NO",
+   "market": "receptions",
+   "line": 3.5,
+   "side": "under",
+   "read_at": "2026-10-05T01:14:48Z",
+   "result": "missed",
+   "actual": 6.0,
+   "model_p_over": 0.357,
+   "mkt_p_over": 0.5785,
+   "gap_pp": -22.15,
+   "band": "8+",
+   "threshold_pp": 4.0,
+   "fit_basis": "r1_recovered",
+   "as_of": {
+    "own_mean": 3.3333333333333335,
+    "group_mean": 2.5158276827838386,
+    "weight": 0.6666666666666666,
+    "dispersion": 5.4244666488036675,
+    "line": 3.5,
+    "prior_games": 12,
+    "role": 3,
+    "team_changed": false,
+    "coach_changed": false
+   },
+   "flip": {
+    "own_mean": {
+     "value": 5.472251447732074,
+     "distance": 0.4957173266439888
+    },
+    "group_mean": {
+     "value": 6.793663911581298,
+     "distance": 0.9933885521656682
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": {
+     "value": 1.5,
+     "distance": 0.8472978603872037,
+     "steps": -2
+    }
+   },
+   "flipping_input": "own_mean",
+   "withdraw": {
+    "own_mean": {
+     "value": 4.794498995334241,
+     "distance": 0.36349641374017017
+    },
+    "group_mean": {
+     "value": 5.393300408861054,
+     "distance": 0.7625556703494246
+    },
+    "weight": null,
+    "dispersion": null,
+    "line": null
+   },
+   "withdraw_input": "own_mean"
+  }
+ ]
+}

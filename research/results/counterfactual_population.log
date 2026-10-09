@@ -1,0 +1,212 @@
+=== run 1 (2026-10-08, 496 fits rebuilt under R1, exit 0) ===
+ledger D:/temp/c40/snap/ledger.parquet sha256 760b93be22fb1464df139457b011a67687ba1c70a013ba06f8e55a90d225306d
+graded 496 = 477 analysed by c-40 + 19 excluded
+  50/496 leans  59s
+  100/496 leans  110s
+  150/496 leans  161s
+  200/496 leans  233s
+  250/496 leans  305s
+  300/496 leans  354s
+  350/496 leans  415s
+  400/496 leans  498s
+  450/496 leans  575s
+R1 re-fits done in 700s
+R1 recovers 19 of 19 excluded leans; control: 465 of 477 of c-40's rows still rebuild under R1; verdict population P496
+
+the 19: week {'4': 19}  market {'receptions': 16, 'rush_attempts': 3}  side {'over': 2, 'under': 17}  result {'cleared': 6, 'missed': 13}
+        game {'2026_04_ATL_NO': 2, '2026_04_DEN_SF': 1, '2026_04_DET_CAR': 9, '2026_04_KC_LV': 2, '2026_04_LAC_SEA': 2, '2026_04_NE_BUF': 2, '2026_04_TEN_BAL': 1}
+exposed at read: 19 of 19, 31 of 477 (by week {'4': 31}); 477 rows whose R1 inputs differ from c-40's: 27
+exposed by result {'cleared': 23, 'missed': 27}  unexposed {'cleared': 233, 'missed': 213}
+flipping input of the 19: {('missed', 'own_mean'): 12, ('cleared', 'own_mean'): 6, ('missed', 'group_mean'): 1}
+
+[P477] own_mean missed share 0.6608 sits at the 58.5th percentile of its permutation null [57.6, 59.5] (null mean 0.6564)
+  all                    own_mean    n 227/250 g 31  -0.0192 [-0.102, +0.075] perm p 0.738 holm 1  MDE pre 0.121 realised 0.108
+  all                    group_mean  n 227/250 g 31  -0.0219 [-0.104, +0.056] perm p 0.476 holm 1  MDE pre 0.111 realised 0.079
+  all                    weight      n 227/250 g 31  -0.0040 [-0.013, +0.000] perm p 1.000 holm 1  MDE pre 0.011 realised 0.012
+  all                    dispersion  n 227/250 g 31  zero-variance permutation: p = 1
+  all                    line        n 227/250 g 31  +0.0451 [-0.037, +0.117] perm p 0.298 holm 1  MDE pre 0.112 realised 0.099
+  market=receptions      own_mean    n 164/180 g 31  +0.0073 [-0.082, +0.099] perm p 0.900 holm 1  MDE pre 0.134 realised 0.122
+  market=receptions      group_mean  n 164/180 g 31  -0.0625 [-0.157, +0.028] perm p 0.099 holm 1  MDE pre 0.133 realised 0.096
+  market=receptions      weight      n 164/180 g 31  -0.0056 [-0.018, +0.000] perm p 1.000 holm 1  MDE pre 0.016 realised 0.016
+  market=receptions      dispersion  n 164/180 g 31  zero-variance permutation: p = 1
+  market=receptions      line        n 164/180 g 31  +0.0607 [-0.005, +0.120] perm p 0.183 holm 1  MDE pre 0.092 realised 0.102
+  market=rush_attempts   own_mean    n 63/70 g 31  -0.0889 [-0.268, +0.114] perm p 0.400 holm 1  MDE pre 0.267 realised 0.206
+  market=rush_attempts   group_mean  n 63/70 g 31  +0.0825 [-0.003, +0.174] perm p 0.121 holm 1  MDE pre 0.133 realised 0.108
+  market=rush_attempts   weight      n 63/70 g 31  zero-variance permutation: p = 1
+  market=rush_attempts   dispersion  n 63/70 g 31  zero-variance permutation: p = 1
+  market=rush_attempts   line        n 63/70 g 31  +0.0063 [-0.179, +0.187] perm p 1.000 holm 1  MDE pre 0.256 realised 0.203
+  side=over              own_mean    n 60/58 g 31  +0.0810 [-0.092, +0.266] perm p 0.385 holm 1  MDE pre 0.257 realised 0.192
+  side=over              group_mean  n 60/58 g 31  -0.0345 [-0.093, +0.000] perm p 0.110 holm 1  MDE pre 0.067 realised 0.063
+  side=over              weight      n 60/58 g 31  zero-variance permutation: p = 1
+  side=over              dispersion  n 60/58 g 31  zero-variance permutation: p = 1
+  side=over              line        n 60/58 g 31  -0.0293 [-0.220, +0.146] perm p 0.821 holm 1  MDE pre 0.266 realised 0.192
+  side=under             own_mean    n 167/192 g 31  -0.0489 [-0.142, +0.049] perm p 0.515 holm 1  MDE pre 0.142 realised 0.123
+  side=under             group_mean  n 167/192 g 31  -0.0118 [-0.110, +0.083] perm p 0.774 holm 1  MDE pre 0.145 realised 0.100
+  side=under             weight      n 167/192 g 31  zero-variance permutation: p = 1
+  side=under             dispersion  n 167/192 g 31  zero-variance permutation: p = 1
+  side=under             line        n 167/192 g 31  +0.0606 [-0.024, +0.142] perm p 0.207 holm 1  MDE pre 0.119 realised 0.103
+  band=4-6               own_mean    n 41/23 g 26  +0.0817 [-0.085, +0.261] perm p 0.494 holm 1  MDE pre 0.234 realised 0.095
+  band=4-6               group_mean  n 41/23 g 26  zero-variance permutation: p = 1
+  band=4-6               weight      n 41/23 g 26  zero-variance permutation: p = 1
+  band=4-6               dispersion  n 41/23 g 26  zero-variance permutation: p = 1
+  band=4-6               line        n 41/23 g 26  -0.0435 [-0.150, +0.000] perm p 0.494 holm 1  MDE pre 0.123 realised 0.095
+  band=6-8               own_mean    n 14/21 g 19  +0.0714 [-0.182, +0.298] perm p 0.666 holm 1  MDE pre 0.337 realised 0.157
+  band=6-8               group_mean  n 14/21 g 19  zero-variance permutation: p = 1
+  band=6-8               weight      n 14/21 g 19  zero-variance permutation: p = 1
+  band=6-8               dispersion  n 14/21 g 19  zero-variance permutation: p = 1
+  band=6-8               line        n 14/21 g 19  -0.0238 [-0.185, +0.201] perm p 1.000 holm 1  MDE pre 0.266 realised 0.157
+  band=8+                own_mean    n 172/206 g 31  -0.0710 [-0.159, +0.023] perm p 0.230 holm 1  MDE pre 0.132 realised 0.129
+  band=8+                group_mean  n 172/206 g 31  -0.0168 [-0.113, +0.075] perm p 0.644 holm 1  MDE pre 0.131 realised 0.095
+  band=8+                weight      n 172/206 g 31  zero-variance permutation: p = 1
+  band=8+                dispersion  n 172/206 g 31  zero-variance permutation: p = 1
+  band=8+                line        n 172/206 g 31  +0.0878 [-0.008, +0.182] perm p 0.068 holm 1  MDE pre 0.136 realised 0.119
+
+[P496] own_mean missed share 0.6750 sits at the 56.4th percentile of its permutation null [55.5, 57.4] (null mean 0.6717)
+  all                    own_mean    n 240/256 g 31  -0.0125 [-0.102, +0.076] perm p 0.785 holm 1  MDE pre 0.121 realised 0.106
+  all                    group_mean  n 240/256 g 31  -0.0206 [-0.103, +0.055] perm p 0.460 holm 1  MDE pre 0.111 realised 0.077
+  all                    weight      n 240/256 g 31  -0.0039 [-0.013, +0.000] perm p 1.000 holm 1  MDE pre 0.011 realised 0.011
+  all                    dispersion  n 240/256 g 31  zero-variance permutation: p = 1
+  all                    line        n 240/256 g 31  +0.0370 [-0.041, +0.113] perm p 0.346 holm 1  MDE pre 0.112 realised 0.096
+  market=receptions      own_mean    n 175/185 g 31  +0.0119 [-0.079, +0.112] perm p 0.793 holm 1  MDE pre 0.134 realised 0.117
+  market=receptions      group_mean  n 175/185 g 31  -0.0590 [-0.156, +0.031] perm p 0.124 holm 1  MDE pre 0.133 realised 0.092
+  market=receptions      weight      n 175/185 g 31  -0.0054 [-0.018, +0.000] perm p 1.000 holm 1  MDE pre 0.016 realised 0.015
+  market=receptions      dispersion  n 175/185 g 31  zero-variance permutation: p = 1
+  market=receptions      line        n 175/185 g 31  +0.0525 [-0.012, +0.116] perm p 0.213 holm 1  MDE pre 0.092 realised 0.098
+  market=rush_attempts   own_mean    n 65/71 g 31  -0.0800 [-0.266, +0.125] perm p 0.455 holm 1  MDE pre 0.267 realised 0.207
+  market=rush_attempts   group_mean  n 65/71 g 31  +0.0795 [-0.004, +0.175] perm p 0.123 holm 1  MDE pre 0.133 realised 0.106
+  market=rush_attempts   weight      n 65/71 g 31  zero-variance permutation: p = 1
+  market=rush_attempts   dispersion  n 65/71 g 31  zero-variance permutation: p = 1
+  market=rush_attempts   line        n 65/71 g 31  +0.0004 [-0.191, +0.185] perm p 1.000 holm 1  MDE pre 0.256 realised 0.205
+  side=over              own_mean    n 61/59 g 31  +0.0795 [-0.087, +0.270] perm p 0.419 holm 1  MDE pre 0.257 realised 0.196
+  side=over              group_mean  n 61/59 g 31  -0.0339 [-0.092, +0.000] perm p 0.146 holm 1  MDE pre 0.067 realised 0.064
+  side=over              weight      n 61/59 g 31  zero-variance permutation: p = 1
+  side=over              dispersion  n 61/59 g 31  zero-variance permutation: p = 1
+  side=over              line        n 61/59 g 31  -0.0286 [-0.218, +0.153] perm p 0.832 holm 1  MDE pre 0.266 realised 0.196
+  side=under             own_mean    n 179/197 g 31  -0.0392 [-0.140, +0.065] perm p 0.543 holm 1  MDE pre 0.142 realised 0.119
+  side=under             group_mean  n 179/197 g 31  -0.0121 [-0.107, +0.085] perm p 0.764 holm 1  MDE pre 0.145 realised 0.097
+  side=under             weight      n 179/197 g 31  zero-variance permutation: p = 1
+  side=under             dispersion  n 179/197 g 31  zero-variance permutation: p = 1
+  side=under             line        n 179/197 g 31  +0.0514 [-0.029, +0.131] perm p 0.254 holm 1  MDE pre 0.119 realised 0.099
+  band=4-6               own_mean    n 44/24 g 26  +0.0795 [-0.076, +0.243] perm p 0.255 holm 1  MDE pre 0.234 realised 0.154
+  band=4-6               group_mean  n 44/24 g 26  +0.0038 [-0.104, +0.126] perm p 1.000 holm 1  MDE pre 0.172 realised 0.084
+  band=4-6               weight      n 44/24 g 26  -0.0417 [-0.148, +0.000] perm p 0.506 holm 1  MDE pre 0.129 realised 0.090
+  band=4-6               dispersion  n 44/24 g 26  zero-variance permutation: p = 1
+  band=4-6               line        n 44/24 g 26  -0.0417 [-0.143, +0.000] perm p 0.492 holm 1  MDE pre 0.123 realised 0.090
+  band=6-8               own_mean    n 17/21 g 20  +0.0840 [-0.125, +0.312] perm p 0.664 holm 1  MDE pre 0.337 realised 0.141
+  band=6-8               group_mean  n 17/21 g 20  zero-variance permutation: p = 1
+  band=6-8               weight      n 17/21 g 20  zero-variance permutation: p = 1
+  band=6-8               dispersion  n 17/21 g 20  zero-variance permutation: p = 1
+  band=6-8               line        n 17/21 g 20  -0.0364 [-0.188, +0.143] perm p 1.000 holm 1  MDE pre 0.266 realised 0.141
+  band=8+                own_mean    n 179/211 g 31  -0.0683 [-0.160, +0.032] perm p 0.198 holm 1  MDE pre 0.132 realised 0.126
+  band=8+                group_mean  n 179/211 g 31  -0.0128 [-0.108, +0.076] perm p 0.759 holm 1  MDE pre 0.131 realised 0.093
+  band=8+                weight      n 179/211 g 31  zero-variance permutation: p = 1
+  band=8+                dispersion  n 179/211 g 31  zero-variance permutation: p = 1
+  band=8+                line        n 179/211 g 31  +0.0811 [-0.017, +0.178] perm p 0.079 holm 1  MDE pre 0.136 realised 0.117
+
+realised MDE outside [1/1.5, 1.5] of the pre-stated one: 7 tests [('P477', 'band=4-6', 'own_mean', 0.41), ('P477', 'band=6-8', 'own_mean', 0.47), ('P477', 'band=6-8', 'line', 0.59), ('P496', 'band=4-6', 'own_mean', 0.66), ('P496', 'band=4-6', 'group_mean', 0.49), ('P496', 'band=6-8', 'own_mean', 0.42), ('P496', 'band=6-8', 'line', 0.53)]
+family: {'tests': 80, 'correction': 'holm', 'alpha': 0.05, 'survivors': 0, 'p_below_0.05_unadjusted': 0, 'min_p': 0.0680931906809319}
+own-mean contrast over every assignment of the 19: [-0.0625, +0.0151]
+verdict: {'verdict': 'not diagnostic, at this power', 'population': 'P496', 'inputs': [], 'mde': {'own_mean': 0.12051619305847056, 'group_mean': 0.11125497655922538, 'weight': 0.011247123465844394, 'dispersion': None, 'line': 0.11158231618768874}}
+done in 701s
+
+=== run 2 (same cached fits, no fit rebuilt; adds the at-or-below percentile to the printout, exit 0) ===
+ledger D:/temp/c40/snap/ledger.parquet sha256 760b93be22fb1464df139457b011a67687ba1c70a013ba06f8e55a90d225306d
+graded 496 = 477 analysed by c-40 + 19 excluded
+R1 re-fits read from D:/temp/c46/fits.json (no fit rebuilt in this run)
+R1 recovers 19 of 19 excluded leans; control: 465 of 477 of c-40's rows still rebuild under R1; verdict population P496
+
+the 19: week {'4': 19}  market {'receptions': 16, 'rush_attempts': 3}  side {'over': 2, 'under': 17}  result {'cleared': 6, 'missed': 13}
+        game {'2026_04_ATL_NO': 2, '2026_04_DEN_SF': 1, '2026_04_DET_CAR': 9, '2026_04_KC_LV': 2, '2026_04_LAC_SEA': 2, '2026_04_NE_BUF': 2, '2026_04_TEN_BAL': 1}
+exposed at read: 19 of 19, 31 of 477 (by week {'4': 31}); 477 rows whose R1 inputs differ from c-40's: 27
+exposed by result {'cleared': 23, 'missed': 27}  unexposed {'cleared': 233, 'missed': 213}
+flipping input of the 19: {('missed', 'own_mean'): 12, ('cleared', 'own_mean'): 6, ('missed', 'group_mean'): 1}
+
+[P477] own_mean missed share 0.6608 sits at the 58.5th percentile of its permutation null [57.6, 59.5] (null mean 0.6564; at or below: 62.6%)
+  all                    own_mean    n 227/250 g 31  -0.0192 [-0.102, +0.075] perm p 0.738 holm 1  MDE pre 0.121 realised 0.108
+  all                    group_mean  n 227/250 g 31  -0.0219 [-0.104, +0.056] perm p 0.476 holm 1  MDE pre 0.111 realised 0.079
+  all                    weight      n 227/250 g 31  -0.0040 [-0.013, +0.000] perm p 1.000 holm 1  MDE pre 0.011 realised 0.012
+  all                    dispersion  n 227/250 g 31  zero-variance permutation: p = 1
+  all                    line        n 227/250 g 31  +0.0451 [-0.037, +0.117] perm p 0.298 holm 1  MDE pre 0.112 realised 0.099
+  market=receptions      own_mean    n 164/180 g 31  +0.0073 [-0.082, +0.099] perm p 0.900 holm 1  MDE pre 0.134 realised 0.122
+  market=receptions      group_mean  n 164/180 g 31  -0.0625 [-0.157, +0.028] perm p 0.099 holm 1  MDE pre 0.133 realised 0.096
+  market=receptions      weight      n 164/180 g 31  -0.0056 [-0.018, +0.000] perm p 1.000 holm 1  MDE pre 0.016 realised 0.016
+  market=receptions      dispersion  n 164/180 g 31  zero-variance permutation: p = 1
+  market=receptions      line        n 164/180 g 31  +0.0607 [-0.005, +0.120] perm p 0.183 holm 1  MDE pre 0.092 realised 0.102
+  market=rush_attempts   own_mean    n 63/70 g 31  -0.0889 [-0.268, +0.114] perm p 0.400 holm 1  MDE pre 0.267 realised 0.206
+  market=rush_attempts   group_mean  n 63/70 g 31  +0.0825 [-0.003, +0.174] perm p 0.121 holm 1  MDE pre 0.133 realised 0.108
+  market=rush_attempts   weight      n 63/70 g 31  zero-variance permutation: p = 1
+  market=rush_attempts   dispersion  n 63/70 g 31  zero-variance permutation: p = 1
+  market=rush_attempts   line        n 63/70 g 31  +0.0063 [-0.179, +0.187] perm p 1.000 holm 1  MDE pre 0.256 realised 0.203
+  side=over              own_mean    n 60/58 g 31  +0.0810 [-0.092, +0.266] perm p 0.385 holm 1  MDE pre 0.257 realised 0.192
+  side=over              group_mean  n 60/58 g 31  -0.0345 [-0.093, +0.000] perm p 0.110 holm 1  MDE pre 0.067 realised 0.063
+  side=over              weight      n 60/58 g 31  zero-variance permutation: p = 1
+  side=over              dispersion  n 60/58 g 31  zero-variance permutation: p = 1
+  side=over              line        n 60/58 g 31  -0.0293 [-0.220, +0.146] perm p 0.821 holm 1  MDE pre 0.266 realised 0.192
+  side=under             own_mean    n 167/192 g 31  -0.0489 [-0.142, +0.049] perm p 0.515 holm 1  MDE pre 0.142 realised 0.123
+  side=under             group_mean  n 167/192 g 31  -0.0118 [-0.110, +0.083] perm p 0.774 holm 1  MDE pre 0.145 realised 0.100
+  side=under             weight      n 167/192 g 31  zero-variance permutation: p = 1
+  side=under             dispersion  n 167/192 g 31  zero-variance permutation: p = 1
+  side=under             line        n 167/192 g 31  +0.0606 [-0.024, +0.142] perm p 0.207 holm 1  MDE pre 0.119 realised 0.103
+  band=4-6               own_mean    n 41/23 g 26  +0.0817 [-0.085, +0.261] perm p 0.494 holm 1  MDE pre 0.234 realised 0.095
+  band=4-6               group_mean  n 41/23 g 26  zero-variance permutation: p = 1
+  band=4-6               weight      n 41/23 g 26  zero-variance permutation: p = 1
+  band=4-6               dispersion  n 41/23 g 26  zero-variance permutation: p = 1
+  band=4-6               line        n 41/23 g 26  -0.0435 [-0.150, +0.000] perm p 0.494 holm 1  MDE pre 0.123 realised 0.095
+  band=6-8               own_mean    n 14/21 g 19  +0.0714 [-0.182, +0.298] perm p 0.666 holm 1  MDE pre 0.337 realised 0.157
+  band=6-8               group_mean  n 14/21 g 19  zero-variance permutation: p = 1
+  band=6-8               weight      n 14/21 g 19  zero-variance permutation: p = 1
+  band=6-8               dispersion  n 14/21 g 19  zero-variance permutation: p = 1
+  band=6-8               line        n 14/21 g 19  -0.0238 [-0.185, +0.201] perm p 1.000 holm 1  MDE pre 0.266 realised 0.157
+  band=8+                own_mean    n 172/206 g 31  -0.0710 [-0.159, +0.023] perm p 0.230 holm 1  MDE pre 0.132 realised 0.129
+  band=8+                group_mean  n 172/206 g 31  -0.0168 [-0.113, +0.075] perm p 0.644 holm 1  MDE pre 0.131 realised 0.095
+  band=8+                weight      n 172/206 g 31  zero-variance permutation: p = 1
+  band=8+                dispersion  n 172/206 g 31  zero-variance permutation: p = 1
+  band=8+                line        n 172/206 g 31  +0.0878 [-0.008, +0.182] perm p 0.068 holm 1  MDE pre 0.136 realised 0.119
+
+[P496] own_mean missed share 0.6750 sits at the 56.4th percentile of its permutation null [55.5, 57.4] (null mean 0.6717; at or below: 60.6%)
+  all                    own_mean    n 240/256 g 31  -0.0125 [-0.102, +0.076] perm p 0.785 holm 1  MDE pre 0.121 realised 0.106
+  all                    group_mean  n 240/256 g 31  -0.0206 [-0.103, +0.055] perm p 0.460 holm 1  MDE pre 0.111 realised 0.077
+  all                    weight      n 240/256 g 31  -0.0039 [-0.013, +0.000] perm p 1.000 holm 1  MDE pre 0.011 realised 0.011
+  all                    dispersion  n 240/256 g 31  zero-variance permutation: p = 1
+  all                    line        n 240/256 g 31  +0.0370 [-0.041, +0.113] perm p 0.346 holm 1  MDE pre 0.112 realised 0.096
+  market=receptions      own_mean    n 175/185 g 31  +0.0119 [-0.079, +0.112] perm p 0.793 holm 1  MDE pre 0.134 realised 0.117
+  market=receptions      group_mean  n 175/185 g 31  -0.0590 [-0.156, +0.031] perm p 0.124 holm 1  MDE pre 0.133 realised 0.092
+  market=receptions      weight      n 175/185 g 31  -0.0054 [-0.018, +0.000] perm p 1.000 holm 1  MDE pre 0.016 realised 0.015
+  market=receptions      dispersion  n 175/185 g 31  zero-variance permutation: p = 1
+  market=receptions      line        n 175/185 g 31  +0.0525 [-0.012, +0.116] perm p 0.213 holm 1  MDE pre 0.092 realised 0.098
+  market=rush_attempts   own_mean    n 65/71 g 31  -0.0800 [-0.266, +0.125] perm p 0.455 holm 1  MDE pre 0.267 realised 0.207
+  market=rush_attempts   group_mean  n 65/71 g 31  +0.0795 [-0.004, +0.175] perm p 0.123 holm 1  MDE pre 0.133 realised 0.106
+  market=rush_attempts   weight      n 65/71 g 31  zero-variance permutation: p = 1
+  market=rush_attempts   dispersion  n 65/71 g 31  zero-variance permutation: p = 1
+  market=rush_attempts   line        n 65/71 g 31  +0.0004 [-0.191, +0.185] perm p 1.000 holm 1  MDE pre 0.256 realised 0.205
+  side=over              own_mean    n 61/59 g 31  +0.0795 [-0.087, +0.270] perm p 0.419 holm 1  MDE pre 0.257 realised 0.196
+  side=over              group_mean  n 61/59 g 31  -0.0339 [-0.092, +0.000] perm p 0.146 holm 1  MDE pre 0.067 realised 0.064
+  side=over              weight      n 61/59 g 31  zero-variance permutation: p = 1
+  side=over              dispersion  n 61/59 g 31  zero-variance permutation: p = 1
+  side=over              line        n 61/59 g 31  -0.0286 [-0.218, +0.153] perm p 0.832 holm 1  MDE pre 0.266 realised 0.196
+  side=under             own_mean    n 179/197 g 31  -0.0392 [-0.140, +0.065] perm p 0.543 holm 1  MDE pre 0.142 realised 0.119
+  side=under             group_mean  n 179/197 g 31  -0.0121 [-0.107, +0.085] perm p 0.764 holm 1  MDE pre 0.145 realised 0.097
+  side=under             weight      n 179/197 g 31  zero-variance permutation: p = 1
+  side=under             dispersion  n 179/197 g 31  zero-variance permutation: p = 1
+  side=under             line        n 179/197 g 31  +0.0514 [-0.029, +0.131] perm p 0.254 holm 1  MDE pre 0.119 realised 0.099
+  band=4-6               own_mean    n 44/24 g 26  +0.0795 [-0.076, +0.243] perm p 0.255 holm 1  MDE pre 0.234 realised 0.154
+  band=4-6               group_mean  n 44/24 g 26  +0.0038 [-0.104, +0.126] perm p 1.000 holm 1  MDE pre 0.172 realised 0.084
+  band=4-6               weight      n 44/24 g 26  -0.0417 [-0.148, +0.000] perm p 0.506 holm 1  MDE pre 0.129 realised 0.090
+  band=4-6               dispersion  n 44/24 g 26  zero-variance permutation: p = 1
+  band=4-6               line        n 44/24 g 26  -0.0417 [-0.143, +0.000] perm p 0.492 holm 1  MDE pre 0.123 realised 0.090
+  band=6-8               own_mean    n 17/21 g 20  +0.0840 [-0.125, +0.312] perm p 0.664 holm 1  MDE pre 0.337 realised 0.141
+  band=6-8               group_mean  n 17/21 g 20  zero-variance permutation: p = 1
+  band=6-8               weight      n 17/21 g 20  zero-variance permutation: p = 1
+  band=6-8               dispersion  n 17/21 g 20  zero-variance permutation: p = 1
+  band=6-8               line        n 17/21 g 20  -0.0364 [-0.188, +0.143] perm p 1.000 holm 1  MDE pre 0.266 realised 0.141
+  band=8+                own_mean    n 179/211 g 31  -0.0683 [-0.160, +0.032] perm p 0.198 holm 1  MDE pre 0.132 realised 0.126
+  band=8+                group_mean  n 179/211 g 31  -0.0128 [-0.108, +0.076] perm p 0.759 holm 1  MDE pre 0.131 realised 0.093
+  band=8+                weight      n 179/211 g 31  zero-variance permutation: p = 1
+  band=8+                dispersion  n 179/211 g 31  zero-variance permutation: p = 1
+  band=8+                line        n 179/211 g 31  +0.0811 [-0.017, +0.178] perm p 0.079 holm 1  MDE pre 0.136 realised 0.117
+
+realised MDE outside [1/1.5, 1.5] of the pre-stated one: 7 tests [('P477', 'band=4-6', 'own_mean', 0.41), ('P477', 'band=6-8', 'own_mean', 0.47), ('P477', 'band=6-8', 'line', 0.59), ('P496', 'band=4-6', 'own_mean', 0.66), ('P496', 'band=4-6', 'group_mean', 0.49), ('P496', 'band=6-8', 'own_mean', 0.42), ('P496', 'band=6-8', 'line', 0.53)]
+family: {'tests': 80, 'correction': 'holm', 'alpha': 0.05, 'survivors': 0, 'p_below_0.05_unadjusted': 0, 'min_p': 0.0680931906809319}
+own-mean contrast over every assignment of the 19: [-0.0625, +0.0151]
+verdict: {'verdict': 'not diagnostic, at this power', 'population': 'P496', 'inputs': [], 'mde': {'own_mean': 0.12051619305847056, 'group_mean': 0.11125497655922538, 'weight': 0.011247123465844394, 'dispersion': None, 'line': 0.11158231618768874}}
+done in 1s
