@@ -277,7 +277,10 @@ def arms_for(rows, tab, sh):
 # block bootstrap of a mean over games - vectorised
 # =============================================================================
 
-def boot_mean(d, games, draws=rc.BOOT, seed=rc.SEED):
+def boot_mean(d, games, draws=None, seed=None):
+    # read at call time: a constant in default-argument position is bound at import
+    draws = rc.BOOT if draws is None else draws
+    seed = rc.SEED if seed is None else seed
     d = np.asarray(d, float)
     ug, inv = np.unique(np.asarray(games), return_inverse=True)
     G = len(ug)
