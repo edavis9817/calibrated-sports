@@ -1,0 +1,50 @@
+[local] D:/calibrated-sports/data/board_export/board/nfl/ledger.parquet  sha256 86b6e03fa0f0  rows 1142
+  graded 496 (weeks {3: 194, 4: 302}; results {'cleared': 256, 'missed': 240})
+  cleared 256 missed 240  rate 0.5161  Wilson per lean [0.4722, 0.5598]
+  valid price (finite, |price| >= 100): 481 ; not valid: 15 (null 0, NaN 0, inside (-100, +100): 15)
+  not-valid by week: {3: 7, 4: 8} ; their prices min -8.5 max 5.5 ; their results {'cleared': 5, 'missed': 10}
+  1 reproduce  graded         measured 496  published 496  REPRODUCES
+  1 reproduce  valid price    measured 481  published 481  REPRODUCES
+  1 reproduce  not valid      measured 15  published 15  REPRODUCES
+  1 reproduce  not valid wk4  measured 8  published 8  REPRODUCES
+  1 reproduce  not valid wk3  measured 7  published 7  REPRODUCES
+  1 reproduce  rate           measured 0.5161 published 0.516 REPRODUCES
+  1 reproduce  lo             measured 0.4722 published 0.472 REPRODUCES
+  1 reproduce  hi             measured 0.5598 published 0.560 REPRODUCES
+  2 blocks: through-the-target test NOT RUN (the interval is computed by the site, in TypeScript). Re-drawn here:
+    lean (iid)   (496 blocks) 0.5161 [0.4718, 0.5585] SE 0.0227  0.5 inside: True
+    game         ( 31 blocks) 0.5161 [0.4693, 0.5608] SE 0.0233  0.5 inside: True
+    player-game  (368 blocks) 0.5161 [0.4661, 0.5656] SE 0.0246  0.5 inside: True
+    kickoff slot ( 12 blocks) 0.5161 [0.4670, 0.5452] SE 0.0196  0.5 inside: True
+    week         (  2 blocks) 0.5161 [0.5066, 0.5309] SE 0.0088  0.5 inside: False  NOT READ (<5 blocks)
+  hit rate on valid-price leans only 251 of 481 = 0.5218 [0.4772, 0.5661]
+  hit rate on the not-valid leans    5 of 15 = 0.3333 [0.1518, 0.5829]
+  5 MDE: |rate - 0.5| = 0.0161 against 2.8 x game-block SE 0.0233 = 0.0652 -> ratio 0.25 (a null below its MDE)
+  3 leakage: NOT APPLICABLE to a graded record; whether each lean was published before kickoff is a-57's rule, not re-proved here
+  4 specifications: b-106 computed no estimate; it added a count beside one. Nothing to count.
+[served] D:/temp/f35/served_ledger.parquet  sha256 86b6e03fa0f0  rows 1142
+  graded 496 (weeks {3: 194, 4: 302}; results {'cleared': 256, 'missed': 240})
+  cleared 256 missed 240  rate 0.5161  Wilson per lean [0.4722, 0.5598]
+  valid price (finite, |price| >= 100): 481 ; not valid: 15 (null 0, NaN 0, inside (-100, +100): 15)
+  not-valid by week: {3: 7, 4: 8} ; their prices min -8.5 max 5.5 ; their results {'cleared': 5, 'missed': 10}
+  served vs local: graded/cleared/valid EQUAL
+RESULT: every published count reproduces
+
+-- the 15 not-valid prices, beside the row's own line and gap (descriptive; outside b-106's sentence)
+  price == line on 1 of 15; price == gap_pp on 0 of 15; markets {'receptions': 11, 'rush_attempts': 4}; sides {'over': 3, 'under': 12}
+   (3, 'receptions', 3.5, 'under', 3.5, 0.5376, 2, -18.3, 'missed')
+   (3, 'receptions', 2.5, 'under', -5.5, 0.5185, 2, -16.0, 'cleared')
+   (3, 'receptions', 5.5, 'under', -0.5, 0.5291, 2, -15.25, 'cleared')
+   (3, 'receptions', 3.5, 'over', 2.5, 0.4635, 2, 12.16, 'cleared')
+   (3, 'receptions', 5.5, 'under', 1.0, 0.5327, 2, -28.02, 'missed')
+   (3, 'receptions', 2.5, 'over', 1.5, 0.4659, 2, 9.15, 'cleared')
+   (3, 'rush_attempts', 10.5, 'over', -2.5, 0.4758, 2, 5.21, 'missed')
+   (4, 'receptions', 3.5, 'under', -5.5, 0.5181, 2, -37.52, 'missed')
+   (4, 'receptions', 5.5, 'under', 3.5, 0.5384, 2, -11.98, 'missed')
+   (4, 'receptions', 1.5, 'under', 5.5, 0.5427, 2, -35.37, 'missed')
+   (4, 'receptions', 6.5, 'under', 4.0, 0.5408, 2, -4.44, 'missed')
+   (4, 'receptions', 3.5, 'under', -1.5, 0.5272, 2, -20.38, 'missed')
+   (4, 'rush_attempts', 15.5, 'under', -2.5, 0.5246, 2, -47.33, 'cleared')
+   (4, 'rush_attempts', 14.5, 'under', -8.5, 0.5129, 2, -4.63, 'missed')
+   (4, 'rush_attempts', 16.5, 'under', -1.0, 0.5293, 2, -28.25, 'missed')
+  among the 481 valid: markets {'receptions': 349, 'rush_attempts': 132}

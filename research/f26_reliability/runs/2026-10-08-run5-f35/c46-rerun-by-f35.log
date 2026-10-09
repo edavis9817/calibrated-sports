@@ -1,0 +1,116 @@
+496 rows (477 + 19); 240 missed, 256 cleared; 0 without a flipping input; 31 games, 2 weeks, 32 teams, 236 players, 368 player-games, 425 ladders (player-game-market)
+target HEAD e0cf03f; result json sha256 29ea98cb7e7f; rows json sha256 9a2ceca18a0c
+
+== 1. REPRODUCE from the committed rows (fits NOT rebuilt), through cp.analyse at seed 46, 10000 perm draws, 2000 boot draws
+   80 tests recomputed; 0 differ from the committed json in estimate/lo/hi/p/p_holm/mde_realised/mde_used/mde_pre (tolerance 1e-9, SAME seed)
+   own_mean_percentile block recomputed; fields differing from the committed json: 0
+   rows                                             measured +496.0000  published +496.0000 -> REPRODUCES
+   missed                                           measured +240.0000  published +240.0000 -> REPRODUCES
+   cleared                                          measured +256.0000  published +256.0000 -> REPRODUCES
+   games (counted here)                             measured +31.0000  published +31.0000 -> REPRODUCES
+   the 19: rows in the rows file                    measured +19.0000  published +19.0000 -> REPRODUCES
+   the 19: r1_within_tol true (result file)         measured +19.0000  published +19.0000 -> REPRODUCES
+   the 19: fit_basis r1_recovered (rows file)       measured +19.0000  published +19.0000 -> REPRODUCES
+   control: of the 477, broken by R1                measured +12.0000  published +12.0000 -> REPRODUCES
+   control: failed rows listed                      measured +12.0000  published +12.0000 -> REPRODUCES
+   own_mean share, missed                           measured +0.6750  published +0.6750 -> REPRODUCES
+   own_mean share, cleared                          measured +0.6875  published +0.6880 -> REPRODUCES
+   P496 est                                         measured -0.0125  published -0.0120 -> REPRODUCES
+   P496 lo                                          measured -0.1023  published -0.1020 -> REPRODUCES
+   P496 hi                                          measured +0.0764  published +0.0760 -> REPRODUCES
+   P496 permutation p                               measured +0.7851  published +0.7850 -> REPRODUCES
+   P496 MDE used (pre-stated)                       measured +0.1205  published +0.1210 -> REPRODUCES
+   tests in the family                              measured +80.0000  published +80.0000 -> REPRODUCES
+   Holm survivors                                   measured +0.0000  published +0.0000 -> REPRODUCES
+   p < 0.05 unadjusted                              measured +0.0000  published +0.0000 -> REPRODUCES
+   P477 est                                         measured -0.0192  published -0.0190 -> REPRODUCES
+   P477 permutation p                               measured +0.7384  published +0.7380 -> REPRODUCES
+   P477 percentile, half ties                       measured +58.5350  published +58.5000 -> REPRODUCES
+   P477 percentile Wilson lo                        measured +57.5663  published +57.6000 -> REPRODUCES
+   P477 percentile Wilson hi                        measured +59.4971  published +59.5000 -> REPRODUCES
+   P477 at or below (ties as below), %              measured +62.6100  published +62.6000 -> REPRODUCES
+   P477 draws tied, %                               measured +8.1500  published +8.0000 -> REPRODUCES
+   MDE drift: tests outside [1/1.5, 1.5]            measured +7.0000  published +7.0000 -> REPRODUCES
+   MDE drift: tests with both MDEs                  measured +50.0000  published +50.0000 -> REPRODUCES
+   MDE drift: smallest pre/realised among them      measured +1.5193  published +1.5000 -> REPRODUCES
+   MDE drift: largest pre/realised among them       measured +2.4609  published +2.4000 -> DOES NOT REPRODUCE
+   verdict by the registered rule: 'not diagnostic, at this power' (file: 'not diagnostic, at this power'); smallest p in the family 0.0681 at ('P477', 'band=8+', 'line')
+   MDE drift: all 7 outside the band have realised BELOW the pre-stated one
+   the 19 rows: flipping_input is not CL.flipping_input(row['flip']) on 0 of 19
+
+== 2a. BLOCKS: THROUGH cp.slice_tests (the function behind the published interval)
+   P496 own_mean  THROUGH counterfactual_population.slice_tests (496 rows, 31 units): copies inside their block x1.000, copies as new blocks x0.440 (expected 0.447) -> honours_blocks
+   P477 own_mean  THROUGH counterfactual_population.slice_tests (477 rows, 31 units): copies inside their block x1.000, copies as new blocks x0.429 (expected 0.447) -> honours_blocks
+   (the bootstrap stream is spawned separately from the permutation's, so draws=200 on the permutation leaves the interval as published: width here 0.178708, published 0.178708)
+   rows 496 against units 31 (distinct game_id, counted here): 16.0 rows a game
+   descriptive: an unblocked interval would be x0.92 the width of the game-blocked one
+   game         ( 31 blocks) -0.012 [-0.098, +0.080] SE 0.0447
+   week         (  2 blocks) -0.012 [-0.021, -0.002] SE 0.0068  (<5 blocks: NOT READ)
+   player       (236 blocks) -0.012 [-0.099, +0.075] SE 0.0434
+   player-game  (368 blocks) -0.012 [-0.097, +0.075] SE 0.0442
+   ladder       (425 blocks) -0.012 [-0.102, +0.069] SE 0.0434
+   team         ( 32 blocks) -0.012 [-0.110, +0.084] SE 0.0500
+   week blocks: 2 blocks, fewer than 5 - NOT READ. Kickoff-slot blocks: NOT RUN, no rows file carries a kickoff time.
+
+== 2b. THE PERMUTATION WITH LADDERS MOVED, NOT ROWS (5000 permutations, seed 46)
+   425 ladders (game|player|market), 1.17 rows each, sizes {1: 356, 2: 67, 3: 2}; 69 have more than one rung; own_mean-or-not is the same on every rung of 408; the result is the same on every rung of 409
+   rows within game (the target's scheme, redrawn)  observed -0.0125; null sd 0.0380 (2.8 sd = 0.106); p 0.786; 33 distinct null values
+   A ladder own_mean share exchanged within game    observed -0.0044; null sd 0.0389 (2.8 sd = 0.109); p 0.924; 1128 distinct null values [statistic in ladder-share form: observed -0.0044 against the row statistic -0.0125]
+   B whole ladders exchanged within game and size   observed -0.0125; null sd 0.0354 (2.8 sd = 0.099); p 0.756; 31 distinct null values [416 of 425 ladders have a same-game same-size partner]
+   published p 0.785 at 10,000 draws; MC error of a p near 0.79 at 5000 draws is 0.006
+
+== 3. LEAKAGE: NOT RUN. R1 is a restriction on ingested_ts inside a facts store and a model re-fit; no store was opened and no fit rebuilt here. The 19 fits below are the committed file's, not re-derived.
+   the 19: week [4]; 10 distinct read_at from 2026-10-02T01:04:48Z to 2026-10-05T01:14:48Z. The rows carry NO kickoff time, so 'after a week-4 kickoff' is NOT CHECKED against a kickoff here - only that every read_at is on or after 2026-10-02T00:15Z, the kickoff the findings name: True
+   the 19: |R1 fit - ledgered P(over)| <= 1e-4 (the target's tolerance) on 19 of 19; <= 5e-5 (the ledger's 4-dp rounding) on 19 of 19; largest 0.000041
+   the 19 on TODAY's facts: within 1e-4 on 0 of 19; |diff| from 0.000122 to 0.011119 (the exclusion c-40 made was over fits this far off)
+   the 19: exposure (kicked-off player-weeks not yet ingested) 67 to 617; results {'missed': 13, 'cleared': 6}; result|flipping input {'missed|own_mean': 12, 'cleared|own_mean': 6, 'missed|group_mean': 1}
+   control: the 12 of c-40's 477 that R1 breaks are in games {'2026_04_PIT_CLE': 7, '2026_04_ATL_NO': 5}, read at ['2026-09-29T16:09:49Z', '2026-10-05T12:19:48Z', '2026-10-05T18:24:48Z']; |R1 - ledgered| from 0.000160 to 0.007510
+
+== 4. SPECIFICATIONS
+   f26lib.registered_count REFUSES: c-46: no registered_intervals.count in the recorded result - refusing to correct over a made-up k
+   the result file carries family.tests = 80 instead, and lists 80 tests; THAT key is used below
+   80 tests; entered at p = 1 with a note: 30 ({'zero-variance permutation: p = 1': 30}); live: 50 ({'P477': 24, 'P496': 26}; by input {'own_mean': 16, 'group_mean': 13, 'weight': 5, 'line': 16})
+   exact mirror pairs among the live tests (estimate negated, p identical, same slice and population): 0
+   24 of the live P496 tests have a live P477 twin on 477 of the same 496 rows (the family the pre-registration calls conservative)
+   so distinct live tests on distinct rows: at most 26 (live, one population) less 0 mirrors
+   P496 own_mean z -0.28 (game-block SE 0.0447, drawn here)  p 0.78; a null - Bonferroni over k=80 is moot (survives: False)
+   -- how many runs --
+   git: e0cf03f 2026-10-08T21:18:27-04:00 c-46: read PERM / BOOT inside the functions rather than freezing them into default arguments - output byte-identical (run 3, cached fits
+   git: 66fb2a3 2026-10-08T21:08:07-04:00 c-46: all 19 excluded leans recover on facts as ingested at the read; on all 496 the ranking is not diagnostic at this power (own mean m
+   git: 0bc9d74 2026-10-08T20:51:03-04:00 c-46: pre-registration - the 19 leans c-40 dropped and the within-game permutation null, before any script or re-fit
+   66fb2a3..e0cf03f: research/results or docs changed: False; script numstat: 5 2 research/counterfactual_population.py; pre-registration edited after 0bc9d74: False
+   the findings say '**Runs: 2.**': True; the findings mention a run 3: False; the HEAD commit message says 'run 3': True
+   scratch out/counterfactual_population.json            sha 7823a6f22c59 written 21:05:49 local; byte-identical to the committed file: False
+   scratch out/counterfactual_population_rows.json       sha 9a2ceca18a0c written 21:05:49 local; byte-identical to the committed file: True
+   scratch out2/counterfactual_population.json           sha 29ea98cb7e7f written 21:06:57 local; byte-identical to the committed file: True
+   scratch out2/counterfactual_population_rows.json      sha 9a2ceca18a0c written 21:06:57 local; byte-identical to the committed file: True
+   scratch out3/counterfactual_population.json           sha 29ea98cb7e7f written 21:18:20 local; byte-identical to the committed file: True
+   scratch out3/counterfactual_population_rows.json      sha 9a2ceca18a0c written 21:18:20 local; byte-identical to the committed file: True
+   run 1's json against the committed one: 0 of 80 x 18 test fields differ; top-level blocks differing (other than tests, own_mean_percentile): []; own_mean_percentile keys present in only one: {'P477': ['draws_below', 'draws_tied', 'share_at_or_below'], 'P496': ['draws_below', 'draws_tied', 'share_at_or_below']}; values differing on shared keys: 0
+   scratch logs: {'run2_eq_run3': True, 'run2_eq_run3_but_for_the_done_line': True, 'committed_log_contains_run1': True, 'committed_log_contains_run2': True, 'committed_log_contains_run3': True, 'run1_lines_not_in_run2': 13, 'run2_lines_not_in_run1': 4}
+   what this cannot see: an execution whose output was overwritten or never written. Three output directories and three logs are a floor on the number of runs, not a count.
+
+== 5. MDE
+   est -0.0125; |est| / (2.8 x game-block SE) = 0.10 (below)
+   stated MDE 0.121 vs 2.8 x game-block bootstrap SE 0.1250 -> consistent (rel -0.03)
+   stated MDE 0.121 vs 2.8 x the target's permutation sd 0.1057 (its 'realised') -> INCONSISTENT (rel +0.14)
+   2.8 x SE under other blocks: game 0.125, player 0.122, player-game 0.124, ladder 0.121, team 0.140; 2.8 x null sd under the ladder permutations: r 0.106, A 0.109, B 0.099
+
+== 6. POWER PLANT: a known missed-minus-cleared difference in own_mean share through the target's own test and rule
+   each rep: 31 games resampled with replacement; missed/cleared permuted within game (true difference 0); then each missed own_mean row moved to group_mean with probability delta / 0.6815 (expected contrast = -delta). The target's own cp.slice_tests on the all-rows P496 slice at its own seed and draws (10000 perm, 2000 boot). For the first 20 reps of each cell the WHOLE 80-test family is rebuilt through cp.analyse + Holm and cp.verdict is read.
+   bracket on the registered rule where the family is not rebuilt: LOWER = 80 x p < 0.05 and interval excludes zero and |est| > max(pre-stated, realised) MDE (Holm p <= 80 p, so this implies the rule); UPPER = the same with unadjusted p < 0.05.
+   delta 0.000 (0.0x MDE) reps 200: mean contrast -0.0155 (sd 0.0387); p<0.05   2.0%; interval excl. zero   4.5%; |est| > MDE used   0.5%; RULE on own_mean: lower   0.0% upper   0.5%; exact on the first 20 reps: own_mean 0%, any input (the verdict) 0%; bracket holds: True
+   delta 0.060 (0.5x MDE) reps 200: mean contrast -0.0835 (sd 0.0420); p<0.05  38.5%; interval excl. zero  48.0%; |est| > MDE used  18.5%; RULE on own_mean: lower   4.0% upper  18.0%; exact on the first 20 reps: own_mean 10%, any input (the verdict) 10%; bracket holds: True
+   delta 0.121 (1.0x MDE) reps 200: mean contrast -0.1384 (sd 0.0462); p<0.05  85.5%; interval excl. zero  88.5%; |est| > MDE used  65.5%; RULE on own_mean: lower  29.5% upper  65.5%; exact on the first 20 reps: own_mean 25%, any input (the verdict) 70%; bracket holds: True
+   delta 0.181 (1.5x MDE) reps 200: mean contrast -0.1999 (sd 0.0435); p<0.05  98.0%; interval excl. zero  98.5%; |est| > MDE used  97.0%; RULE on own_mean: lower  77.0% upper  97.0%; exact on the first 20 reps: own_mean 80%, any input (the verdict) 100%; bracket holds: True
+   delta 0.242 (2.0x MDE) reps 200: mean contrast -0.2573 (sd 0.0451); p<0.05 100.0%; interval excl. zero 100.0%; |est| > MDE used 100.0%; RULE on own_mean: lower  99.0% upper 100.0%; exact on the first 20 reps: own_mean 100%, any input (the verdict) 100%; bracket holds: True
+   delta 0.302 (2.5x MDE) reps 200: mean contrast -0.3198 (sd 0.0453); p<0.05 100.0%; interval excl. zero 100.0%; |est| > MDE used 100.0%; RULE on own_mean: lower 100.0% upper 100.0%; exact on the first 20 reps: own_mean 100%, any input (the verdict) 100%; bracket holds: True
+   delta 0.363 (3.0x MDE) reps 200: mean contrast -0.3770 (sd 0.0424); p<0.05 100.0%; interval excl. zero 100.0%; |est| > MDE used 100.0%; RULE on own_mean: lower 100.0% upper 100.0%; exact on the first 20 reps: own_mean 100%, any input (the verdict) 100%; bracket holds: True
+   smallest planted difference detected in >= 80% of reps, unadjusted p < 0.05: 1.0x = 0.121 (grid [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0] x 0.121)
+   smallest planted difference detected in >= 80% of reps, the rule, upper bracket: 1.5x = 0.181 (grid [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0] x 0.121)
+   smallest planted difference detected in >= 80% of reps, the rule, lower bracket: 2.0x = 0.242 (grid [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0] x 0.121)
+   NOT RUN: a plant in the other direction (own_mean MORE often on misses), and a plant clustered by ladder.
+
+NOT RUN, collected: kickoff-slot blocks: no kickoff time in any committed row; leakage scramble and the R1 re-fit: need the facts store; read_at against a kickoff time: no kickoff in the committed rows; the 00:15Z instant is the target's own; plant with own_mean more often on misses; plant clustered by ladder
+
+wrote D:/temp/f35/c46.rerun.json

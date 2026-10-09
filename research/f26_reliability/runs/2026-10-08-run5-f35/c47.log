@@ -1,0 +1,122 @@
+== 1. REPRODUCE (target's prepare + set_y + analyse_market + holm + verdict on D:/temp/c47/rows)
+   receptions    counted here: rungs 10527 (committed 10527), player-games 9450 (9450), games 813 (813), QB rungs 0 -> equal
+   rush_attempts counted here: rungs 4581 (committed 4581), player-games 3654 (3654), games 806 (806), QB rungs 1408 -> equal
+   committed counts: rush bench rungs 4844, QB of RB rungs 1408 of 4581 = 30.7% (unit: 1,408 of 4,581, 31%); void drops 14 (unit: 14)
+   whether these rows equal what the store holds: NOT CHECKED (rows-in; no store opened)
+   98 tests recomputed (84 registered): 0 differ from the committed json at 1e-9 over est/se/lo/hi/p (registered incl. Holm p: 0); largest |difference| 0; verdict dict equal: True
+   detected cells 0 of 12 (published 0 of 12); registered tests with Holm p < 0.05: 0 of 84 (published 0 of 84)
+   receptions    states: form_gap=excluded at 0.033, last_game=excluded at 0.033, book_gap=excluded at 0.033, line_pos=excluded at 0.020, team_total=excluded at 0.033, log_line=excluded at 0.033
+   rush_attempts states: form_gap=unresolved, last_game=excluded at 0.045, book_gap=excluded at 0.045, line_pos=excluded at 0.033, team_total=excluded at 0.045, log_line=excluded at 0.045
+   cells where 0.020 is excluded: 1 (published 1: receptions line_pos); excluded at <=0.033: receptions 6 of 6, rush ['line_pos']; rush cells not excluded at 0.045: ['form_gap']
+   rush form_gap b        measured +0.020088 published +0.020100 -> reproduces
+   rush form_gap lo       measured +0.003339 published +0.003300 -> reproduces
+   rush form_gap hi       measured +0.036841 published +0.036800 -> reproduces
+   rush form_gap Bonf hi  measured +0.049369 published +0.049400 -> reproduces
+   rush form_gap Holm p   measured +1.000000 published +1.000000 -> reproduces
+   rec book_gap b         measured +0.013971 published +0.014000 -> reproduces
+   rec book_gap lo        measured +0.003658 published +0.003700 -> reproduces
+   rec book_gap hi        measured +0.024621 published +0.024600 -> reproduces
+   rec book_gap Holm p    measured +0.640121 published +0.640000 -> reproduces
+   rec line_pos Bonf lo   measured -0.017731 published -0.017700 -> reproduces
+   rec line_pos Bonf hi   measured +0.009315 published +0.009300 -> reproduces
+   rec close+a Brier      measured -0.000580 published -0.000580 -> reproduces
+   rec close+a MDE        measured +0.000404 published +0.000400 -> reproduces
+   rush form_gap by season: +0.0126, +0.0235, +0.0229 (unit: same sign in three seasons)
+   rush close+a Brier -0.00086 [-0.00155, -0.00020] MDE 0.00096 -> beyond its MDE: False (unit: receptions only)
+   committed power json (600 reps): detection at 0.020 rush max 0.12; receptions 0.06-0.28; receptions line_pos pooled coef at the bound at 0.020: 0.98
+
+== 2. BLOCKS: THROUGH M.coef_test / M.brier_test (weights and z from M._cut)
+   rush form_gap coefficient        THROUGH M.coef_test+M._cut (4581 rows, 806 units): copies inside their block x1.000, copies as new blocks x0.450 (expected 0.447) -> honours_blocks
+   receptions book_gap coefficient  THROUGH M.coef_test+M._cut (10527 rows, 813 units): copies inside their block x1.000, copies as new blocks x0.434 (expected 0.447) -> honours_blocks
+   receptions line_pos coefficient  THROUGH M.coef_test+M._cut (10527 rows, 813 units): copies inside their block x1.000, copies as new blocks x0.455 (expected 0.447) -> honours_blocks
+   receptions close+a Brier         THROUGH M.brier_test+c41.walk_forward+M._cut (10527 rows, 813 units): copies inside their block x1.000, copies as new blocks x0.454 (expected 0.447) -> honours_blocks
+   rush form_gap coefficient: 4581 rows on 806 games (5.7 a game); target SE 0.00853; iid/blocked width x0.894
+      by game          806 blocks  +0.02009 [+0.00411, +0.03789] SE 0.008931 *   Bonferroni(84) [-0.0106, +0.0508]
+      by player        241 blocks  +0.02009 [+0.00539, +0.03556] SE 0.007942 *   Bonferroni(84) [-0.0072, +0.0474]
+      by season-week    54 blocks  +0.02009 [+0.00595, +0.03520] SE 0.007538 *   Bonferroni(84) [-0.0058, +0.0460]
+      by season          3 blocks  +0.02009 [+0.01244, +0.02366] SE 0.002855  (<5 blocks: NOT READ)   Bonferroni(84) [+0.0103, +0.0299]
+   receptions book_gap coefficient: 10527 rows on 813 games (12.9 a game); target SE 0.00525; iid/blocked width x1.031
+      by game          813 blocks  +0.01397 [+0.00329, +0.02358] SE 0.005172 *   Bonferroni(84) [-0.0038, +0.0317]
+      by player        505 blocks  +0.01397 [+0.00479, +0.02366] SE 0.004624 *   Bonferroni(84) [-0.0019, +0.0298]
+      by season-week    54 blocks  +0.01397 [+0.00586, +0.02360] SE 0.004556 *   Bonferroni(84) [-0.0017, +0.0296]
+      by season          3 blocks  +0.01397 [-0.00123, +0.02469] SE 0.005819  (<5 blocks: NOT READ)   Bonferroni(84) [-0.0060, +0.0340]
+   receptions line_pos coefficient: 10527 rows on 813 games (12.9 a game); target SE 0.00394; iid/blocked width x1.184
+      by game          813 blocks  -0.00421 [-0.01230, +0.00413] SE 0.004264   Bonferroni(84) [-0.0189, +0.0104]
+      by player        505 blocks  -0.00421 [-0.01159, +0.00352] SE 0.003888   Bonferroni(84) [-0.0176, +0.0091]
+      by season-week    54 blocks  -0.00421 [-0.01194, +0.00367] SE 0.004119   Bonferroni(84) [-0.0184, +0.0099]
+      by season          3 blocks  -0.00421 [-0.00911, +0.00176] SE 0.002659  (<5 blocks: NOT READ)   Bonferroni(84) [-0.0133, +0.0049]
+
+== 3. LEAKAGE (function level only; store-level leakage NOT RUN - build() needs the store)
+   prior_games keeps 2 of 4 games (2 are at/after kickoff); scrambling those leaves features equal: True; planted same-kickoff prior raises LeakError: True
+   receptions    walk_forward: scramble 2025 residuals -> largest move of a 2024 forecast 0 (must be 0); with 2025 rows planted as 2023 -> 0.000319 (must be > 0)
+   rush_attempts walk_forward: scramble 2025 residuals -> largest move of a 2024 forecast 0 (must be 0); with 2025 rows planted as 2023 -> 0.0234 (must be > 0)
+
+== 4. SPECIFICATIONS
+   f26lib.registered_count REFUSES: c-47: no registered_intervals.count in the recorded result - refusing to correct over a made-up k
+   key used instead: top-level 'registered' = 84, 'specifications' = 98; counted from the tests list: 84 registered of 98
+   by kind: {'coef/registered/-': 60, 'brier/registered/-': 24, 'brier/descriptive/2024+2025': 8, 'coef/descriptive/no_qb': 6}
+   84 vs 98: 84 registered (2 x [30 coef + 12 Brier]) + 8 descriptive Brier arms (close+a, close+joint; RB and RM; 2 markets) + 6 no-QB coefficients (rush only) = 98
+   rush form_gap coefficient        z +2.36 p 0.0185  Bonferroni x84 1.000, x98 1.000; Holm p (target) 1.000
+   receptions book_gap coefficient  z +2.66 p 0.0078  Bonferroni x84 0.656, x98 0.765; Holm p (target) 0.640
+   runs on real outcomes beyond the registered one - what the files show (times local, -0400):
+      commit 23b3271 2026-10-08 21:35:40 -0400 c-47: findings and CLAUDE.md entry - given the line, 0 of 12 candidate-marke
+      commit 597068d 2026-10-08 21:34:17 -0400 c-47: run log and aggregates of the registered run (one run) - 0 of 12 detec
+      commit d8a227e 2026-10-08 21:33:10 -0400 c-47: research/residual_two_markets.py and its tests as first written, with 
+      commit 5374561 2026-10-08 21:23:37 -0400 c-47: pre-registration - c-41's six candidates on receptions and rush attemp
+      script diff d8a227e..23b3271: EMPTY (the script is the one committed with the power, before the run)
+      scratch bt                           dir  mtime 21:26:23
+      scratch bt2                          dir  mtime 21:49:31
+      scratch clone                        dir  mtime 21:36:11
+      scratch dry.txt                      file mtime 21:27:32
+      scratch power_timing.txt             file mtime 21:27:40
+      scratch pytest1.txt                  file mtime 21:26:33
+      scratch pytest_full.txt              file mtime 21:49:34
+      scratch rows                         dir  mtime 21:33:49
+      scratch rows/rows_receptions.json    file mtime 21:33:49
+      scratch rows/rows_rush_attempts.json file mtime 21:33:50
+      dry.txt: 42 lines; contains 'DRY RUN' True; contains an over rate / residual / Brier / coefficient table: False; its rb_rungs are the PRE-settlement counts (10,536 / 4,586), not the run's (10,527 / 4,581): True
+      power_timing.txt: first line 'power: receptions, 5 replications per cell'; mentions settlement joined: True
+      run log elapsed line(s): ['elapsed 33s']
+      CAN be shown: one rows file per market, written after the power commit; one result json; script unchanged after d8a227e; dry.txt and power_timing.txt carry no outcome-joined estimate.
+      CANNOT be shown: that the script was not executed on real outcomes earlier and its output discarded - scratch files are overwritten in place and a terminal leaves no file. Commit order is evidence of what was committed, not of what was run.
+
+== 5. MDE
+   rush form_gap coefficient        |est|/MDE 0.841 (at); stated MDE 0.02388 vs 2.8 x SE re-drawn here (f26lib game blocks) 0.02501 -> consistent; Bonferroni-80% bound stated 0.0365, here 0.0382
+   receptions book_gap coefficient  |est|/MDE 0.950 (at); stated MDE 0.01470 vs 2.8 x SE re-drawn here (f26lib game blocks) 0.01448 -> consistent; Bonferroni-80% bound stated 0.0225, here 0.0221
+   receptions line_pos coefficient  |est|/MDE 0.382 (below); stated MDE 0.01103 vs 2.8 x SE re-drawn here (f26lib game blocks) 0.01194 -> consistent; Bonferroni-80% bound stated 0.0168, here 0.0182
+   receptions    pooled SEs 0.0039-0.0054: single-interval MDE 0.0110-0.0153; at the 84-test bound (4.275 SE) 0.0168-0.0233
+   rush_attempts pooled SEs 0.0053-0.0093: single-interval MDE 0.0147-0.0260; at the 84-test bound (4.275 SE) 0.0225-0.0397
+
+   helper check receptions    real 'log_line' column re-planted: largest |difference| from the registered tests 0; state excluded at 0.033
+   helper check rush_attempts real 'log_line' column re-planted: largest |difference| from the registered tests 0; state excluded at 0.045
+
+== 6a. POWER ON REAL OUTCOMES: a synthetic candidate in the 'log_line' slot, through M.analyse_market + c41.holm + M.verdict (200 reps a cell)
+   x = lam * r_rung + e, e ~ N(0,1) drawn once per PLAYER-GAME; real outcomes, prices, games, block weights and the
+   other 77 tests untouched. Sampling variation across reps is e only (r is the one real realization).
+   'unit sim' = the unit's simulated detection for that market and size (player-games independent inside a game).
+   market         b tgt  b pooled  sd reps  boot SE |  Holm  sign cond2 DETECTED | unit sim; states
+   receptions     0.000   +0.0007   0.0050   0.0051 |  0.00  0.24  0.00     0.00 | 0.00; Bonf interval covers b 1.00; {'excluded at 0.033': 200}
+   receptions     0.020   +0.0205   0.0053   0.0051 |  0.69  0.95  0.13     0.12 | 0.06-0.28; Bonf interval covers b 1.00; {'detected': 25, 'excluded at 0.033': 36, 'excluded at 0.045': 125, 'unresolved': 14}
+   receptions     0.033   +0.0333   0.0048   0.0051 |  1.00  1.00  0.45     0.45 | 0.33-0.84; Bonf interval covers b 1.00; {'detected': 90, 'excluded at 0.045': 20, 'unresolved': 90}
+   receptions     0.045   +0.0451   0.0052   0.0051 |  1.00  1.00  0.80     0.80 | 0.69-1.00; Bonf interval covers b 0.99; {'detected': 160, 'unresolved': 40}
+   rush_attempts  0.000   -0.0006   0.0078   0.0085 |  0.00  0.21  0.00     0.00 | 0.00; Bonf interval covers b 1.00; {'excluded at 0.045': 191, 'unresolved': 9}
+   rush_attempts  0.020   +0.0201   0.0079   0.0085 |  0.12  0.79  0.01     0.01 | <=0.12; Bonf interval covers b 1.00; {'detected': 1, 'excluded at 0.045': 54, 'unresolved': 145}
+   rush_attempts  0.033   +0.0327   0.0086   0.0085 |  0.61  0.98  0.12     0.10 | 0.07-0.50; Bonf interval covers b 0.99; {'detected': 21, 'excluded at 0.045': 3, 'unresolved': 176}
+   rush_attempts  0.045   +0.0449   0.0084   0.0084 |  0.96  0.99  0.23     0.23 | 0.18-0.31 (five of six); Bonf interval covers b 1.00; {'detected': 47, 'unresolved': 153}
+   committed simulation, same slot (log_line): {'receptions': {'0.000': 0.0, '0.020': 0.1, '0.033': 0.48, '0.045': 0.82}, 'rush_attempts': {'0.000': 0.0, '0.020': 0.01, '0.033': 0.09, '0.045': 0.3}}
+
+== 6b. DOES '0.020 ruled out in receptions line_pos' SURVIVE A 0.020 EFFECT ON REAL ROWS? (100 game-resampled worlds an arm)
+   each world: the 813 real games drawn with replacement (a copy is its own game), real outcomes and the REAL line_pos
+   column; then outcomes are moved by d per sd of line_pos (one uniform per player-game: an under flips to over with
+   probability d z / (1 - p), an over to under with -d z / p), M.prepare + set_y + analyse_market(line_pos) + holm + verdict.
+   The real rows already carry -0.0042, so the world's truth is taken as -0.0042 + the shift the plant achieved (measured
+   in the same world, planted minus unplanted). Arm 'to 0.020' sets d = 0.020 - (-0.0042).
+   arm              d |  est mean     shift    truth |    Bonf misses   hi < 0.020 EXCLUDED@0.020   sd(est)/SE
+   null        0.0000 |   -0.0041   +0.0000  -0.0042 |        0 of 100    100 of 100       71 of 100       1.09
+   plus 0.020  0.0200 |   +0.0158   +0.0197  +0.0155 |        0 of 100      3 of 100        3 of 100       1.01
+   to 0.020    0.0242 |   +0.0200   +0.0245  +0.0203 |        0 of 100      0 of 100        0 of 100       0.92
+   A game-resampled world inherits whatever dependence a game block carries and none that crosses games; it cannot
+   show an interval too narrow for a reason the game bootstrap itself ignores (see the season-week blocks in step 2).
+
+== NOT RUN: store-level leakage and rows-vs-store equality (no store opened); the unit's own 600-rep simulation was not
+   re-drawn (its committed json is read); no timestamped line was compared with team_total's untimestamped input.

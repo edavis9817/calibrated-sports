@@ -1,0 +1,19 @@
+260 reports; excluded as the agent's own: f-21, f-22, f-23, f-26, f-27, f-29, f-30, f-31
+non-F units caught by the exclusion: 0 []
+every track-F report in the window's time range and where the selector puts it:
+  f-24  in the window, no interval stated
+  f-25  in the window, no interval stated
+  f-26  EXCLUDED (its files_changed touch research/f26_reliability/)
+  f-27  EXCLUDED (its files_changed touch research/f26_reliability/)
+  f-28  has a verdict/declined
+  f-29  EXCLUDED (its files_changed touch research/f26_reliability/)
+  f-30  EXCLUDED (listed)
+  f-31  EXCLUDED (its files_changed touch research/f26_reliability/)
+  f-32  in the window, no interval stated
+  f-33  in the window, no interval stated
+  f-34  in the window, no interval stated
+f-32: excluded=False (neither half of the rule matches); files touching research/f26_reliability/: 0; states an interval now: False; WITH a planted interval it WOULD BE RANKED AS A TARGET
+f-33: excluded=False (neither half of the rule matches); files touching research/f26_reliability/: 0; states an interval now: False; WITH a planted interval it WOULD BE RANKED AS A TARGET
+f-34: excluded=False (neither half of the rule matches); files touching research/f26_reliability/: 0; states an interval now: False; WITH a planted interval it WOULD BE RANKED AS A TARGET
+plant 1: b-107 (not track F) given a file under research/f26_reliability/ -> excluded=False  (must be False)  ok
+plant 2: f-32 (track F) given a file under research/f26_reliability/ -> excluded=True  (must be True)  ok

@@ -1,0 +1,24 @@
+260 machine reports (0 unreadable []); window opens 2026-09-30T01:38:40-04:00; 37 units in it, 4 with an interval claim
+  b-106 score 3  published (own files)                                 1 intervals  headline 51.6 [47.2, 56.0]
+  c-44  score 2  names its MDE; headline interval excludes zero        6 intervals  headline +0.0134 [+0.0008, +0.0265]
+  c-43  score 2  names its MDE; headline interval excludes zero        7 intervals  headline +2.06c [+1.94, +2.17]
+  c-42  score 1  names its MDE                                         4 intervals  headline -0.006 [-0.036, +0.022]
+  no interval stated (not targets for this checklist): b-92, a-60, b-93, a-61, a-62, b-94, b-96, b-95, a-64, b-97, a-65, f-24, a-66, a-67, a-68, f-25, a-69, b-98, a-70, b-100, b-105, a-71, b-101, b-102, a-76, a-78, f-32, a-77, f-33, c-45, a-79, b-107, f-34
+  excluded as the agent's own units (never targets): f-21 (listed), f-22 (listed), f-23 (listed), f-26 (its files_changed touch research/f26_reliability/), f-27 (its files_changed touch research/f26_reliability/), f-29 (its files_changed touch research/f26_reliability/), f-30 (listed), f-31 (its files_changed touch research/f26_reliability/)
+
+10 of the 37 window units are new since the last recorded run
+needs_ethan: 20 items raised by those 10 units (608 across all 260 reports)
+  of them 'merge / merge order / deploy this branch' asks (one CLASS, a different branch each): 3
+  repeat an earlier unit's item at Jaccard >= 0.4: 2
+  repeat an earlier unit's item at Jaccard >= 0.5: 1
+  repeat an earlier unit's item at Jaccard >= 0.6: 0
+  0.50 a-79  Same ask as a-77#0: have the site vendor the contract from 5fad1c8 rather than b041f2d, and merge a-75, a-77 and a-79 together as one stack. a-78 is a
+       ~ a-77  Have the site vendor the contract from b041f2d rather than c434a36, and merge a-75 and a-77 together.
+  0.44 f-33  Same ask as a-14#0: repoint the CalibratedSports Weekly Refresh task at code\prod\calibrated-sports. Read tonight, it still executes from code\calibra
+       ~ f-25  Point the Weekly Refresh task at code\prod\calibrated-sports
+  0.31 a-78  Whether the 17 removed ids should be listed in manifest.unresolved_ids.
+       ~ a-02  Whether any of the 229 orphan snap rows (28 pfr ids listed in the manifest unresolved_ids and in the script output) should be deleted
+  0.29 f-32  Whether the college publish waits on a grid_fit repair
+       ~ f-30  Whether to publish the college tree now
+  0.26 f-33  Same ask as f-28#0: merge f-33-needs-ethan-page (it contains f-28-needs-ethan-ledger), or drop both.
+       ~ f-28  Adopt the answered ledger or drop it: merge f-28-needs-ethan-ledger, and have run/PROMPT.md tell units to run python -m relay.answered --track <t> bef

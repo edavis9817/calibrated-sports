@@ -1,0 +1,151 @@
+# attack_c44.py stdout (f-35, run 5). Target: origin/c-44-cross-sport-total @ 648c8d0, detached worktree D:/temp/f35/c44src.
+# Command (run twice, both exit 0, 77s wall each; stderr empty on both):
+#   D:/calibrated-sports/venv-f/Scripts/python.exe research/f26_reliability/attack_c44.py --src D:/temp/f35/c44src \
+#     --logger-db D:/calibrated-sports/data/market_log.db --cache D:/temp/f35/c44rows.pkl --scratch D:/temp/f35 \
+#     --out D:/temp/f35/c44.json --budget 1000
+# Below is the SECOND invocation, which re-opened both stores (its cache was moved aside first). Between the two the
+# ATTACKER's printing changed in three places and no computation changed: the 'DOES NOT REPRODUCE' line now says whether the
+# re-run equals the committed JSON; the re-binning lines add 'share of the raw gap removed'; a label read 'mean |e|' for mean e.
+# Every other line of the two invocations is identical (diffed, timings aside).
+# The re-binning alternatives (6 and 12 NFL-quantile bins, and |e| < 6) were written into the adapter before either invocation.
+stores READ (mode=ro, the target's jobs.season_model.market_log_ro and research.cfb_game_forecast.connect):
+   D:\calibrated-sports\data\market_log.db  (0.1s, connection closed by the loader)
+   D:\calibrated-sports\data\cfb.db  (0.3s, connection closed by the loader)
+
+== 1. REPRODUCE: the target's own main() over today's stores, against its committed JSON
+   main() rc 0 in 17s; 1142 numeric leaves compared with research/results/cross_sport_total.json, 0 differ
+   input versions: committed {'nfl_games': '2026-10-08', 'nfl_teams': '2026-09-16'} | today {'nfl_games': '2026-10-09', 'nfl_teams': '2026-09-16'} -> INPUT REBUILT since the registered run (nfl_games); figures below are on the rebuilt input
+   n NFL                    measured +5698.000000  committed json +5698.000000  published +5698  -> REPRODUCES
+   n college                measured +15508.000000  committed json +15508.000000  published +15508  -> REPRODUCES
+   Holm family              measured +17.000000  committed json +17.000000  published +17  -> REPRODUCES
+   Holm-significant         measured +17.000000  committed json +17.000000  published +17  -> REPRODUCES
+   Ds_league raw est        measured +0.079351  committed json +0.079351  published +0.0794  -> REPRODUCES
+   Dms_league est           measured +0.013356  committed json +0.013356  published +0.0134  -> REPRODUCES
+   Dms_league lo            measured +0.000818  committed json +0.000818  published +0.0008  -> REPRODUCES
+   Dms_league hi            measured +0.026471  committed json +0.026471  published +0.0265  -> REPRODUCES
+   Dms_league Holm p        measured +0.044419  committed json +0.044419  published +0.044  -> REPRODUCES
+   Ds_pair raw est          measured +0.023020  committed json +0.023020  published +0.0230  -> REPRODUCES
+   Dms_pair est             measured +0.018252  committed json +0.018252  published +0.0183  -> REPRODUCES
+   Dms_pair lo              measured +0.010964  committed json +0.010964  published +0.0110  -> REPRODUCES
+   Dms_pair hi              measured +0.025836  committed json +0.025836  published +0.0258  -> REPRODUCES
+   NFL d_pair est           measured -1.730772  committed json -1.730772  published -1.73  -> REPRODUCES
+   NFL MSE pair             measured +186.322728  committed json +186.322728  published +186  -> REPRODUCES
+   stated MDE Dms_league    measured +0.018711  committed json +0.018711  published +0.0187  -> REPRODUCES
+   price NFL est            measured +9.584594  committed json +9.584594  published +9.59  -> DOES NOT REPRODUCE at 2 dp (re-run == committed JSON: the PUBLISHED figure is not the JSON figure rounded to 2 dp; no input moved it)
+   price NFL lo             measured +7.149119  committed json +7.149119  published +7.15  -> REPRODUCES
+   price NFL hi             measured +12.074905  committed json +12.074905  published +12.08  -> DOES NOT REPRODUCE at 2 dp (re-run == committed JSON: the PUBLISHED figure is not the JSON figure rounded to 2 dp; no input moved it)
+   price college est        measured +16.523363  committed json +16.523363  published +16.52  -> REPRODUCES
+   price college lo         measured +13.628796  committed json +13.628796  published +13.63  -> REPRODUCES
+   price college hi         measured +19.479878  committed json +19.479878  published +19.48  -> REPRODUCES
+   Brier re-weighted Dm_league contains 0               -> REPRODUCES
+   reverse (NFL at college shares) Ds_league contains 0 -> REPRODUCES
+   NFL d_pair fails Holm in cut 'regular weeks 1-4'     -> REPRODUCES
+   NFL d_pair fails Holm in cut '2005-2014'             -> REPRODUCES
+   PART 1 success                                       -> REPRODUCES
+
+== 2. BLOCKS: THROUGH the target's boot() + stat() + interval(), 300 draws
+   distinct games counted here from (start, home, away): NFL 5698 of 5698 rows, college 15508 of 15508 rows
+   headline Dms_league (+0.0134)  THROUGH cross_sport_total.boot x2 (seeds 4401/4402)+shares+stat+interval (21206 rows, 21206 units): copies inside their block x0.459, copies as new blocks x0.459 (expected 0.447) -> row_bootstrap_one_per_unit
+                                  Tab's 'a game appears twice' guard fired 2 time(s) on the in-block copies and was bypassed
+   headline Dms_pair (+0.0183)    THROUGH cross_sport_total.boot x2 (seeds 4401/4402)+shares+stat+interval (21206 rows, 21206 units): copies inside their block x0.412, copies as new blocks x0.412 (expected 0.447) -> row_bootstrap_one_per_unit
+                                  Tab's 'a game appears twice' guard fired 2 time(s) on the in-block copies and was bypassed
+   raw Ds_league (+0.0794)        THROUGH cross_sport_total.boot x2 (seeds 4401/4402)+stat+interval (21206 rows, 21206 units): copies inside their block x0.508, copies as new blocks x0.508 (expected 0.447) -> row_bootstrap_one_per_unit
+                                  Tab's 'a game appears twice' guard fired 2 time(s) on the in-block copies and was bypassed
+   within nfl d_pair (-1.73)      THROUGH cross_sport_total.boot (seed 24)+stat+interval (5698 rows, 5698 units): copies inside their block x0.436, copies as new blocks x0.436 (expected 0.447) -> row_bootstrap_one_per_unit
+                                  Tab's 'a game appears twice' guard fired 1 time(s) on the in-block copies and was bypassed
+   within cfb d_pair              THROUGH cross_sport_total.boot (seed 24)+stat+interval (15508 rows, 15508 units): copies inside their block x0.445, copies as new blocks x0.445 (expected 0.447) -> row_bootstrap_one_per_unit
+                                  Tab's 'a game appears twice' guard fired 1 time(s) on the in-block copies and was bypassed
+   price nfl d_price (+9.59)      THROUGH cross_sport_total.boot (seed 24)+stat+interval (3562 rows, 3562 units): copies inside their block x0.444, copies as new blocks x0.444 (expected 0.447) -> row_bootstrap_one_per_unit
+                                  Tab's 'a game appears twice' guard fired 1 time(s) on the in-block copies and was bypassed
+   reading of the code: boot() resamples ROWS (rng.integers(0, n, n)) and never sees a game label; one row is one game
+   because Tab refuses a repeated game id. The between-sport draws are independent per sport (seeds 4401 / 4402), and
+   the NFL bin shares are RE-ESTIMATED in every NFL draw (shares(ind['nfl'])[1]) and applied to the same-index college draw.
+      Dms_league  weights re-estimated +0.0134 [+0.0008, +0.0265] SE 0.00664 * | weights FIXED +0.0134 [+0.0006, +0.0265] SE 0.00667 * | width fixed/re-estimated 1.006
+      Dms_pair    weights re-estimated +0.0183 [+0.0110, +0.0258] SE 0.00378 * | weights FIXED +0.0183 [+0.0110, +0.0257] SE 0.00378 * | width fixed/re-estimated 0.988
+   alt_blocks (f26lib's bootstrap, 1000 draws; blocks POOLED over both sports, so a draw's per-sport block count varies):
+      Dms_league  game                     (21206 blocks) +0.0134 [+0.0010, +0.0266] SE 0.00663 *
+      Dms_league  season-week (per sport)  (  784 blocks) +0.0134 [-0.0002, +0.0266] SE 0.00679
+      Dms_league  season (per sport)       (   42 blocks) +0.0134 [-0.0041, +0.0309] SE 0.00861
+      Dms_pair    game                     (21206 blocks) +0.0183 [+0.0104, +0.0255] SE 0.00380 *
+      Dms_pair    season-week (per sport)  (  784 blocks) +0.0183 [+0.0108, +0.0263] SE 0.00400 *
+      Dms_pair    season (per sport)       (   42 blocks) +0.0183 [+0.0092, +0.0275] SE 0.00485 *
+      Ds_league   game                     (21206 blocks) +0.0794 [+0.0654, +0.0933] SE 0.00749 *
+      Ds_league   season-week (per sport)  (  784 blocks) +0.0794 [+0.0657, +0.0948] SE 0.00756 *
+      Ds_league   season (per sport)       (   42 blocks) +0.0794 [+0.0595, +0.0991] SE 0.01007 *
+      Ds_pair     game                     (21206 blocks) +0.0230 [+0.0156, +0.0299] SE 0.00365 *
+      Ds_pair     season-week (per sport)  (  784 blocks) +0.0230 [+0.0158, +0.0309] SE 0.00377 *
+      Ds_pair     season (per sport)       (   42 blocks) +0.0230 [+0.0144, +0.0311] SE 0.00423 *
+      nfl d_pair  game                     ( 5698 blocks) -1.731 [-2.602, -0.911] SE 0.4302 *
+      nfl d_pair  season-week (per sport)  (  446 blocks) -1.731 [-2.591, -0.871] SE 0.4322 *
+      nfl d_pair  season (per sport)       (   21 blocks) -1.731 [-2.633, -0.852] SE 0.4654 *
+   STRATIFIED block bootstrap (own draws, 2000; blocks resampled WITHIN each sport, independent rngs 3501 / 3502,
+   NFL bin shares re-estimated in every draw - the target's design with the block changed):
+      Dms_league  game         (NFL  5698 / college 15508 blocks) +0.0134 [+0.0008, +0.0262] SE 0.00650 *
+      Dms_pair    game         (NFL  5698 / college 15508 blocks) +0.0183 [+0.0106, +0.0257] SE 0.00389 *
+      Ds_league   game         (NFL  5698 / college 15508 blocks) +0.0794 [+0.0644, +0.0944] SE 0.00746 *
+      Ds_pair     game         (NFL  5698 / college 15508 blocks) +0.0230 [+0.0155, +0.0301] SE 0.00371 *
+      nfl_d_pair  game         (NFL  5698 / college 15508 blocks) -1.731 [-2.573, -0.870] SE 0.4501 *
+      Dms_league  season-week  (NFL   446 / college   338 blocks) +0.0134 [+0.0004, +0.0262] SE 0.00660 *
+      Dms_pair    season-week  (NFL   446 / college   338 blocks) +0.0183 [+0.0106, +0.0260] SE 0.00394 *
+      Ds_league   season-week  (NFL   446 / college   338 blocks) +0.0794 [+0.0644, +0.0937] SE 0.00745 *
+      Ds_pair     season-week  (NFL   446 / college   338 blocks) +0.0230 [+0.0156, +0.0302] SE 0.00371 *
+      nfl_d_pair  season-week  (NFL   446 / college   338 blocks) -1.731 [-2.548, -0.918] SE 0.4202 *
+      Dms_league  season       (NFL    21 / college    21 blocks) +0.0134 [-0.0039, +0.0308] SE 0.00877
+      Dms_pair    season       (NFL    21 / college    21 blocks) +0.0183 [+0.0093, +0.0282] SE 0.00478 *
+      Ds_league   season       (NFL    21 / college    21 blocks) +0.0794 [+0.0594, +0.0995] SE 0.01028 *
+      Ds_pair     season       (NFL    21 / college    21 blocks) +0.0230 [+0.0151, +0.0317] SE 0.00430 *
+      nfl_d_pair  season       (NFL    21 / college    21 blocks) -1.731 [-2.662, -0.801] SE 0.4685 *
+   HEADLINE +0.0134 under SEASON blocks (21 per sport): +0.0134 [-0.0039, +0.0308] SE 0.00877 -> CONTAINS ZERO - it needs game blocks to exclude zero
+
+== 3. LEAKAGE through the target's build()
+   nfl, scores at/after the first kickoff of 2012 scrambled (6758 games in the walk): 1869 earlier scored forecasts checked on 9 fields, 0 MOVED (3828 of 3829 later moved);
+      plant - one 2025 game filed under 2008: 907 earlier moved -> FIRES
+   nfl, scores at/after the median kickoff of 2019 scrambled (6758 games in the walk): 3871 earlier scored forecasts checked on 9 fields, 0 MOVED (1826 of 1827 later moved);
+      plant - one 2025 game filed under 2008: 2909 earlier moved -> FIRES
+   cfb, scores at/after the first kickoff of 2012 scrambled (18229 games in the walk): 4954 earlier scored forecasts checked on 9 fields, 0 MOVED (10547 of 10554 later moved);
+      plant - one 2025 game filed under 2008: 2224 earlier moved -> FIRES
+   cfb, scores at/after the median kickoff of 2019 scrambled (18229 games in the walk): 10640 earlier scored forecasts checked on 9 fields, 0 MOVED (4852 of 4868 later moved);
+      plant - one 2025 game filed under 2008: 7910 earlier moved -> FIRES
+   3b truncated refit of (k, r, a, b): the store cut to seasons < T, plus ONE season-T fixture with its score zeroed
+      (build() stops on a scored season with no game; that row cannot enter the fit, tr = season < T), SCORE_TO = T:
+      nfl: 21 of 21 scored seasons refit on a truncated store; 0 differ from the walk's constants; plant (2015's games filed as 2014): FIRES
+      cfb: 21 of 21 scored seasons refit on a truncated store; 0 differ from the walk's constants; plant (2015's games filed as 2014): FIRES
+   3c the timestamps the 6-hour rule reads (DESCRIPTIVE - not a test; no source here says when a game really started):
+      nfl: seasons where one UTC time-of-day carries > half the games: none (largest single-time share in any season 0.348);
+         scored games whose state already holds a game stamped 6-12h earlier: 494 of 5698; with a game stamped < 6h earlier (held out by the rule): 2184
+      cfb: seasons where one UTC time-of-day carries > half the games: none (largest single-time share in any season 0.161);
+         scored games whose state already holds a game stamped 6-12h earlier: 4994 of 15508; with a game stamped < 6h earlier (held out by the rule): 11744
+
+== 4-5. SPECIFICATIONS (the unit's own counts: primary family 17, all registered intervals 74) AND MDE
+   Ds_league       est   +0.0794 z +10.71 p 9.18e-27  Bonferroni k=17 True (p_adj 1.56e-25), k=74 True   |est|/(2.8 SE) 3.82 (clear)  stated MDE 0.0217 vs 2.8xSE 0.0207 -> consistent; |est|/stated MDE 3.66
+   Dms_league      est   +0.0134 z  +2.01 p 4.44e-02  Bonferroni k=17 False (p_adj 0.755), k=74 False   |est|/(2.8 SE) 0.72 (below)  stated MDE 0.0187 vs 2.8xSE 0.0186 -> consistent; |est|/stated MDE 0.71
+   Ds_pair         est   +0.0230 z  +6.46 p 1.04e-10  Bonferroni k=17 True (p_adj 1.77e-09), k=74 True   |est|/(2.8 SE) 2.31 (clear)  stated MDE 0.0094 vs 2.8xSE 0.0100 -> consistent; |est|/stated MDE 2.45
+   Dms_pair        est   +0.0183 z  +4.83 p 1.39e-06  Bonferroni k=17 True (p_adj 2.36e-05), k=74 True   |est|/(2.8 SE) 1.72 (clear)  stated MDE 0.0100 vs 2.8xSE 0.0106 -> consistent; |est|/stated MDE 1.83
+   nfl d_pair      est   -1.7308 z  -4.06 p 4.89e-05  Bonferroni k=17 True (p_adj 0.000831), k=74 True   |est|/(2.8 SE) 1.45 (clear)
+   nfl d_league    est   -9.1433 z  -8.31 p 9.77e-17  Bonferroni k=17 True (p_adj 1.66e-15), k=74 True   |est|/(2.8 SE) 2.97 (clear)
+   cfb d_pair      est   -9.4850 z -11.65 p 2.20e-31  Bonferroni k=17 True (p_adj 3.75e-30), k=74 True   |est|/(2.8 SE) 4.16 (clear)
+   cfb@nfl d_pair  est   -8.0652 z  -9.14 p 6.29e-20  Bonferroni k=17 True (p_adj 1.07e-18), k=74 True   |est|/(2.8 SE) 3.26 (clear)
+   price nfl       est   +9.5846 z  +7.54 p 4.71e-14  Bonferroni k=17 True (p_adj 8.01e-13), k=74 True   |est|/(2.8 SE) 2.69 (clear)
+   price cfb       est  +16.5234 z +11.10 p 1.29e-28  Bonferroni k=17 True (p_adj 2.2e-27), k=74 True   |est|/(2.8 SE) 3.96 (clear)
+   the target's Holm p for Dms_league is 0.0444 = its raw p 0.0444: it is the LARGEST p of the 17, so Holm's multiplier on it is 1.
+   Dms_league      under season blocks: z +1.52 p 0.128  Bonferroni k=17 False, k=74 False
+   Dms_pair        under season blocks: z +3.82 p 0.000135  Bonferroni k=17 True, k=74 True
+   4b the script's history on the target branch (git, read-only):
+      log_script (rc 0): 6fa8f3c 2026-10-08 20:08:24 -0400 c-44: research/cross_sport_total.py and its tests as first written, after th
+      diff_script_since_6fa8f3c (rc 0): <empty>
+      diff_prereg_since_c92f98e (rc 0): <empty>
+      log_results (rc 0): 3764295 2026-10-08 20:19:45 -0400 | 62bba89 2026-10-08 20:09:05 -0400
+      head (rc 0): 648c8d0
+      result files named cross_sport_total*: ['cross_sport_total.json', 'cross_sport_total.log', 'cross_sport_total_mde.json', 'cross_sport_total_mde.log']
+      BIN_EDGES in the script at HEAD: [-6.0, -4.0, -2.0, 0.0, 2.0, 4.0, 6.0] (pre-registration: -6, -4, -2, 0, 2, 4, 6)
+   5b UNREGISTERED re-binning, DESCRIPTIVE (alternatives fixed in this file before any was computed; the target's seeds, 2000 draws):
+      registered 8 (control)           n NFL  5698 / college 15508 | Dms_league +0.0134 [+0.0008, +0.0265]* SE 0.0066 (raw +0.0794, 83% of it removed) | Dms_pair +0.0183 [+0.0110, +0.0258]* SE 0.0038 (raw +0.0230, 21% of it removed)
+      6 quantile bins of NFL e         n NFL  5698 / college 15508 | Dms_league +0.0388 [+0.0256, +0.0520]* SE 0.0068 (raw +0.0794, 51% of it removed) | Dms_pair +0.0191 [+0.0119, +0.0266]* SE 0.0037 (raw +0.0230, 17% of it removed)
+      12 quantile bins of NFL e        n NFL  5698 / college 15508 | Dms_league +0.0258 [+0.0135, +0.0389]* SE 0.0066 (raw +0.0794, 67% of it removed) | Dms_pair +0.0182 [+0.0110, +0.0256]* SE 0.0038 (raw +0.0230, 21% of it removed)
+      common support |e| < 6, 6 bins   n NFL  5504 / college 11240 | Dms_league +0.0098 [-0.0021, +0.0226]  SE 0.0063 (raw +0.0197, 50% of it removed) | Dms_pair +0.0184 [+0.0110, +0.0259]* SE 0.0038 (raw +0.0202, 9% of it removed)
+      mean e inside the two open-ended registered bins (the re-weighting matches bin SHARES, not e inside a bin):
+         bin 0: NFL mean e -6.89 (n 77) | college mean e -8.53 (n 2140)
+         bin 7: NFL mean e +7.02 (n 117) | college mean e +9.15 (n 2128)
+
+NOT RUN in this invocation: nothing
+wrote D:/temp/f35/c44.json (75s)

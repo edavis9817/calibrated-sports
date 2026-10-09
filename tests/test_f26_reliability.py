@@ -196,6 +196,27 @@ def test_an_attack_unit_is_excluded_by_what_it_touched_not_by_its_number(tmp_pat
     assert SEL.is_attack_unit("c-90", loaded["c-90"]) is None
 
 
+def test_the_exclusion_is_about_track_f_and_a_declined_f_unit_leaves_the_window(tmp_path):
+    """f-35. Exercised against f-32, f-33 and f-34: none touches the agent directory, so the rule does not exclude them
+    and each would be ranked if it stated an interval. A run barred from attacking them records `declined`, which is
+    what removes them. And a unit of ANOTHER track that touches the directory is not swallowed by the rule."""
+    reports = dict(REPORTS)
+    reports["f-98"] = {"summary": "a mask audit: 0 of 7,752 moved", "files_changed": ["research/f32_grid_mask/a.py"]}
+    reports["c-92"] = {"summary": "gap +0.020 [+0.010, +0.030]", "files_changed": ["research/f26_reliability/x.py"]}
+    runlog = dict(RUNLOG, **{"f-98": "2026-10-05T02:00:00-04:00", "c-92": "2026-10-05T03:00:00-04:00"})
+    relay = _relay(tmp_path, reports, runlog)
+    loaded, _ = SEL.load_reports(relay)
+    marker = SEL.load_marker(relay)
+    win, scored, no_claim = SEL.rank(loaded, marker)
+    assert SEL.is_attack_unit("f-98", loaded["f-98"]) is None and "f-98" in no_claim    # not excluded: only unranked
+    assert SEL.is_attack_unit("c-92", loaded["c-92"]) is None                           # not track F: never excluded
+    assert "c-92" in [x["unit"] for x in scored]
+    loaded["f-98"]["summary"] += " share 0.910 [0.880, 0.940]"
+    assert "f-98" in [x["unit"] for x in SEL.rank(loaded, marker)[1]]                   # with an interval it IS ranked
+    marker["declined"]["f-98"] = {"run": "t", "why": "track F's own"}
+    assert "f-98" not in SEL.rank(loaded, marker)[0]                                    # declined is what removes it
+
+
 def test_a_verdict_removes_a_unit_and_an_unreached_one_stays(tmp_path):
     relay = _relay(tmp_path, REPORTS, RUNLOG)
     v = tmp_path / "v.json"

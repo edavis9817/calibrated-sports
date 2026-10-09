@@ -1,0 +1,16 @@
+f-35 run 5 - every adapter re-run by the run itself, exit code captured on the next line (RC=$?), output diffed against the sub-agent's log
+  selfcheck.py        rc 0   32 plants, 32 behaved as required
+  receipts_b106.py    rc 0   written and run by the run itself (no sub-agent); local and served ledger sha256 86b6e03fa0f0
+  exclusion_check.py  rc 0   written and run by the run itself; both plants ok
+  attack_c44.py       rc 0   76 s   diff against the sub-agent's log: the timing line only
+  attack_c42.py       rc 0   449 s  diff: two timing lines only (600 plant reps a cell, same seeds)
+  attack_c43.py       rc 0   576 s  diff: the s = 1.15 plant cell, which is cut by the adapter's wall-clock budget
+                                    (51 reps in the sub-agent's run, 27 here; 'mispriced' 0.78 in both). Every other line identical.
+  attack_c46.py       rc 0   335 s  diff: the output-path line only
+  attack_c47.py       rc 0   172 s  diff: none
+  tests/test_f26_reliability.py   17 passed (venv-f, Python 3.12)
+  select.py --record  rc 0   marker 24 -> 30 verdicts, 1 -> 4 declined, 5 runs; the 24 earlier verdicts byte-equal before and after
+Sub-agents: five, one target each, one written brief each. Each brief carried the bar on killing a process by image name and named
+the time limit (the Bash tool's own, or a deadline inside the script). Each reported killing no process. One (c-43) reported a
+compound shell command of its own that hung on a bare `python` and was stopped by the harness at its own limit. One (c-44) reported
+that a grep of sibling .env files for a store path printed a CFBD API key into its tool output; it is in no file this run wrote.

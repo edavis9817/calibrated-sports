@@ -149,6 +149,22 @@ Every adapter was then re-run by the run itself with its own exit code, because 
 report and not a measurement. Tell a sub-agent never to kill processes by image name: one ran
 `taskkill /F /IM timeout.exe` and removed the time limit from two other adapters mid-run.
 
+## The selection is written once per look, and never over (run 5)
+
+Run 4's window grew from 32 units to 36 while it ran and `select.log` kept only the later listing. A run now writes
+`runs/<run>/select-<UTC stamp>.log` every time it looks, and reports every file: run 5 has two (37 units, then 39 when
+c-46 and a-80 landed). A unit that lands after the last listing is next run's.
+
+**The self-exclusion rule excludes attack units, not track F** (run 5, `exclusion_check.py`). f-32, f-33 and f-34 touch
+nothing in this directory and are not listed, so the rule does not exclude them; they stayed out of the ranking only because
+none states an interval, and each WOULD be ranked with one. Run 5's brief barred attacking f-26 through f-35, so it recorded
+the three as `declined`. Whether F ever audits F is a rule for Ethan (the relay ledger's "no agent checks its own work"
+says no); `select.py` was not changed.
+
+**A sub-agent brief carries four bars in writing**: never kill a process by image name; a time limit that is the Bash tool's
+own or a deadline inside the script, never a shared binary; never a bare `python`; never grep or print a `.env` (run 5: a
+sub-agent's search for a store path printed a CFBD key into its own tool output - in no file, and the fourth brief said so).
+
 ## Verdicts
 
 - **citable** — survived every step that was run; the report names the steps.
@@ -205,6 +221,16 @@ so the hand count is a floor.
                      record; what 'up' hides when one venue is silent
     clusters_f28.py  f-28's cluster count (no interval)             replayed to the registered population hash; where a
                      cluster count is written
+    attack_c42.py    c-42's uncertainty-scale ranking, from its rows  NO leakage step; the label-permutation null; a power
+                     plant through the target's 48-test family and Holm; the ceiling a share near 1 puts on a difference
+    attack_c43.py    c-43's interval mass, from c-35's extract cache  NO leakage step; the BH family at 50, 72 and 81; a
+                     calibrated-ladder plant through the target's own verdict rule (--plant-reps; budget-limited cells vary)
+    attack_c44.py    c-44's cross-sport total                       pipeline re-run (~80 s); scramble + misdated-game plant at
+                     two cutoffs per sport; truncated refit of all 21 seasons; season blocks; an unregistered re-binning
+    attack_c46.py    c-46's ranking on all 496 graded leans, from its rows  NO leakage step; ladder-level permutation; power plant
+    receipts_b106.py b-106's '481 of 496 carry a valid price' (no interval of its own)  own re-count, local ledger against served
+    exclusion_check.py  the selector's self-exclusion, exercised in memory  which track-F units the rule excludes, which it only
+                     fails to rank, and two plants (a non-F unit touching this directory; an F unit touching it)
     attack_rows.py   any coefficient published with its rows       arithmetic only, NO leakage step;
                      --src/--boot hand the rows to the target's own bootstrap (without them the
                      blocks step prints NOT RUN, it does not pass)

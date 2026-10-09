@@ -1,0 +1,138 @@
+cache D:/temp/c35/rows.json: 2301611 bytes, mtime 2026-10-08 01:40:04, sha256 1c5f8b269ba2b9ec58b5e01642207dc4f2705082e1143c90389a8364fb70ac1e (pre-registration names 1c5f8b269ba2b9ec...: MATCH)
+target worktree D:\temp\f35\c43src at 9d876e5
+cache: 725 ladders, 3987 rungs, 48 distinct games (counted here), 11145 intervals; ladders by week {2: 239, 3: 233, 4: 253}
+
+== 1. REPRODUCE (target's coherence/calibration/cost on the cache; same seeds, so bounds must match)
+   ladders                        measured   +725.00000  published  +725.0000 -> REPRODUCES
+   rungs                          measured  +3987.00000  published +3987.0000 -> REPRODUCES
+   games                          measured    +48.00000  published   +48.0000 -> REPRODUCES
+   intervals                      measured +11145.00000  published +11145.0000 -> REPRODUCES
+   negative mass                  measured     +0.00000  published    +0.0000 -> REPRODUCES
+   crossed at touch               measured     +0.00000  published    +0.0000 -> REPRODUCES
+   cells registered               measured    +72.00000  published   +72.0000 -> REPRODUCES
+   cells that exist               measured    +50.00000  published   +50.0000 -> REPRODUCES
+   cells readable                 measured    +46.00000  published   +46.0000 -> REPRODUCES
+   BH survivors                   measured     +6.00000  published    +6.0000 -> REPRODUCES
+   survivors above pre-run MDE    measured     +0.00000  published    +0.0000 -> REPRODUCES
+   post hoc BH survivors          measured     +0.00000  published    +0.0000 -> REPRODUCES
+   pre-run MDE median pp          measured     +7.66089  published    +7.7000 -> REPRODUCES
+   w3 pre-run MDE pp              measured     +3.41089  published    +3.4100 -> REPRODUCES
+   S_all pre-run MDE pp           measured     +6.08646  published    +6.0900 -> REPRODUCES
+   two-leg cost c (buy,100)       measured     +4.36341  published    +4.3600 -> REPRODUCES
+   nearest single c               measured     +2.30226  published    +2.3000 -> REPRODUCES
+   cost games                     measured    +18.00000  published   +18.0000 -> REPRODUCES
+   w=1 cost share of value %      measured    +34.11235  published   +34.1000 -> REPRODUCES
+   w=4 cost share of value %      measured     +8.51470  published    +8.5000 -> REPRODUCES
+   rec w=3 pooled pp est          measured     -2.84533  published    -2.8500 -> REPRODUCES
+   rec w=3 pooled pp lo           measured     -5.06661  published    -5.0700 -> REPRODUCES
+   rec w=3 pooled pp hi           measured     -0.80872  published    -0.8100 -> REPRODUCES
+   S_all pp est                   measured     -3.64059  published    -3.6400 -> REPRODUCES
+   S_all pp lo                    measured     -7.62128  published    -7.6200 -> REPRODUCES
+   S_all pp hi                    measured     +0.26029  published    +0.2600 -> REPRODUCES
+   cost diff c est                measured     +2.06115  published    +2.0600 -> REPRODUCES
+   cost diff c lo                 measured     +1.94055  published    +1.9400 -> REPRODUCES
+   cost diff c hi                 measured     +2.16945  published    +2.1700 -> REPRODUCES
+   verdict (target's rule): 'a deviation survives correction below its MDE' -> REPRODUCES
+   survivors: ['receptions|w=1|0.10-0.20', 'receptions|w=2|0.10-0.20', 'receptions|w=2|0.20-0.30', 'receptions|w=3|0.05-0.10', 'receptions|w=3|0.45-0.60', 'receptions|w=3|all']
+   recomputed blocks identical to the committed interval_mass.json: {'coherence': True, 'calibration': True, 'cost': True}
+   COST needs depth: it is IN the cache (1400 of 3987 rungs carry a depth snapshot); 3599 priced pairs on 18 games, by week {2: 1, 3: 16, 4: 1} (counted here)
+
+== 2. BLOCKS: THROUGH interval_mass.boot_mean (the target's function), then rows vs units, then other blocks
+   cost diff (buy,100)  THROUGH interval_mass.boot_mean (3599 rows, 18 units): copies inside their block x1.000, copies as new blocks x0.445 (expected 0.447) -> honours_blocks
+   cost diff (buy,100)  est +0.02061; 3599 rows in 18 games (200 rows a game); 243 ladders, 187 players; an unblocked interval would be x0.36 the width
+   cost diff (buy,100)  game         ( 18 blocks) +0.02061 [+0.01942, +0.02172] SE 0.000587 *
+   cost diff (buy,100)  week         (  3 blocks) +0.02061 [+0.01632, +0.02218] SE 0.001101  (<5 blocks: NOT READ)
+   cost diff (buy,100)  kickoff date (  5 blocks) +0.02061 [+0.01659, +0.02135] SE 0.001327 *
+   cost diff (buy,100)  player       (187 blocks) +0.02061 [+0.01997, +0.02131] SE 0.000347 *
+   cost diff (buy,100)  ladder       (243 blocks) +0.02061 [+0.01995, +0.02130] SE 0.000346 *
+   rec w=3 pooled       THROUGH interval_mass.boot_mean (1862 rows, 48 units): copies inside their block x1.000, copies as new blocks x0.436 (expected 0.447) -> honours_blocks
+   rec w=3 pooled       est -0.02845; 1862 rows in 48 games (39 rows a game); 500 ladders, 221 players; an unblocked interval would be x0.96 the width
+   rec w=3 pooled       game         ( 48 blocks) -0.02845 [-0.05043, -0.00764] SE 0.010841 *
+   rec w=3 pooled       week         (  3 blocks) -0.02845 [-0.03572, -0.01937] SE 0.003836  (<5 blocks: NOT READ)
+   rec w=3 pooled       kickoff date (  9 blocks) -0.02845 [-0.04366, +0.01555] SE 0.014700
+   rec w=3 pooled       player       (221 blocks) -0.02845 [-0.05109, -0.00504] SE 0.011679 *
+   rec w=3 pooled       ladder       (500 blocks) -0.02845 [-0.05077, -0.00704] SE 0.011329 *
+   S_all straddle       THROUGH interval_mass.boot_mean (3336 rows, 48 units): copies inside their block x1.000, copies as new blocks x0.438 (expected 0.447) -> honours_blocks
+   S_all straddle       est -0.03641; 3336 rows in 48 games (70 rows a game); 350 ladders, 146 players; an unblocked interval would be x0.39 the width
+   S_all straddle       game         ( 48 blocks) -0.03641 [-0.07451, +0.00329] SE 0.020120
+   S_all straddle       week         (  3 blocks) -0.03641 [-0.05820, -0.01035] SE 0.011789  (<5 blocks: NOT READ)
+   S_all straddle       kickoff date (  9 blocks) -0.03641 [-0.06671, +0.01306] SE 0.021000
+   S_all straddle       player       (146 blocks) -0.03641 [-0.07948, +0.00462] SE 0.021933
+   S_all straddle       ladder       (350 blocks) -0.03641 [-0.08177, +0.00788] SE 0.022375
+   zero-hit cell        THROUGH interval_mass.boot_mean (22 rows, 18 units): copies inside their block x1.000, copies as new blocks x0.451 (expected 0.447) -> honours_blocks
+   zero-hit cell        est -0.08318; 22 rows in 18 games (1 rows a game); 21 ladders, 14 players; an unblocked interval would be x1.13 the width
+   zero-hit cell        game         ( 18 blocks) -0.08318 [-0.08833, -0.07880] SE 0.002462 *
+   zero-hit cell        week         (  3 blocks) -0.08318 [-0.09625, -0.07800] SE 0.003931  (<5 blocks: NOT READ)
+   zero-hit cell        kickoff date (  6 blocks) -0.08318 [-0.09333, -0.07946] SE 0.003419 *
+   zero-hit cell        player       ( 14 blocks) -0.08318 [-0.08750, -0.07904] SE 0.002129 *
+   zero-hit cell        ladder       ( 21 blocks) -0.08318 [-0.08864, -0.07795] SE 0.002715 *
+   cost diff by week (descriptive; 3 week blocks cannot be read): {3: {'pairs': 3094, 'games': 16, 'mean_c': 2.0772515837104066}, 4: {'pairs': 220, 'games': 1, 'mean_c': 1.631507727272727}, 2: {'pairs': 285, 'games': 1, 'mean_c': 2.217967017543859}}
+   cost diff, per-game means in cents: {'min': 1.5861013824884793, 'max': 2.5072810810810817, 'games_positive': 18, 'games': 18, 'pairs_in_largest_game': 285}
+   cost diff, mean of the 18 game means (each game one vote): +2.074c against the pair-weighted +2.061c
+
+== 3. LEAKAGE: NOT RUN - the extract is not re-run and the store is not opened, so nothing is scrambled.
+   cache row keys: ['ask', 'bid', 'depth', 'game', 'gsis', 'k', 'line', 'm', 'mid', 'oid', 'pos', 'stat', 'week', 'x', 'y']
+   The cache carries NO quote timestamp and NO kickoff time: 'every quote is at or before kickoff - 180 min' is NOT CHECKABLE from it. The one clock it carries is the depth snapshot's age = entry - snapshot time.
+   depth-age audit (0 <= age <= 600 s, i.e. snapshot at or before entry; two-sided book; k is the mid): {'depth_snapshots': 2800, 'age_outside_0_600s': 0, 'not_two_sided_or_k_not_mid': 0, 'age_min': 5.989358425140381, 'age_max': 54.41136622428894}
+   PLANT (in memory: one depth age set to -5 s, one book crossed) on 50 rows: before 0/0, after 1/1 -> check FIRES
+
+== 4. SPECIFICATIONS
+   f26lib.registered_count -> REFUSED (c-43: no registered_intervals.count in the recorded result - refusing to correct over a made-up k)
+   so k is read from a DIFFERENT key, and labelled: calibration.n_registered = 72, n_exist = 50, n_readable = 46; precheck family 9; specifications_tried (the unit's own field) = 1
+   registered: 72 family cells (50 exist, 46 readable) + 9 pre-check intervals; the cost arm prints 88 intervals in NO family (registered as 'no test, no verdict')
+   BH q=0.10 over the 50 that exist (the target's BH)      k=50: 6 survivor(s); Holm 0.05: 1
+   BH q=0.10 over the 72 registered (22 absent at p=1)     k=72: 1 survivor(s); Holm 0.05: 1
+   BH q=0.10 over 72 + the 9 pre-check, one family         k=81: 1 survivor(s); Holm 0.05: 1
+   the six BH survivors, Bonferroni on z = est / SE over 46 / 50 / 72 / 81, on the bootstrap SE and on the pre-run (outcome-independent) SE:
+     receptions|w=1|0.10-0.20     n 1333 g 48 est -0.0203 | boot SE 0.0073 z  -2.78 Bonf(72) fails | null SE 0.0074 z -2.74 Bonf(72) fails
+     receptions|w=2|0.10-0.20     n  569 g 48 est +0.0405 | boot SE 0.0144 z  +2.82 Bonf(72) fails | null SE 0.0159 z +2.55 Bonf(72) fails
+     receptions|w=2|0.20-0.30     n  600 g 48 est -0.0447 | boot SE 0.0166 z  -2.68 Bonf(72) fails | null SE 0.0171 z -2.61 Bonf(72) fails
+     receptions|w=3|0.05-0.10     n   22 g 18 est -0.0832 | boot SE 0.0024 z -34.42 Bonf(72) survives | null SE 0.0610 z -1.36 Bonf(72) fails
+     receptions|w=3|0.45-0.60     n  648 g 48 est -0.0583 | boot SE 0.0225 z  -2.59 Bonf(72) fails | null SE 0.0222 z -2.63 Bonf(72) fails
+     receptions|w=3|all           n 1862 g 48 est -0.0285 | boot SE 0.0111 z  -2.57 Bonf(72) fails | null SE 0.0122 z -2.34 Bonf(72) fails
+   Bonferroni over 72: 1 of 6 survive on the bootstrap SE, 0 of 6 on the outcome-independent SE
+   git commits prereg..final (author time):
+       dbf8b03 2026-10-08 19:42:53 -0400 c-43: pre-register the interval between two rungs - Kalshi REC/RSHATT, 2026 wk 2-4, kickoff - 180 min (c-35's popula
+       a62133d 2026-10-08 19:45:02 -0400 c-43: research/interval_mass.py as first written, after the pre-registration (dbf8b03) and before any outcome is rea
+       e568528 2026-10-08 19:46:52 -0400 c-43: tests for the interval pieces - synthetic ladders only, no store, no cache; every verdict driven to each answe
+       d18c154 2026-10-08 19:47:02 -0400 c-43: the pre-run MDE of every registered cell, computed with the outcome columns stripped (2,000 simulated seasons 
+       d4b6d5f 2026-10-08 19:49:51 -0400 c-43: the registered run (one run), output as produced by the script at a62133d plus the C5 denominator guard - cohe
+       9d876e5 2026-10-08 19:52:50 -0400 c-43: findings, addendum 1 and CLAUDE.md entry - an interval between two rungs is coherent (0 of 11,145 negative), n
+   git script: first written -> registered run:
+       1 file changed, 1 insertion(+), 1 deletion(-)
+   git script: registered run -> final:
+       1 file changed, 29 insertions(+)
+   git prereg: as registered -> final:
+       1 file changed, 25 insertions(+)
+   git prereg lines REMOVED after registration:
+       25	0	docs/C43-interval-preregistration.md
+   result file at the registered-run commit d4b6d5f vs the final one: 1 differing path(s) ['/calibration/posthoc_null_se (only in final)']
+   READING, not code: all six commits dbf8b03..9d876e5 carry author times inside ~10 minutes, so the commit ORDER is on record and the order of the WORK is not; the cache (with outcomes in it) pre-dates all of them.
+
+== 5. MDE and the nulls the claims need
+   rec w=3 pooled     est -0.0285 boot SE 0.01078 (target's fn, another seed)  |est|/2.8SE 0.94 (at); stated pre-run MDE 0.0341 vs 2.8 x SE 0.0302 -> INCONSISTENT (rel +0.13); |est| / stated MDE 0.83
+   S_all straddle     est -0.0364 boot SE 0.01940 (target's fn, another seed)  |est|/2.8SE 0.67 (below); stated pre-run MDE 0.0609 vs 2.8 x SE 0.0543 -> INCONSISTENT (rel +0.12); |est| / stated MDE 0.60
+   (mde_claim's tolerance is 10%. rel > 0 means the unit STATED A LARGER MDE than 2.8 x the bootstrap SE - it claimed less power than the bootstrap gives it, the direction that cannot dress a null as powered)
+   readable cells 46: stated MDE median 0.0770 vs median of 2.8 x bootstrap SE 0.0719 -> consistent; bootstrap/pre-run ratio min 0.040 p10 0.77; cells whose bootstrap MDE is under half the pre-run one: 1
+   zero-hit cell receptions|w=3|0.05-0.10: 22 intervals, 21 ladders, 18 games, 0 hit; est -0.0832; bootstrap SE 0.00242 -> z -34.4 (published -34); SE under the ladder's own cells 0.0610 (other seed 0.0586) -> z -1.36 (published -1.36)
+   ... and if every one of them were priced right and independent, P(all 22 miss) = 0.148 - an ordinary outcome
+   cells whose realised rate is exactly 0 or 1: ['receptions|w=3|0.05-0.10']
+   COST: two-leg minus nearest single is > 0 on 0.9836 of 3599 pairs (59 pairs <= 0, min -12.000c); both of the pair's own legs cost > 0 on 1.0000 of pairs (VWAP on the bought side + fee, less the mid)
+   COST: the nearest single rung costs at least the pair's dearer own leg on 0.441 of pairs, less than its cheaper own leg on 0.246; identity cost == lower + upper holds to 0.0e+00 (bootstrap of the identity: SE 0.0)
+   COST, a null that COULD read either way - 'the pair costs twice a single rung' (two-leg - 2 x single), cents: -0.241 [-0.318, -0.156] on 18 games; ratio two-leg / single 1.895
+
+== 5b. POWER PLANT through im.calibration (the target's verdict rule), settlements simulated from the ladders
+   each ladder's count is drawn from its own implied cells with the survival curve made s x wider on the probit scale (s = 1: priced exactly right; the pre-registration's own mechanism, which states s = 1.067 for 1.5-3pp); ladders independent, as in the target's own MDE simulation
+   s = 1.000 (80 reps): true S_all effect +0.18pp (sd across simulated seasons 2.14), w=3 pooled +0.11pp (sd 1.10)
+        P(any BH survivor) 0.40  P(>= 6 BH survivors) 0.00  P(any Holm) 0.38  P(any BH survivor on the null SE, post hoc rule) 0.05
+        verdicts: {'a deviation survives correction below its MDE': 0.35, 'calibrated at this resolution': 0.6, 'mispriced': 0.05}
+        S_all reading: {'CONTRADICTED': 0.04, 'confirmed in direction': 0.01, 'not detected': 0.95}
+   s = 1.150 (51 reps): true S_all effect -5.82pp (sd across simulated seasons 2.23), w=3 pooled -2.77pp (sd 1.15)
+        P(any BH survivor) 0.84  P(>= 6 BH survivors) 0.59  P(any Holm) 0.78  P(any BH survivor on the null SE, post hoc rule) 0.82
+        verdicts: {'a deviation survives correction below its MDE': 0.06, 'calibrated at this resolution': 0.16, 'mispriced': 0.78}
+        S_all reading: {'confirmed in direction': 0.78, 'not detected': 0.22}
+   s = 1.250: NOT RUN (the adapter's wall-clock budget of 540 s was reached)
+   s = 1.067: NOT RUN (the adapter's wall-clock budget of 540 s was reached)
+   s = 1.400: NOT RUN (the adapter's wall-clock budget of 540 s was reached)
+
+wrote D:/temp/f35/c43.json; wall 541 s

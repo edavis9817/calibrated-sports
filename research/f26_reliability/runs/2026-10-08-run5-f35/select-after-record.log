@@ -1,0 +1,3 @@
+264 machine reports (0 unreadable []); window opens 2026-09-30T01:38:40-04:00; 32 units in it, 0 with an interval claim
+  no interval stated (not targets for this checklist): b-92, a-60, b-93, a-61, a-62, b-94, b-96, b-95, a-64, b-97, a-65, f-24, a-66, a-67, a-68, f-25, a-69, b-98, a-70, b-100, b-105, a-71, b-101, b-102, a-76, a-78, a-77, c-45, a-79, b-107, a-80, a-81
+  excluded as the agent's own units (never targets): f-21 (listed), f-22 (listed), f-23 (listed), f-26 (its files_changed touch research/f26_reliability/), f-27 (its files_changed touch research/f26_reliability/), f-29 (its files_changed touch research/f26_reliability/), f-30 (listed), f-31 (its files_changed touch research/f26_reliability/)

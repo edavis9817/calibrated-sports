@@ -1,0 +1,119 @@
+477 rows; 227 missed, 250 cleared; 0 without a flipping input; 31 games, 2 weeks, 32 teams, 233 players, 360 player-games
+target HEAD 0b63173; rows file sha256 98d40ce1465d
+
+== 1. REPRODUCE from the committed rows (pipeline NOT re-run), through cu.slice_tests at seed 42
+   48 tests recomputed; 0 differ from the committed json in estimate, bounds, p or Holm p (tolerance 1e-9, SAME seed)
+   rows                                               measured +477.0000  published +477.0000 -> REPRODUCES
+   missed                                             measured +227.0000  published +227.0000 -> REPRODUCES
+   cleared                                            measured +250.0000  published +250.0000 -> REPRODUCES
+   games                                              measured +31.0000  published +31.0000 -> REPRODUCES
+   own_mean share, missed                             measured +0.9736  published +0.9740 -> REPRODUCES
+   own_mean share, cleared                            measured +0.9800  published +0.9800 -> REPRODUCES
+   T1 own_mean est                                    measured +0.6402  published +0.6400 -> REPRODUCES
+   T1 own_mean lo                                     measured +0.6149  published +0.6150 -> REPRODUCES
+   T1 own_mean hi                                     measured +0.6585  published +0.6580 -> REPRODUCES
+   T2 own_mean est                                    measured -0.0064  published -0.0060 -> REPRODUCES
+   T2 own_mean lo                                     measured -0.0363  published -0.0360 -> REPRODUCES
+   T2 own_mean hi                                     measured +0.0219  published +0.0220 -> REPRODUCES
+   T2 own_mean realised MDE                           measured +0.0415  published +0.0410 -> REPRODUCES
+   T1 own_mean realised MDE                           measured +0.0318  published +0.0320 -> REPRODUCES
+   tests in the family                                measured +48.0000  published +48.0000 -> REPRODUCES
+   T2 tests                                           measured +24.0000  published +24.0000 -> REPRODUCES
+   T2 tests with unadjusted p < 0.05                  measured +0.0000  published +0.0000 -> REPRODUCES
+   Holm survivors                                     measured +10.0000  published +10.0000 -> REPRODUCES
+   inequality holds (the row flag)                    measured +466.0000  published +466.0000 -> REPRODUCES
+   inequality defined on (the row flag)               measured +468.0000  published +468.0000 -> REPRODUCES
+   inequality holds (recomputed from weight and SEs)  measured +466.0000  published +466.0000 -> REPRODUCES
+   inequality defined on (recomputed)                 measured +468.0000  published +468.0000 -> REPRODUCES
+   median missed nearest flip, SE                     measured +3.1141  published +3.1000 -> REPRODUCES
+   missed within 2 SE, count                          measured +59.0000  published +59.0000 -> REPRODUCES
+   missed within 2 SE, share                          measured +0.2599  published +0.2600 -> REPRODUCES
+   verdict by the registered rule: same_ranking (file: same_ranking)
+   row consistency: flip_se is not the argmin of the row's own distances on 0 rows; a distance is not |x'-x|/SE on 0
+
+== 1b. THE ROWS THEMSELVES, re-derived through cu.analyse from the unit's scratch components cache
+   477 leans in the cache; the target's frozen gate passed on all 477; flip_se differs on 0 rows, a standard error on 0 row-inputs, an SE distance on 0 row-inputs (101 s). The cache itself is uncommitted scratch and was NOT rebuilt.
+
+== 2a. BLOCKS: THROUGH cu.slice_tests (the function behind every published interval)
+   T1 own_mean  THROUGH counterfactual_uncertainty.slice_tests (477 rows, 31 units): copies inside their block x1.000, copies as new blocks x0.462 (expected 0.447) -> honours_blocks
+   T2 own_mean  THROUGH counterfactual_uncertainty.slice_tests (477 rows, 31 units): copies inside their block x1.000, copies as new blocks x0.453 (expected 0.447) -> honours_blocks
+   rows 477 against units 31 (distinct game_id, counted here): 15.4 rows a game
+   T1 descriptive: 477 rows in 31 games; an unblocked interval would be x0.92 the width
+   T1 game         ( 31 blocks) +0.640 [+0.616, +0.659] SE 0.0113 *
+   T1 week         (  2 blocks) +0.640 [+0.634, +0.645] SE 0.0039  (<5 blocks: NOT READ)
+   T1 player       (233 blocks) +0.640 [+0.611, +0.663] SE 0.0140 *
+   T1 player-game  (360 blocks) +0.640 [+0.614, +0.662] SE 0.0123 *
+   T1 team         ( 32 blocks) +0.640 [+0.615, +0.662] SE 0.0125 *
+   T2 descriptive: 477 rows in 31 games; an unblocked interval would be x0.94 the width
+   T2 game         ( 31 blocks) -0.006 [-0.037, +0.022] SE 0.0150
+   T2 week         (  2 blocks) -0.006 [-0.015, +0.006] SE 0.0076  (<5 blocks: NOT READ)
+   T2 player       (233 blocks) -0.006 [-0.035, +0.020] SE 0.0143
+   T2 player-game  (360 blocks) -0.006 [-0.035, +0.019] SE 0.0140
+   T2 team         ( 32 blocks) -0.006 [-0.033, +0.019] SE 0.0134
+   week blocks: 2 blocks, fewer than 5 - NOT READ. Kickoff-slot blocks: NOT RUN, neither rows file carries a kickoff time (read_at is the instant of the read).
+
+== 2b. WHAT THE TWO SHARES ARE MADE OF: the rows that are NOT own_mean
+   11 of 477 rows have a flipping input other than own_mean: 6 missed, 5 cleared; 8 games, 8 players, 9 player-games; {'rush_attempts': 4, 'receptions': 7}
+   on 9 of those 11 own_mean has NO standard error (cannot be the flipping input by construction): 4 missed, 5 cleared; prior games of the 11: [1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3]
+   inequality (row flag) x flipping input: {'True|own_mean': 466, 'False|group_mean': 2, 'None|group_mean': 9}
+   where own_mean HAS a standard error (468 rows) it is the flipping input on 466: missed 221 of 223, cleared 245 of 245
+   Fisher exact, non-own_mean rows missed 6/227 against cleared 5/250: odds ratio 1.33, p 0.764 (rows as independent: anti-conservative)
+
+== 2c. THE NULL THE CLAIM NEEDS: the missed/cleared label permuted (5000 permutations)
+   within game  observed T2 -0.0064; null -0.0015 [-0.0232, +0.0272] sd 0.0134, range [-0.0485, +0.0440], 12 distinct values; observed at the 48th pct; permutation p 0.761; |null T2| >= the stated MDE 0.041 in 0.06% of permutations
+                missed share of own_mean under the null: [0.965, 0.991]; observed 0.974
+   unrestricted observed T2 -0.0064; null +0.0001 [-0.0232, +0.0272] sd 0.0138, range [-0.0485, +0.0440], 12 distinct values; observed at the 44th pct; permutation p 0.768; |null T2| >= the stated MDE 0.041 in 0.12% of permutations
+                missed share of own_mean under the null: [0.965, 0.991]; observed 0.974
+   (rows of one player share an outcome and a flipping input, so a row permutation is ANTI-conservative; a p that is large here is large a fortiori)
+
+== 2d. THE CEILING: what a T2 could be at all
+   own_mean is the flipping input on 466 of 477 rows (0.977); 11 rows are anything else
+   own_mean MORE often on misses: the missed share cannot exceed 1, so with the cleared share where it is T2 <= +0.020 - 0.49 of the stated MDE 0.041. A surplus of own_mean on misses the size of the MDE cannot exist on these rows.
+   with the 11 non-own_mean rows dealt to either arm in any way, T2 lies in [-0.048, +0.044]
+   one missed row changing its flipping input moves T2 by 0.0044; the stated MDE is 9.3 missed rows
+
+== 3. LEAKAGE: NOT RUN. A standard error and a flip value are arithmetic on a fit as of read_at; scrambling later inputs needs the facts store and the fits rebuilt (the unit's shards took 342-350 s each against a scratch facts copy). No store was opened here.
+
+== 4. SPECIFICATIONS
+   f26lib.registered_count REFUSES: c-42: no registered_intervals.count in the recorded result - refusing to correct over a made-up k
+   the result file carries family_size = 48 instead, and lists 48 tests; that count is used below, and named as such
+   48 tests ({'T1': 24, 'T2': 24}); pre-registration says 48 / 24 T2 -> MATCH
+   entered at p = 1 with a note: 28 of 48 ({'T1 zero-variance bootstrap: p = 1': 14, 'T2 zero-variance bootstrap: p = 1': 14}); every one has Holm p exactly 1: True
+   slices where own_mean itself has zero bootstrap variance (share 1 on both arms): ['band=4-6', 'band=6-8', 'side=over']
+   so of the 24 T2 tests, 10 could return anything but p = 1; those are 5 own_mean/group_mean pairs that are exact mirrors (dispersion is never the flipping input) = 5 distinct missed-vs-cleared tests, on nested slices of one 11-row set
+   Holm survivors 10 (published 10): ['T1 group_mean', 'T1 own_mean']
+   T2 below p 0.05 unadjusted: 0; smallest 0.1028 at ('market=rush_attempts', 'T2', 'group_mean')
+   T1 own_mean z +56.32  p 0  Bonferroni survives k=48 True, k=1000 True
+   T2 own_mean z -0.43  p 0.664  Bonferroni survives k=48 False, k=1000 False
+   pre-registration b69b376 2026-10-08T19:16:22-04:00; commits touching the script since: 1 (90edc7d 2026-10-08T19:18:48-04:00); commits touching research/results since: 1 (0b63173 2026-10-08T19:30:07-04:00)
+   script differs between its first commit 90edc7d and HEAD: False; pre-registration edited after b69b376: False; result files: ['counterfactual_uncertainty.json', 'counterfactual_uncertainty.log', 'counterfactual_uncertainty_rows.json']
+   the result file's specifications_tried = 1 is a literal typed into the script, not a count of anything
+   the unit's scratch outputs D:/temp/c42/out: files ['counterfactual_uncertainty.json', 'counterfactual_uncertainty_rows.json']; byte-identical to the committed ones: {'counterfactual_uncertainty.json': True, 'counterfactual_uncertainty_rows.json': True}; written (local) {'counterfactual_uncertainty.json': '2026-10-08T19:28:55', 'counterfactual_uncertainty_rows.json': '2026-10-08T19:28:55'}
+   what this cannot see: a run whose output was overwritten in scratch before the one kept. Git shows one script version and one result commit; it does not show executions.
+
+== 5. MDE
+   T2 own_mean est -0.006 SE 0.0148  |est|/MDE 0.16 (below); stated MDE 0.041 vs 2.8 x SE 0.0415 -> consistent; 2.8 x SE under other blocks: game 0.042, player 0.038, player-game 0.039, team 0.037
+   T1 own_mean est +0.640 SE 0.0114  |est|/MDE 20.11 (clear); stated MDE 0.032 vs 2.8 x SE 0.0318 -> consistent; 2.8 x SE under other blocks: game 0.032, player 0.037, player-game 0.034, team 0.035
+   registered (before the run) T2 MDE 0.128; realised 0.041 - 3.1x smaller, because the share landed at 0.977
+
+== 6. POWER PLANT: a missed-vs-cleared difference of known size through the target's own 48-test family and Holm
+   each rep: 31 games resampled with replacement; missed/cleared labels permuted within game (true difference 0); then each missed own_mean row moved to group_mean with probability delta / 0.977 (expected T2 = -delta); cu.slice_tests on all 8 slices at seed 42, CL.holm. 'by player-game' moves all of a player-game's missed rows together.
+   row by row      delta 0.000 (0.0x the stated MDE) reps 600: mean T2 -0.0027; detected at unadjusted p<0.05   7.7%, interval excludes zero  10.3%, Holm over 48 (the registered rule)   0.3%; median realised MDE 0.038; zero-variance reps 0
+   row by row      delta 0.020 (0.5x the stated MDE) reps 600: mean T2 -0.0205; detected at unadjusted p<0.05  26.3%, interval excludes zero  28.3%, Holm over 48 (the registered rule)   3.3%; median realised MDE 0.045; zero-variance reps 0
+   row by row      delta 0.041 (1.0x the stated MDE) reps 600: mean T2 -0.0428; detected at unadjusted p<0.05  65.3%, interval excludes zero  67.2%, Holm over 48 (the registered rule)  19.3%; median realised MDE 0.052; zero-variance reps 0
+   row by row      delta 0.060 (1.5x the stated MDE) reps 600: mean T2 -0.0610; detected at unadjusted p<0.05  86.8%, interval excludes zero  87.5%, Holm over 48 (the registered rule)  45.2%; median realised MDE 0.056; zero-variance reps 0
+   row by row      delta 0.082 (2.0x the stated MDE) reps 600: mean T2 -0.0843; detected at unadjusted p<0.05  98.5%, interval excludes zero  98.7%, Holm over 48 (the registered rule)  76.0%; median realised MDE 0.060; zero-variance reps 0
+   row by row      delta 0.128 (3.1x the stated MDE) reps 600: mean T2 -0.1299; detected at unadjusted p<0.05 100.0%, interval excludes zero 100.0%, Holm over 48 (the registered rule)  97.5%; median realised MDE 0.070; zero-variance reps 0
+   by player-game  delta 0.000 (0.0x the stated MDE) reps 600: mean T2 -0.0020; detected at unadjusted p<0.05   6.3%, interval excludes zero  10.0%, Holm over 48 (the registered rule)   0.0%; median realised MDE 0.037; zero-variance reps 0
+   by player-game  delta 0.020 (0.5x the stated MDE) reps 600: mean T2 -0.0204; detected at unadjusted p<0.05  22.2%, interval excludes zero  26.0%, Holm over 48 (the registered rule)   1.8%; median realised MDE 0.047; zero-variance reps 0
+   by player-game  delta 0.041 (1.0x the stated MDE) reps 600: mean T2 -0.0422; detected at unadjusted p<0.05  58.8%, interval excludes zero  61.7%, Holm over 48 (the registered rule)  15.7%; median realised MDE 0.054; zero-variance reps 0
+   by player-game  delta 0.060 (1.5x the stated MDE) reps 600: mean T2 -0.0623; detected at unadjusted p<0.05  81.8%, interval excludes zero  84.0%, Holm over 48 (the registered rule)  36.3%; median realised MDE 0.061; zero-variance reps 0
+   by player-game  delta 0.082 (2.0x the stated MDE) reps 600: mean T2 -0.0839; detected at unadjusted p<0.05  96.5%, interval excludes zero  96.7%, Holm over 48 (the registered rule)  65.2%; median realised MDE 0.065; zero-variance reps 0
+   by player-game  delta 0.128 (3.1x the stated MDE) reps 600: mean T2 -0.1287; detected at unadjusted p<0.05  99.8%, interval excludes zero  99.8%, Holm over 48 (the registered rule)  95.0%; median realised MDE 0.076; zero-variance reps 0
+   smallest planted delta detected in >= 80% of reps, rate_p_unadjusted, row by row: 0.060 (grid [0.0, 0.02, 0.041, 0.06, 0.082, 0.128])
+   smallest planted delta detected in >= 80% of reps, rate_p_unadjusted, by player-game: 0.060 (grid [0.0, 0.02, 0.041, 0.06, 0.082, 0.128])
+   smallest planted delta detected in >= 80% of reps, rate_holm_48, row by row: 0.128 (grid [0.0, 0.02, 0.041, 0.06, 0.082, 0.128])
+   smallest planted delta detected in >= 80% of reps, rate_holm_48, by player-game: 0.128 (grid [0.0, 0.02, 0.041, 0.06, 0.082, 0.128])
+   the plant can only LOWER the missed share: the other direction is capped at +0.020 (2d).
+
+wrote D:/temp/f35/c42.json in 414 s
