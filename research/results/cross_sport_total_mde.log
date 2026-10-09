@@ -1,0 +1,47 @@
+NFL: scored games 2001-2025 loaded 6,758; versions {'nfl_games': '2026-10-08', 'nfl_teams': '2026-09-16'}
+college: completed FBS-FBS games 2001-2025 loaded 18,229
+nfl: scored 2005-2025 n 5,698; (k, r) chosen per season: 2005:(16,0.5), 2006:(24,0.5), 2007:(24,0.5), 2008:(24,0.35), 2009:(24,0.35), 2010:(24,0.35), 2011:(24,0.35), 2012:(16,0.35), 2013:(16,0.35), 2014:(16,0.35), 2015:(16,0.35), 2016:(16,0.35), 2017:(16,0.35), 2018:(16,0.35), 2019:(16,0.35), 2020:(16,0.35), 2021:(16,0.35), 2022:(16,0.35), 2023:(16,0.35), 2024:(16,0.35), 2025:(16,0.35)
+   grid-edge choices: none
+   environment bins (share of games): 0.014 0.062 0.173 0.262 0.249 0.157 0.062 0.021
+cfb: scored 2005-2025 n 15,508; (k, r) chosen per season: 2005:(12,0.35), 2006:(12,0.35), 2007:(12,0.2), 2008:(8,0.2), 2009:(8,0.35), 2010:(8,0.35), 2011:(8,0.35), 2012:(8,0.35), 2013:(8,0.35), 2014:(8,0.35), 2015:(8,0.35), 2016:(8,0.35), 2017:(8,0.35), 2018:(8,0.35), 2019:(8,0.35), 2020:(8,0.35), 2021:(8,0.35), 2022:(8,0.35), 2023:(8,0.35), 2024:(8,0.35), 2025:(8,0.35)
+   grid-edge choices: none
+   environment bins (share of games): 0.138 0.102 0.130 0.139 0.142 0.119 0.093 0.137
+
+######## MDE of every test from SE(d) ~ 2 sigma rms(m - b) / sqrt(n) - no forecast error is read
+   nfl d_league           MDE 3.1123
+   nfl d_pair             MDE 1.2339
+   nfl c                  MDE 2.9825
+   cfb d_league           MDE 4.9916
+   cfb d_pair             MDE 2.3210
+   cfb c                  MDE 4.5163
+   cfb@nfl d_league       MDE 3.4398
+   R nfl@cfb d_league     MDE 11.1039
+   cfb@nfl d_pair         MDE 2.5827
+   R nfl@cfb d_pair       MDE 2.8279
+   cfb@nfl c              MDE 2.2429
+   R nfl@cfb c            MDE 11.6789
+   D_league               MDE 5.8824
+   Ds_league              MDE 0.0217
+   Dm_league              MDE 4.6389
+   Dms_league             MDE 0.0187
+   R D_league             MDE 12.1743
+   R Ds_league            MDE 0.0573
+   B nfl dB_league        MDE 0.0032
+   B cfb dB_league        MDE 0.0031
+   B D_league             MDE 0.0045
+   D_pair                 MDE 2.6286
+   Ds_pair                MDE 0.0094
+   Dm_pair                MDE 2.8623
+   Dms_pair               MDE 0.0100
+   R D_pair               MDE 3.6585
+   R Ds_pair              MDE 0.0158
+   B nfl dB_pair          MDE 0.0012
+   B cfb dB_pair          MDE 0.0014
+   B D_pair               MDE 0.0019
+   cut 1 regular season only: nfl d_league 3.1477  nfl d_pair 1.2538  cfb d_league 5.0701  cfb d_pair 2.3645  D_league 5.9678  Ds_league 0.0220  D_pair 2.6763  Ds_pair 0.0095
+   cut 2 regular weeks 1-4: nfl d_league 5.2974  nfl d_pair 2.3285  cfb d_league 7.3371  cfb d_pair 4.0890  D_league 9.0496  Ds_league 0.0346  D_pair 4.7055  Ds_pair 0.0170
+   cut 3 regular weeks 5+: nfl d_league 3.7908  nfl d_pair 1.4772  cfb d_league 6.3640  cfb d_pair 2.8577  D_league 7.4075  Ds_league 0.0271  D_pair 3.2170  Ds_pair 0.0114
+   cut 4 2005-2014: nfl d_league 4.8183  nfl d_pair 1.5900  cfb d_league 7.1454  cfb d_pair 3.4455  D_league 8.6182  Ds_league 0.0326  D_pair 3.7947  Ds_pair 0.0133
+   cut 5 2015-2025: nfl d_league 4.0312  nfl d_pair 1.8509  cfb d_league 6.9606  cfb d_pair 3.1394  D_league 8.0437  Ds_league 0.0290  D_pair 3.6444  Ds_pair 0.0132
+
+   --mde-only: stopping before any loss is computed
