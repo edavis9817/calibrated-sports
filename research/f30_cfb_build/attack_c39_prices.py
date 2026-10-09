@@ -31,7 +31,6 @@ import time
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PUB = {"2a": (0.0107, 3768), "2c": (0.0321, 168), "hit0": (0.4980, 9652)}
 
 
 def main():
@@ -54,6 +53,8 @@ def main():
         assert os.path.abspath(mod.__file__).startswith(src), mod.__file__
     recorded = json.load(open(os.path.join(src, "research", "results", "cfb_game_forecast.json"), encoding="utf-8"))
     K_REG = L.registered_count(recorded, "c-39")
+    # the published figures are read from the TARGET's committed result file, never kept here (f-34)
+    pub2a = recorded["part2"]["2a"]["diffs"]["dBrier"]
     out = lambda s="": print(s, flush=True)  # noqa: E731
     t0 = time.time()
     R = {}
@@ -81,9 +82,9 @@ def main():
     out("== 0. PREMISE: the recorded-fit route reproduces c-39's 2a figure (else stop)")
     r2a = [row(i, ml[games[i]["game_id"]]) for i in pop1 if games[i]["season"] >= CF.ML_FROM and games[i]["game_id"] in ml]
     e2a = dbrier(r2a, 200)
-    ok = len(r2a) == PUB["2a"][1] and round(e2a["est"], 4) == PUB["2a"][0]
+    ok = len(r2a) == pub2a["n"] and round(e2a["est"], 4) == round(pub2a["est"], 4)
     out("   2a n %d (published %d), dBrier %+.6f (published %+.4f) -> %s"
-        % (len(r2a), PUB["2a"][1], e2a["est"], PUB["2a"][0], "REPRODUCES" if ok else "DOES NOT REPRODUCE"))
+        % (len(r2a), pub2a["n"], e2a["est"], pub2a["est"], "REPRODUCES" if ok else "DOES NOT REPRODUCE"))
     if not ok:
         raise SystemExit("the recorded-fit route does not reproduce 2a on today's store; nothing below is valid")
     R["premise_2a"] = {"n": len(r2a), "est": e2a["est"]}
@@ -96,11 +97,11 @@ def main():
     pub = recorded["part2"]["2c"]["result"]["diffs"]["dBrier"]
     out("   census today %s" % json.dumps(ocen))
     out("   today: n %d, dBrier %+.4f [%+.4f, %+.4f] SE %.4f   published: n %d, %+.4f [%+.4f, %+.4f] SE %.4f"
-        % (len(rows), r["est"], r["lo"], r["hi"], r["se"], PUB["2c"][1], pub["est"], pub["lo"], pub["hi"], pub["se"]))
-    moved = len(rows) != PUB["2c"][1]
+        % (len(rows), r["est"], r["lo"], r["hi"], r["se"], pub["n"], pub["est"], pub["lo"], pub["hi"], pub["se"]))
+    moved = len(rows) != pub["n"]
     out("   -> %s" % ("THE POPULATION MOVED since c-39 ran (%+d games); the published figure is a reading at that time"
-                      % (len(rows) - PUB["2c"][1]) if moved else
-                      ("REPRODUCES to 4 dp" if round(r["est"], 4) == PUB["2c"][0] else "SAME n, DIFFERENT ESTIMATE")))
+                      % (len(rows) - pub["n"]) if moved else
+                      ("REPRODUCES to 4 dp" if round(r["est"], 4) == round(pub["est"], 4) else "SAME n, DIFFERENT ESTIMATE")))
     # the published 168, if the population grew: the games c-39 could have seen are those kicked before its run
     wk = [CF.week_block(games[i]) for i in idx]
     out("   games by CFB week block: %s" % json.dumps({w: wk.count(w) for w in sorted(set(wk))}))

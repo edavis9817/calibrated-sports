@@ -1,0 +1,9 @@
+{
+ "source": "a-72 (origin/a-72-cfb-on-nfl-contract @ b60fdf9): missing 0, undeclared 1, declared 21, cfb_only 15 and the four file counts, as f-30 carried them as literals in this script. The NFL stamp is the manifest on disk when f-34 ran, NOT one a-72 recorded.",
+ "trees": {"cfb": "2026-10-08T07:28:10Z", "nfl": "2026-10-08T13:14:04Z"},
+ "seed": 72,
+ "sample": 400,
+ "totals": {"missing": 0, "undeclared": 1, "declared": 21, "cfb_only": 15},
+ "files": {"cfb": {"player_summary": 14327, "player_season": 40563},
+           "nfl": {"player_summary": 4002, "player_season": 19328}}
+}

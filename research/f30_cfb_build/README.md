@@ -16,7 +16,7 @@ instruction). Stacked on `f-29-reliability-run3` because `duplication_through()`
     $PY research/f30_cfb_build/identity.py D:/temp/f30/c39src --store <NFL store> --plant
     $PY research/f30_cfb_build/part1_c39.py         --src D:/temp/f30/c39src --db <cfb.db>
     $PY research/f30_cfb_build/attack_c39_prices.py --src D:/temp/f30/c39src --db <cfb.db> --out <json>
-    $PY research/f30_cfb_build/tree_census.py --src D:/temp/f30/a72src --nfl <NFL tree> --cfb <staged tree> --out <json>   # ~11 min
+    $PY research/f30_cfb_build/tree_census.py --src <target worktree> --nfl <NFL tree> --cfb <staged tree> --baseline <baseline.json> --out <json>   # ~11 min; --baseline has no default (f-34)
     $PY research/f30_cfb_build/slug_evidence.py --src D:/temp/f30/a72src --db <cfb.db> --cfb <staged tree>
 
 Run as scripts, never `-m`: `research` must resolve to the TARGET's worktree, and each file
@@ -112,3 +112,38 @@ changes a printed verdict word or the exit status when the tree, the store or th
 moves while the claim under test still holds. Those are fixed. A figure in a docstring, a
 printed annotation that is compared with nothing, and a sanity floor whose failure is an
 `AssertionError` are listed and left alone.
+
+### What f-34 changed, by that rule
+
+- **`tree_census.py` step 1 stays and takes `--baseline`.** Supplied at run time for the tree
+  on disk it can fail for the right reason, so it is kept. The literals `PUBLISHED` and
+  `EXPECT_FILES` are gone; the seed and sample come from the baseline too. Without
+  `--baseline` the script exits 2 before reading anything. A baseline whose `trees` stamps
+  are not the two manifests' `generated_at` is refused with "describes another tree".
+  A step 1 that does not reproduce now exits 1 after writing its output.
+- **Dropped: `PUB["hit0"]` in `attack_c39_prices.py`**, a third copy of c-39's 2b figure that
+  no line read.
+- **`attack_c39_prices.py` reads c-39's 2a and 2c figures from the target's committed
+  `research/results/cfb_game_forecast.json`**, which it already loaded, instead of `PUB`.
+  The premise check raised "does not reproduce" against a981315's figures whatever the
+  target's own file said.
+- The baseline file's shape is in `tree_census.py`'s docstring. Baselines used in a run are
+  kept with that run's logs, never beside the scripts.
+- `tests/test_f30_no_hardcoded_totals.py` walks every `.py` here for a numeric dict literal,
+  a comparison against a number of 1,000 or more, and a string spelling a count with a
+  thousands comma. What it allows is named there with a reason.
+
+Listed and left alone (none can change a verdict word or an exit status):
+
+| file | line | figure | what it is |
+|---|---|---|---|
+| `slug_evidence.py` | 26 | `len(players) > 10000` | sanity floor; fails as an `AssertionError` if the scope ever shrinks below it |
+| `slug_evidence.py` | 9 | "the 14,327" | docstring prose, a-72's page count |
+| `identity.py` | 28 | `len(res["rows"]) > 1000` | sanity floor on the NFL season-model rows |
+| `part1_c39.py` | 5 | "9,600-point grid" | docstring; its comparisons read the target's own result file |
+| `attack_c39_prices.py` | 7 | "n 9,652" | docstring prose |
+| `attack_c39_prices.py` | 147 | "(c-39: +0.668 on 9,822)" | printed beside the sign check, compared with nothing |
+| `tree_census.py` | plant | 2,000 files, file 1234, seeds 0-19, SAMPLE 400, seed 72 | the synthetic plant's own parameters |
+| `../f26_reliability/identity_c39.py` | - | none | carries no figure |
+
+The f-34 run is in `runs/2026-10-08-f34/`, with the two baselines it used.

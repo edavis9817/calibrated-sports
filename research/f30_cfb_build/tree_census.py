@@ -1,11 +1,16 @@
-"""f-30: a-72's conformance claim, counted over EVERY file instead of 400 a side.
+"""f-30: the export's conformance claim, counted over EVERY file instead of a sample a side.
 
-a-72 reads "missing 0, undeclared 1" from research/cfb_contract_diff.py, which profiles the
-two player kinds on a seeded sample of 400 files per side (14,327 / 40,563 college,
-4,002 / 19,328 NFL). Its own report says a key carried by fewer than ~1 in 400 files could
-be absent from every conclusion. This file removes the sample, three ways:
+The target reads its "missing / undeclared" totals from research/cfb_contract_diff.py, which
+profiles the two player kinds on a seeded sample of files per side. A key carried by fewer
+than one file in the sample size could be absent from every conclusion. This file removes
+the sample, three ways:
 
-  1. REPRODUCE  a-72's tool, unmodified, seed 72, on the staged tree -> its published totals.
+  1. REPRODUCE  the target's tool, unmodified, at the baseline's seed and sample, on the
+                staged tree -> the totals and file counts the BASELINE states. The baseline
+                is a file named by --baseline; there is no default and no figure in this
+                script (f-34). It names the two trees it describes by their manifests'
+                generated_at, and a baseline for another tree is refused before anything
+                is compared - that is a wrong argument, not a failed reproduction.
   2. FULL       the same tool with SAMPLE lifted above the file count -> the same four lists
                 over every file. Run through the TARGET's code, so a difference is the sample.
   3. CENSUS     an independent walker (written here, sharing nothing with the tool) that
@@ -18,8 +23,20 @@ be absent from every conclusion. This file removes the sample, three ways:
 
 Reads two directories of JSON. No database, no network; writes only --out.
 
-    python research/f30_cfb_build/tree_census.py --src <a-72 worktree> \
-        --nfl D:/calibrated-sports/data/web_export --cfb D:/temp/a72/new --out D:/temp/f30/census.json
+    python research/f30_cfb_build/tree_census.py --src <the target's worktree> --nfl <NFL tree> \
+        --cfb <staged tree> --baseline <baseline.json> --out <census.json>
+
+The baseline, as the target published it for THESE two trees:
+
+    {"source": "<who stated it, and where>",
+     "trees": {"cfb": "<cfb/manifest.json generated_at>", "nfl": "<nfl/manifest.json generated_at>"},
+     "seed": <int>, "sample": <int>,
+     "totals": {"missing": n, "undeclared": n, "declared": n, "cfb_only": n},
+     "files": {"cfb": {"player_summary": n, "player_season": n},
+               "nfl": {"player_summary": n, "player_season": n}}}
+
+Exit 0 only if step 1 reproduces the baseline. Exit 1 if it does not (the output is still
+written). A missing, malformed or wrong-tree baseline stops the run before step 4.
 """
 import argparse
 import contextlib
@@ -31,11 +48,74 @@ import tempfile
 import time
 from collections import Counter, defaultdict
 
-PUBLISHED = {"missing": 0, "undeclared": 1, "declared": 21, "cfb_only": 15}
+TOTAL_KEYS = ("missing", "undeclared", "declared", "cfb_only")
 PLAYER_KINDS = ("player_summary", "player_season")
-EXPECT_FILES = {"cfb": {"player_summary": 14327, "player_season": 40563},
-                "nfl": {"player_summary": 4002, "player_season": 19328}}
+SIDES = ("nfl", "cfb")
 out = lambda s="": print(s, flush=True)  # noqa: E731
+
+
+def _count(v, where):
+    if isinstance(v, bool) or not isinstance(v, int) or v < 0:
+        raise SystemExit(f"baseline: {where} must be a count, got {v!r}")
+    return v
+
+
+def load_baseline(path):
+    """-> the baseline, or SystemExit naming what it lacks. Nothing is filled in for the caller."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            b = json.load(f)
+    except (OSError, ValueError) as e:
+        raise SystemExit(f"baseline: cannot read {path}: {e}")
+    if not isinstance(b, dict):
+        raise SystemExit(f"baseline: {path} is not an object")
+    for key in ("source", "trees", "seed", "sample", "totals", "files"):
+        if key not in b:
+            raise SystemExit(f"baseline: {path} has no {key!r}")
+    if not (isinstance(b["source"], str) and b["source"].strip()):
+        raise SystemExit("baseline: 'source' must say who stated these figures")
+    for side in SIDES:
+        if not (isinstance(b["trees"].get(side), str) and b["trees"][side]):
+            raise SystemExit(f"baseline: trees.{side} must be that tree's manifest generated_at")
+        for k in PLAYER_KINDS:
+            if k not in b["files"].get(side, {}):
+                raise SystemExit(f"baseline: no files.{side}.{k}")
+            _count(b["files"][side][k], f"files.{side}.{k}")
+    if set(b["totals"]) != set(TOTAL_KEYS):
+        raise SystemExit(f"baseline: totals must carry exactly {list(TOTAL_KEYS)}, got {sorted(b['totals'])}")
+    for k in TOTAL_KEYS:
+        _count(b["totals"][k], f"totals.{k}")
+    _count(b["seed"], "seed")
+    if _count(b["sample"], "sample") < 1:
+        raise SystemExit("baseline: sample must be at least 1")
+    return b
+
+
+def tree_stamps(nfl, cfb):
+    """-> {side: that tree's manifest generated_at}."""
+    stamps = {}
+    for side, root in (("nfl", nfl), ("cfb", cfb)):
+        with open(os.path.join(root, side, "manifest.json"), encoding="utf-8") as f:
+            stamps[side] = json.load(f)["generated_at"]
+    return stamps
+
+
+def require_same_trees(baseline, stamps):
+    """A baseline for another tree is a wrong argument. It is refused, never scored."""
+    off = [s for s in SIDES if baseline["trees"][s] != stamps[s]]
+    if off:
+        raise SystemExit("baseline: describes another tree - " + "; ".join(
+            f"{s} baseline {baseline['trees'][s]}, on disk {stamps[s]}" for s in off)
+            + f". Nothing was compared. Supply the baseline published for these trees ({baseline['source']} is not it).")
+
+
+def compare(rep, baseline):
+    """-> (totals reproduce, [(side, kind, got, stated)] for every file count that differs)."""
+    got = {**{k: 0 for k in TOTAL_KEYS}, **rep["totals"]}
+    moved = [(side, k, rep["kinds"][k][side + "_files"], baseline["files"][side][k])
+             for side in SIDES for k in PLAYER_KINDS
+             if rep["kinds"][k][side + "_files"] != baseline["files"][side][k]]
+    return got == baseline["totals"], moved
 
 
 def run_tool(D, nfl, cfb, seed, sample):
@@ -131,7 +211,13 @@ def main():
     ap.add_argument("--nfl", required=True)
     ap.add_argument("--cfb", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--baseline", required=True,
+                    help="JSON: the totals and file counts the target published for THESE trees. No default.")
     a = ap.parse_args()
+    base = load_baseline(a.baseline)
+    stamps = tree_stamps(a.nfl, a.cfb)
+    require_same_trees(base, stamps)
+    out(f"baseline: {os.path.abspath(a.baseline)}\n   source: {base['source']}\n   trees: {stamps} (match)")
     src = os.path.abspath(a.src)
     sys.path.insert(0, src)
     os.chdir(src)
@@ -151,20 +237,24 @@ def main():
                          "count 1, and the sample must be seen to miss it at least once")
     result["plant"] = {"sampled_reports_on_seeds_of_20": sum(seen), "full_reports": full_sees}
 
-    out("\n== 1. REPRODUCE a-72's totals with its own tool, seed 72, SAMPLE 400")
-    rep, _ = run_tool(D, a.nfl, a.cfb, 72, 400)
-    ok = rep["totals"] == PUBLISHED or {**{k: 0 for k in PUBLISHED}, **rep["totals"]} == PUBLISHED
-    out(f"   tool says {rep['totals']}; published {PUBLISHED} -> {'REPRODUCES' if ok else 'DOES NOT REPRODUCE'}")
-    for side in ("nfl", "cfb"):
+    out(f"\n== 1. REPRODUCE the baseline's totals with the target's own tool, seed {base['seed']}, SAMPLE {base['sample']}")
+    rep, _ = run_tool(D, a.nfl, a.cfb, base["seed"], base["sample"])
+    totals_ok, moved = compare(rep, base)
+    ok = totals_ok and not moved
+    out(f"   tool says {rep['totals']}; baseline {base['totals']} -> {'REPRODUCES' if totals_ok else 'DOES NOT REPRODUCE'}")
+    for side in SIDES:
         for k in PLAYER_KINDS:
             got = rep["kinds"][k][side + "_files"]
-            out(f"   {side} {k}: {got:,} files (a-72 stated {EXPECT_FILES[side][k]:,})"
-                f"{'' if got == EXPECT_FILES[side][k] else '   <- MOVED: the tree is not the one a-72 measured'}")
-    result["reproduce"] = {"totals": rep["totals"], "ok": ok}
+            out(f"   {side} {k}: {got:,} files (baseline {base['files'][side][k]:,})"
+                f"{'' if got == base['files'][side][k] else '   <- DIFFERS: the tree changed under the stamp the baseline names'}")
+    out(f"   step 1 -> {'REPRODUCES' if ok else 'DOES NOT REPRODUCE'}")
+    result["baseline"] = {**base, "path": os.path.abspath(a.baseline)}
+    result["reproduce"] = {"totals": rep["totals"], "ok": ok, "totals_ok": totals_ok,
+                           "files_differ": [list(m) for m in moved]}
 
     out("\n== 2. FULL: the same tool, sample lifted, every file")
-    full, _ = run_tool(D, a.nfl, a.cfb, 72, 10 ** 9)
-    tot = {**{k: 0 for k in PUBLISHED}, **full["totals"]}
+    full, _ = run_tool(D, a.nfl, a.cfb, base["seed"], 10 ** 9)
+    tot = {**{k: 0 for k in TOTAL_KEYS}, **full["totals"]}
     out(f"   tool says {tot}")
     for k in D.PAGE_KINDS:
         fk, sk = full["kinds"][k], rep["kinds"][k]
@@ -191,10 +281,10 @@ def main():
         out(f"\n   {k}: nfl {n['files']:,} files, {len(n['present'])} paths ({sum(map(is_stat, n['present']))} stat); "
             f"cfb {c['files']:,} files, {len(c['present'])} paths ({sum(map(is_stat, c['present']))} stat)")
         assert n["files"] == full["kinds"][k]["nfl_files"] and c["files"] == full["kinds"][k]["cfb_files"]
-        floor_n, floor_c = n["files"] / 400.0, c["files"] / 400.0
+        floor_n, floor_c = n["files"] / float(base["sample"]), c["files"] / float(base["sample"])
         blind = sorted(p for p, v in n["present"].items() if v < floor_n)
         blind_c = sorted(p for p, v in c["present"].items() if v < floor_c)
-        out(f"   NFL paths carried by < 1 in 400 files (< {floor_n:.0f} files): {len(blind)} "
+        out(f"   NFL paths carried by < 1 in {base['sample']} files (< {floor_n:.0f} files): {len(blind)} "
             f"({sum(map(is_stat, blind))} stat); college paths under the same bar: {len(blind_c)}")
         absent = sorted(p for p in n["present"] if p not in c["present"])
         und = [p for p in absent if D.is_declared(p, declared)]
@@ -238,6 +328,8 @@ def main():
     with open(a.out, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=1)
     out(f"\nwrote {a.out} ({time.time() - t0:.0f}s)")
+    if not ok:
+        raise SystemExit("step 1 DOES NOT REPRODUCE the baseline (the census above still ran and was written)")
 
 
 if __name__ == "__main__":
