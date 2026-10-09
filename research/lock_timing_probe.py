@@ -4,6 +4,7 @@ under what machine load? (unit a-81)
     python -m research.lock_timing_probe --n 30 --load none --out probe.jsonl
     python -m research.lock_timing_probe --n 20 --load cpu:24
     python -m research.lock_timing_probe --n 20 --load disk
+    python -m research.lock_timing_probe --n 10 --load disk:2 --run-test
 
 WHAT IT MEASURES. `tests/test_logger_survives_lock.py::
 test_a_writer_with_a_short_timeout_gets_in_between_batches` asserts four things
@@ -17,6 +18,9 @@ records every run's `max_batch_s` beside the CPU the machine was using.
 WHAT IT DOES NOT DO. It changes no test and no bound, and it is not the test:
 the pass rate of the test is measured by running the test. A run here is marked
 `would_fail` by re-applying the test's four assertions to what it recorded.
+`--run-test` runs the TEST ITSELF, one pytest process per run, under the same
+load, and counts exit codes - the body copied here is a stand-in, and a stand-in
+failing says nothing until the thing it stands for is seen to fail too.
 
 `max_batch_s` IS WALL TIME AROUND `execute` + `commit` (jobs/prune_quotes.py), so
 it includes any time the prune WAITED for the test's own writer to release the
@@ -94,6 +98,24 @@ def stop_load(procs):
         p.wait(timeout=30)
 
 
+TEST = ("tests/test_logger_survives_lock.py::"
+        "test_a_writer_with_a_short_timeout_gets_in_between_batches")
+
+
+def run_test(n, root):
+    """The test itself, n times, each in its own process. Returns the exit codes."""
+    codes = []
+    for i in range(n):
+        r = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", TEST, "-p", "no:cacheprovider",
+             "--basetemp", os.path.join(root, "bt")], capture_output=True, text=True)
+        said = [l.strip() for l in r.stdout.splitlines()
+                if "< 0.5" in l or " passed" in l or " failed" in l]
+        print(f"    test run {i}: exit {r.returncode}  {' | '.join(said)}")
+        codes.append(r.returncode)
+    return codes
+
+
 def one_run(dirpath):
     """The test's body, returning what it asserts on instead of asserting."""
     import config
@@ -162,6 +184,8 @@ def main(argv=None):
     ap.add_argument("--load", default="none", help="none, cpu:N, disk[:N]")
     ap.add_argument("--root", default=None, help="scratch directory (default: a new temp dir)")
     ap.add_argument("--out", default=None, help="append one JSON line per run")
+    ap.add_argument("--run-test", action="store_true",
+                    help="run the test itself under the load instead of its body")
     args = ap.parse_args(argv)
 
     root = args.root or tempfile.mkdtemp(prefix="lock_timing_probe_")
@@ -171,6 +195,15 @@ def main(argv=None):
     try:
         if procs:
             time.sleep(3.0)                      # let the load reach steady state
+        if args.run_test:
+            codes = run_test(args.n, root)
+            if len(codes) != args.n:
+                print(f"FAILED: {len(codes)} test runs, {args.n} asked for")
+                return 1
+            odd = [c for c in codes if c not in (0, 1)]
+            print(f"  load {args.load}: the test passed {codes.count(0)} of {len(codes)}, "
+                  f"failed {codes.count(1)}, other exit codes {odd}")
+            return 0 if not odd else 1
         for i in range(args.n):
             d = os.path.join(root, f"run{i:03d}")
             os.makedirs(d)
