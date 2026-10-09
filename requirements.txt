@@ -1,7 +1,10 @@
 httpx>=0.27
 python-dotenv>=1.0
 boto3>=1.34
-polars>=1.0
+# a-83: pinned - unpinned resolved polars 2.0.0, where is_in on a Float64 column
+# against an int list raises and four tests in tests/test_team_units.py fail
+# (analytics/spine.py build_units). 1.44.2 is the newest release measured clean.
+polars==1.44.2
 tzdata>=2024.1
 # core/distributions.py imports both - the model itself, not test scaffolding.
 # They were undeclared until 2026-09-15, which went unnoticed only because no
