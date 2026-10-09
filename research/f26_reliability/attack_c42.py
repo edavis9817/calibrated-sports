@@ -101,8 +101,8 @@ def main():
     # ------------------------------------------------------------------ 1
     out("\n== 1. REPRODUCE from the committed rows (pipeline NOT re-run), through cu.slice_tests at seed %d" % cu.SEED)
 
-    def family(rs, seed=cu.SEED):
-        rng = np.random.default_rng(seed)
+    def family(rs, seed=None):
+        rng = np.random.default_rng(cu.SEED if seed is None else seed)
         sl = [("all", rs)] + [("market=%s" % m, [r for r in rs if r["market"] == m]) for m in ("receptions", "rush_attempts")]
         sl += [("side=%s" % s, [r for r in rs if r["side"] == s]) for s in ("over", "under")]
         sl += [("band=%s" % b, [r for r in rs if r["band"] == b]) for b in ("4-6", "6-8", "8+")]

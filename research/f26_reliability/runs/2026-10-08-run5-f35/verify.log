@@ -14,3 +14,6 @@ Sub-agents: five, one target each, one written brief each. Each brief carried th
 the time limit (the Bash tool's own, or a deadline inside the script). Each reported killing no process. One (c-43) reported a
 compound shell command of its own that hung on a bare `python` and was stopped by the harness at its own limit. One (c-44) reported
 that a grep of sibling .env files for a store path printed a CFBD API key into its tool output; it is in no file this run wrote.
+After the first commit the full suite failed one test of this run's making: attack_c42.py froze cu.SEED into a default argument
+(tests/test_default_arg_constants.py). Fixed (seed=None, read inside), the adapter re-run a third time: rc 0, 407 s, output
+identical to the second run apart from two timing lines.
