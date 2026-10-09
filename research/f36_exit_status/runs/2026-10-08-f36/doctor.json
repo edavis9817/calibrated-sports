@@ -1,0 +1,269 @@
+[
+ {
+  "case": "clean",
+  "rc": 0,
+  "want_rc": 0,
+  "written_code": 0,
+  "lacking": [],
+  "ok": true,
+  "baseline_totals": {
+   "missing": 0,
+   "undeclared": 0,
+   "declared": 1,
+   "cfb_only": 3
+  },
+  "log": "D:\\temp\\f36\\doc1\\clean\\census.log",
+  "exit_lines": [
+   "baseline: D:\\temp\\f36\\doc1\\clean\\baseline.json",
+   "EXIT 0: step 1 reproduces; no missing or undeclared path outside 'known'; census and tool differ on no path outside 'known'; 'known' names nothing unfound"
+  ]
+ },
+ {
+  "case": "missing",
+  "rc": 1,
+  "want_rc": 1,
+  "written_code": 1,
+  "lacking": [],
+  "ok": true,
+  "baseline_totals": {
+   "missing": 1,
+   "undeclared": 0,
+   "declared": 1,
+   "cfb_only": 3
+  },
+  "log": "D:\\temp\\f36\\doc1\\missing\\census.log",
+  "exit_lines": [
+   "baseline: D:\\temp\\f36\\doc1\\missing\\baseline.json",
+   "EXIT 1: the census reports MISSING player_summary.identity.height, which the baseline's 'known' does not name"
+  ]
+ },
+ {
+  "case": "missing-known",
+  "rc": 0,
+  "want_rc": 0,
+  "written_code": 0,
+  "lacking": [],
+  "ok": true,
+  "baseline_totals": {
+   "missing": 1,
+   "undeclared": 0,
+   "declared": 1,
+   "cfb_only": 3
+  },
+  "log": "D:\\temp\\f36\\doc1\\missing-known\\census.log",
+  "exit_lines": [
+   "baseline: D:\\temp\\f36\\doc1\\missing-known\\baseline.json",
+   "EXIT 0: step 1 reproduces; no missing or undeclared path outside 'known'; census and tool differ on no path outside 'known'; 'known' names nothing unfound"
+  ]
+ },
+ {
+  "case": "missing-wrong-list",
+  "rc": 1,
+  "want_rc": 1,
+  "written_code": 1,
+  "lacking": [],
+  "ok": true,
+  "baseline_totals": {
+   "missing": 1,
+   "undeclared": 0,
+   "declared": 1,
+   "cfb_only": 3
+  },
+  "log": "D:\\temp\\f36\\doc1\\missing-wrong-list\\census.log",
+  "exit_lines": [
+   "baseline: D:\\temp\\f36\\doc1\\missing-wrong-list\\baseline.json",
+   "EXIT 1: the census reports MISSING player_summary.identity.height, which the baseline's 'known' does not name",
+   "EXIT 1: 'known' names undeclared player_summary.identity.height (f-36 doctor.py, planted) and neither the census nor the tool reports it"
+  ]
+ },
+ {
+  "case": "undeclared",
+  "rc": 1,
+  "want_rc": 1,
+  "written_code": 1,
+  "lacking": [],
+  "ok": true,
+  "baseline_totals": {
+   "missing": 0,
+   "undeclared": 1,
+   "declared": 1,
+   "cfb_only": 3
+  },
+  "log": "D:\\temp\\f36\\doc1\\undeclared\\census.log",
+  "exit_lines": [
+   "baseline: D:\\temp\\f36\\doc1\\undeclared\\baseline.json",
+   "EXIT 1: the census reports UNDECLARED player_summary.identity.height, which the baseline's 'known' does not name"
+  ]
+ },
+ {
+  "case": "team-undeclared",
+  "rc": 1,
+  "want_rc": 1,
+  "written_code": 1,
+  "lacking": [],
+  "ok": true,
+  "baseline_totals": {
+   "missing": 0,
+   "undeclared": 1,
+   "declared": 1,
+   "cfb_only": 3
+  },
+  "log": "D:\\temp\\f36\\doc1\\team-undeclared\\census.log",
+  "exit_lines": [
+   "baseline: D:\\temp\\f36\\doc1\\team-undeclared\\baseline.json",
+   "EXIT 1: the tool's full run reports undeclared team.city, which the baseline's 'known' does not name"
+  ]
+ },
+ {
+  "case": "disagree",
+  "rc": 1,
+  "want_rc": 1,
+  "written_code": 1,
+  "lacking": [],
+  "ok": true,
+  "baseline_totals": {
+   "missing": 0,
+   "undeclared": 0,
+   "declared": 1,
+   "cfb_only": 3
+  },
+  "log": "D:\\temp\\f36\\doc1\\disagree\\census.log",
+  "exit_lines": [
+   "baseline: D:\\temp\\f36\\doc1\\disagree\\baseline.json",
+   "EXIT 1: the census reports MISSING player_summary.identity.ids.gsis, which the baseline's 'known' does not name",
+   "EXIT 1: player_summary: the census and the tool's full run disagree on ['player_summary.identity.ids.gsis']"
+  ]
+ },
+ {
+  "case": "disagree-known",
+  "rc": 0,
+  "want_rc": 0,
+  "written_code": 0,
+  "lacking": [],
+  "ok": true,
+  "baseline_totals": {
+   "missing": 0,
+   "undeclared": 0,
+   "declared": 1,
+   "cfb_only": 3
+  },
+  "log": "D:\\temp\\f36\\doc1\\disagree-known\\census.log",
+  "exit_lines": [
+   "baseline: D:\\temp\\f36\\doc1\\disagree-known\\baseline.json",
+   "EXIT 0: step 1 reproduces; no missing or undeclared path outside 'known'; census and tool differ on no path outside 'known'; 'known' names nothing unfound"
+  ]
+ },
+ {
+  "case": "step1",
+  "rc": 1,
+  "want_rc": 1,
+  "written_code": 1,
+  "lacking": [],
+  "ok": true,
+  "baseline_totals": {
+   "missing": 0,
+   "undeclared": 0,
+   "declared": 1,
+   "cfb_only": 3
+  },
+  "log": "D:\\temp\\f36\\doc1\\step1\\census.log",
+  "exit_lines": [
+   "baseline: D:\\temp\\f36\\doc1\\step1\\baseline.json",
+   "EXIT 1: step 1 DOES NOT REPRODUCE the baseline"
+  ]
+ },
+ {
+  "case": "stale-known",
+  "rc": 1,
+  "want_rc": 1,
+  "written_code": 1,
+  "lacking": [],
+  "ok": true,
+  "baseline_totals": {
+   "missing": 0,
+   "undeclared": 0,
+   "declared": 1,
+   "cfb_only": 3
+  },
+  "log": "D:\\temp\\f36\\doc1\\stale-known\\census.log",
+  "exit_lines": [
+   "baseline: D:\\temp\\f36\\doc1\\stale-known\\baseline.json",
+   "EXIT 1: 'known' names missing player_summary.identity.height (f-36 doctor.py, planted) and neither the census nor the tool reports it"
+  ]
+ },
+ {
+  "case": "known-no-source",
+  "rc": 1,
+  "want_rc": 1,
+  "written_code": null,
+  "lacking": [],
+  "ok": true,
+  "baseline_totals": {
+   "missing": 0,
+   "undeclared": 0,
+   "declared": 1,
+   "cfb_only": 3
+  },
+  "log": "D:\\temp\\f36\\doc1\\known-no-source\\census.log",
+  "exit_lines": [
+   "baseline: known[0] must carry exactly list, path and source"
+  ]
+ },
+ {
+  "case": "stale-count",
+  "rc": 1,
+  "want_rc": 1,
+  "written_code": 1,
+  "lacking": [],
+  "ok": true,
+  "baseline_totals": {
+   "missing": 0,
+   "undeclared": 0,
+   "declared": 1,
+   "cfb_only": 3
+  },
+  "log": "D:\\temp\\f36\\doc1\\stale-count\\census.log",
+  "exit_lines": [
+   "baseline: D:\\temp\\f36\\doc1\\stale-count\\baseline.json",
+   "EXIT 1: step 1 DOES NOT REPRODUCE the baseline"
+  ]
+ },
+ {
+  "case": "stale-one-file",
+  "rc": 0,
+  "want_rc": 0,
+  "written_code": 0,
+  "lacking": [],
+  "ok": true,
+  "baseline_totals": {
+   "missing": 0,
+   "undeclared": 0,
+   "declared": 1,
+   "cfb_only": 3
+  },
+  "log": "D:\\temp\\f36\\doc1\\stale-one-file\\census.log",
+  "exit_lines": [
+   "baseline: D:\\temp\\f36\\doc1\\stale-one-file\\baseline.json",
+   "EXIT 0: step 1 reproduces; no missing or undeclared path outside 'known'; census and tool differ on no path outside 'known'; 'known' names nothing unfound"
+  ]
+ },
+ {
+  "case": "stale-every-value",
+  "rc": 0,
+  "want_rc": 0,
+  "written_code": 0,
+  "lacking": [],
+  "ok": true,
+  "baseline_totals": {
+   "missing": 0,
+   "undeclared": 0,
+   "declared": 1,
+   "cfb_only": 3
+  },
+  "log": "D:\\temp\\f36\\doc1\\stale-every-value\\census.log",
+  "exit_lines": [
+   "baseline: D:\\temp\\f36\\doc1\\stale-every-value\\baseline.json",
+   "EXIT 0: step 1 reproduces; no missing or undeclared path outside 'known'; census and tool differ on no path outside 'known'; 'known' names nothing unfound"
+  ]
+ }
+]

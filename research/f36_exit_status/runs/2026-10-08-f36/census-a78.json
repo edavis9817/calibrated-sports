@@ -1,0 +1,597 @@
+{
+ "plant": {
+  "sampled_reports_on_seeds_of_20": 4,
+  "full_reports": true
+ },
+ "baseline": {
+  "source": "a-78 (origin/a-78-drop-team-rows @ c0fe5c8): totals and NFL file counts from its own run of the tool at seed 72, SAMPLE 400, logged in D:/temp/a78/census.log lines 5-9 and restated in its report section 3; college file counts 14,310 / 40,543 from its report table. Tree stamps read from the two manifests on disk by f-34.",
+  "trees": {
+   "cfb": "2026-10-08T23:45:55Z",
+   "nfl": "2026-10-08T13:14:04Z"
+  },
+  "seed": 72,
+  "sample": 400,
+  "totals": {
+   "missing": 0,
+   "undeclared": 0,
+   "declared": 21,
+   "cfb_only": 15
+  },
+  "files": {
+   "cfb": {
+    "player_summary": 14310,
+    "player_season": 40543
+   },
+   "nfl": {
+    "player_summary": 4002,
+    "player_season": 19328
+   }
+  },
+  "path": "C:\\Users\\Ethan Davis\\code\\cs-analytics\\research\\f30_cfb_build\\runs\\2026-10-08-f34\\baseline-a78.json"
+ },
+ "reproduce": {
+  "totals": {
+   "missing": 0,
+   "undeclared": 0,
+   "declared": 21,
+   "cfb_only": 15
+  },
+  "ok": true,
+  "totals_ok": true,
+  "files_differ": []
+ },
+ "full": {
+  "totals": {
+   "missing": 0,
+   "undeclared": 0,
+   "declared": 21,
+   "cfb_only": 15
+  },
+  "kinds": {
+   "sport_manifest": {
+    "missing": [],
+    "undeclared": [],
+    "declared": [
+     "sport_manifest.current.source_version",
+     "sport_manifest.market_definitions",
+     "sport_manifest.scoring_presets",
+     "sport_manifest.teams[].division"
+    ],
+    "under_declared_parent": [
+     "sport_manifest.denominators.archive.divisible",
+     "sport_manifest.denominators.archive.games.final",
+     "sport_manifest.denominators.archive.games.season_from",
+     "sport_manifest.denominators.archive.games.season_to",
+     "sport_manifest.denominators.archive.players",
+     "sport_manifest.denominators.archive.span.season_from",
+     "sport_manifest.denominators.archive.span.season_to",
+     "sport_manifest.denominators.archive.span.seasons",
+     "sport_manifest.denominators.participation.definition",
+     "sport_manifest.denominators.participation.noun",
+     "sport_manifest.denominators.season.divisible",
+     "sport_manifest.denominators.season.games.final",
+     "sport_manifest.denominators.season.games.scheduled",
+     "sport_manifest.denominators.season.players",
+     "sport_manifest.denominators.season.span.season",
+     "sport_manifest.denominators.week.divisible",
+     "sport_manifest.denominators.week.games.awaiting_final",
+     "sport_manifest.denominators.week.games.final",
+     "sport_manifest.denominators.week.games.open",
+     "sport_manifest.denominators.week.games.scheduled",
+     "sport_manifest.denominators.week.players.expected",
+     "sport_manifest.denominators.week.players.played",
+     "sport_manifest.denominators.week.players.priced",
+     "sport_manifest.denominators.week.players.priced_expected",
+     "sport_manifest.denominators.week.share_priced",
+     "sport_manifest.denominators.week.span.period.index",
+     "sport_manifest.denominators.week.span.period.key",
+     "sport_manifest.denominators.week.span.period.label",
+     "sport_manifest.denominators.week.span.season",
+     "sport_manifest.main_line_definition",
+     "sport_manifest.metrics",
+     "sport_manifest.metrics[].copies",
+     "sport_manifest.metrics[].copies[].declared",
+     "sport_manifest.metrics[].copies[].file",
+     "sport_manifest.metrics[].copies[].path",
+     "sport_manifest.metrics[].decimals",
+     "sport_manifest.metrics[].id",
+     "sport_manifest.metrics[].label",
+     "sport_manifest.metrics[].nullable",
+     "sport_manifest.metrics[].source.file",
+     "sport_manifest.metrics[].source.path",
+     "sport_manifest.metrics[].unit"
+    ],
+    "cfb_only": [
+     "sport_manifest.absences",
+     "sport_manifest.absences[].limitation",
+     "sport_manifest.absences[].path",
+     "sport_manifest.absences[].reason",
+     "sport_manifest.absences[].state"
+    ]
+   },
+   "team": {
+    "missing": [],
+    "undeclared": [],
+    "declared": [
+     "team.coaches",
+     "team.roster[].games",
+     "team.roster[].snap_share",
+     "team.schedule[].coach",
+     "team.schedule[].opponent_coach",
+     "team.splits[].defense.def_ff",
+     "team.splits[].defense.def_qb_hits",
+     "team.splits[].defense.def_safeties",
+     "team.splits[].defense.def_tkl_ast",
+     "team.splits[].defense.def_tkl_with_assist"
+    ],
+    "under_declared_parent": [
+     "team.coaches[].head_coach",
+     "team.coaches[].season"
+    ],
+    "cfb_only": [
+     "team.memberships[].classification",
+     "team.memberships[].conference",
+     "team.memberships[].division",
+     "team.memberships[].season",
+     "team.splits[].defense.def_qb_hurries",
+     "team.splits[].defense.def_tkl_total",
+     "team.splits[].defense.pass_yds_allowed",
+     "team.splits[].defense.rush_yds_allowed"
+    ]
+   },
+   "player_index": {
+    "missing": [],
+    "undeclared": [],
+    "declared": [],
+    "under_declared_parent": [],
+    "cfb_only": []
+   },
+   "player_summary": {
+    "missing": [],
+    "undeclared": [],
+    "declared": [
+     "player_summary.career.stats.snap_share_mean",
+     "player_summary.career.stats.two_pt",
+     "player_summary.season_totals[].stats.snap_share_mean",
+     "player_summary.season_totals[].stats.two_pt"
+    ],
+    "under_declared_parent": [
+     "player_summary.identity.ids.gsis",
+     "player_summary.identity.ids.pff",
+     "player_summary.identity.ids.pfr",
+     "player_summary.identity.ids.sleeper",
+     "player_summary.identity.ids.yahoo",
+     "player_summary.market.key",
+     "player_summary.prop_history.games",
+     "player_summary.prop_history.games[].actual",
+     "player_summary.prop_history.games[].books",
+     "player_summary.prop_history.games[].close_ts",
+     "player_summary.prop_history.games[].date",
+     "player_summary.prop_history.games[].home",
+     "player_summary.prop_history.games[].line",
+     "player_summary.prop_history.games[].opponent",
+     "player_summary.prop_history.games[].p_over",
+     "player_summary.prop_history.games[].provider",
+     "player_summary.prop_history.games[].result",
+     "player_summary.prop_history.games[].season",
+     "player_summary.prop_history.games[].stat",
+     "player_summary.prop_history.games[].week",
+     "player_summary.prop_history.main",
+     "player_summary.prop_history.main[].career.cleared",
+     "player_summary.prop_history.main[].career.interval",
+     "player_summary.prop_history.main[].career.interval[]",
+     "player_summary.prop_history.main[].career.n",
+     "player_summary.prop_history.main[].career.rate",
+     "player_summary.prop_history.main[].last_10.cleared",
+     "player_summary.prop_history.main[].last_10.interval",
+     "player_summary.prop_history.main[].last_10.interval[]",
+     "player_summary.prop_history.main[].last_10.n",
+     "player_summary.prop_history.main[].last_10.rate",
+     "player_summary.prop_history.main[].priority",
+     "player_summary.prop_history.main[].pushes",
+     "player_summary.prop_history.main[].season",
+     "player_summary.prop_history.main[].stat",
+     "player_summary.prop_history.main[].this_season.cleared",
+     "player_summary.prop_history.main[].this_season.interval",
+     "player_summary.prop_history.main[].this_season.interval[]",
+     "player_summary.prop_history.main[].this_season.n",
+     "player_summary.prop_history.main[].this_season.rate",
+     "player_summary.prop_history.main[].voids",
+     "player_summary.prop_history.records",
+     "player_summary.prop_history.records[].cleared",
+     "player_summary.prop_history.records[].interval",
+     "player_summary.prop_history.records[].interval[]",
+     "player_summary.prop_history.records[].line",
+     "player_summary.prop_history.records[].n",
+     "player_summary.prop_history.records[].rate",
+     "player_summary.prop_history.records[].season",
+     "player_summary.prop_history.records[].stat",
+     "player_summary.prop_history.stats",
+     "player_summary.prop_history.stats[].cleared",
+     "player_summary.prop_history.stats[].games",
+     "player_summary.prop_history.stats[].interval",
+     "player_summary.prop_history.stats[].interval[]",
+     "player_summary.prop_history.stats[].n",
+     "player_summary.prop_history.stats[].priority",
+     "player_summary.prop_history.stats[].rate",
+     "player_summary.prop_history.stats[].stat"
+    ],
+    "cfb_only": [
+     "player_summary.identity.jersey_number",
+     "player_summary.seasons[].jersey_number"
+    ]
+   },
+   "player_season": {
+    "missing": [],
+    "undeclared": [],
+    "declared": [
+     "player_season.periods[].stats.snap_share",
+     "player_season.periods[].stats.snaps",
+     "player_season.periods[].stats.two_pt"
+    ],
+    "under_declared_parent": [],
+    "cfb_only": []
+   }
+  }
+ },
+ "census": {
+  "player_summary": {
+   "nfl_files": 4002,
+   "cfb_files": 14310,
+   "missing": [],
+   "undeclared": [],
+   "beneath_declared": [
+    "player_summary.identity.ids.gsis",
+    "player_summary.identity.ids.pff",
+    "player_summary.identity.ids.pfr",
+    "player_summary.identity.ids.sleeper",
+    "player_summary.identity.ids.yahoo",
+    "player_summary.market.key",
+    "player_summary.prop_history.games",
+    "player_summary.prop_history.games[].actual",
+    "player_summary.prop_history.games[].books",
+    "player_summary.prop_history.games[].close_ts",
+    "player_summary.prop_history.games[].date",
+    "player_summary.prop_history.games[].home",
+    "player_summary.prop_history.games[].line",
+    "player_summary.prop_history.games[].opponent",
+    "player_summary.prop_history.games[].p_over",
+    "player_summary.prop_history.games[].provider",
+    "player_summary.prop_history.games[].result",
+    "player_summary.prop_history.games[].season",
+    "player_summary.prop_history.games[].stat",
+    "player_summary.prop_history.games[].week",
+    "player_summary.prop_history.main",
+    "player_summary.prop_history.main[].career.cleared",
+    "player_summary.prop_history.main[].career.interval",
+    "player_summary.prop_history.main[].career.interval[]",
+    "player_summary.prop_history.main[].career.n",
+    "player_summary.prop_history.main[].career.rate",
+    "player_summary.prop_history.main[].last_10.cleared",
+    "player_summary.prop_history.main[].last_10.interval",
+    "player_summary.prop_history.main[].last_10.interval[]",
+    "player_summary.prop_history.main[].last_10.n",
+    "player_summary.prop_history.main[].last_10.rate",
+    "player_summary.prop_history.main[].priority",
+    "player_summary.prop_history.main[].pushes",
+    "player_summary.prop_history.main[].season",
+    "player_summary.prop_history.main[].stat",
+    "player_summary.prop_history.main[].this_season.cleared",
+    "player_summary.prop_history.main[].this_season.interval",
+    "player_summary.prop_history.main[].this_season.interval[]",
+    "player_summary.prop_history.main[].this_season.n",
+    "player_summary.prop_history.main[].this_season.rate",
+    "player_summary.prop_history.main[].voids",
+    "player_summary.prop_history.records",
+    "player_summary.prop_history.records[].cleared",
+    "player_summary.prop_history.records[].interval",
+    "player_summary.prop_history.records[].interval[]",
+    "player_summary.prop_history.records[].line",
+    "player_summary.prop_history.records[].n",
+    "player_summary.prop_history.records[].rate",
+    "player_summary.prop_history.records[].season",
+    "player_summary.prop_history.records[].stat",
+    "player_summary.prop_history.stats",
+    "player_summary.prop_history.stats[].cleared",
+    "player_summary.prop_history.stats[].games",
+    "player_summary.prop_history.stats[].interval",
+    "player_summary.prop_history.stats[].interval[]",
+    "player_summary.prop_history.stats[].n",
+    "player_summary.prop_history.stats[].priority",
+    "player_summary.prop_history.stats[].rate",
+    "player_summary.prop_history.stats[].stat"
+   ],
+   "blind_zone_nfl": {},
+   "blind_zone_cfb": {},
+   "false_declarations": [
+    "player_summary.career.stats.fum_lost",
+    "player_summary.career.stats.ret_td",
+    "player_summary.season_totals[].stats.fum_lost",
+    "player_summary.season_totals[].stats.ret_td"
+   ],
+   "nfl_only_stat_keys": [],
+   "cfb_only_stat_keys": [],
+   "agrees_with_tool": true,
+   "nfl_stat_files": {
+    "player_summary.season_totals[].stats.targets": 3602,
+    "player_summary.season_totals[].stats.rec": 3188,
+    "player_summary.season_totals[].stats.rec_yds": 3181,
+    "player_summary.season_totals[].stats.rec_td": 1979,
+    "player_summary.season_totals[].stats.rush_att": 2612,
+    "player_summary.season_totals[].stats.rush_yds": 2535,
+    "player_summary.season_totals[].stats.rush_td": 1125,
+    "player_summary.season_totals[].stats.snap_share_mean": 4002,
+    "player_summary.career.stats.targets": 3601,
+    "player_summary.career.stats.rec": 3187,
+    "player_summary.career.stats.rec_yds": 3180,
+    "player_summary.career.stats.rec_td": 1978,
+    "player_summary.career.stats.rush_att": 2612,
+    "player_summary.career.stats.rush_yds": 2535,
+    "player_summary.career.stats.rush_td": 1125,
+    "player_summary.career.stats.snap_share_mean": 4002,
+    "player_summary.season_totals[].stats.fum_lost": 1919,
+    "player_summary.career.stats.fum_lost": 1919,
+    "player_summary.season_totals[].stats.pass_att": 835,
+    "player_summary.season_totals[].stats.pass_cmp": 647,
+    "player_summary.season_totals[].stats.pass_yds": 647,
+    "player_summary.career.stats.pass_att": 835,
+    "player_summary.career.stats.pass_cmp": 647,
+    "player_summary.career.stats.pass_yds": 647,
+    "player_summary.season_totals[].stats.pass_td": 454,
+    "player_summary.season_totals[].stats.int": 433,
+    "player_summary.season_totals[].stats.two_pt": 839,
+    "player_summary.career.stats.pass_td": 454,
+    "player_summary.career.stats.int": 433,
+    "player_summary.career.stats.two_pt": 839,
+    "player_summary.season_totals[].stats.ret_td": 379,
+    "player_summary.career.stats.ret_td": 379
+   },
+   "cfb_stat_files": {
+    "player_summary.season_totals[].stats.targets": [
+     11547,
+     11136
+    ],
+    "player_summary.season_totals[].stats.rec": [
+     11020,
+     11020
+    ],
+    "player_summary.season_totals[].stats.rec_yds": [
+     11002,
+     11002
+    ],
+    "player_summary.season_totals[].stats.fum_lost": [
+     6484,
+     4291
+    ],
+    "player_summary.season_totals[].stats.two_pt": [
+     14310,
+     0
+    ],
+    "player_summary.season_totals[].stats.snap_share_mean": [
+     14310,
+     0
+    ],
+    "player_summary.season_totals[].stats.rec_td": [
+     6412,
+     6412
+    ],
+    "player_summary.career.stats.targets": [
+     11509,
+     8835
+    ],
+    "player_summary.career.stats.rec": [
+     10982,
+     10982
+    ],
+    "player_summary.career.stats.rec_yds": [
+     10965,
+     10965
+    ],
+    "player_summary.career.stats.rec_td": [
+     6398,
+     6398
+    ],
+    "player_summary.career.stats.fum_lost": [
+     6471,
+     3577
+    ],
+    "player_summary.career.stats.two_pt": [
+     14247,
+     0
+    ],
+    "player_summary.career.stats.snap_share_mean": [
+     14310,
+     0
+    ],
+    "player_summary.season_totals[].stats.rush_att": [
+     9248,
+     9248
+    ],
+    "player_summary.season_totals[].stats.rush_yds": [
+     9146,
+     9146
+    ],
+    "player_summary.season_totals[].stats.rush_td": [
+     4518,
+     4518
+    ],
+    "player_summary.season_totals[].stats.pass_att": [
+     3198,
+     3198
+    ],
+    "player_summary.season_totals[].stats.pass_cmp": [
+     2675,
+     2675
+    ],
+    "player_summary.season_totals[].stats.pass_yds": [
+     2663,
+     2663
+    ],
+    "player_summary.season_totals[].stats.pass_td": [
+     1839,
+     1839
+    ],
+    "player_summary.season_totals[].stats.int": [
+     1654,
+     1654
+    ],
+    "player_summary.career.stats.rush_att": [
+     9209,
+     9209
+    ],
+    "player_summary.career.stats.rush_yds": [
+     9109,
+     9109
+    ],
+    "player_summary.career.stats.rush_td": [
+     4507,
+     4507
+    ],
+    "player_summary.career.stats.pass_att": [
+     3189,
+     3189
+    ],
+    "player_summary.career.stats.pass_cmp": [
+     2667,
+     2667
+    ],
+    "player_summary.career.stats.pass_yds": [
+     2655,
+     2655
+    ],
+    "player_summary.career.stats.pass_td": [
+     1838,
+     1838
+    ],
+    "player_summary.career.stats.int": [
+     1648,
+     1648
+    ],
+    "player_summary.season_totals[].stats.ret_td": [
+     639,
+     638
+    ],
+    "player_summary.career.stats.ret_td": [
+     639,
+     638
+    ]
+   }
+  },
+  "player_season": {
+   "nfl_files": 19328,
+   "cfb_files": 40543,
+   "missing": [],
+   "undeclared": [],
+   "beneath_declared": [],
+   "blind_zone_nfl": {},
+   "blind_zone_cfb": {},
+   "false_declarations": [
+    "player_season.periods[].stats.fum_lost",
+    "player_season.periods[].stats.ret_td",
+    "player_season.periods[].stats.targets"
+   ],
+   "nfl_only_stat_keys": [],
+   "cfb_only_stat_keys": [],
+   "agrees_with_tool": true,
+   "nfl_stat_files": {
+    "player_season.periods[].stats.snaps": 19328,
+    "player_season.periods[].stats.snap_share": 19328,
+    "player_season.periods[].stats.targets": 14230,
+    "player_season.periods[].stats.target_share": 19328,
+    "player_season.periods[].stats.rec": 12346,
+    "player_season.periods[].stats.rec_yds": 12337,
+    "player_season.periods[].stats.rec_td": 6720,
+    "player_season.periods[].stats.rush_att": 9070,
+    "player_season.periods[].stats.rush_yds": 8798,
+    "player_season.periods[].stats.rush_td": 3441,
+    "player_season.periods[].stats.fum_lost": 4902,
+    "player_season.periods[].stats.pass_att": 2833,
+    "player_season.periods[].stats.pass_cmp": 2422,
+    "player_season.periods[].stats.pass_yds": 2416,
+    "player_season.periods[].stats.pass_td": 1777,
+    "player_season.periods[].stats.int": 1741,
+    "player_season.periods[].stats.two_pt": 1537,
+    "player_season.periods[].stats.ret_td": 723
+   },
+   "cfb_stat_files": {
+    "player_season.periods[].stats.snaps": [
+     40543,
+     0
+    ],
+    "player_season.periods[].stats.snap_share": [
+     40543,
+     0
+    ],
+    "player_season.periods[].stats.target_share": [
+     40543,
+     40352
+    ],
+    "player_season.periods[].stats.targets": [
+     29312,
+     29126
+    ],
+    "player_season.periods[].stats.rec": [
+     28145,
+     28145
+    ],
+    "player_season.periods[].stats.rec_yds": [
+     28046,
+     28046
+    ],
+    "player_season.periods[].stats.fum_lost": [
+     12370,
+     6551
+    ],
+    "player_season.periods[].stats.two_pt": [
+     40543,
+     0
+    ],
+    "player_season.periods[].stats.rec_td": [
+     12861,
+     12861
+    ],
+    "player_season.periods[].stats.rush_att": [
+     21803,
+     21803
+    ],
+    "player_season.periods[].stats.rush_yds": [
+     21544,
+     21544
+    ],
+    "player_season.periods[].stats.rush_td": [
+     9662,
+     9662
+    ],
+    "player_season.periods[].stats.pass_att": [
+     7147,
+     7147
+    ],
+    "player_season.periods[].stats.pass_cmp": [
+     6234,
+     6234
+    ],
+    "player_season.periods[].stats.pass_yds": [
+     6207,
+     6207
+    ],
+    "player_season.periods[].stats.pass_td": [
+     4149,
+     4149
+    ],
+    "player_season.periods[].stats.int": [
+     3754,
+     3754
+    ],
+    "player_season.periods[].stats.ret_td": [
+     860,
+     857
+    ]
+   }
+  }
+ },
+ "exit": {
+  "code": 0,
+  "reasons": [],
+  "acknowledged": []
+ }
+}

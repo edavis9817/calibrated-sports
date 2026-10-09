@@ -1,0 +1,48 @@
+baseline: C:\Users\Ethan Davis\code\cs-analytics\research\f36_exit_status\runs\2026-10-08-f36\doctored-baseline-a78-stale-known.json
+   source: a-78 (origin/a-78-drop-team-rows @ c0fe5c8): totals and NFL file counts from its own run of the tool at seed 72, SAMPLE 400, logged in D:/temp/a78/census.log lines 5-9 and restated in its report section 3; college file counts 14,310 / 40,543 from its report table. Tree stamps read from the two manifests on disk by f-34. f-36 DOCTORED: 'known' names a finding a-78's tree does not have.
+   trees: {'nfl': '2026-10-08T13:14:04Z', 'cfb': '2026-10-08T23:45:55Z'} (match)
+== 4. PLANT (run first: a census that cannot report a missing key proves nothing)
+   one NFL file of 2,000 carries the key (independent census counts 1); a-72's tool at SAMPLE=400 reports it missing on 4 of 20 seeds; with the sample lifted: REPORTS IT
+
+== 1. REPRODUCE the baseline's totals with the target's own tool, seed 72, SAMPLE 400
+   tool says {'missing': 0, 'undeclared': 0, 'declared': 21, 'cfb_only': 15}; baseline {'missing': 0, 'undeclared': 0, 'declared': 21, 'cfb_only': 15} -> REPRODUCES
+   nfl player_summary: 4,002 files (baseline 4,002)
+   nfl player_season: 19,328 files (baseline 19,328)
+   cfb player_summary: 14,310 files (baseline 14,310)
+   cfb player_season: 40,543 files (baseline 40,543)
+   step 1 -> REPRODUCES
+
+== 2. FULL: the same tool, sample lifted, every file
+   tool says {'missing': 0, 'undeclared': 0, 'declared': 21, 'cfb_only': 15}
+
+== 3. CENSUS: independent walker, every player file
+
+   player_summary: nfl 4,002 files, 118 paths (32 stat); cfb 14,310 files, 61 paths (32 stat)
+   NFL paths carried by < 1 in 400 files (< 10 files): 0 (0 stat); college paths under the same bar: 0
+   NFL paths no college file carries: 59 = 59 beneath a declared absence + 0 MISSING
+   present in college and empty in EVERY college file while the NFL fills it: 4, of which undeclared 0
+   college paths named by a declared absence yet FILLED in some file: 4
+      FILLED-BUT-DECLARED player_summary.career.stats.fum_lost   filled in 3,577 of 6,471 files
+      FILLED-BUT-DECLARED player_summary.career.stats.ret_td   filled in 638 of 639 files
+      FILLED-BUT-DECLARED player_summary.season_totals[].stats.fum_lost   filled in 4,291 of 6,484 files
+      FILLED-BUT-DECLARED player_summary.season_totals[].stats.ret_td   filled in 638 of 639 files
+   agrees with the tool's full run on missing and undeclared: True
+   distinct stat keys: nfl 16, cfb 16; nfl-only 0: []
+                       cfb-only 0: []
+
+   player_season: nfl 19,328 files, 36 paths (18 stat); cfb 40,543 files, 36 paths (18 stat)
+   NFL paths carried by < 1 in 400 files (< 48 files): 0 (0 stat); college paths under the same bar: 0
+   NFL paths no college file carries: 0 = 0 beneath a declared absence + 0 MISSING
+   present in college and empty in EVERY college file while the NFL fills it: 3, of which undeclared 0
+   college paths named by a declared absence yet FILLED in some file: 3
+      FILLED-BUT-DECLARED player_season.periods[].stats.fum_lost   filled in 6,551 of 12,370 files
+      FILLED-BUT-DECLARED player_season.periods[].stats.ret_td   filled in 857 of 860 files
+      FILLED-BUT-DECLARED player_season.periods[].stats.targets   filled in 29,126 of 29,312 files
+   agrees with the tool's full run on missing and undeclared: True
+   distinct stat keys: nfl 18, cfb 18; nfl-only 0: []
+                       cfb-only 0: []
+
+wrote D:/temp/f36/census-a78-stale-known.json (1789s)
+
+== EXIT
+   EXIT 1: 'known' names missing player_summary.identity.ids.gsis (f-30 (research/f30_cfb_build/README.md, 'a-72's 86 to 0 excludes one map by construction'; runs/2026-10-08-f30/census.log): the first sport carries this id system and a-72's college tree carries espn only, with no absences entry. a-78 declared it afterwards.) and neither the census nor the tool reports it

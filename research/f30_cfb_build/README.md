@@ -147,3 +147,29 @@ Listed and left alone (none can change a verdict word or an exit status):
 | `../f26_reliability/identity_c39.py` | - | none | carries no figure |
 
 The f-34 run is in `runs/2026-10-08-f34/`, with the two baselines it used.
+
+## f-36 — the exit status, and the listed figures exercised
+
+`tree_census.py` no longer exits 0 beside a printed finding. Exit 0 means step 1 reproduced
+AND every missing or undeclared path (the walker's, and the tool's full run over all five
+page kinds) is named in the baseline's optional `known` list, by exact path, under its own
+list, with a source; `known` naming something that was not found is also exit 1. The rule,
+the runs and the verdict (`exit status repaired`) are in `../f36_exit_status/`.
+
+- **a-72's tree exits 1 on `runs/2026-10-08-f34/baseline-a72.json`**, which names nothing. Use
+  `../f36_exit_status/runs/2026-10-08-f36/baseline-a72-known.json`, which names the five id
+  keys (source f-30) and `sport_manifest.unresolved_ids[].name` (source a-72's own total).
+  a-78's tree exits 0 on its f-34 baseline, unchanged.
+- **Exit 0 still does not mean** no `FILLED-BUT-DECLARED` line (seven on both trees) and no
+  blind-zone path, and it does not mean the tree's values are the ones the baseline's author
+  saw: a tree rewritten under an unchanged manifest reproduces (f-36, the stale manifest).
+- **The table above says the listed figures cannot change a verdict word or an exit status.
+  That holds. Two of them can stop the script:** `slug_evidence.py:26` on an index of 9,999
+  players and `identity.py:28` on 1,000 season-model rows each end in an `AssertionError`
+  with no report line.
+- **`attack_c39_prices.py` exits 0 while printing DOES NOT REPRODUCE on 2b** (seen on a store
+  copy with one season's lines removed). Only its 2a premise check fails the process. Not
+  changed by f-36.
+- **`part1_c39.py:45` `draws=2000`** is a second copy of the target's
+  `research.ranking_calibration.BOOT`. Found by the widened test, allowed there by name with
+  the reason, not changed.

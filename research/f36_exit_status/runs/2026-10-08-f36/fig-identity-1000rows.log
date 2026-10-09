@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "C:\Users\Ethan Davis\code\cs-analytics\research\f30_cfb_build\identity.py", line 28, in <module>
+    assert len(res["rows"]) > 1000, len(res["rows"])
+           ^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1000

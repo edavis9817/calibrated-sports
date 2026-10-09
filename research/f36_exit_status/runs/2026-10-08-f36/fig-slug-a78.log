@@ -1,0 +1,15 @@
+staged index: 14310 players; generated 2026-10-08T23:45:55Z
+slugs not ending in their own id: 0 []
+bare-name slugs shared by 2+ players: 228 names covering 486 players (3.4% of pages); largest [('xavier-williams', 6), ('brandon-smith', 4), ('chris-johnson', 4)]
+position: {'WR': 5265, 'RB': 3372, 'TE': 2097, 'QB': 1853, 'P': 318, 'LB': 230, 'DB': 225, 'FB': 187, 'OL': 166, 'PK': 144, 'DL': 107, 'S': 89, 'CB': 79, '-': 44}
+scoped players on a roster: 14274 of 14310
+roster name slugifies differently across the player's own seasons: 85 (0.59% of pages)
+   of those, the NEWEST season differs from the one before it (a publish one season earlier minted a different URL): 80
+      3929636: {"2015": "Irv Charles", "2016": "Irv Charles", "2017": "Irvin Charles"} -> staged slug irvin-charles-3929636
+      4596437: {"2021": "AJ Green", "2022": "AJ Green", "2023": "AJ Green", "2024": "AJ Green", "2025": "AJ Green", "2026": "AJ Green Jr."} -> staged slug aj-green-jr-4596437
+      4612624: {"2021": "Antwan Roberts", "2023": "Antwan Roberts", "2024": "Antwan Roberts", "2025": "Antwan Roberts", "2026": "Antwan Roberts Jr."} -> staged slug antwan-roberts-jr-4612624
+      4683234: {"2021": "LaVell Wright", "2022": "LaVell Wright", "2023": "LaVell Wright", "2024": "LaVell Wright", "2025": "LaVell Wright", "2026": "La'Vell Wright"} -> staged slug la-vell-wright-4683234
+      4685184: {"2020": "Don Chaney", "2021": "Donald Chaney", "2022": "Don Chaney", "2023": "Don Chaney", "2024": "Don Chaney", "2026": "Don Chaney"} -> staged slug don-chaney-4685184
+      4685535: {"2022": "CJ Stokes", "2023": "CJ Stokes", "2024": "CJ Stokes", "2025": "CJ Stokes", "2026": "C.J. Stokes"} -> staged slug c-j-stokes-4685535
+(player, season) roster rows whose name was restated IN PLACE across ingests (slug-changing): 8, players 8
+check: staged slug is not the newest roster name's slug for 0 players (0 = the rule is as read)

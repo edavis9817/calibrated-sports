@@ -1,0 +1,57 @@
+{
+ "source": "a-72 (origin/a-72-cfb-on-nfl-contract @ b60fdf9): missing 0, undeclared 1, declared 21, cfb_only 15 and the four file counts, as f-30 carried them as literals in this script. The NFL stamp is the manifest on disk when f-34 ran, NOT one a-72 recorded. f-36 added 'known'.",
+ "trees": {
+  "cfb": "2026-10-08T07:28:10Z",
+  "nfl": "2026-10-08T13:14:04Z"
+ },
+ "seed": 72,
+ "sample": 400,
+ "totals": {
+  "missing": 0,
+  "undeclared": 1,
+  "declared": 21,
+  "cfb_only": 15
+ },
+ "files": {
+  "cfb": {
+   "player_summary": 14327,
+   "player_season": 40563
+  },
+  "nfl": {
+   "player_summary": 4002,
+   "player_season": 19328
+  }
+ },
+ "known": [
+  {
+   "list": "missing",
+   "path": "player_summary.identity.ids.gsis",
+   "source": "f-30 (research/f30_cfb_build/README.md, 'a-72's 86 to 0 excludes one map by construction'; runs/2026-10-08-f30/census.log): the first sport carries this id system and a-72's college tree carries espn only, with no absences entry. a-78 declared it afterwards."
+  },
+  {
+   "list": "missing",
+   "path": "player_summary.identity.ids.pff",
+   "source": "f-30 (research/f30_cfb_build/README.md, 'a-72's 86 to 0 excludes one map by construction'; runs/2026-10-08-f30/census.log): the first sport carries this id system and a-72's college tree carries espn only, with no absences entry. a-78 declared it afterwards."
+  },
+  {
+   "list": "missing",
+   "path": "player_summary.identity.ids.pfr",
+   "source": "f-30 (research/f30_cfb_build/README.md, 'a-72's 86 to 0 excludes one map by construction'; runs/2026-10-08-f30/census.log): the first sport carries this id system and a-72's college tree carries espn only, with no absences entry. a-78 declared it afterwards."
+  },
+  {
+   "list": "missing",
+   "path": "player_summary.identity.ids.sleeper",
+   "source": "f-30 (research/f30_cfb_build/README.md, 'a-72's 86 to 0 excludes one map by construction'; runs/2026-10-08-f30/census.log): the first sport carries this id system and a-72's college tree carries espn only, with no absences entry. a-78 declared it afterwards."
+  },
+  {
+   "list": "missing",
+   "path": "player_summary.identity.ids.yahoo",
+   "source": "f-30 (research/f30_cfb_build/README.md, 'a-72's 86 to 0 excludes one map by construction'; runs/2026-10-08-f30/census.log): the first sport carries this id system and a-72's college tree carries espn only, with no absences entry. a-78 declared it afterwards."
+  },
+  {
+   "list": "undeclared",
+   "path": "sport_manifest.unresolved_ids[].name",
+   "source": "a-72's own stated total 'undeclared 1' (origin/a-72-cfb-on-nfl-contract @ b60fdf9); the path is named in f-34's census-a72.json, full.kinds.sport_manifest.undeclared. a-78's tree reads undeclared 0."
+  }
+ ]
+}

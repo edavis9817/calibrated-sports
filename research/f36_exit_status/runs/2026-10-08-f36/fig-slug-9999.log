@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "C:\Users\Ethan Davis\code\cs-analytics\research\f30_cfb_build\slug_evidence.py", line 26, in <module>
+    assert len(players) > 10000, len(players)
+           ^^^^^^^^^^^^^^^^^^^^
+AssertionError: 9999

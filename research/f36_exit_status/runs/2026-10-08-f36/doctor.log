@@ -1,0 +1,45 @@
+clean               exit 0 (registered 0)  written 0  -> AS REGISTERED
+      baseline: D:\temp\f36\doc1\clean\baseline.json
+      EXIT 0: step 1 reproduces; no missing or undeclared path outside 'known'; census and tool differ on no path outside 'known'; 'known' names nothing unfound
+missing             exit 1 (registered 1)  written 1  -> AS REGISTERED
+      baseline: D:\temp\f36\doc1\missing\baseline.json
+      EXIT 1: the census reports MISSING player_summary.identity.height, which the baseline's 'known' does not name
+missing-known       exit 0 (registered 0)  written 0  -> AS REGISTERED
+      baseline: D:\temp\f36\doc1\missing-known\baseline.json
+      EXIT 0: step 1 reproduces; no missing or undeclared path outside 'known'; census and tool differ on no path outside 'known'; 'known' names nothing unfound
+missing-wrong-list  exit 1 (registered 1)  written 1  -> AS REGISTERED
+      baseline: D:\temp\f36\doc1\missing-wrong-list\baseline.json
+      EXIT 1: the census reports MISSING player_summary.identity.height, which the baseline's 'known' does not name
+      EXIT 1: 'known' names undeclared player_summary.identity.height (f-36 doctor.py, planted) and neither the census nor the tool reports it
+undeclared          exit 1 (registered 1)  written 1  -> AS REGISTERED
+      baseline: D:\temp\f36\doc1\undeclared\baseline.json
+      EXIT 1: the census reports UNDECLARED player_summary.identity.height, which the baseline's 'known' does not name
+team-undeclared     exit 1 (registered 1)  written 1  -> AS REGISTERED
+      baseline: D:\temp\f36\doc1\team-undeclared\baseline.json
+      EXIT 1: the tool's full run reports undeclared team.city, which the baseline's 'known' does not name
+disagree            exit 1 (registered 1)  written 1  -> AS REGISTERED
+      baseline: D:\temp\f36\doc1\disagree\baseline.json
+      EXIT 1: the census reports MISSING player_summary.identity.ids.gsis, which the baseline's 'known' does not name
+      EXIT 1: player_summary: the census and the tool's full run disagree on ['player_summary.identity.ids.gsis']
+disagree-known      exit 0 (registered 0)  written 0  -> AS REGISTERED
+      baseline: D:\temp\f36\doc1\disagree-known\baseline.json
+      EXIT 0: step 1 reproduces; no missing or undeclared path outside 'known'; census and tool differ on no path outside 'known'; 'known' names nothing unfound
+step1               exit 1 (registered 1)  written 1  -> AS REGISTERED
+      baseline: D:\temp\f36\doc1\step1\baseline.json
+      EXIT 1: step 1 DOES NOT REPRODUCE the baseline
+stale-known         exit 1 (registered 1)  written 1  -> AS REGISTERED
+      baseline: D:\temp\f36\doc1\stale-known\baseline.json
+      EXIT 1: 'known' names missing player_summary.identity.height (f-36 doctor.py, planted) and neither the census nor the tool reports it
+known-no-source     exit 1 (registered 1)  written None  -> AS REGISTERED
+      baseline: known[0] must carry exactly list, path and source
+stale-count         exit 1 (registered 1)  written 1  -> AS REGISTERED
+      baseline: D:\temp\f36\doc1\stale-count\baseline.json
+      EXIT 1: step 1 DOES NOT REPRODUCE the baseline
+stale-one-file      exit 0 (registered 0)  written 0  -> AS REGISTERED
+      baseline: D:\temp\f36\doc1\stale-one-file\baseline.json
+      EXIT 0: step 1 reproduces; no missing or undeclared path outside 'known'; census and tool differ on no path outside 'known'; 'known' names nothing unfound
+stale-every-value   exit 0 (registered 0)  written 0  -> AS REGISTERED
+      baseline: D:\temp\f36\doc1\stale-every-value\baseline.json
+      EXIT 0: step 1 reproduces; no missing or undeclared path outside 'known'; census and tool differ on no path outside 'known'; 'known' names nothing unfound
+
+14 cases; 14 as registered; not as registered: none

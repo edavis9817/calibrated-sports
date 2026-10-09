@@ -33,10 +33,20 @@ The baseline, as the target published it for THESE two trees:
      "seed": <int>, "sample": <int>,
      "totals": {"missing": n, "undeclared": n, "declared": n, "cfb_only": n},
      "files": {"cfb": {"player_summary": n, "player_season": n},
-               "nfl": {"player_summary": n, "player_season": n}}}
+               "nfl": {"player_summary": n, "player_season": n}},
+     "known": [{"list": "missing" | "undeclared", "path": "<exact path>",
+                "source": "<who reported it, and where>"}]}          # optional
 
-Exit 0 only if step 1 reproduces the baseline. Exit 1 if it does not (the output is still
-written). A missing, malformed or wrong-tree baseline stops the run before step 4.
+THE EXIT STATUS (f-36; the rule is research/f36_exit_status/PREREGISTRATION.md). Exit 0 means
+all of: step 1 reproduced the baseline; every path the walker prints as MISSING, and every
+missing or undeclared path either the walker or the tool's full run reports, is named in the
+baseline's `known`; the walker and the tool differ on no path `known` does not name; and
+`known` names nothing that was not found. Anything else is exit 1, with one `EXIT 1:` line
+per reason, after the output is written (the decision is in the output, under "exit").
+`known` has no default and no wildcard: a finding is acknowledged by its exact path, under
+its own list, with a source. Exit 0 does NOT mean no FILLED-BUT-DECLARED line and no
+blind-zone path; those are printed and do not move the status.
+Exit 2: no --baseline. A malformed or wrong-tree baseline stops the run before step 4, exit 1.
 """
 import argparse
 import contextlib
@@ -49,6 +59,7 @@ import time
 from collections import Counter, defaultdict
 
 TOTAL_KEYS = ("missing", "undeclared", "declared", "cfb_only")
+KNOWN_LISTS = ("missing", "undeclared")
 PLAYER_KINDS = ("player_summary", "player_season")
 SIDES = ("nfl", "cfb")
 out = lambda s="": print(s, flush=True)  # noqa: E731
@@ -88,7 +99,59 @@ def load_baseline(path):
     _count(b["seed"], "seed")
     if _count(b["sample"], "sample") < 1:
         raise SystemExit("baseline: sample must be at least 1")
+    known_of(b)
     return b
+
+
+def known_of(baseline):
+    """-> {(list, path): source} for the findings the baseline acknowledges. Absent key = none."""
+    known = {}
+    entries = baseline.get("known", [])
+    if not isinstance(entries, list):
+        raise SystemExit("baseline: 'known' must be a list of {list, path, source}")
+    for i, e in enumerate(entries):
+        if not isinstance(e, dict) or set(e) != {"list", "path", "source"}:
+            raise SystemExit(f"baseline: known[{i}] must carry exactly list, path and source")
+        if e["list"] not in KNOWN_LISTS:
+            raise SystemExit(f"baseline: known[{i}].list must be one of {list(KNOWN_LISTS)}, got {e['list']!r}")
+        for field in ("path", "source"):
+            if not (isinstance(e[field], str) and e[field].strip()):
+                raise SystemExit(f"baseline: known[{i}].{field} must say "
+                                 + ("the exact path" if field == "path" else "who reported it, and where"))
+        if (e["list"], e["path"]) in known:
+            raise SystemExit(f"baseline: known names {e['list']} {e['path']} twice")
+        known[(e["list"], e["path"])] = e["source"]
+    return known
+
+
+def exit_reasons(result, known):
+    """-> (reasons, acknowledged). The process exits 1 iff `reasons` is not empty.
+
+    Reads only what is written to --out, so the file and the status cannot disagree."""
+    reasons, found = [], set()
+    if not result["reproduce"]["ok"]:
+        reasons.append("step 1 DOES NOT REPRODUCE the baseline")
+    walker = {(lst, p) for k in PLAYER_KINDS for lst in KNOWN_LISTS for p in result["census"][k][lst]}
+    tool = {(lst, p) for k in result["full"]["kinds"] for lst in KNOWN_LISTS
+            for p in result["full"]["kinds"][k][lst]}
+    found = walker | tool
+    for lst, p in sorted(walker - set(known)):
+        reasons.append(f"the census reports {lst.upper()} {p}, which the baseline's 'known' does not name")
+    for lst, p in sorted(tool - walker - set(known)):
+        reasons.append(f"the tool's full run reports {lst} {p}, which the baseline's 'known' does not name")
+    known_paths = {p for _, p in known}
+    for k in PLAYER_KINDS:
+        c, f = result["census"][k], result["full"]["kinds"][k]
+        differ = (set(c["missing"]) ^ set(f["missing"])) | (set(c["undeclared"]) ^ set(f["undeclared"]))
+        if bool(c["agrees_with_tool"]) != (not differ):
+            reasons.append(f"{k}: the result says agrees_with_tool {c['agrees_with_tool']} and its own lists say {not differ}")
+        loose = sorted(differ - known_paths)
+        if loose:
+            reasons.append(f"{k}: the census and the tool's full run disagree on {loose}")
+    for lst, p in sorted(set(known) - found):
+        reasons.append(f"'known' names {lst} {p} ({known[(lst, p)]}) and neither the census nor the tool reports it")
+    acknowledged = [{"list": lst, "path": p, "source": known[(lst, p)]} for lst, p in sorted(found & set(known))]
+    return reasons, acknowledged
 
 
 def tree_stamps(nfl, cfb):
@@ -325,11 +388,20 @@ def main():
             "agrees_with_tool": agree,
             "nfl_stat_files": {p: n["present"][p] for p in n["present"] if is_stat(p)},
             "cfb_stat_files": {p: [c["present"][p], c["filled"][p]] for p in c["present"] if is_stat(p)}}
+    reasons, acknowledged = exit_reasons(result, known_of(base))
+    result["exit"] = {"code": 1 if reasons else 0, "reasons": reasons, "acknowledged": acknowledged}
     with open(a.out, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=1)
     out(f"\nwrote {a.out} ({time.time() - t0:.0f}s)")
-    if not ok:
-        raise SystemExit("step 1 DOES NOT REPRODUCE the baseline (the census above still ran and was written)")
+    out("\n== EXIT")
+    for e in acknowledged:
+        out(f"   acknowledged by the baseline: {e['list']} {e['path']}   ({e['source']})")
+    for r in reasons:
+        out(f"   EXIT 1: {r}")
+    if reasons:
+        raise SystemExit(1)
+    out("   EXIT 0: step 1 reproduces; no missing or undeclared path outside 'known'; "
+        "census and tool differ on no path outside 'known'; 'known' names nothing unfound")
 
 
 if __name__ == "__main__":

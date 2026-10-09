@@ -14,8 +14,20 @@ Three shapes are walked, by AST, over every .py in the directory:
 A literal that is not a tree total is allowed BY NAME, with its reason, and an allowance
 that no longer matches anything fails: the list cannot outlive what it excuses.
 
-A guard asserts only over the shapes it walks. A total under 1,000 in a comparison, one
-assembled from parts, or one passed as a bare argument is not seen here.
+f-36 widened the walk to the four gaps f-34 wrote down, each as its own shape:
+
+  equal      `==`, `!=`, `in` against a number other than 0 - a total under 1,000 is caught
+             where it is TESTED FOR, which is how a total is compared
+  tolerance  a number subtracted inside a comparison (`abs(got - 0.0321) < 5e-5`)
+  argument   a number of 1,000 or more passed to a call, positionally or by keyword
+  bare-text  a string that spells an integer of four or more digits with no comma
+  (parts)    arithmetic over literals (`14000 + 310`, `10 ** 9`) and literal strings joined
+             with `+` are folded first, then walked as the shapes above
+
+A guard asserts only over the shapes it walks. Still not seen: an ORDERING comparison against
+a number under 1,000 (`assert n > 85` - a threshold and a total are the same syntax there);
+equality against 0; a number under 1,000 passed as an argument; a figure assigned to a name
+and compared through the name; a count under 1,000 in a string; digits assembled at run time.
 No store, no network.
 """
 import ast
@@ -31,6 +43,8 @@ import pytest
 HERE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "research", "f30_cfb_build")
 FLOOR = 1000
 THOUSANDS = re.compile(r"(?<![\w.])\d{1,3}(?:,\d{3})+(?![\w])")
+# four or more digits standing alone: not part of a word, a hash, a path, a date, a time, a decimal
+BARE = re.compile(r"(?<![\w.,:/\\\-+#@])\d{4,}(?![\w:/\\\-]|[.,]\d|\.[A-Za-z])")
 
 # (file, shape, what) -> why it is not a tree total a verdict hangs on
 ALLOWED = {
@@ -53,14 +67,70 @@ ALLOWED = {
         "docstring: the size of c-39's comparator grid, a property of the target's code",
     ("attack_c39_prices.py", "text", "9,822"):
         "a printed annotation beside the sign check (c-39's own n); compared with nothing",
+    # ---- f-36: what the four widened shapes found, each read and named
+    ("tree_census.py", "equal", "1"):
+        "the synthetic plant: the walker must count the one planted file exactly once",
+    ("tree_census.py", "argument", "2000"):
+        "the size of the synthetic plant tree the script builds itself",
+    ("tree_census.py", "argument", "10 ** 9"):
+        "lifts the tool's sample above any file count; a ceiling, not a count of anything",
+    ("part1_c39.py", "argument", "2000"):
+        "NOT harmless, and left by instruction: c-39's bootstrap draws, a second copy of the "
+        "target's own default (research.ranking_calibration.BOOT). If the target's default moves, "
+        "the bounds stop matching and the script prints DOES NOT REPRODUCE on a claim that holds. "
+        "f-36 was barred from changing this file's numerical behaviour; listed in its report",
+    ("attack_c39_prices.py", "bare-text", "1000"):
+        "docstring prose: f-29's k for its multiplicity correction; compared with nothing",
+    ("attack_c39_prices.py", "bare-text", "2026"):
+        "docstring prose: a season; compared with nothing",
 }
 
 
-def _numeric(node):
+def _fold(node):
+    """-> the number an all-literal expression evaluates to, else None. `14000 + 310` is 14310."""
     if isinstance(node, ast.Constant):
-        return isinstance(node.value, (int, float)) and not isinstance(node.value, bool)
+        ok = isinstance(node.value, (int, float)) and not isinstance(node.value, bool)
+        return node.value if ok else None
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
-        return _numeric(node.operand)
+        v = _fold(node.operand)
+        return None if v is None else (-v if isinstance(node.op, ast.USub) else v)
+    if isinstance(node, ast.BinOp):
+        if _fold(node.left) is None or _fold(node.right) is None:
+            return None
+        try:   # every leaf is a numeric literal, so this evaluates arithmetic and nothing else
+            return eval(compile(ast.Expression(node), "<literal>", "eval"), {"__builtins__": {}})
+        except Exception:
+            return None
+    return None
+
+
+def _text(node):
+    """-> the string an all-literal expression spells (`"14," + "310"`, an f-string of literals), else None."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        a, b = _text(node.left), _text(node.right)
+        return None if a is None or b is None else a + b
+    if isinstance(node, ast.JoinedStr):
+        parts = []
+        for v in node.values:
+            if isinstance(v, ast.FormattedValue):
+                if v.format_spec is not None or v.conversion != -1 or not isinstance(v.value, ast.Constant):
+                    return None
+                parts.append(str(v.value.value))
+            else:
+                parts.append(v.value)
+        return "".join(parts)
+    return None
+
+
+def _what(node):
+    return repr(node.value) if isinstance(node, ast.Constant) else ast.unparse(node)
+
+
+def _numeric(node):
+    if _fold(node) is not None:
+        return True
     if isinstance(node, ast.Tuple):
         return bool(node.elts) and all(_numeric(e) for e in node.elts)
     if isinstance(node, ast.Dict):
@@ -70,20 +140,45 @@ def _numeric(node):
 
 def findings(source, name):
     """-> sorted [(file, shape, what, line)] for every literal of the three shapes."""
-    found, inner = [], set()
+    found, inner, joined = [], set(), set()
     tree = ast.parse(source)
     for node in ast.walk(tree):
         if isinstance(node, ast.Dict) and _numeric(node) and id(node) not in inner:
             inner.update(id(n) for n in ast.walk(node) if n is not node)
             found.append((name, "dict", ast.unparse(node), node.lineno))
         elif isinstance(node, ast.Compare):
-            for side in [node.left, *node.comparators]:
-                if isinstance(side, ast.Constant) and isinstance(side.value, (int, float)) \
-                        and not isinstance(side.value, bool) and abs(side.value) >= FLOOR:
-                    found.append((name, "compare", repr(side.value), node.lineno))
-        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
-            for m in THOUSANDS.findall(node.value):
-                found.append((name, "text", m, node.lineno))
+            sides = [node.left, *node.comparators]
+            for side in sides:
+                v = _fold(side)
+                if v is not None and abs(v) >= FLOOR:
+                    found.append((name, "compare", _what(side), node.lineno))
+            # a total is compared by testing FOR it, at any size
+            for i, op in enumerate(node.ops):
+                if isinstance(op, (ast.Eq, ast.NotEq, ast.In, ast.NotIn)):
+                    for side in (sides[i], sides[i + 1]):
+                        for part in (side.elts if isinstance(side, (ast.Tuple, ast.List, ast.Set)) else [side]):
+                            v = _fold(part)
+                            if v is not None and v != 0 and abs(v) < FLOOR:
+                                found.append((name, "equal", _what(part), node.lineno))
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.BinOp) and isinstance(sub.op, ast.Sub) and _fold(sub) is None:
+                    for part in (sub.left, sub.right):
+                        v = _fold(part)
+                        if v is not None and v != 0:
+                            found.append((name, "tolerance", _what(part), node.lineno))
+        elif isinstance(node, ast.Call):
+            for arg in [*node.args, *(k.value for k in node.keywords)]:
+                v = _fold(arg)
+                if v is not None and abs(v) >= FLOOR:
+                    found.append((name, "argument", _what(arg), node.lineno))
+        if isinstance(node, (ast.BinOp, ast.JoinedStr, ast.Constant)) and id(node) not in joined:
+            text = _text(node)
+            if text is not None:
+                joined.update(id(n) for n in ast.walk(node) if n is not node)
+                for m in THOUSANDS.findall(text):
+                    found.append((name, "text", m, node.lineno))
+                for m in BARE.findall(text):
+                    found.append((name, "bare-text", m, node.lineno))
     return sorted(set(found))
 
 
@@ -142,6 +237,19 @@ EXPECT_FILES = {"cfb": {"player_summary": 14327, "player_season": 40563},
     ("assert 40543 <= n", "compare", "40543"),
     ('print(f"{got:,} files (a-78 stated 14,310)")', "text", "14,310"),
     ('"""the 14,327 staged pages"""', "text", "14,327"),
+    # f-36: one plant for each of the four gaps f-34 wrote down
+    ("ok = totals['declared'] == 21", "equal", "21"),                      # under 1,000 in a comparison
+    ("ok = got in (85, 80, 8)", "equal", "85"),
+    ("ok = abs(est - 0.0321) < 5e-5", "tolerance", "0.0321"),              # ... with a tolerance
+    ("check_files(rep, 14310)", "argument", "14310"),                      # a bare call argument
+    ("check_files(rep, expect=40543)", "argument", "40543"),
+    ("ok = got == 14000 + 310", "compare", "14000 + 310"),                 # built from parts
+    ("check_files(rep, 14 * 1000 + 310)", "argument", "14 * 1000 + 310"),
+    ("full = run_tool(D, nfl, cfb, seed, 10 ** 9)", "argument", "10 ** 9"),
+    ('msg = "a-78 stated 14," + "310 pages"', "text", "14,310"),
+    ('msg = f"{14},{310} pages"', "text", "14,310"),
+    ('print("a-78 stated 14310 pages")', "bare-text", "14310"),            # no thousands comma
+    ('"""the 40543 season files"""', "bare-text", "40543"),
 ])
 def test_the_scan_fires_on_each_shape(source, shape, what):
     got = {(s, w) for _, s, w, _ in findings(source, "planted.py")}
@@ -156,10 +264,15 @@ def test_the_scan_fires_on_both_of_f30s_original_literals():
 @pytest.mark.parametrize("source", [
     'env = {"schema_version": 2, "generated_at": "x"}',      # not all numeric
     "tot = {k: 0 for k in TOTAL_KEYS}",                      # a comprehension states no figure
-    "if len(both) >= 30: pass",                              # under the floor
+    "if len(both) >= 30: pass",                              # an ordering under the floor: a threshold
     'out(f"{got:,} files (baseline {stated:,})")',           # a format spec is not a count
-    "full = run_tool(D, nfl, cfb, seed, 10 ** 9)",           # not a comparison
-    'x = "2026-10-08T23:45:55Z, 3.14, 1,5"',                 # no thousands group
+    'x = "2026-10-08T23:45:55Z, 3.14, 1,5"',                 # no thousands group; a date is not a count
+    "ok = rc == 0 and not missing",                          # testing for nothing
+    "r = round(est, 4); seen = [f(seed, 400) for seed in range(20)]",   # arguments under the floor
+    'p = os.path.join(d, "2020.json"); h = "a981315 12b91365 e8ff867"',  # a file name, three hashes
+    'con = sqlite3.connect("file:x?mode=ro", uri=True, timeout=5)',
+    "last = s[sorted(s)[-1]]; k = len(s) - 1",               # a subtraction outside any comparison
+    'x = "0.0321 on 168 games, 1.29x, +0.668, D:/temp/f36/1234"',      # decimals, a count under 1,000, a path
 ])
 def test_the_scan_is_quiet_on_code_that_states_no_total(source):
     assert findings(source, "planted.py") == []

@@ -1,0 +1,43 @@
+baseline: D:\temp\f36\doc1\disagree\baseline.json
+   source: f-36 doctor.py: the target's own tool on this synthetic tree. case disagree.
+   trees: {'nfl': 'f36-nfl-disagree', 'cfb': 'f36-cfb-disagree'} (match)
+== 4. PLANT (run first: a census that cannot report a missing key proves nothing)
+   one NFL file of 2,000 carries the key (independent census counts 1); a-72's tool at SAMPLE=400 reports it missing on 4 of 20 seeds; with the sample lifted: REPORTS IT
+
+== 1. REPRODUCE the baseline's totals with the target's own tool, seed 7, SAMPLE 50
+   tool says {'missing': 0, 'undeclared': 0, 'declared': 1, 'cfb_only': 3}; baseline {'missing': 0, 'undeclared': 0, 'declared': 1, 'cfb_only': 3} -> REPRODUCES
+   nfl player_summary: 60 files (baseline 60)
+   nfl player_season: 60 files (baseline 60)
+   cfb player_summary: 60 files (baseline 60)
+   cfb player_season: 60 files (baseline 60)
+   step 1 -> REPRODUCES
+
+== 2. FULL: the same tool, sample lifted, every file
+   tool says {'missing': 0, 'undeclared': 0, 'declared': 1, 'cfb_only': 3}
+
+== 3. CENSUS: independent walker, every player file
+
+   player_summary: nfl 60 files, 12 paths (1 stat); cfb 60 files, 10 paths (1 stat)
+   NFL paths carried by < 1 in 50 files (< 1 files): 0 (0 stat); college paths under the same bar: 0
+   NFL paths no college file carries: 4 = 3 beneath a declared absence + 1 MISSING
+      MISSING player_summary.identity.ids.gsis   (nfl 60 of 60 files, filled in 60)
+   present in college and empty in EVERY college file while the NFL fills it: 1, of which undeclared 0
+   college paths named by a declared absence yet FILLED in some file: 0
+   agrees with the tool's full run on missing and undeclared: False  tool-only []  census-only ['player_summary.identity.ids.gsis']
+   distinct stat keys: nfl 1, cfb 1; nfl-only 0: []
+                       cfb-only 0: []
+
+   player_season: nfl 60 files, 6 paths (1 stat); cfb 60 files, 6 paths (1 stat)
+   NFL paths carried by < 1 in 50 files (< 1 files): 0 (0 stat); college paths under the same bar: 0
+   NFL paths no college file carries: 0 = 0 beneath a declared absence + 0 MISSING
+   present in college and empty in EVERY college file while the NFL fills it: 0, of which undeclared 0
+   college paths named by a declared absence yet FILLED in some file: 0
+   agrees with the tool's full run on missing and undeclared: True
+   distinct stat keys: nfl 1, cfb 1; nfl-only 0: []
+                       cfb-only 0: []
+
+wrote D:\temp\f36\doc1\disagree\census.json (96s)
+
+== EXIT
+   EXIT 1: the census reports MISSING player_summary.identity.ids.gsis, which the baseline's 'known' does not name
+   EXIT 1: player_summary: the census and the tool's full run disagree on ['player_summary.identity.ids.gsis']

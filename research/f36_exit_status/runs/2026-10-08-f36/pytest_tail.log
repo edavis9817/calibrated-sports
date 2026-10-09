@@ -1,0 +1,15 @@
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_decisions_audit.py::test_no_decision_has_ever_stopped_being_recorded
+FAILED tests/test_decisions_audit.py::test_it_runs_as_a_module_and_exits_zero_when_clean
+FAILED tests/test_prod_sync.py::test_requirements_change_reinstalls_and_a_failed_install_is_drift
+3 failed, 2658 passed, 41 skipped, 5 warnings in 636.15s (0:10:36)
+--- re-run of tests/test_prod_sync.py tests/test_decisions_audit.py alone:
+=========================== short test summary info ===========================
+FAILED tests/test_decisions_audit.py::test_no_decision_has_ever_stopped_being_recorded
+FAILED tests/test_decisions_audit.py::test_it_runs_as_a_module_and_exits_zero_when_clean
+2 failed, 29 passed in 54.05s
+--- tests/test_decisions_audit.py on 665e4c5 with no overlay:
+FAILED tests/test_decisions_audit.py::test_no_decision_has_ever_stopped_being_recorded
+FAILED tests/test_decisions_audit.py::test_it_runs_as_a_module_and_exits_zero_when_clean
+2 failed, 17 passed in 0.93s
