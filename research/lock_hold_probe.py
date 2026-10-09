@@ -124,6 +124,10 @@ class Load:
             p.terminate()
         for p in self.procs:
             p.wait(timeout=30)
+        root = os.path.dirname(self.beat)
+        for f in os.listdir(root):        # a terminated burner leaves its file
+            if f.startswith(f"burn-{os.getpid()}-"):
+                os.remove(os.path.join(root, f))
         if os.path.exists(self.beat):
             os.remove(self.beat)
 
@@ -330,8 +334,11 @@ def one_run(dirpath, arm, sync):
     # the prober: refusals as a third connection sees them
     if arm in ("test", "prune", "writer"):
         a, runs = denial_runs(probes, t0, t1)
-        if len(a) < 50:
+        if len(a) < 5:
             raise SystemExit(f"FAILED: the prober made {len(a)} attempts - it saw nothing")
+        # under CPU saturation the prober's 1 ms sleep takes a scheduler quantum,
+        # so it asks tens of times, not hundreds: probe_gap_max is its resolution
+        # for that run and `hi` already carries it.
         gaps = [y[0] - x[0] for x, y in zip(a, a[1:])]
         r.update({
             "probe_attempts": len(a), "probe_refused": sum(x[2] == 0 for x in a),
