@@ -6,7 +6,7 @@
     python -m relay.needs_ethan check                0 agrees with the ledger, 1 DISAGREES, 3 agrees but stale
 
 The rule is `F33-needs-ethan-page-prereg.md`, committed (`68907da`) before
-`relay/needs_ethan.py` existed. Generated once, 2026-10-08 20:5x -0400.
+`relay/needs_ethan.py` existed. First generated 2026-10-08.
 
 ## What the first run measured
 
