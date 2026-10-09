@@ -141,6 +141,9 @@ the name, and a count under 1,000 in a string are still not seen.
 - `identity.py` against the real NFL store (about 7 minutes holding a read on the live WAL).
   The floor was exercised on a stub target, not by moving the store.
 - The `draws=2000` hazard: read, not exercised.
-- The content digest: proposed, not built, and its cost on a 54,000-file tree not measured.
+- The content digest: proposed, not built. A one-off measurement of it (sha256 of every file under `cfb/`, 54,993
+  files) gave `c0885781...` for a-78's tree and `7119c3dd...` for the rewritten copy, so it would tell the two
+  apart; it took 399 s and 742 s with a cold cache while the test suite was running, which is the census's own
+  order of cost and was not measured on a quiet machine.
 - `part1_c39.py`, `identity.py` and `identity_c39.py` are unchanged; `part1_c39.py` was run
   once, against the doctored copy only.
