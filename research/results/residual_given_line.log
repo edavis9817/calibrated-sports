@@ -1,0 +1,81 @@
+
+POPULATION
+  bench_rungs                        19,911
+  drop_not_regular_season             1,151
+  drop_position                          75
+  drop_void                              19
+  history_rows_without_game               0
+  rb_games                              814
+  rb_player_games                    10,016
+  rb_rungs                           18,666
+  rungs_all_books                    56,732
+  c-37 reported: rungs 18,666, player-games 10,016, games 814
+  rung count differs from c-37 by 0.00% -> SAME population (within 2%)
+
+RB: n 18,666  over rate 0.4793  mean p 0.5005 (sd 0.0101, 99.5% in [0.45, 0.55])  Brier close 0.2498  Brier 0.5 0.2500
+
+COEFFICIENTS (probability per sd of the candidate; game-block bootstrap)
+  pop cut     candidate          b          95% interval       SE     MDE        p   Holm p  missing      n
+  RB  pooled  form_gap     +0.0009  [-0.0090, +0.0114]   0.0052  0.0146   0.8625   1.0000      269 18,666
+  RB  pooled  last_game    -0.0058  [-0.0173, +0.0059]   0.0060  0.0167   0.3298   1.0000    1,198 18,666
+  RB  pooled  book_gap     +0.0076  [-0.0007, +0.0155]   0.0041  0.0115   0.0642   1.0000        0 18,666
+  RB  pooled  line_pos     -0.0134  [-0.0232, -0.0043]   0.0047  0.0132   0.0043   0.1502        0 18,666
+  RB  pooled  team_total   +0.0148  [+0.0048, +0.0242]   0.0050  0.0141   0.0033   0.1217      325 18,666
+  RB  pooled  log_line     -0.0007  [-0.0114, +0.0090]   0.0052  0.0145   0.8889   1.0000        0 18,666
+  RB  2023    form_gap     +0.0138  [-0.0037, +0.0319]   0.0092  0.0257   0.1329   1.0000       81  5,261
+  RB  2023    last_game    -0.0123  [-0.0314, +0.0062]   0.0098  0.0276   0.2116   1.0000      348  5,261
+  RB  2023    book_gap     -0.0030  [-0.0183, +0.0119]   0.0078  0.0218   0.7035   1.0000        0  5,261
+  RB  2023    line_pos     +0.0062  [-0.0099, +0.0222]   0.0082  0.0231   0.4489   1.0000        0  5,261
+  RB  2023    team_total   +0.0019  [-0.0149, +0.0188]   0.0085  0.0238   0.8200   1.0000      100  5,261
+  RB  2023    log_line     -0.0048  [-0.0225, +0.0143]   0.0094  0.0263   0.6129   1.0000        0  5,261
+  RB  2024    form_gap     -0.0207  [-0.0395, -0.0017]   0.0096  0.0268   0.0309   0.9580       90  6,294
+  RB  2024    last_game    +0.0042  [-0.0150, +0.0238]   0.0100  0.0279   0.6710   1.0000      419  6,294
+  RB  2024    book_gap     +0.0119  [-0.0019, +0.0250]   0.0068  0.0190   0.0803   1.0000        0  6,294
+  RB  2024    line_pos     -0.0110  [-0.0277, +0.0051]   0.0085  0.0237   0.1947   1.0000        0  6,294
+  RB  2024    team_total   +0.0097  [-0.0076, +0.0282]   0.0092  0.0259   0.2943   1.0000      127  6,294
+  RB  2024    log_line     +0.0138  [-0.0053, +0.0321]   0.0094  0.0263   0.1397   1.0000        0  6,294
+  RB  2025    form_gap     +0.0115  [-0.0053, +0.0277]   0.0083  0.0231   0.1619   1.0000       98  7,111
+  RB  2025    last_game    -0.0097  [-0.0282, +0.0094]   0.0098  0.0275   0.3220   1.0000      431  7,111
+  RB  2025    book_gap     +0.0158  [+0.0029, +0.0288]   0.0065  0.0183   0.0152   0.5030        0  7,111
+  RB  2025    line_pos     -0.0242  [-0.0343, -0.0139]   0.0052  0.0144   0.0000   0.0001        0  7,111
+  RB  2025    team_total   +0.0317  [+0.0154, +0.0480]   0.0083  0.0233   0.0001   0.0057       98  7,111
+  RB  2025    log_line     -0.0116  [-0.0281, +0.0042]   0.0082  0.0230   0.1574   1.0000        0  7,111
+  RM  pooled  form_gap     +0.0004  [-0.0097, +0.0107]   0.0052  0.0145   0.9377   1.0000      152 10,016
+  RM  pooled  last_game    -0.0079  [-0.0190, +0.0035]   0.0056  0.0158   0.1588   1.0000      638 10,016
+  RM  pooled  book_gap     +0.0046  [-0.0064, +0.0160]   0.0057  0.0160   0.4244   1.0000        0 10,016
+  RM  pooled  line_pos     -0.0104  [-0.0205, -0.0005]   0.0051  0.0144   0.0426   1.0000        0 10,016
+  RM  pooled  team_total   +0.0140  [+0.0045, +0.0233]   0.0048  0.0135   0.0038   0.1360      184 10,016
+  RM  pooled  log_line     +0.0007  [-0.0097, +0.0112]   0.0053  0.0148   0.8915   1.0000        0 10,016
+
+WALK-FORWARD BRIER, arm minus close, test seasons 2024 + 2025
+  pop arm               diff            95% interval        SE      MDE        p   Holm p       n
+  RB  form_gap      +0.00038  [+0.00014, +0.00063]   0.00012  0.00035   0.0022   0.0852  13,405
+  RB  last_game     +0.00008  [-0.00011, +0.00026]   0.00010  0.00027   0.4306   1.0000  13,405
+  RB  book_gap      -0.00001  [-0.00005, +0.00004]   0.00002  0.00007   0.7489   1.0000  13,405
+  RB  line_pos      -0.00007  [-0.00021, +0.00006]   0.00007  0.00020   0.3015   1.0000  13,405
+  RB  team_total    -0.00014  [-0.00024, -0.00004]   0.00005  0.00014   0.0053   0.1797  13,405
+  RB  log_line      +0.00014  [+0.00002, +0.00026]   0.00006  0.00017   0.0250   0.7984  13,405
+  RB  close+a       -0.00047  [-0.00074, -0.00019]   0.00014  0.00040   0.0011    descr  13,405
+  RB  close+joint   +0.00046  [+0.00001, +0.00090]   0.00023  0.00064   0.0474    descr  13,405
+  RM  form_gap      +0.00034  [+0.00014, +0.00056]   0.00011  0.00030   0.0014   0.0579   6,825
+  RM  last_game     +0.00005  [-0.00018, +0.00030]   0.00012  0.00034   0.6565   1.0000   6,825
+  RM  book_gap      -0.00000  [-0.00005, +0.00005]   0.00002  0.00007   0.9770   1.0000   6,825
+  RM  line_pos      +0.00016  [-0.00001, +0.00033]   0.00009  0.00025   0.0708   1.0000   6,825
+  RM  team_total    -0.00013  [-0.00028, +0.00001]   0.00007  0.00021   0.0739   1.0000   6,825
+  RM  log_line      +0.00031  [+0.00011, +0.00050]   0.00010  0.00028   0.0023   0.0867   6,825
+  RM  close+a       -0.00035  [-0.00056, -0.00014]   0.00011  0.00031   0.0014    descr   6,825
+  RM  close+joint   +0.00084  [+0.00031, +0.00136]   0.00027  0.00076   0.0021    descr   6,825
+
+VERDICT (registered rule: both conditions on RB, or no)
+  form_gap    coef after Holm: False  same sign: False  Brier beyond MDE: False  under-powered: False -> no
+  last_game   coef after Holm: False  same sign: False  Brier beyond MDE: False  under-powered: False -> no
+  book_gap    coef after Holm: False  same sign: False  Brier beyond MDE: False  under-powered: False -> no
+  line_pos    coef after Holm: False  same sign: False  Brier beyond MDE: False  under-powered: False -> no
+  team_total  coef after Holm: False  same sign: True   Brier beyond MDE: False  under-powered: False -> no
+  log_line    coef after Holm: False  same sign: False  Brier beyond MDE: False  under-powered: False -> no
+
+  candidates passing: 0 of 6
+  registered tests 42; unadjusted p < 0.05: 13 (expected by chance 2.1); Holm p < 0.05: 2
+  specifications tried: 46
+
+  elapsed 139s

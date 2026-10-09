@@ -2294,3 +2294,20 @@ while three writer tasks launched from it). a-10 built two production clones pin
     z = -34 and was the run's only Holm survivor; under the ladder's own cells z = -1.36. The
     variance was not zero, it was the variance of the prices. A pre-run MDE from an outcome-free
     simulation is what refused it.
+
+- **Given the line, nothing on a six-candidate list predicts the receiving-yards residual** (c-41,
+  `research/residual_given_line.py`, pre-registered at `de5a5a7`;
+  `docs/findings/c41-residual-given-line.md`). NFL receiving yards, over side, REG 2023-2025, the
+  de-vigged DK/FD/MGM price at each book's own line ~14 min before kickoff; c-37's population exactly
+  (18,666 rungs, 10,016 player-games, 814 games). Residual = outcome minus that price. 42 tests in one
+  Holm family, 46 specifications, one run: **0 of 6 pass**. Largest pooled coefficient is the team's
+  implied total, +0.0148 per sd [+0.0048, +0.0242], Holm p 0.12, on an input nflverse does not
+  timestamp; its walk-forward Brier gain is 0.000140 against an MDE of 0.000141.
+  - **Scope of the null:** an effect of ~2 points of over probability per sd is ruled out; 1 point is
+    not. It is six linear nulls on one market at one instant, not "the close is efficient".
+  - **The player's own history makes the forecast worse with the line given** (`form_gap` Brier
+    +0.00038 [+0.00014, +0.00063]). The only arm that beats the close out of sample is the constant -
+    the over bias already published - and it is ~2.1 points with no cost modelled.
+  - **`core.settlement.resolve` grades `actual == line` as OVER when `push_possible` is 0, and it is 0
+    on every receiving-yards outcome row.** Read from the code, and it did not fire here: 0 ties on
+    the 18,685 bench rungs. Drop ties explicitly on any yards rung set that holds integer lines.
