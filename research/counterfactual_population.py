@@ -169,9 +169,10 @@ def contrast(miss_counts, total_counts, n_miss, n_all):
         return miss_counts / n_miss - (total_counts - miss_counts) / (n_all - n_miss)
 
 
-def permuted_missed_counts(g, miss, f, n_games, rng, draws=PERM):
+def permuted_missed_counts(g, miss, f, n_games, rng, draws=None):
     """(draws, K) missed-row counts per input with the labels shuffled WITHIN game:
     every game keeps its number of misses, every row keeps its flipping input."""
+    draws = PERM if draws is None else draws
     out = np.zeros((draws, K))
     for j in range(n_games):
         sel = np.flatnonzero(g == j)
@@ -188,8 +189,10 @@ def wilson(k, n, z=1.959963984540054):
     return mid - half, mid + half
 
 
-def slice_tests(pop, name, rows, seed, mde_pre, draws=PERM, boot=BOOT):
+def slice_tests(pop, name, rows, seed, mde_pre, draws=None, boot=None):
     """Five missed-minus-cleared tests on one slice of one population."""
+    draws = PERM if draws is None else draws
+    boot = BOOT if boot is None else boot
     g, miss, f, n_games = _arrays(rows)
     n_all, n_miss = len(miss), int(miss.sum())
     total = f.sum(axis=0)
