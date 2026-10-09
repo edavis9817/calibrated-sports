@@ -28,10 +28,16 @@ tunes `models/baseline.py`. Credits spent: 0.
 
 ## Headline
 
-**The injury report moves the stat and does not move the model's resolution.
-Neither injury arm raises DSC, neither narrows the ordering gap to the close,
-and both improve calibration. By the rule fixed in advance that is a FAILED
+**On NFL receptions and rush attempts, 2023-24 regular season, against the
+DK/FD/MGM close on main lines: the injury report moves the stat, and no rise in
+the model's resolution was detected. Neither injury arm raises DSC, neither
+narrows the ordering gap to the close; arm 3 lowers miscalibration and arm 1's
+fall does not survive correction. By the rule fixed in advance that is a FAILED
 arm, twice. The depth-chart arm could not be tested on P1 at all.**
+
+**Corrected by c-45 from f-31 run 4 (`docs/findings/c45-corrections.md`): this
+is a null on a perturbation that could not have closed the gap, not a tight
+null on the gap.** The figures are f-31's and are in the first bullet below.
 
 | arm | rows carrying any information | **dDSC (info − baseline)** | MDE | dAUC (info − baseline) | dMCB |
 |---|---|---|---|---|---|
@@ -42,10 +48,22 @@ arm, twice. The depth-chart arm could not be tested on P1 at all.**
 
 - **Registered verdict, arms 1 and 3: "no rise in resolution detected"**, and
   because dMCB is below zero in both, **"improved calibration and not
-  resolution: FAILED this unit."** A null, not a refutation — but a tight one:
-  the baseline's DSC on these rows is 0.0010 and the close's is 0.0052, so the
-  gap is 0.0041 and the MDEs are 6% and 11% of it. An improvement worth having
-  would have been seen.
+  resolution: FAILED this unit."** A null, not a refutation — and not a tight
+  one. The baseline's DSC on these rows is 0.0010 and the close's is 0.0052, so
+  the gap is 0.0041 and the MDEs are 6% and 11% of it; but the perturbation
+  tested could not have closed that gap. Measured by f-31 run 4 (post hoc, the
+  attacker's own): the injury arms move 32% / 36% of forecasts by a median 0.03
+  / 0.02, and replacing those same rows with the close's own price raises DSC by
+  +0.0006, about 15% of the 0.0041 gap, which this test detects barely for arm 1
+  and not for arm 3. Whether injury information used some other way could raise
+  resolution is open; what would close it is a test whose perturbation can reach
+  the gap.
+- **Arm 1's fall in miscalibration does not survive correction** (f-31 run 4):
+  dMCB -0.0008 [-0.0015, -0.0000] is z -1.97, p 0.048, does not survive over 2,
+  36 or 47 intervals and contains zero under player blocks. Only arm 3's
+  (-0.0014 [-0.0021, -0.0008]) does. The registered rule reads the interval as
+  computed, so the registered verdict above is unchanged; "both improve
+  calibration" is not what a corrected reading supports.
 - **The ordering gap does not narrow.** On these rows the baseline's AUC is
   0.5292 and the close's 0.5756 (gap −0.046, c-24's −0.043 on a subset). Arm 1
   closes +0.3% of it, arm 3 −0.9%; both intervals straddle zero with an MDE of
@@ -170,8 +188,9 @@ Computed after the run from the stored per-row predictions; no interval.
   (mean close 0.496 on the moved rows). A model that did not know reads the
   raised line as a likely under; told, it moves back toward 0.5. That repairs a
   level error — calibration — and cannot order overs against unders at lines the
-  market has already centred. On this population, information the market also
-  has can only ever buy MCB.
+  market has already centred. On that reading, information the market also has
+  buys MCB and not DSC on this population — an inference from two correlations
+  with no interval, not a measured limit.
 - This is my explanation of a measured null, not a measured mechanism. What is
   measured is the two correlations and the table.
 
@@ -213,7 +232,8 @@ Computed after the run from the stored per-row predictions; no interval.
 36 computed, 7 exclude zero: arm 1 dMCB; arm 3 dMCB and dBrier; and for both
 arms dDSC and dAUC against the market (the model still loses). None of the 7 is
 a gain in resolution or ordering. No multiplicity correction; ~1.8 expected
-under a global null.
+under a global null. Arm 1's dMCB (p 0.048) is one that a correction removes
+(f-31 run 4).
 
 Per stat and season, dDSC (info − baseline): arm 1 receptions +0.00008
 [−0.00026, +0.00037], rush attempts −0.00010 [−0.00120, +0.00113], 2023
@@ -224,6 +244,8 @@ all four intervals contain zero.
 
 ## What this does not establish
 
+- **Not that injury information cannot raise resolution.** The arms tested
+  could have closed about 15% of the gap to the close at most (f-31 run 4).
 - **Nothing about 2025** for injuries, and nothing registered about depth
   charts on P1.
 - **Nothing about information the market does not have yet.** Every P1 row is
@@ -245,9 +267,11 @@ all four intervals contain zero.
 ## What it points at next
 
 c-27, c-30, c-31 rearranged what the model had; this unit added something it
-did not have and landed in the same place. The common factor is the scoreboard,
-not the inputs: **at the close, on main lines, the market has already used
-everything public.** Two things would be different in kind:
+did not have and landed in the same place. One reading of the common factor —
+inferred, not measured, and not established by this unit — is the scoreboard
+rather than the inputs: that at the close, on main lines, the market has already
+used the public information tested here. The question is open. Two things would
+be different in kind, and would test it:
 
 1. **Score before the line has moved.** The same features against the *open*,
    with the open-to-close move as the outcome (c-32's frame). That needs prop

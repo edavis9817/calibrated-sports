@@ -66,10 +66,17 @@ This is the one result every proxy agrees on, in both panels where both exist.
 | disagreement between books, pp — H | 1.22 to 2.31 (sacks not comparable) | 0.82 / 0.63 / 0.53 |
 | movement, last 24h, pp — L | 1.48 to 2.76 | 1.37 / 1.11 / 0.84 |
 
-Books charge ~2pp more to quote a prop, disagree with each other about 2-4x as much, and
-move the number more in the last day. First-half lines sit between (hold 4.5-5.6pp).
+Books charge ~2pp more to quote a prop, disagree with each other about 1.1pp more (as a ratio
+the low end is 1.5x and the class means 2.6x, not "2-4x"), and move the number more in the last day. First-half lines sit between
+(hold 4.5-5.6pp).
 
-## 3. Within props, the three proxies do NOT agree on an order
+**This class contrast stands, at full strength** (f-31 run 4): about 2pp more hold on player
+props than on game lines and about 1.1pp more disagreement between books, z 6 to 288,
+surviving Bonferroni over all 372 computed intervals. It describes book behaviour, not
+mispricing. The within-prop order in section 3 is what c-45 corrected
+(`docs/findings/c45-corrections.md`).
+
+## 3. Within props, no common order is shown, and the order depends on the slope chosen
 
 Panel L, 32 games, 95% game-block bootstrap intervals, rank 1 = softest, rank interval in
 brackets. Movement is ranked LOW = soft, as the brief framed it.
@@ -85,9 +92,15 @@ brackets. Movement is ranked LOW = soft, as the brief framed it.
 | pass_tds | 6.50 [6.47, 6.53] r4 [3-4] | 5.91 r5 | 1.85 [1.57, 2.18] r3 [3-5] | 1.50 [1.29, 1.72] r2 [1-4] |
 | tackles_assists (2 books; thin) | 6.42 [6.41, 6.43] r5 [5-5] | 6.42 r1 | 1.14 [0.84, 1.46] r7 [7-8] | 2.76 [2.15, 3.43] r8 [5-8], 14 games |
 
+The disagreement column is computed under the addendum-1 slope, chosen after a smoke run.
+Under the registered slope the rush-yards 2.81pp reads **0.73pp and ranks 6th of 8**.
+
 Spearman across the 8 keys (descriptive, n = 8): hold vs disagreement **-0.48**, hold vs
-movement +0.05, disagreement vs movement +0.10. **There is no common "softness" among these
-keys for a composite to find.**
+movement +0.05, disagreement vs movement +0.10. **That -0.48 is not evidence of anything:
+over 8 keys its exact permutation p is 0.24, and under the registered slope it is +0.74**
+(f-31 run 4). These eight keys do not show a common "softness", and they could not have
+shown its absence either. The question is open; more keys, or a slope fixed before the
+data is seen, would close it.
 
 What each proxy is actually measuring:
 
@@ -98,10 +111,16 @@ What each proxy is actually measuring:
   another" — does not exist in this data: no prop key is below 5.6 or above 7.2 at any bench
   book. The order also depends on the book: tackles+assists is DraftKings' highest-hold key
   and mid-table in the bench mean, because FanDuel and BetMGM do not quote it.
-- **Disagreement is highest on the yards keys** (rush 2.81, receiving 2.57), then pass TDs
-  (1.85) and receptions (1.73); pass attempts and tackles are tightest (~1.1). Panel H agrees
-  on the one comparison it can make: reception yards 2.31 [2.22, 2.40] above rush attempts
-  1.85 and receptions 1.80, tackles 1.22.
+- **Under the addendum-1 slope, on 2026 weeks 3-4 (32 games), disagreement is highest on
+  the yards keys** (rush 2.81, receiving 2.57), then pass TDs
+  (1.85) and receptions (1.73); pass attempts and tackles are tightest (~1.1). **The number
+  moves with the ruler** (f-31 run 4): under the registered slope rush yards is 0.73pp and
+  rank 6 of 8; under other defensible slopes 2.1-2.5pp. Yards keys are top-2 under every
+  post hoc slope (99% of draws), but rush and receiving yards are not ordered (rush first in
+  69%), and the 2026 yards-minus-count differences sit at their MDE (0.81-1.16). Panel H's
+  one comparison points the same way and is conditional: reception yards 2.31 [2.22, 2.40]
+  above rush attempts 1.85 and receptions 1.80, tackles 1.22 - and "receiving yards above
+  receptions" there holds only for a slope above 0.344 and uses one borrowed from 2026.
 - **Movement is highest on the same skill-position keys** (2.2-2.5pp) and lowest on the three
   quarterback keys (~1.5pp). Read as the brief asked (low = nobody pushing), the QB keys are
   "soft"; read the other way, they are simply settled early. This proxy cannot tell those apart
@@ -123,7 +142,8 @@ estimated across books reads ~0 there. Measured:
 | pass_yds | negative | 1.313 [1.20, 1.39] | 1.09 |
 
 On receptions, where both exist and the line cannot be shaded, the two agree (0.59 vs 0.61),
-which is the check that the ladder slope is the right quantity. Under the registered slope,
+which checks that the ladder slope is unbiased on a count key; it is not a check of the
+yards slope. Under the registered slope,
 reception-yards disagreement read 0.68pp (rank 7) and rush yards 0.73 (rank 6); corrected,
 2.57 (rank 2) and 2.81 (rank 1). Both versions are printed by the script. An independent
 plain-Python recomputation of reception yards reproduced hold (three books), same-line,
@@ -180,9 +200,11 @@ the tidy list.
 
 **What I would look at next, and why** (a judgement, labelled as one):
 
-1. **Receiving yards and rushing yards.** They are where the books disagree with each other
-   most (2.6-2.8pp, about 4x a game total, and reception yards holds that position on 850 games
-   of 2023-25), they sit in the top forecastability tier, they are quoted by 7 books with deep
+1. **Receiving yards and rushing yards.** Under the addendum-1 slope, on 2026 weeks 3-4 (32
+   games), they are where the books disagree with each other most (2.6-2.8pp, about 4x a game
+   total; under the registered slope they rank 7th and 6th of 8, and on 2023-25 reception
+   yards sits above receptions only for a slope above 0.344), they sit in the top
+   forecastability tier, they are quoted by 7 books with deep
    alternate ladders, and reception yards is already on the Board with no model column. The
    cost is that a yards forecast inherits efficiency noise (CV 0.83-0.88), so a model must add
    a lot to be worth anything.
@@ -195,7 +217,8 @@ the tidy list.
 
 Book disagreement is already known not to be a business by itself: brief 023 measured prop
 arbitrage between these same books at ~1pp and not scalable. Disagreement says where the books
-are least sure, which is where a forecast has the most room — nothing more.
+are least sure. Whether a forecast has more room there is untested: no forecast is involved
+anywhere in this unit.
 
 ## What this cannot establish
 
@@ -205,7 +228,9 @@ are least sure, which is where a forecast has the most room — nothing more.
 - Panel L is 32 games in weeks 3-4 of 2026. Early-season, and two weeks.
 - No Pinnacle or other sharp book: this is disagreement among retail and offshore books.
 - The line-to-probability slope is one number per key, held fixed across bootstrap draws, so
-  the disagreement and movement intervals omit its uncertainty (ladder IQRs above). Rush
+  the disagreement and movement intervals omit its uncertainty (ladder IQRs above). f-31 run 4
+  measured that omission as immaterial (it widens an interval x1.05); what moves the number is
+  the CHOICE of slope, which no interval here carries. Rush
   attempts, pass attempts and pass TDs have no ladder and use the cross-book slope; receptions
   is the only measured check that this is unbiased on a count market. Tackles has no slope at
   all (22 pairs) and uses same-line figures.

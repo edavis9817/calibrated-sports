@@ -19,9 +19,18 @@ its minimum detectable effect. It is also the flipping input on 68.0% of the lea
 **cleared**. The contrast, missed minus cleared, is -0.019 [-0.099, +0.067], adjusted p 1, 0.16
 of its MDE.
 
-So the concentration is real and it is not about missing. It is what this model's arithmetic
-looks like: one number, weighted 0.73 at the median, carries most of the mean. The ledger does
-not say which input was wrong when a lean missed. No input is over-represented among the misses.
+So the concentration is real and is not detectably about missing. It is what this model's
+arithmetic looks like: one number, weighted 0.73 at the median, carries most of the mean. The
+ledger does not say which input was wrong when a lean missed. No input is detectably
+over-represented among the misses: a difference in share under about 0.11-0.12 would not have
+been seen on 31 games.
+
+**Corrected by c-45 from f-31 run 4 (`docs/findings/c45-corrections.md`): the 66.1% is a
+description of the model, not of misses.** `own_mean` is the flipping input on 67.1% of all 477
+leans whatever the outcome, and with the missed/cleared label permuted within game 66.1% sits at
+the 62nd percentile of its null (p about 0.75, drawn twice independently). The Holm p of 2e-19
+rejects a 1/5 null that the model's structure violates on its own. Never cite the 66.1% without
+the 68.0%.
 
 ## 2. Population
 
@@ -38,7 +47,9 @@ The brief quoted 1,040 rows (a-70's read at 06:50Z) and the roadmap 471; both ar
 of a file that is appended to. The 477 analysed leans cover 233 players.
 
 Nineteen graded leans (13 missed, 6 cleared) rebuild to a probability 0.0001 to 0.0111 away from
-the ledgered one and are excluded and listed in the aggregates file. The cause was not
+the ledgered one and are excluded and listed in the aggregates file. **All 19 are week 4**, which
+this unit did not report until f-31 run 4 found it; by f-31's bound they could move the
+missed-minus-cleared contrast only within [-0.062, +0.015]. The cause was not
 established; facts restated since the read would produce exactly this and so would a position or
 team that differs from the read file's.
 
@@ -99,8 +110,9 @@ proportional distance, with null where the input cannot reach it. That renders.
 
 What it supports is a description of the model: "this lean stood on the player's own average;
 it would have taken a 50% lower average to put the model on the other side". What it does not
-support is a diagnosis of the miss. The same sentence is true, at the same rate, of the leans
-that cleared.
+support is a diagnosis of the miss. The same sentence is true of the leans that cleared, at a
+rate this sample does not distinguish from the misses' (68.0% against 66.1%; a gap under about
+0.12 would not have been seen).
 
 A line counterfactual holds the market's probability at its ledgered value - the same price at a
 different number - because the ledger does not carry the book's price at other lines.
@@ -129,4 +141,4 @@ different number - because the ledger does not carry the book's price at other l
 - More than two graded weeks. Game blocks were used as the brief asked; `core.record` refuses a
   week-block interval at two weeks, so these intervals are narrower than a week-block reading
   would allow.
-- The 19 excluded leans, and why they do not rebuild.
+- The 19 excluded leans, and why they do not rebuild. All 19 are week 4.

@@ -21,23 +21,35 @@ Unit c-35 (track C), 2026-10-08. Findings only; nothing publishes from here.
 
 ## The three answers, short
 
-1. **The shape between the rungs is the shape receivers actually produce.** Kalshi's implied
-   mass per catch-count, measured from the central rung, matches the realised distribution
-   of 12,593 player-games (2023-25, typed by position and line) to within 1.5pp in every
+**Wording corrected by c-45 from f-31 run 4 (`docs/findings/c45-corrections.md`).** No
+number below moved; three sentences claimed more than the run supports.
+
+1. **By the registered rule the ladder's implied shape departs from what happened in one
+   cell: receptions-RB, one catch above the line; 1 of 48 registered intervals survives
+   correction, unreplicated.** Separately, and descriptively only: Kalshi's implied
+   mass per catch-count, measured from the central rung, sits within 1.5pp of the realised
+   distribution of 12,593 player-games (2023-25, typed by position and line) in every
    cell for receptions overall, and within 2.2pp in every position cell carrying at least 23
-   ladders. Against 2026's own outcomes, 1 of 48 registered intervals survives correction, and
-   the three seasons side with the ladder on that cell, not with the three weeks.
-2. **The model and the ladder disagree almost entirely by level - and the level is the
-   model's error.** One shift per ladder removes 95.8% of the squared disagreement. But the
+   ladders. That column has no interval, sets a de-vigged sportsbook line against an exchange
+   mid across seasons, and was added after the first run; on the surviving cell the three
+   seasons side with the ladder, not with the three weeks. It is a stated prior about the
+   survivor, not a verdict that the shape is right.
+2. **The model and the ladder disagree almost entirely by level, and that share says nothing
+   about this model.** One shift per ladder removes 95.8% of the squared disagreement - and
+   pairing each market ladder with ANOTHER player's model ladder gives 0.959 (f-31 run 4).
+   The model's mean rung sits about 4pp below the market's and below the realised rate. The
    disagreement orders outcomes at neither level, so "ladder-level versus rung-level" is, by
    the rule fixed in advance, **a comparison of two nulls**.
-3. **The central rung is the cheapest way to hold a level view per contract; the wings are
+3. **On 18 games (16 of them week 3), at one lead time and for a hypothetical view: the
+   central rung is the cheapest way to hold a level view per contract; the wings are
    cheaper per dollar only for a large view.** Cost on Kalshi is a hump in price, set by the
    fee, not a slope. Choosing the central rung over a random rung is worth about 2.9pp of a
    7.3pp expected value at the primary view.
 
-Nothing here is an edge. The one statistical survivor costs 4.5c to trade against a 7.5pp
-gap at the mid, on a 50-contract touch, and realised +0.40pp [-9.32, +7.97].
+No edge is reported here, and none is ruled out below the MDEs. The one statistical survivor
+costs 4.5c to trade against a 7.5pp gap at the mid, on a 50-contract touch, and realised
++0.40pp [-9.32, +7.97] on a POST HOC join of 43 ladders in 17 games - 0.03 of its 12.6pp MDE
+(f-31 run 4), so this run could not have detected an edge of that size or told one from none.
 
 ## Q1 - the shape between the rungs
 
@@ -56,7 +68,8 @@ the ladder; `D > 0` means the ladder is too narrow):
 | receptions, RB | 124 | -0.0017 [-0.0548, +0.0504] | +0.0562 [-0.0788, +0.1993] |
 | rush attempts | 156 | -0.0069 [-0.0465, +0.0317] | +0.0179 [-0.1145, +0.1514] |
 
-The level is right everywhere (every M interval contains zero, MDE 0.03-0.07). Every
+No level error is detected anywhere (every M interval contains zero; one under the MDE of
+0.03-0.07 would not have been seen). Every
 dispersion estimate is positive, and the pooled receptions one excludes zero **before**
 correction (z = 2.02) and does **not** survive BH. That is the direction to watch - a ladder
 slightly too narrow - and it is not a finding.
@@ -92,8 +105,9 @@ interval. Its conditioner is a de-vigged sportsbook line, not an exchange mid.)
   d = -3, n = 26). The one larger gap is RB d = -3, 5.0pp on 4 ladders.
 - **Its depth join (post hoc, addendum 1e).** Selling that cell is two legs. Depth exists on
   both for 43 of the 124 ladders (17 games). Cost 4.52c over the mid against the 7.51pp gap;
-  thinner-leg touch size p50 **50 contracts**; realised net **+0.40pp [-9.32, +7.97]**. Not an
-  edge, and not reported as one.
+  thinner-leg touch size p50 **50 contracts**; realised net **+0.40pp [-9.32, +7.97]**. Not
+  reported as an edge; at 0.03 of its 12.6pp MDE (f-31 run 4) this join cannot tell an edge
+  from none.
 - **Rush attempts have no cell finer than 3 carries.** Q1-A covers them on the two tails
   only (both within 1.1pp of implied, MDE 9pp). The post hoc rung-cell table: just below
   the central rung implied 0.2773 realised 0.2941; just above 0.2710 against 0.2549; both
@@ -120,7 +134,12 @@ is +0.0122 here against c-24's +0.0121.
 Per ladder the level share is p25 0.70, median 0.93. The fitted shift is **negative**:
 median -0.19 probit, mean -0.234 (p10 -0.97, p90 +0.41). In probabilities: the model's mean
 rung is 0.297, the market's 0.337, the realised rate 0.341. **The model sits about 4pp below
-a market whose level is right** (Q1's M is zero). The fitted scale's median is 0.85.
+a market whose level is not detectably off** (Q1's M interval contains zero, MDE 0.03-0.07;
+the 4pp has no interval). The fitted scale's median is 0.85.
+
+**The 0.958 is not a statement about this model's shape** (f-31 run 4): pairing each market
+ladder with another player's model ladder gives a level share of 0.959 [0.957, 0.961] (20
+draws; noise nulls 0.21-0.29). A mismatched ladder disagrees "by level" exactly as much.
 
 **And the disagreement predicts nothing, at either level.** Concordance within strata of
 stat x market-mid decile (c-24's `wauc`), minus 0.5:
@@ -204,8 +223,9 @@ down-view table is the mirror image and is in the result file.)
   the games was scored against the central rung on the other half. On both halves, both
   sides and both sizes, **the best rule was the central rung**, so the cross-fitted
   difference is identically zero and the verdict by the rule is "not shown to be worth
-  anything" - which here means **no rule beats the default, the default being the right
-  rung**. 0 of 4 survive BH (a zero-variance interval is p = 1).
+  anything". The cross-fit picked the central rung on both halves; that is a zero-variance
+  comparison on 18 games, not a demonstration that the central rung is the right one.
+  0 of 4 survive BH (a zero-variance interval is p = 1).
 - **What a wrong choice costs (descriptive, >= 0 by construction).** At view 0.25, 100
   contracts, buying YES: the best rung beats the central by 0.10pp, **the mean rung by
   2.85pp and the worst by 6.01pp** per contract. Buying NO: 0.09 / 3.49 / 7.12pp. The best
@@ -235,9 +255,17 @@ down-view table is the mirror image and is in the result file.)
   props widen sharply in-game).
 - **Q1-C compares across venues and seasons.** Its agreement is evidence the ladder's shape
   is plausible, not that Kalshi's ladder is calibrated in 2026.
-- **The level share is partly mechanical.** One free parameter per ~6 rungs would absorb
-  about a sixth of pure noise. 0.958 is far above that; the benchmark is arithmetic, not a
-  measured null.
+- **The level share says nothing about this model.** One free parameter per ~6 rungs would
+  absorb about a sixth of pure noise, and 0.958 is far above that - but the measured null
+  (f-31 run 4) is a mismatched player's model ladder, which gives 0.959. Nothing about the
+  model's shape follows from 0.958.
+- **Whether there is an edge in the surviving cell.** Its executable figure is post hoc and
+  at 0.03 of its MDE. The question is open; the replication fixed below is what would
+  close it.
+- **Read by f-31 from the code, not measured by anyone:** the fit is as-of kickoff while the
+  price it is compared with is at kickoff - 180 minutes, and position and team from the
+  game's own stat row enter the fit. Both would flatter the model; every verdict here that
+  involves the model is a null.
 - **A multi-level fill is billed per fill.** The fee here is computed once at the VWAP,
   which can understate by up to a cent of rounding per level on an order that walks the
   book.

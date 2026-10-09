@@ -32,6 +32,15 @@ re-run or changed after it. Run log and aggregates:
 ordering in both sports** — the registered SUCCESS. 16 of 16 primary tests are
 significant after Holm.
 
+**Corrected by c-45 from f-31 run 4 (`docs/findings/c45-corrections.md`): the
+"16 of 16" is not independent evidence, and the size claim below is a raw one.**
+Once the reproduction gate passed (c-28's and c-39's published figures
+reproduced), 6 of the 16 are gated to published values and the 4 ordering
+contrasts cannot fail even at worst-case SE, so the registered success rule
+could not have returned failure. The sign and ordering stand as a reproduction
+of two published results side by side; they are not a test that could have come
+out the other way.
+
 dBrier, model minus baseline, game blocks, 2,000 draws:
 
 | model − | NFL | college | college − NFL | registered MDE |
@@ -51,9 +60,20 @@ On the skill scale, 1 − Brier(model)/Brier(baseline): home 0.104 NFL against
 0.253 college; record 0.068 against 0.173; plain Elo 0.012 against 0.022. Each
 difference excludes zero (+0.149, +0.104, +0.010).
 
-- **The advantage is larger in college on every baseline, on both scales.**
+- **The RAW advantage is larger in college on every baseline, on both scales,
+  and the raw gap is not a same-strength comparison.** At equal forecast
+  strength (college re-weighted to the NFL's distribution of favourite
+  probability, next section) the dBrier gap is -0.0028 [-0.0071, +0.0012]
+  against home (0.46 of its MDE: not detected, a null this population cannot
+  resolve, not a measured zero), -0.0073 [-0.0115, -0.0029] against better
+  record (1.21x its MDE, at the bar) and -0.0032 [-0.0046, -0.0018] against
+  plain Elo (1.57x). **No re-weighted figure exists on the skill scale at all**,
+  so "on both scales" has no equal-strength counterpart for one of its two
+  scales; whether the skill-scale gap survives re-weighting is open.
 - **The plain-Elo size difference is at its MDE and is fragile.** It excludes
-  zero in the primary family (Holm p 0.012). In the cuts family it is not
+  zero in the primary family (Holm p 0.012 - which f-31 run 4 reads as its
+  unadjusted p: it passes Holm only as the family's last step, fails Bonferroni
+  over 16, and is 0.89 of its MDE). In the cuts family it is not
   significant after Holm in any of the eight cuts, and its interval contains
   zero in three of them. Read: the margin-of-victory term is worth about as
   much in both sports, perhaps slightly more in college.
@@ -62,7 +82,7 @@ difference excludes zero (+0.149, +0.104, +0.010).
   being compared; a committed test shows that it produces a zero-width
   difference on identical data.
 
-## Why it is bigger in college: mostly that college games are more lopsided
+## Why the raw gap is bigger in college: against home, mostly that college games are more lopsided
 
 The model's mean favourite probability is 0.637 in the NFL and 0.735 in
 college. 2.3% of NFL games have a favourite at 0.85 or more; 25.7% of college
@@ -78,7 +98,10 @@ bins), minus the NFL:
 | better record | −0.0217 | −0.0073 [−0.0115, −0.0029] | not by the spread alone |
 | plain Elo | −0.0015 | −0.0032 [−0.0046, −0.0018] | not by the spread alone |
 
-- **Against home, 92% of the raw gap disappears at equal forecast strength.**
+- **Against home, 92% of the raw gap disappears at equal forecast strength** -
+  a ratio of two point estimates with no interval of its own, and the matched
+  figure is 0.46 of its MDE, so what remains is not detected rather than
+  measured as zero (f-31 run 4).
   Declared before the run: against a constant baseline this is close to
   mechanical for two calibrated models, so it is evidence both are calibrated,
   not of anything deeper.

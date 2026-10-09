@@ -11,11 +11,17 @@ tests in one Holm family, 46 specifications in all. Zero credits; `market_log.db
 de-vigged DraftKings / FanDuel / BetMGM price at each book's own line about 14 minutes
 before kickoff, six named linear candidates.
 
-## The answer is no
+## None of the six passes the registered rule
 
 **None of the six candidates predicts the residual of the receiving-yards bench close by
 the registered rule. 0 of 6 pass.** No pooled coefficient survives the correction, and
 no candidate's walk-forward Brier improvement exceeds its MDE.
+
+**Corrected by c-45 from f-31 run 4 (`docs/findings/c45-corrections.md`): this is "not
+detected", and the size it could have detected is larger than first written.** The rule
+that returned "no" detects a true, season-stable effect 80% of the time only near 4.5-5
+points of over probability per standard deviation, not 2, and team implied total is
+unresolved, not refuted. The figures are f-31's and are under *Power* below.
 
 The population is c-37's exactly: 18,666 rungs, 10,016 player-games, 814 games (c-37
 reported the same three figures). Over rate 0.4793 against a mean price of 0.5005; 99.5%
@@ -50,18 +56,29 @@ seasons only:
 ## What is and is not in that
 
 - **Power.** Realized pooled coefficient SEs are 0.0041-0.0060 against the 0.0050
-  registered, so no test is under-powered by the registered rule. The largest pooled
-  estimate is 0.0148; the registration said beforehand that an effect under 0.020 could
-  not survive the correction and one under 0.033 could not pass the Brier bar. What this
-  rules out is an effect of about 2 points of over probability per standard deviation;
-  it does not rule out one of 1.
+  registered. That is a statement about the coefficient SE, not about the power of the
+  two-part pass rule. The largest pooled estimate is 0.0148; the registration said
+  beforehand that an effect under 0.020 could not survive the correction and one under
+  0.033 could not pass the Brier bar.
+  **This null does not rule out an effect of 2 points of over probability per standard
+  deviation.** The pass rule requires the out-of-sample Brier gain to exceed its realized
+  MDE, which passes a true effect of that size about half the time. Measured by f-31 run 4
+  (a season-stable synthetic candidate planted in the real rows, through this script's
+  own `analyse` and `verdict`, 80 replications a size, one candidate slot - an upper bound
+  on the rule's power): the rule passes 9% of the time at 0.020 per sd, 41% at 0.033 and
+  82-85% at 0.045-0.050. So 0.033 is the rule's coin-flip point, not its bound. No effect
+  was detected; the rule reaches 80% detection only near 4.5-5 points per sd; and 0.02 is
+  inside the 95% interval of `team_total` (to +0.0242) and of `line_pos` (to -0.0232).
 - **The registered Brier MDE arithmetic assumed the applied slope equals the true one.**
   The walk-forward slopes were much smaller than the pooled ones (`team_total`: +0.0019
   fitted on 2023, +0.0052 on 2023-2024, against +0.0148 pooled), so the realized Brier
   MDEs (0.00007 to 0.00035) are far below the 0.0011 written down. The registered rule
   reads the realized MDE and is applied as written; the 0.0011 was a description of where
   the bar binds for a stable effect, and no effect here was stable.
-- **`team_total` is the nearest thing to a signal and it fails three ways.** Its pooled
+- **`team_total` is the nearest thing to a signal. It did not pass, three ways - and it
+  is unresolved, not refuted.** f-31 run 4: its Brier gain (0.000140) is what a true
+  effect of its own size produces (0.000146), and the rule passes that 3% of the time.
+  Its pooled
   interval excludes zero unadjusted and not after Holm (0.12; Bonferroni interval
   [-0.0015, +0.0311]). Its Brier improvement is 0.000140 against an MDE of 0.000141 - an
   estimate sitting on its MDE, which the rule was written to refuse. And its input is the
@@ -80,14 +97,20 @@ seasons only:
   slope fitted on earlier seasons is worse than the close, interval above zero; its
   fitted slope was +0.0138 on 2023 and -0.0052 on 2023-2024. The joint arm is worse too.
   That is the same fact c-37 found from the other side, now with the line given.
-- **The only arm that improves on the close out of sample is the constant**: the over
-  bias already published for this market (over rate 0.479 against 0.50). It was kept out
+- **The only arm whose out-of-sample improvement on the close exceeds its MDE is the
+  constant** (1.16x its MDE; descriptive, outside the Holm family): the over
+  bias already published for this market (over rate 0.479 against 0.50). `team_total`'s
+  Brier interval [-0.00024, -0.00004] also excludes zero unadjusted, and sits on its MDE.
+  The constant was kept out
   of the candidates so none could take credit for it. It is about 2.1 points, against a
   typical book prop half-overround of 2.3, and no cost is modelled here.
 
 ## What this does not establish
 
 - Not that the close is efficient. Six linear nulls on one market at one instant.
+- Not that an effect under about 4.5 points of over probability per sd is absent (f-31's
+  power measurement, above). Team implied total is open; what would close it is the
+  timestamped re-derivation named in the last section, on an independent sample.
 - Nothing about receptions, rush attempts or rushing yards; nothing about 2026, the open,
   an exchange, or any book outside the three bench books' own price.
 - Nothing about non-linear or interacted effects, or about any variable not on the list

@@ -2068,13 +2068,21 @@ the agent — stated as options with a recommendation, not as a question without
   same ordering** (c-38, `research/cross_sport.py`, pre-registered at `dbd3d29`;
   `docs/findings/cross-sport.md`). Margin-of-victory Elo against settlement, each sport's own
   walk-forward population (NFL 2001-2025, 6,743 games; college FBS-FBS 2005-2025, 15,508): 16 of
-  16 primary tests Holm-significant. It is LARGER in college on every baseline - college minus NFL
-  dBrier -0.0359 [-0.0404, -0.0314] against home, -0.0217 [-0.0255, -0.0179] against better record,
-  -0.0015 [-0.0026, -0.0003] against plain Elo (that last one sits on its MDE and survives Holm in
-  no cut). "Works" means beats three baselines; the model loses to every price in both sports.
-  - **The size gap against `home` is the wider spread of college games, not a better model**:
-    re-weighted to the NFL's distribution of favourite probability it is -0.0028 [-0.0071, +0.0012].
-    Against record (-0.0073) and plain Elo (-0.0032) a gap remains at equal forecast strength.
+  16 primary tests Holm-significant - by a success rule that could not have returned failure once
+  c-28's and c-39's published figures reproduced (f-31 run 4: 6 of the 16 are gated to published
+  values and the 4 ordering contrasts cannot fail at worst-case SE). The RAW gap is larger in
+  college on every baseline - college minus NFL dBrier -0.0359 [-0.0404, -0.0314] against home,
+  -0.0217 [-0.0255, -0.0179] against better record, -0.0015 [-0.0026, -0.0003] against plain Elo
+  (that last one sits on its MDE and survives Holm in no cut) - and the raw gap is not a
+  same-strength comparison: re-weighted to the NFL's distribution of favourite probability it is
+  -0.0028 [-0.0071, +0.0012] against home, -0.0073 [-0.0115, -0.0029] against record and -0.0032
+  [-0.0046, -0.0018] against plain Elo. "Works" means beats three baselines; the model loses to
+  every price in both sports. Wording corrected by c-45 (`docs/findings/c45-corrections.md`).
+  - **At equal forecast strength the size gap against `home` is not detected: -0.0028
+    [-0.0071, +0.0012], 0.46 of its MDE - a null this population cannot resolve, not a measured
+    zero**, and against a constant baseline a matched null is close to mechanical for two
+    calibrated models. Against record (-0.0073 [-0.0115, -0.0029], 1.21x its MDE) and plain Elo
+    (-0.0032 [-0.0046, -0.0018], 1.57x) a gap remains. No re-weighted skill-scale figure exists.
   - **The advantage is not a product of the per-sport fit.** Each sport's 2026 constants carried
     into the OTHER sport with nothing refitted still beat home, record and a carried plain Elo
     (6 of 6 like-for-like tests Holm-significant). Fitting is worth 0.0110 Brier in college
@@ -2295,7 +2303,9 @@ while three writer tasks launched from it). a-10 built two production clones pin
     variance was not zero, it was the variance of the prices. A pre-run MDE from an outcome-free
     simulation is what refused it.
 
-- **Given the line, nothing on a six-candidate list predicts the receiving-yards residual** (c-41,
+- **Given the line, none of six candidates passed the registered rule on the receiving-yards
+  residual - not detected, by a rule that reaches 80% detection only near 4.5-5 points per sd;
+  team implied total is unresolved, not refuted** (c-41, wording corrected by c-45 from f-31 run 4,
   `research/residual_given_line.py`, pre-registered at `de5a5a7`;
   `docs/findings/c41-residual-given-line.md`). NFL receiving yards, over side, REG 2023-2025, the
   de-vigged DK/FD/MGM price at each book's own line ~14 min before kickoff; c-37's population exactly
@@ -2303,11 +2313,16 @@ while three writer tasks launched from it). a-10 built two production clones pin
   Holm family, 46 specifications, one run: **0 of 6 pass**. Largest pooled coefficient is the team's
   implied total, +0.0148 per sd [+0.0048, +0.0242], Holm p 0.12, on an input nflverse does not
   timestamp; its walk-forward Brier gain is 0.000140 against an MDE of 0.000141.
-  - **Scope of the null:** an effect of ~2 points of over probability per sd is ruled out; 1 point is
-    not. It is six linear nulls on one market at one instant, not "the close is efficient".
+  - **Scope of the null: it does NOT rule out 2 points of over probability per sd.** The pass rule
+    needs the out-of-sample Brier gain to exceed its realized MDE, which passes a true effect of that
+    size about half the time. f-31 run 4, a season-stable effect planted in the real rows (80 reps, an
+    upper bound on power): passed 9% at 0.020 per sd, 41% at 0.033, 82-85% at 0.045-0.050. 0.02 is
+    inside the 95% interval of team total (to +0.0242) and of line position (to -0.0232). It is six
+    linear nulls on one market at one instant, not "the close is efficient".
   - **The player's own history makes the forecast worse with the line given** (`form_gap` Brier
-    +0.00038 [+0.00014, +0.00063]). The only arm that beats the close out of sample is the constant -
-    the over bias already published - and it is ~2.1 points with no cost modelled.
+    +0.00038 [+0.00014, +0.00063]). The only arm whose out-of-sample gain on the close exceeds its MDE
+    is the constant (1.16x, descriptive) - the over bias already published - and it is ~2.1 points
+    with no cost modelled.
   - **`core.settlement.resolve` grades `actual == line` as OVER when `push_possible` is 0, and it is 0
     on every receiving-yards outcome row.** Read from the code, and it did not fire here: 0 ties on
     the 18,685 bench rungs. Drop ties explicitly on any yards rung set that holds integer lines.
@@ -2335,13 +2350,18 @@ so it ships one tick later; it never raises and a failed build leaves the previo
   only, the population the Board's ledger measured.
 - **`jobs.board_read._tick` is now a reader in the source registry** (the scan follows the hook
   into the job's SQL), and `market_depth` has a source row for the first time.
-- **The flipping input of a ledgered lean is the player's own prior mean, on misses and clears
-  alike** (c-40, `research/counterfactual_ledger.py`, pre-registered at `8ce15b1`;
+- **The flipping input of a ledgered lean is the player's own prior mean on about two thirds of
+  leans whatever the outcome (67.1% of all 477) - a description of the model, not of misses;
+  missed against cleared is a null at 0.16 of its MDE (0.12)** (c-40, wording corrected by c-45
+  from f-31 run 4, `research/counterfactual_ledger.py`, pre-registered at `8ce15b1`;
   `docs/findings/c40-counterfactual-ledger.md`). NFL Board ledger snapshot of 2026-10-08, weeks 3-4,
   31 games, 477 of 496 graded leans rebuilt to their ledgered probability. Smallest proportional
   change to ONE input of `models.baseline` that puts the model on the other side: `own_mean` is
   that input on 66.1% of missed leans (+0.461 over the 1/5 null [+0.369, +0.557], Holm p 2e-19
-  over 80 tests) and on 68.0% of cleared ones; missed minus cleared -0.019 [-0.099, +0.067]. So the
+  over 80 tests) and on 68.0% of cleared ones; missed minus cleared -0.019 [-0.099, +0.067]: a
+  share difference under about 0.12 would not have been seen, and with the missed/cleared label
+  permuted within game the 66.1% sits at the 62nd percentile of its null (p about 0.75, f-31 run
+  4). Never cite the 66.1% without the 68.0%. The 19 excluded leans are all week 4. So the
   concentration describes the model's arithmetic and does NOT say which input was wrong on a miss.
   - **A share against a uniform null needs the cleared rows beside it.** The brief's success
     condition (one input above 1/k) was met by structure alone; only the missed-minus-cleared
