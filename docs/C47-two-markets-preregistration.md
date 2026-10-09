@@ -234,3 +234,75 @@ crashes, the crash is fixed and reported with what each run showed.
 
 Everything printed and committed is an aggregate or an interval. Per-rung rows go to a
 scratch directory and are never committed.
+
+## Addendum 1 — 2026-10-08, written with the script and BEFORE any settlement was joined
+
+Nothing above is edited. The script has been executed on: the synthetic fixtures (8
+tests), `--dry` once (counts and missing rates), `--power --reps 5` once for timing, and
+`--power` once at 600 replications per cell (`research/results/residual_two_markets_power.log`
+and `.json`). **No settlement has been joined and no real outcome read.**
+
+`--dry` showed, before settlement:
+
+    receptions     10,536 rungs, 9,458 player-games, 813 games (640 rungs not regular season, 32 position)
+    rush_attempts   4,586 rungs, 3,658 player-games, 806 games (258 rungs not regular season)
+                    of which QB 1,408 rungs, RB 3,139, WR 26, TE 13
+    missing: receptions form_gap 141, last_game 669, team_total 179; rush attempts 62 / 295 / 77
+
+**Measured power, which replaces the from-counts table** (600 simulated outcome sets per
+cell; a rate's Monte Carlo SE is at most 0.02). "Pooled coefficient at the bound" is the
+figure rule 2(b) reads. "DETECTED" is the full two-part rule.
+
+    receptions     SE pooled   coef at the bound: 0.020  0.033  0.045 | DETECTED: null  0.020  0.033  0.045
+    form_gap         0.0050                       0.72   1.00   1.00 |           0.00   0.10   0.49   0.84
+    last_game        0.0054                       0.62   1.00   1.00 |           0.00   0.07   0.33   0.73
+    book_gap         0.0052                       0.68   1.00   1.00 |           0.00   0.06   0.35   0.69
+    line_pos         0.0038                       0.98   1.00   1.00 |           0.00   0.28   0.84   1.00
+    team_total       0.0052                       0.68   1.00   1.00 |           0.00   0.07   0.39   0.69
+    log_line         0.0050                       0.72   1.00   1.00 |           0.00   0.10   0.48   0.82
+
+    rush_attempts
+    form_gap         0.0089                       0.12   0.66   0.94 |           0.00   0.01   0.07   0.23
+    last_game        0.0092                       0.11   0.57   0.94 |           0.00   0.01   0.09   0.18
+    book_gap         0.0078                       0.20   0.78   0.99 |           0.00   0.01   0.11   0.31
+    line_pos         0.0050                       0.78   1.00   1.00 |           0.00   0.12   0.50   0.86
+    team_total       0.0086                       0.09   0.66   0.97 |           0.00   0.01   0.08   0.22
+    log_line         0.0083                       0.16   0.71   0.96 |           0.00   0.01   0.09   0.30
+
+The SE, MDE and firing rate of **each of the 84 tests** at the three sizes are the
+"EVERY TEST" block of the committed log (7 tests x 6 candidates x 2 markets).
+
+What this fixes, before the run:
+
+1. **"Rules out 2 points per sd" may be written for at most one cell of twelve:
+   receptions `line_pos`** (0.98). For the other five receptions candidates (0.62-0.72)
+   and for **every** rush-attempts candidate (0.09-0.78) the sentence is barred whatever
+   the estimates are. Rush-attempts `line_pos` at 0.78 is within Monte Carlo error of the
+   floor and is read as below it, as written.
+2. **0.033** can be excluded for all six receptions candidates and, in rush attempts, for
+   `line_pos` only (`book_gap` 0.78: below the floor). **0.045** can be excluded in every
+   cell.
+3. **The DETECTED rule is weak, and in rush attempts it is close to blind.** Receptions:
+   6-28% at 0.020, 33-84% at 0.033, 69-100% at 0.045 - f-31's 9 / 41 / 82-85% for c-41
+   sits inside those ranges. Rush attempts: at most 12% at 0.020, 7-50% at 0.033, and
+   18-31% at 0.045 for five of the six. **A "not detected" in rush attempts says almost
+   nothing about an effect of any of the three sizes**, and the report must say so beside
+   it. False-positive rate of the rule at zero effect: 0 of 600 in every cell.
+4. `line_pos` has a smaller SE than the others because it varies between the rungs of one
+   player-game, and in this simulation those rungs settle coherently off one draw at
+   prices taken as true. Its power is therefore the figure most dependent on the
+   simulation's assumptions.
+
+Decisions the code forced, none of them touching a registered rule:
+
+- **600 replications** (the registration did not fix a number).
+- Each market's bootstrap weights come from their own stream, `default_rng([47, i])`;
+  the power simulation uses separate streams, so the registered run's draws are not the
+  ones the power was measured on.
+- In the power simulation only, the family-adjusted p of a test is `min(1, 84 p)`.
+- `prior_games`, `features`, `standardise`, `walk_forward`, `modal`, `holm` and the block
+  bootstrap are **imported from `research/residual_given_line.py`**, not copied, so the
+  candidates are c-41's by construction. That file is not edited.
+- The registered run **refuses to start without the committed power file**
+  (`--power-in`), so the verdict cannot be computed against a power figure produced
+  after the outcomes were seen.

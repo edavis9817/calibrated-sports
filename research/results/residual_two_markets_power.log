@@ -1,0 +1,151 @@
+  power: receptions, 600 replications per cell
+    d=0.000 slot=all (null) done
+    d=0.020 slot=form_gap done
+    d=0.020 slot=last_game done
+    d=0.020 slot=book_gap done
+    d=0.020 slot=line_pos done
+    d=0.020 slot=team_total done
+    d=0.020 slot=log_line done
+    d=0.033 slot=form_gap done
+    d=0.033 slot=last_game done
+    d=0.033 slot=book_gap done
+    d=0.033 slot=line_pos done
+    d=0.033 slot=team_total done
+    d=0.033 slot=log_line done
+    d=0.045 slot=form_gap done
+    d=0.045 slot=last_game done
+    d=0.045 slot=book_gap done
+    d=0.045 slot=line_pos done
+    d=0.045 slot=team_total done
+    d=0.045 slot=log_line done
+  power: rush_attempts, 600 replications per cell
+    d=0.000 slot=all (null) done
+    d=0.020 slot=form_gap done
+    d=0.020 slot=last_game done
+    d=0.020 slot=book_gap done
+    d=0.020 slot=line_pos done
+    d=0.020 slot=team_total done
+    d=0.020 slot=log_line done
+    d=0.033 slot=form_gap done
+    d=0.033 slot=last_game done
+    d=0.033 slot=book_gap done
+    d=0.033 slot=line_pos done
+    d=0.033 slot=team_total done
+    d=0.033 slot=log_line done
+    d=0.045 slot=form_gap done
+    d=0.045 slot=last_game done
+    d=0.045 slot=book_gap done
+    d=0.045 slot=line_pos done
+    d=0.045 slot=team_total done
+    d=0.045 slot=log_line done
+
+POWER - simulated outcomes on the real rows, NO settlement joined
+  rate at which a test fires when a season-stable linear effect of size d per sd
+  is planted in that candidate. 'bound' = p x 84 < 0.05. Upper bound on real power.
+
+  receptions: 10,536 rungs, 9,458 player-games, 813 games (before settlement)
+  candidate   SE pooled MDE bound | pooled coef at the bound  0.020  0.033  0.045 | DETECTED rule     0  0.020  0.033  0.045
+  form_gap       0.0050    0.0215 |                            0.72   1.00   1.00 |               0.00   0.10   0.49   0.84
+  last_game      0.0054    0.0231 |                            0.62   1.00   1.00 |               0.00   0.07   0.33   0.73
+  book_gap       0.0052    0.0221 |                            0.68   1.00   1.00 |               0.00   0.06   0.35   0.69
+  line_pos       0.0038    0.0164 |                            0.98   1.00   1.00 |               0.00   0.28   0.84   1.00
+  team_total     0.0052    0.0223 |                            0.68   1.00   1.00 |               0.00   0.07   0.39   0.69
+  log_line       0.0050    0.0214 |                            0.72   1.00   1.00 |               0.00   0.10   0.48   0.82
+
+  rush_attempts: 4,586 rungs, 3,658 player-games, 806 games (before settlement)
+  candidate   SE pooled MDE bound | pooled coef at the bound  0.020  0.033  0.045 | DETECTED rule     0  0.020  0.033  0.045
+  form_gap       0.0089    0.0382 |                            0.12   0.66   0.94 |               0.00   0.01   0.07   0.23
+  last_game      0.0092    0.0394 |                            0.11   0.57   0.94 |               0.00   0.01   0.09   0.18
+  book_gap       0.0078    0.0333 |                            0.20   0.78   0.99 |               0.00   0.01   0.11   0.31
+  line_pos       0.0050    0.0215 |                            0.78   1.00   1.00 |               0.00   0.12   0.50   0.86
+  team_total     0.0086    0.0370 |                            0.09   0.66   0.97 |               0.00   0.01   0.08   0.22
+  log_line       0.0083    0.0354 |                            0.16   0.71   0.96 |               0.00   0.01   0.09   0.30
+
+  EVERY TEST (rate unadjusted / at the bound; Brier 'unadjusted' = the registered condition 2)
+  market        candidate   test                         SE      MDE        0.020       0.033       0.045
+  receptions    form_gap    coef|RB|pooled          0.00503  0.01408  0.98 / 0.72 1.00 / 1.00 1.00 / 1.00
+  receptions    form_gap    coef|RB|2023            0.00892  0.02497  0.56 / 0.09 0.94 / 0.52 1.00 / 0.94
+  receptions    form_gap    coef|RB|2024            0.00882  0.02468  0.63 / 0.16 0.97 / 0.66 1.00 / 0.95
+  receptions    form_gap    coef|RB|2025            0.00836  0.02342  0.71 / 0.18 0.98 / 0.78 1.00 / 0.99
+  receptions    form_gap    coef|RM|pooled          0.00518  0.01451  0.96 / 0.65 1.00 / 1.00 1.00 / 1.00
+  receptions    form_gap    brier|RB|2024+2025      0.00008  0.00023  0.10 / 0.02 0.49 / 0.28 0.84 / 0.66
+  receptions    form_gap    brier|RM|2024+2025      0.00009  0.00024  0.08 / 0.02 0.44 / 0.22 0.79 / 0.59
+  receptions    last_game   coef|RB|pooled          0.00540  0.01511  0.96 / 0.62 1.00 / 1.00 1.00 / 1.00
+  receptions    last_game   coef|RB|2023            0.00955  0.02673  0.55 / 0.09 0.96 / 0.58 1.00 / 0.92
+  receptions    last_game   coef|RB|2024            0.00940  0.02631  0.58 / 0.10 0.94 / 0.56 1.00 / 0.93
+  receptions    last_game   coef|RB|2025            0.00907  0.02539  0.58 / 0.12 0.94 / 0.56 1.00 / 0.93
+  receptions    last_game   coef|RM|pooled          0.00532  0.01489  0.96 / 0.63 1.00 / 1.00 1.00 / 1.00
+  receptions    last_game   brier|RB|2024+2025      0.00008  0.00023  0.08 / 0.02 0.33 / 0.17 0.73 / 0.50
+  receptions    last_game   brier|RM|2024+2025      0.00008  0.00023  0.09 / 0.01 0.33 / 0.17 0.74 / 0.50
+  receptions    book_gap    coef|RB|pooled          0.00517  0.01448  0.96 / 0.68 1.00 / 1.00 1.00 / 1.00
+  receptions    book_gap    coef|RB|2023            0.00937  0.02623  0.75 / 0.21 0.99 / 0.78 1.00 / 0.98
+  receptions    book_gap    coef|RB|2024            0.00878  0.02458  0.55 / 0.11 0.94 / 0.50 1.00 / 0.89
+  receptions    book_gap    coef|RB|2025            0.00827  0.02315  0.54 / 0.09 0.94 / 0.52 1.00 / 0.92
+  receptions    book_gap    coef|RM|pooled          0.00531  0.01487  0.91 / 0.46 1.00 / 0.98 1.00 / 1.00
+  receptions    book_gap    brier|RB|2024+2025      0.00006  0.00016  0.06 / 0.02 0.35 / 0.17 0.69 / 0.43
+  receptions    book_gap    brier|RM|2024+2025      0.00007  0.00019  0.05 / 0.01 0.25 / 0.09 0.50 / 0.28
+  receptions    line_pos    coef|RB|pooled          0.00384  0.01074  1.00 / 0.98 1.00 / 1.00 1.00 / 1.00
+  receptions    line_pos    coef|RB|2023            0.00718  0.02011  0.83 / 0.29 1.00 / 0.91 1.00 / 1.00
+  receptions    line_pos    coef|RB|2024            0.00655  0.01833  0.85 / 0.34 1.00 / 0.96 1.00 / 1.00
+  receptions    line_pos    coef|RB|2025            0.00614  0.01718  0.94 / 0.55 1.00 / 0.99 1.00 / 1.00
+  receptions    line_pos    coef|RM|pooled          0.00530  0.01485  0.68 / 0.15 0.97 / 0.70 1.00 / 0.97
+  receptions    line_pos    brier|RB|2024+2025      0.00004  0.00012  0.28 / 0.12 0.84 / 0.66 1.00 / 0.96
+  receptions    line_pos    brier|RM|2024+2025      0.00006  0.00017  0.03 / 0.01 0.07 / 0.02 0.16 / 0.06
+  receptions    team_total  coef|RB|pooled          0.00521  0.01458  0.97 / 0.68 1.00 / 1.00 1.00 / 1.00
+  receptions    team_total  coef|RB|2023            0.00922  0.02581  0.58 / 0.12 0.94 / 0.57 1.00 / 0.92
+  receptions    team_total  coef|RB|2024            0.00906  0.02537  0.55 / 0.09 0.93 / 0.49 1.00 / 0.88
+  receptions    team_total  coef|RB|2025            0.00869  0.02435  0.67 / 0.14 0.97 / 0.68 1.00 / 0.96
+  receptions    team_total  coef|RM|pooled          0.00513  0.01435  0.97 / 0.69 1.00 / 1.00 1.00 / 1.00
+  receptions    team_total  brier|RB|2024+2025      0.00009  0.00024  0.08 / 0.03 0.39 / 0.19 0.69 / 0.48
+  receptions    team_total  brier|RM|2024+2025      0.00008  0.00023  0.09 / 0.02 0.40 / 0.18 0.72 / 0.48
+  receptions    log_line    coef|RB|pooled          0.00500  0.01401  0.98 / 0.72 1.00 / 1.00 1.00 / 1.00
+  receptions    log_line    coef|RB|2023            0.00911  0.02550  0.56 / 0.07 0.93 / 0.48 1.00 / 0.89
+  receptions    log_line    coef|RB|2024            0.00902  0.02524  0.54 / 0.08 0.93 / 0.51 0.99 / 0.89
+  receptions    log_line    coef|RB|2025            0.00828  0.02317  0.78 / 0.24 0.99 / 0.83 1.00 / 0.99
+  receptions    log_line    coef|RM|pooled          0.00507  0.01419  0.97 / 0.73 1.00 / 1.00 1.00 / 1.00
+  receptions    log_line    brier|RB|2024+2025      0.00009  0.00024  0.11 / 0.04 0.48 / 0.27 0.82 / 0.64
+  receptions    log_line    brier|RM|2024+2025      0.00009  0.00024  0.10 / 0.03 0.48 / 0.28 0.81 / 0.65
+  rush_attempts form_gap    coef|RB|pooled          0.00893  0.02500  0.64 / 0.12 0.96 / 0.66 1.00 / 0.94
+  rush_attempts form_gap    coef|RB|2023            0.01662  0.04654  0.23 / 0.02 0.52 / 0.10 0.80 / 0.30
+  rush_attempts form_gap    coef|RB|2024            0.01536  0.04301  0.28 / 0.02 0.59 / 0.10 0.83 / 0.31
+  rush_attempts form_gap    coef|RB|2025            0.01451  0.04064  0.27 / 0.01 0.64 / 0.13 0.86 / 0.38
+  rush_attempts form_gap    coef|RM|pooled          0.00862  0.02415  0.65 / 0.14 0.97 / 0.68 1.00 / 0.96
+  rush_attempts form_gap    brier|RB|2024+2025      0.00023  0.00063  0.01 / 0.00 0.07 / 0.02 0.23 / 0.09
+  rush_attempts form_gap    brier|RM|2024+2025      0.00021  0.00058  0.01 / 0.00 0.09 / 0.03 0.23 / 0.09
+  rush_attempts last_game   coef|RB|pooled          0.00921  0.02578  0.59 / 0.11 0.95 / 0.57 1.00 / 0.94
+  rush_attempts last_game   coef|RB|2023            0.01725  0.04831  0.25 / 0.02 0.51 / 0.06 0.77 / 0.27
+  rush_attempts last_game   coef|RB|2024            0.01555  0.04355  0.26 / 0.01 0.57 / 0.10 0.80 / 0.29
+  rush_attempts last_game   coef|RB|2025            0.01513  0.04238  0.25 / 0.02 0.60 / 0.15 0.86 / 0.34
+  rush_attempts last_game   coef|RM|pooled          0.00882  0.02471  0.62 / 0.12 0.96 / 0.62 1.00 / 0.96
+  rush_attempts last_game   brier|RB|2024+2025      0.00022  0.00063  0.01 / 0.00 0.10 / 0.02 0.18 / 0.07
+  rush_attempts last_game   brier|RM|2024+2025      0.00020  0.00056  0.01 / 0.00 0.09 / 0.03 0.20 / 0.07
+  rush_attempts book_gap    coef|RB|pooled          0.00780  0.02184  0.74 / 0.20 0.99 / 0.78 1.00 / 0.99
+  rush_attempts book_gap    coef|RB|2023            0.01465  0.04103  0.37 / 0.04 0.74 / 0.20 0.94 / 0.61
+  rush_attempts book_gap    coef|RB|2024            0.01342  0.03757  0.27 / 0.02 0.59 / 0.12 0.85 / 0.37
+  rush_attempts book_gap    coef|RB|2025            0.01254  0.03510  0.33 / 0.03 0.70 / 0.17 0.91 / 0.49
+  rush_attempts book_gap    coef|RM|pooled          0.00877  0.02457  0.64 / 0.12 0.97 / 0.60 1.00 / 0.95
+  rush_attempts book_gap    brier|RB|2024+2025      0.00013  0.00038  0.02 / 0.01 0.11 / 0.03 0.31 / 0.12
+  rush_attempts book_gap    brier|RM|2024+2025      0.00016  0.00045  0.01 / 0.00 0.08 / 0.01 0.20 / 0.07
+  rush_attempts line_pos    coef|RB|pooled          0.00504  0.01411  0.99 / 0.78 1.00 / 1.00 1.00 / 1.00
+  rush_attempts line_pos    coef|RB|2023            0.00963  0.02695  0.58 / 0.07 0.94 / 0.52 0.99 / 0.87
+  rush_attempts line_pos    coef|RB|2024            0.00805  0.02254  0.70 / 0.21 0.98 / 0.75 1.00 / 0.98
+  rush_attempts line_pos    coef|RB|2025            0.00837  0.02344  0.75 / 0.23 0.99 / 0.82 1.00 / 0.99
+  rush_attempts line_pos    coef|RM|pooled          0.00865  0.02421  0.25 / 0.02 0.63 / 0.13 0.90 / 0.41
+  rush_attempts line_pos    brier|RB|2024+2025      0.00008  0.00021  0.12 / 0.05 0.50 / 0.26 0.86 / 0.64
+  rush_attempts line_pos    brier|RM|2024+2025      0.00023  0.00064  0.00 / 0.00 0.01 / 0.00 0.04 / 0.01
+  rush_attempts team_total  coef|RB|pooled          0.00865  0.02421  0.63 / 0.09 0.97 / 0.66 1.00 / 0.97
+  rush_attempts team_total  coef|RB|2023            0.01645  0.04606  0.24 / 0.02 0.55 / 0.09 0.83 / 0.31
+  rush_attempts team_total  coef|RB|2024            0.01498  0.04196  0.23 / 0.01 0.59 / 0.11 0.83 / 0.27
+  rush_attempts team_total  coef|RB|2025            0.01388  0.03886  0.30 / 0.04 0.69 / 0.17 0.92 / 0.49
+  rush_attempts team_total  coef|RM|pooled          0.00831  0.02327  0.68 / 0.14 0.98 / 0.74 1.00 / 0.99
+  rush_attempts team_total  brier|RB|2024+2025      0.00023  0.00063  0.02 / 0.00 0.08 / 0.03 0.22 / 0.10
+  rush_attempts team_total  brier|RM|2024+2025      0.00021  0.00060  0.02 / 0.01 0.10 / 0.03 0.26 / 0.11
+  rush_attempts log_line    coef|RB|pooled          0.00829  0.02321  0.65 / 0.16 0.97 / 0.71 1.00 / 0.96
+  rush_attempts log_line    coef|RB|2023            0.01535  0.04298  0.25 / 0.02 0.50 / 0.10 0.73 / 0.21
+  rush_attempts log_line    coef|RB|2024            0.01419  0.03973  0.30 / 0.03 0.63 / 0.12 0.89 / 0.40
+  rush_attempts log_line    coef|RB|2025            0.01347  0.03771  0.34 / 0.04 0.70 / 0.18 0.94 / 0.53
+  rush_attempts log_line    coef|RM|pooled          0.00830  0.02323  0.68 / 0.17 0.98 / 0.73 1.00 / 0.97
+  rush_attempts log_line    brier|RB|2024+2025      0.00023  0.00065  0.01 / 0.01 0.10 / 0.04 0.30 / 0.11
+  rush_attempts log_line    brier|RM|2024+2025      0.00024  0.00067  0.02 / 0.01 0.11 / 0.03 0.34 / 0.14
+
+  elapsed 290s
