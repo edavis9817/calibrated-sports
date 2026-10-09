@@ -315,6 +315,8 @@ def one_run(dirpath, arm, sync):
             # an UPPER bound on the prune's own hold (busy-handler sleeps remain)
             "took_net_max": round(max(
                 t - overlap(*x, w_hold) for t, x in zip(took, ex)), 4),
+            "exec_s": [round(b - a, 4) for a, b in ex],
+            "commit_s": [round(b - a, 4) for a, b in cm],
             "took_first": round(took[0], 4), "took_p50": q(took, .5),
             "took_rest_max": round(max(took[1:]), 4) if len(took) > 1 else None,
         })
@@ -332,6 +334,13 @@ def one_run(dirpath, arm, sync):
             "writer_hold_p50": q(holds, .5), "writer_hold_p99": q(holds, .99),
             "writer_hold_max": q(holds, 1),
             "writer_err_wait_max": q([e[1] - e[0] for e in w["err"]], 1),
+            # every refusal: when, how long it waited, what it was told, and which
+            # prune batches (execute start to commit end) were in progress
+            "writer_err": [{
+                "at": round(e[0] - t0, 3), "waited": round(e[1] - e[0], 3),
+                "msg": e[2],
+                "batches": [i for i, (x, c) in enumerate(zip(ex, cm))
+                            if x[0] < e[1] and c[1] > e[0]]} for e in w["err"]][:8],
         })
 
     # the prober: refusals as a third connection sees them
@@ -354,6 +363,13 @@ def one_run(dirpath, arm, sync):
             "denial_hi_p99": q([x[1] for x in runs], .99),
             "denial_hi_max": q([x[1] for x in runs], 1),
             "denied_s_lo": round(sum(x[0] for x in runs), 4),
+            # the five longest refusals, each with who was inside it
+            "denial_top": [{
+                "at": round(st - t0, 3), "lo": round(lo, 4), "hi": round(hi, 4),
+                "under_writer": round(overlap(st, st + lo, w_hold), 4),
+                "batches": [i for i, (x, c) in enumerate(zip(ex, cm))
+                            if x[0] < st + lo and c[1] > st]}
+                for lo, hi, st in sorted(runs, key=lambda x: -x[1])[:5]],
         })
         if runs and (ex or w_hold):
             lo, hi, st = max(runs, key=lambda x: x[1])
