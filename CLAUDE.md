@@ -2430,3 +2430,28 @@ so it ships one tick later; it never raises and a failed build leaves the previo
     substitutes 1.0 and records the game. `Walk` passes it; the rule has fired on no
     registered-grid forecast, so what it does to forecast quality is unmeasured.
   - The unit is the season: a point that goes bad during season T stays T's chosen point.
+
+- **c-28's plain-Elo baseline was pinned at the top of its K grid; unpinned, the headline holds and
+  the weeks 1-4 sentence changes in every seed - because the baseline moved, not the model** (c-50,
+  `research/c50_baseline_grid_edge/`, pre-registered at `bc7357b`;
+  `docs/findings/c50-baseline-grid-edge.md`). NFL, 6,743 decisive games 2001-2025, model minus
+  plain Elo, against the result; `nfl_games` 2026-10-09. The baseline's grid is the season model's
+  (`jobs.season_model.GRID`: K 10, 15, 20, 25, 30, 40) and its fitted K is 40 in 25 of 25 seasons.
+  With K offered to 120 (step 5 to 80) it is 45 in 14 seasons, 50 in 10, 40 in 1; widening hfa
+  and regress as well changes nothing.
+  - **Headline:** -0.0027 [-0.0035, -0.0019] at the widened grid against -0.0027
+    [-0.0036, -0.0018] registered, below zero in 200 of 200 seeds each. Confirms f-26.
+  - **Weeks 1-4 (1,547 games):** registered grid -0.0008 [-0.0024, +0.0008], contains zero in 200
+    of 200 seeds; widened -0.0017 [-0.0030, -0.0005], below zero in 200 of 200, 0.95 of its MDE.
+    f-26's one-seed flip is not a seed artifact. So "no better than plain Elo in weeks 1 to 4"
+    is true only of a plain Elo with K capped at 40.
+  - **Unpinning K did not make the baseline detectably stronger out of sample** (post hoc): plain
+    widened minus plain registered +0.00005 [-0.00043, +0.00052] over all games, +0.00095
+    [-0.00011, +0.00202] in weeks 1-4, -0.00029 [-0.00084, +0.00026] from week 5. The two weeks
+    1-4 sentences are not shown to differ from each other. Never write the flip as "the margin
+    term helps early".
+  - **A fitted value at its grid's endpoint in every season is the grid's choice.** Print the
+    fitted constants per season beside their grid before citing a baseline; the model's own
+    (K 20-25, hfa 50, regress 1/3-0.6) are at no endpoint.
+  - **A seed panel measures Monte Carlo error only.** 200 of 200 says the percentile bound is
+    stable, not that the estimate is far from zero; print |est|/MDE beside every share.

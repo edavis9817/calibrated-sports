@@ -1,0 +1,92 @@
+games loaded 7,548; versions {'nfl_games': '2026-10-09', 'nfl_teams': '2026-09-16'}
+grid registered K 10..40 (6 values: 10, 15, 20, 25, 30, 40) | hfa 0, 25, 50, 75 | regress 0, 0.25, 0.333, 0.5, 0.6, 0.75 | 144 points
+grid P          K 10..120 (17 values: 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 100, 120) | hfa 0, 25, 50, 75 | regress 0, 0.25, 0.333, 0.5, 0.6, 0.75 | 408 points
+grid S          K 10..120 (17 values: 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 100, 120) | hfa 0, 25, 50, 75, 100 | regress 0, 0.25, 0.333, 0.5, 0.6, 0.75, 0.9 | 595 points
+plain Elo walked on 595 points, 18s
+
+######## fitted constants per season (K / hfa / regress; * = that dimension is at a grid endpoint)
+   season | plain REGISTERED   | plain P (K widened) | plain S (all widened) | MODEL (MOV, registered grid)
+   2001   |    40*   50   0.25  |    45    50   0.25   |    45    50   0.25     |    20    50  0.333 
+   2002   |    40*   50    0.5  |    50    50    0.5   |    50    50    0.5     |    20    50    0.5 
+   2003   |    40*   50    0.5  |    45    50    0.5   |    45    50    0.5     |    20    50    0.5 
+   2004   |    40*   50    0.5  |    45    50    0.5   |    45    50    0.5     |    20    50    0.6 
+   2005   |    40*   50    0.5  |    45    50    0.5   |    45    50    0.5     |    20    50    0.6 
+   2006   |    40*   50    0.5  |    50    50    0.5   |    50    50    0.5     |    25    50    0.6 
+   2007   |    40*   50    0.5  |    45    50    0.5   |    45    50    0.5     |    20    50    0.5 
+   2008   |    40*   50    0.5  |    45    50    0.5   |    45    50    0.5     |    25    50    0.6 
+   2009   |    40*   50    0.5  |    50    50    0.5   |    50    50    0.5     |    25    50    0.6 
+   2010   |    40*   50  0.333  |    50    50    0.5   |    50    50    0.5     |    20    50    0.5 
+   2011   |    40*   50  0.333  |    45    50    0.5   |    45    50    0.5     |    20    50    0.5 
+   2012   |    40*   50  0.333  |    45    50    0.5   |    45    50    0.5     |    20    50    0.5 
+   2013   |    40*   50  0.333  |    45    50    0.5   |    45    50    0.5     |    20    50    0.5 
+   2014   |    40*   50  0.333  |    45    50    0.5   |    45    50    0.5     |    20    50    0.5 
+   2015   |    40*   50  0.333  |    50    50    0.5   |    50    50    0.5     |    20    50    0.5 
+   2016   |    40*   50  0.333  |    40    50  0.333   |    40    50  0.333     |    20    50    0.5 
+   2017   |    40*   50  0.333  |    50    50    0.5   |    50    50    0.5     |    20    50    0.5 
+   2018   |    40*   50  0.333  |    50    50    0.5   |    50    50    0.5     |    20    50    0.5 
+   2019   |    40*   50  0.333  |    45    50    0.5   |    45    50    0.5     |    20    50    0.5 
+   2020   |    40*   50  0.333  |    50    50    0.5   |    50    50    0.5     |    20    50    0.5 
+   2021   |    40*   50  0.333  |    50    50    0.5   |    50    50    0.5     |    20    50    0.5 
+   2022   |    40*   50  0.333  |    45    50    0.5   |    45    50    0.5     |    20    50    0.5 
+   2023   |    40*   50  0.333  |    50    50    0.5   |    50    50    0.5     |    20    50    0.5 
+   2024   |    40*   50  0.333  |    45    50    0.5   |    45    50    0.5     |    20    50    0.5 
+   2025   |    40*   50  0.333  |    45    50    0.5   |    45    50    0.5     |    20    50    0.5 
+   2026   |    40*   50  0.333  |    50    50    0.5   |    50    50    0.5     |    20    50    0.5    (2026: reported, not counted)
+   edges over 25 scored seasons, registered: k min 0 max 25 interior 0 | hfa min 0 max 0 interior 25 | regress min 0 max 0 interior 25
+   edges over 25 scored seasons, P         : k min 0 max 0 interior 25 | hfa min 0 max 0 interior 25 | regress min 0 max 0 interior 25
+   edges over 25 scored seasons, S         : k min 0 max 0 interior 25 | hfa min 0 max 0 interior 25 | regress min 0 max 0 interior 25
+   edges over 25 scored seasons, model_mov : k min 0 max 0 interior 25 | hfa min 0 max 0 interior 25 | regress min 0 max 0 interior 25
+   INTERIOR RULE (K not a grid endpoint in >= 20 of 25): registered 0, P 25 -> INTERIOR, S 25 -> INTERIOR; profile strictly below both neighbours: P 25, S 25 of 25
+   K profile, plain Elo arm P, fit for 2025 (mean log loss on 2000-2024, best hfa/regress at each K):
+      10:0.65345  15:0.64694  20:0.64285  25:0.64027  30:0.63848  35:0.63737  40:0.63689  45:0.63687  50:0.63688  55:0.63729  60:0.63802  65:0.63905  70:0.64033  75:0.64184  80:0.64348  100:0.65157  120:0.66194
+   K profile, plain Elo arm P, fit for 2001 (2000 only):
+      10:0.65607  15:0.64848  20:0.64356  25:0.64050  30:0.63876  35:0.63730  40:0.63656  45:0.63645  50:0.63674  55:0.63744  60:0.63853  65:0.63995  70:0.64167  75:0.64362  80:0.64564  100:0.65570  120:0.66826
+
+######## Brier on 6,743 decisive games 2001-2025: model 0.2206 | plain registered 0.2232 | plain P 0.2233 | plain S 0.2233
+   Brier plain(arm) - plain(registered): P +0.00005, S +0.00005
+   n: all 6,743, weeks_1_4 1,547, weeks_5_plus 4,909   (expected all 6,743, weeks_1_4 1,547)
+
+######## checks (c-28's Pop.boot, seed 24, 2000 draws, registered grid)
+   ALL       -0.0027 [-0.0035, -0.0018]* SE 0.0005   published -0.0027
+   weeks 1-4 -0.0008 [-0.0024, +0.0007]  SE 0.0008   published -0.0008 [-0.0024, +0.0007]
+   plain Elo registered K at grid max in 25 of 25 (f-26: 25 of 25)
+   STORE MOVED SINCE c-28: no
+
+######## seed panel: seeds 1..200, 2000 draws each, pooled 400,000
+   all / registered / game blocks       est -0.0027 | pooled [-0.0036, -0.0018] SE 0.00045 | seeds below 200 contains   0 above   0 | hi min/med/max -0.00185/-0.00178/-0.00169 | |est|/MDE 2.11 | -> below
+   all / P / game blocks                est -0.0027 | pooled [-0.0035, -0.0019] SE 0.00040 | seeds below 200 contains   0 above   0 | hi min/med/max -0.00199/-0.00193/-0.00187 | |est|/MDE 2.42 | -> below
+   all / S / game blocks                est -0.0027 | pooled [-0.0035, -0.0019] SE 0.00040 | seeds below 200 contains   0 above   0 | hi min/med/max -0.00199/-0.00193/-0.00187 | |est|/MDE 2.42 | -> below
+      (318s)
+   weeks_1_4 / registered / game blocks est -0.0008 | pooled [-0.0024, +0.0008] SE 0.00081 | seeds below   0 contains 200 above   0 | hi min/med/max +0.00066/+0.00080/+0.00091 | |est|/MDE 0.35 | -> contains 0
+   weeks_1_4 / P / game blocks          est -0.0017 | pooled [-0.0030, -0.0005] SE 0.00066 | seeds below 200 contains   0 above   0 | hi min/med/max -0.00057/-0.00047/-0.00034 | |est|/MDE 0.95 | -> below
+   weeks_1_4 / S / game blocks          est -0.0017 | pooled [-0.0030, -0.0005] SE 0.00066 | seeds below 200 contains   0 above   0 | hi min/med/max -0.00057/-0.00047/-0.00034 | |est|/MDE 0.95 | -> below
+      (340s)
+   weeks_5_plus / registered / game blocks est -0.0032 | pooled [-0.0042, -0.0021] SE 0.00054 | seeds below 200 contains   0 above   0 | hi min/med/max -0.00220/-0.00211/-0.00202 | |est|/MDE 2.09 | -> below
+   weeks_5_plus / P / game blocks       est -0.0029 | pooled [-0.0038, -0.0019] SE 0.00049 | seeds below 200 contains   0 above   0 | hi min/med/max -0.00199/-0.00191/-0.00182 | |est|/MDE 2.09 | -> below
+   weeks_5_plus / S / game blocks       est -0.0029 | pooled [-0.0038, -0.0019] SE 0.00049 | seeds below 200 contains   0 above   0 | hi min/med/max -0.00199/-0.00191/-0.00182 | |est|/MDE 2.09 | -> below
+      (399s)
+   all / registered / week blocks (530) est -0.0027 | pooled [-0.0035, -0.0018] SE 0.00045 | seeds below 200 contains   0 above   0 | hi min/med/max -0.00185/-0.00179/-0.00172 | |est|/MDE 2.12 | -> below
+   all / P / week blocks (530)          est -0.0027 | pooled [-0.0035, -0.0019] SE 0.00041 | seeds below 200 contains   0 above   0 | hi min/med/max -0.00198/-0.00192/-0.00183 | |est|/MDE 2.38 | -> below
+   all / S / week blocks (530)          est -0.0027 | pooled [-0.0035, -0.0019] SE 0.00041 | seeds below 200 contains   0 above   0 | hi min/med/max -0.00198/-0.00192/-0.00183 | |est|/MDE 2.38 | -> below
+   all / registered / season blocks (25) est -0.0027 | pooled [-0.0036, -0.0017] SE 0.00047 | seeds below 200 contains   0 above   0 | hi min/med/max -0.00182/-0.00175/-0.00167 | |est|/MDE 2.02 | -> below
+   all / P / season blocks (25)         est -0.0027 | pooled [-0.0035, -0.0019] SE 0.00041 | seeds below 200 contains   0 above   0 | hi min/med/max -0.00197/-0.00192/-0.00187 | |est|/MDE 2.38 | -> below
+   all / S / season blocks (25)         est -0.0027 | pooled [-0.0035, -0.0019] SE 0.00041 | seeds below 200 contains   0 above   0 | hi min/med/max -0.00197/-0.00192/-0.00187 | |est|/MDE 2.38 | -> below
+   weeks_1_4 / registered / week blocks (100) est -0.0008 | pooled [-0.0024, +0.0008] SE 0.00082 | seeds below   0 contains 200 above   0 | hi min/med/max +0.00070/+0.00082/+0.00096 | |est|/MDE 0.35 | -> contains 0
+   weeks_1_4 / P / week blocks (100)    est -0.0017 | pooled [-0.0031, -0.0004] SE 0.00071 | seeds below 200 contains   0 above   0 | hi min/med/max -0.00046/-0.00036/-0.00022 | |est|/MDE 0.88 | -> below
+   weeks_1_4 / S / week blocks (100)    est -0.0017 | pooled [-0.0031, -0.0004] SE 0.00071 | seeds below 200 contains   0 above   0 | hi min/med/max -0.00046/-0.00036/-0.00022 | |est|/MDE 0.88 | -> below
+   weeks_1_4 / registered / season blocks (25) est -0.0008 | pooled [-0.0024, +0.0007] SE 0.00080 | seeds below   0 contains 200 above   0 | hi min/med/max +0.00058/+0.00071/+0.00086 | |est|/MDE 0.35 | -> contains 0
+   weeks_1_4 / P / season blocks (25)   est -0.0017 | pooled [-0.0033, -0.0003] SE 0.00075 | seeds below 200 contains   0 above   0 | hi min/med/max -0.00042/-0.00033/-0.00021 | |est|/MDE 0.83 | -> below
+   weeks_1_4 / S / season blocks (25)   est -0.0017 | pooled [-0.0033, -0.0003] SE 0.00075 | seeds below 200 contains   0 above   0 | hi min/med/max -0.00042/-0.00033/-0.00021 | |est|/MDE 0.83 | -> below
+
+   check 3: panel loop against rc.Pop.boot on seed 24, weeks 1-4 registered: max abs 2.69e-17
+
+######## REGISTERED VERDICTS
+   weeks 1-4, registered grid (the published sentence's own grid): contains 0
+   WEEKS 1-4 AT ARM P: CHANGED - better than
+      -0.0017 pooled [-0.0030, -0.0005]; below zero in 200 of 200 seeds, contains zero in 0 (share 0.000); z -2.67, p 0.0076, Bonferroni k=2 p 0.0153; |est|/MDE 0.95
+      f-26 (one seed, its own bootstrap): -0.0017 [-0.0031, -0.0004]
+      arm S: below; arm P season-week blocks: below; arm P season blocks: below
+   HEADLINE AT ARM P: CONFIRMS f-26 (unchanged)
+      -0.0027 pooled [-0.0035, -0.0019]; below zero in 200 of 200 seeds; |est|/MDE 2.42;  c-28 published -0.0027; f-26 -0.0027 [-0.0036, -0.0019]
+
+427s

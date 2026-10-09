@@ -139,3 +139,14 @@ its addendum.
   nflverse's labelling, not a measurement made here.
 - **The Normal margin.** It carries no key numbers (3 and 7). Spread rungs next
   to a key number are mispriced by construction.
+
+## Record of the baseline's grid (added by c-50, 2026-10-09; nothing above is re-worded)
+
+The plain-Elo baseline (`elo_nomov`) was fitted on the season model's grid,
+`jobs.season_model.GRID`: K in {10, 15, 20, 25, 30, 40}, hfa in {0, 25, 50, 75},
+regress in {0, 0.25, 1/3, 0.5, 0.6, 0.75}. **Its fitted K is 40, the largest
+value offered, in 25 of 25 scored seasons** (f-26 measured it; c-50 re-measured
+it). hfa and regress are at no endpoint. With K offered to 120 the fitted K is
+45 or 50 in 24 seasons; the headline against plain Elo is unchanged and the REG
+weeks 1-4 cut reads differently. Figures, seeds and what they do not support:
+`docs/findings/c50-baseline-grid-edge.md`.
