@@ -1,0 +1,197 @@
+# c-42 registered run - one run, the first execution against data. 2026-10-08 19:28 EDT.
+# components rebuilt in 3 shards (342-350 s each) from c-40's scratch facts copy D:/temp/c40/facts.db, mode=ro; this run reads the cache and opens no store
+population: 477 rows of ledger 760b93be22fb... (c-40's, frozen)
+model in this tree: baseline-usage-0.4+03571d4710af
+components cache: 477 leans
+frozen gate: 477 of 477 rebuilt fits equal c-40's recorded inputs to 1e-09, and every input's nearest log-ratio flip equals c-40's to 1e-06
+
+verdict: same_ranking - own_mean ranks first on both scales and above the 1/3 null
+  first input own_mean: missed 0.974  cleared 0.980
+  cleared comparison: a ranking that is identical on misses and clears is not a diagnostic of a miss, on either scale
+
+[all] rows 477 games 31  missed 227 (with a flip 227)  cleared 250 (with a flip 250)
+  own_mean    missed 0.974  cleared 0.980   T1 +0.640 [+0.615, +0.658] p 0 holm 0 MDE 0.032 est/MDE 20.11 (detected)   T2 -0.006 [-0.036, +0.022] p 0.66 holm 1 MDE 0.041 est/MDE 0.16 (not detected)
+  group_mean  missed 0.026  cleared 0.020   T1 -0.307 [-0.325, -0.282] p 1.6e-160 holm 6.7e-159 MDE 0.032 est/MDE 9.64 (detected)   T2 +0.006 [-0.022, +0.036] p 0.66 holm 1 MDE 0.041 est/MDE 0.16 (not detected)
+  dispersion  missed 0.000  cleared 0.000   T1 -0.333 [zero variance] holm 1   T2 +0.000 [zero variance] holm 1
+
+[market=receptions] rows 344 games 31  missed 164 (with a flip 164)  cleared 180 (with a flip 180)
+  own_mean    missed 0.988  cleared 0.972   T1 +0.654 [+0.638, +0.667] p 0 holm 0 MDE 0.023 est/MDE 28.97 (detected)   T2 +0.016 [-0.008, +0.048] p 0.29 holm 1 MDE 0.041 est/MDE 0.38 (not detected)
+  group_mean  missed 0.012  cleared 0.028   T1 -0.321 [-0.333, -0.305] p 0 holm 0 MDE 0.023 est/MDE 14.22 (detected)   T2 -0.016 [-0.048, +0.008] p 0.29 holm 1 MDE 0.041 est/MDE 0.38 (not detected)
+  dispersion  missed 0.000  cleared 0.000   T1 -0.333 [zero variance] holm 1   T2 +0.000 [zero variance] holm 1
+
+[market=rush_attempts] rows 133 games 31  missed 63 (with a flip 63)  cleared 70 (with a flip 70)
+  own_mean    missed 0.937  cleared 1.000   T1 +0.603 [+0.514, +0.667] p 3.6e-54 holm 1.4e-52 MDE 0.109 est/MDE 5.54 (detected)   T2 -0.063 [-0.153, +0.000] p 0.1 holm 1 MDE 0.109 est/MDE 0.58 (not detected)
+  group_mean  missed 0.063  cleared 0.000   T1 -0.270 [-0.333, -0.181] p 4.1e-12 holm 1.6e-10 MDE 0.109 est/MDE 2.48 (detected)   T2 +0.063 [+0.000, +0.153] p 0.1 holm 1 MDE 0.109 est/MDE 0.58 (not detected)
+  dispersion  missed 0.000  cleared 0.000   T1 -0.333 [zero variance] holm 1   T2 +0.000 [zero variance] holm 1
+
+[side=over] rows 118 games 31  missed 60 (with a flip 60)  cleared 58 (with a flip 58)
+  own_mean    missed 1.000  cleared 1.000   T1 +0.667 [zero variance] holm 1   T2 +0.000 [zero variance] holm 1
+  group_mean  missed 0.000  cleared 0.000   T1 -0.333 [zero variance] holm 1   T2 +0.000 [zero variance] holm 1
+  dispersion  missed 0.000  cleared 0.000   T1 -0.333 [zero variance] holm 1   T2 +0.000 [zero variance] holm 1
+
+[side=under] rows 359 games 31  missed 167 (with a flip 167)  cleared 192 (with a flip 192)
+  own_mean    missed 0.964  cleared 0.974   T1 +0.631 [+0.593, +0.656] p 0 holm 0 MDE 0.046 est/MDE 13.78 (detected)   T2 -0.010 [-0.052, +0.028] p 0.63 holm 1 MDE 0.057 est/MDE 0.17 (not detected)
+  group_mean  missed 0.036  cleared 0.026   T1 -0.297 [-0.322, -0.260] p 6.1e-74 holm 2.5e-72 MDE 0.046 est/MDE 6.50 (detected)   T2 +0.010 [-0.028, +0.052] p 0.63 holm 1 MDE 0.057 est/MDE 0.17 (not detected)
+  dispersion  missed 0.000  cleared 0.000   T1 -0.333 [zero variance] holm 1   T2 +0.000 [zero variance] holm 1
+
+[band=4-6] rows 64 games 26  missed 41 (with a flip 41)  cleared 23 (with a flip 23)
+  own_mean    missed 1.000  cleared 1.000   T1 +0.667 [zero variance] holm 1   T2 +0.000 [zero variance] holm 1
+  group_mean  missed 0.000  cleared 0.000   T1 -0.333 [zero variance] holm 1   T2 +0.000 [zero variance] holm 1
+  dispersion  missed 0.000  cleared 0.000   T1 -0.333 [zero variance] holm 1   T2 +0.000 [zero variance] holm 1
+
+[band=6-8] rows 35 games 19  missed 14 (with a flip 14)  cleared 21 (with a flip 21)
+  own_mean    missed 1.000  cleared 1.000   T1 +0.667 [zero variance] holm 1   T2 +0.000 [zero variance] holm 1
+  group_mean  missed 0.000  cleared 0.000   T1 -0.333 [zero variance] holm 1   T2 +0.000 [zero variance] holm 1
+  dispersion  missed 0.000  cleared 0.000   T1 -0.333 [zero variance] holm 1   T2 +0.000 [zero variance] holm 1
+
+[band=8+] rows 378 games 31  missed 172 (with a flip 172)  cleared 206 (with a flip 206)
+  own_mean    missed 0.965  cleared 0.976   T1 +0.632 [+0.602, +0.656] p 0 holm 0 MDE 0.040 est/MDE 15.79 (detected)   T2 -0.011 [-0.048, +0.027] p 0.57 holm 1 MDE 0.052 est/MDE 0.20 (not detected)
+  group_mean  missed 0.035  cleared 0.024   T1 -0.298 [-0.323, -0.269] p 7.7e-97 holm 3.2e-95 MDE 0.040 est/MDE 7.46 (detected)   T2 +0.011 [-0.027, +0.048] p 0.57 holm 1 MDE 0.052 est/MDE 0.20 (not detected)
+  dispersion  missed 0.000  cleared 0.000   T1 -0.333 [zero variance] holm 1   T2 +0.000 [zero variance] holm 1
+
+Holm survivors at 0.05: 10 of 48; T2 with unadjusted p < 0.05: 0
+registered MDE: {"T1": {"share 1/3": 0.136, "share 0.5 (worst)": 0.144, "share 0.8": 0.115, "share 0.9": 0.086}, "T2": {"worst case": 0.128}}
+descriptive: {
+ "uncertainty_scale": {
+  "missed": {
+   "n_with_flip": 227,
+   "share": {
+    "own_mean": 0.973568281938326,
+    "group_mean": 0.02643171806167401,
+    "dispersion": 0.0
+   },
+   "count": {
+    "own_mean": 221,
+    "group_mean": 6,
+    "dispersion": 0
+   },
+   "order": [
+    "own_mean",
+    "group_mean",
+    "dispersion"
+   ]
+  },
+  "cleared": {
+   "n_with_flip": 250,
+   "share": {
+    "own_mean": 0.98,
+    "group_mean": 0.02,
+    "dispersion": 0.0
+   },
+   "count": {
+    "own_mean": 245,
+    "group_mean": 5,
+    "dispersion": 0
+   },
+   "order": [
+    "own_mean",
+    "group_mean",
+    "dispersion"
+   ]
+  }
+ },
+ "proportional_scale_same_three_inputs": {
+  "missed": {
+   "n_with_flip": 227,
+   "share": {
+    "own_mean": 0.8458149779735683,
+    "group_mean": 0.15418502202643172,
+    "dispersion": 0.0
+   },
+   "count": {
+    "own_mean": 192,
+    "group_mean": 35,
+    "dispersion": 0
+   },
+   "order": [
+    "own_mean",
+    "group_mean",
+    "dispersion"
+   ]
+  },
+  "cleared": {
+   "n_with_flip": 250,
+   "share": {
+    "own_mean": 0.84,
+    "group_mean": 0.16,
+    "dispersion": 0.0
+   },
+   "count": {
+    "own_mean": 210,
+    "group_mean": 40,
+    "dispersion": 0
+   },
+   "order": [
+    "own_mean",
+    "group_mean",
+    "dispersion"
+   ]
+  }
+ },
+ "proportional_scale_c40_five_inputs_counts": {
+  "missed": {
+   "own_mean": 150,
+   "group_mean": 25,
+   "line": 52
+  },
+  "cleared": {
+   "own_mean": 170,
+   "group_mean": 33,
+   "line": 46,
+   "weight": 1
+  }
+ },
+ "row_agreement_three_inputs": {
+  "n": 477,
+  "same": 409,
+  "share": 0.8574423480083857,
+  "transitions": {
+   "group_mean->group_mean": 9,
+   "group_mean->own_mean": 66,
+   "own_mean->group_mean": 2,
+   "own_mean->own_mean": 400
+  }
+ },
+ "prediction_own_nearer_than_group": {
+  "n": 468,
+  "holds": 466,
+  "share": 0.9957264957264957
+ },
+ "no_standard_error": {
+  "own_mean": {
+   "fewer than 2 prior games": 5,
+   "zero variance": 4
+  },
+  "group_mean": {},
+  "dispersion": {
+   "fewer than 2 prior games": 5
+  }
+ },
+ "relative_se_median": {
+  "own_mean": 0.14401152409121903,
+  "group_mean": 0.0653728479518118,
+  "dispersion": 0.09293344421346951
+ },
+ "direction_differs_from_log_nearest": {
+  "own_mean": 0,
+  "group_mean": 0,
+  "dispersion": 0
+ }
+}
+ceiling in SEs, missed (227): no single-input flip 0, median nearest 3.1141323630735456
+  within 1 SE: 7 (0.031)
+  within 2 SE: 59 (0.260)
+  within 3 SE: 107 (0.471)
+  within 5 SE: 155 (0.683)
+  own_mean    {'n_can_flip': 223, 'n_cannot_or_no_se': 4, 'median_se_distance': 3.0831305824686295}
+  group_mean  {'n_can_flip': 227, 'n_cannot_or_no_se': 0, 'median_se_distance': 15.05213388521429}
+  dispersion  {'n_can_flip': 60, 'n_cannot_or_no_se': 167, 'median_se_distance': 21.12829553483063}
+ceiling in SEs, cleared (250): no single-input flip 0, median nearest 3.3646210305361595
+  within 1 SE: 1 (0.004)
+  within 2 SE: 51 (0.204)
+  within 3 SE: 108 (0.432)
+  within 5 SE: 176 (0.704)
+  own_mean    {'n_can_flip': 245, 'n_cannot_or_no_se': 5, 'median_se_distance': 3.327686779757899}
+  group_mean  {'n_can_flip': 249, 'n_cannot_or_no_se': 1, 'median_se_distance': 15.927488602739151}
+  dispersion  {'n_can_flip': 60, 'n_cannot_or_no_se': 190, 'median_se_distance': 20.36745990964489}
+done in 113s

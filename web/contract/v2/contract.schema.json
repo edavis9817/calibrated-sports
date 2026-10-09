@@ -29,14 +29,23 @@
       "sources": "SourcesFile",
       "board_index": "BoardIndexFile",
       "board_read": "BoardReadFile",
+      "board_appealing": "BoardAppealingFile",
       "lab_index": "LabIndexFile",
       "lab_preset": "LabPresetFile",
       "lab_catalogue": "LabCatalogueFile",
       "season_model": "SeasonModelFile",
       "season_projection": "SeasonProjectionFile",
-      "landing": "LandingFile"
+      "landing": "LandingFile",
+      "record.published": "RecordPublishedFile",
+      "record.research": "RecordResearchFile",
+      "record.backtest": "RecordBacktestFile",
+      "game.forecast": "GameForecastFile",
+      "game.record": "GameRecordFile",
+      "game.model_record": "GameModelRecordFile",
+      "game.matchup": "GameMatchupFile",
+      "game.matchup_index": "GameMatchupIndexFile"
     },
-    "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.market_calibration", "research.execution", "coverage", "landing"],
+    "sportless_kinds": ["sports", "research.hypotheses", "research.calibration", "research.market_calibration", "research.execution", "coverage", "landing", "record.research", "record.backtest"],
     "keys": [
       {"pattern": "^sports\\.json$", "kind": "sports"},
       {"pattern": "^[a-z0-9]+/manifest\\.json$", "kind": "sport_manifest"},
@@ -59,12 +68,21 @@
       {"pattern": "^[a-z0-9]+/sources\\.json$", "kind": "sources"},
       {"pattern": "^board/[a-z0-9]+/\\d{4}/wk\\d{2}/index\\.json$", "kind": "board_index"},
       {"pattern": "^board/[a-z0-9]+/\\d{4}/wk\\d{2}/read-\\d{4}-\\d{2}-\\d{2}T\\d{6}Z\\.json$", "kind": "board_read"},
+      {"pattern": "^board/[a-z0-9]+/appealing\\.json$", "kind": "board_appealing"},
       {"pattern": "^lab/[a-z0-9]+/index\\.json$", "kind": "lab_index"},
       {"pattern": "^lab/[a-z0-9]+/presets/[a-z0-9_]+\\.json$", "kind": "lab_preset"},
       {"pattern": "^lab/[a-z0-9]+/catalogue\\.json$", "kind": "lab_catalogue"},
       {"pattern": "^season/[a-z0-9]+/division\\.json$", "kind": "season_model"},
       {"pattern": "^season/[a-z0-9]+/projection\\.json$", "kind": "season_projection"},
-      {"pattern": "^landing\\.json$", "kind": "landing"}
+      {"pattern": "^landing\\.json$", "kind": "landing"},
+      {"pattern": "^record/[a-z0-9]+/published\\.json$", "kind": "record.published"},
+      {"pattern": "^record/research\\.json$", "kind": "record.research"},
+      {"pattern": "^record/backtest\\.json$", "kind": "record.backtest"},
+      {"pattern": "^game/[a-z0-9]+/forecast\\.json$", "kind": "game.forecast"},
+      {"pattern": "^game/[a-z0-9]+/record\\.json$", "kind": "game.record"},
+      {"pattern": "^game/[a-z0-9]+/record_(spread|total)\\.json$", "kind": "game.model_record"},
+      {"pattern": "^game/[a-z0-9]+/matchup/\\d{4}_\\d{2}_[A-Z0-9]+_[A-Z0-9]+\\.json$", "kind": "game.matchup"},
+      {"pattern": "^game/[a-z0-9]+/matchup/index\\.json$", "kind": "game.matchup_index"}
     ],
     "tables": {
       "comment": "Keys that are NOT JSON and are not validated by a $def: columnar files a producer appends to. Each entry names its pattern, its format and its columns with their types, and the producer asserts its own column list and types against this entry before it writes, so the two cannot drift. The uploader ships a non-JSON key only when it matches a pattern here, and NEVER deletes one by absence: an append-only file that vanished because one run did not re-declare it would destroy the only record of what was published.",
@@ -73,14 +91,15 @@
         "formats": ["parquet", "csv"],
         "append_only": true,
         "sources_as": "board_read",
-        "description": "The Board's lean ledger: append-only EVENTS, never mutable rows. One `published` event when a lean first appears at a read, and at most one terminal event later - `graded` (result cleared / missed / push) or `void` (with void_reason). A later file must equal the earlier one row for row, plus rows at the end. The CSV is the same rows as the parquet, written in the same step. HASH CHAIN (a-48): every row carries prev_hash (the previous row's row_hash; 64 zeros on row 0) and row_hash = sha256 over the UTF-8 bytes of a JSON array with no whitespace: [hash_chain.tag, each column in hash_chain.covers order as text or null, prev_hash]. Cells are canonical so the parquet and the CSV hash identically: strings as-is, int64 as a decimal integer, float64 as ECMAScript Number.prototype.toString writes it (String(n) - `1790528400`, `4.5`, `-146`), null and the empty string both as null. Editing or removing any row fails its hash and every one after it; a row appended leaves every earlier hash unchanged. The chain covers every event column: the ledger is events, so nothing in a row changes after it is written - grading appends a graded row.",
+        "description": "The Board's lean ledger: append-only EVENTS, never mutable rows. One `published` event when a lean first appears at a read, and at most one terminal event later - `graded` (result cleared / missed / push) or `void` (with void_reason). A later file must equal the earlier one row for row, plus rows at the end. The CSV is the same rows as the parquet, written in the same step. HASH CHAIN (a-48): every row carries prev_hash (the previous row's row_hash; 64 zeros on row 0) and row_hash = sha256 over the UTF-8 bytes of a JSON array with no whitespace: [hash_chain.tag, each column in hash_chain.covers order as text or null, prev_hash]. Cells are canonical so the parquet and the CSV hash identically: strings as-is, int64 as a decimal integer, float64 as ECMAScript Number.prototype.toString writes it (String(n) - `1790528400`, `4.5`, `-146`), null and the empty string both as null. Editing or removing any row fails its hash and every one after it; a row appended leaves every earlier hash unchanged. The chain covers every event column: the ledger is events, so nothing in a row changes after it is written - grading appends a graded row. WRITTEN_AT (a-62): `written_at` is when the producer WROTE the row, stamped from its own wall clock at write time and never taken from a caller, unlike read_at / event_at, which a replayed read names. Null on rows written before a-62. A row carrying it is hashed under hash_chain.stamped.tag with the stamp after the event cells - [stamped.tag, each covers column, written_at, prev_hash] - and a row without it exactly as above, so no hash written before a-62 moves. A file written before a-62 lacks the column; it gains it null on every existing row. The published record counts a lean only if its written_at, where present, is before its kickoff_ts.",
         "hash_chain": {
           "tag": "cs-board-ledger-chain-v1",
           "digest": "sha256",
           "genesis": "0000000000000000000000000000000000000000000000000000000000000000",
           "prev": "prev_hash",
           "row": "row_hash",
-          "covers": ["event", "lean_id", "claim_id", "row_id", "season", "week", "game_id", "gsis_id", "market", "line", "side", "read_at", "kickoff_ts", "mkt_p_over", "mkt_books", "model_p_over", "gap_pp", "price", "band", "model_version", "lean_threshold_pp", "result", "actual", "void_reason", "event_at"]
+          "covers": ["event", "lean_id", "claim_id", "row_id", "season", "week", "game_id", "gsis_id", "market", "line", "side", "read_at", "kickoff_ts", "mkt_p_over", "mkt_books", "model_p_over", "gap_pp", "price", "band", "model_version", "lean_threshold_pp", "result", "actual", "void_reason", "event_at"],
+          "stamped": {"tag": "cs-board-ledger-chain-v2", "column": "written_at"}
         },
         "columns": {
           "event": "string", "lean_id": "string", "claim_id": "string", "row_id": "string",
@@ -90,6 +109,7 @@
           "model_p_over": "float64", "gap_pp": "float64", "price": "float64", "band": "string",
           "model_version": "string", "lean_threshold_pp": "float64", "result": "string",
           "actual": "float64", "void_reason": "string", "event_at": "string",
+          "written_at": "string",
           "prev_hash": "string", "row_hash": "string"
         }
       }
@@ -7573,6 +7593,5378 @@
         "freshness",
         "carried",
         "unavailable"
+      ],
+      "additionalProperties": false
+    },
+
+    "RecordInterval": {
+      "type": "object",
+      "description": "A week-block bootstrap, blocking on week and on nothing finer. informative is false exactly when both bounds are null (a-62): below 3 graded weeks there are no bounds, because one block has no variance and two have only three distinct resamples, whose percentiles are just the two weeks' own rates - not an interval. A page renders no interval when informative is false and says why in words.",
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "block": {
+          "const": "week"
+        },
+        "n_blocks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "draws": {
+          "type": "integer"
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "hit_rate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Interval"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "margin_pp": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Interval"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "informative": {
+          "type": "boolean"
+        },
+        "why": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "block",
+        "n_blocks",
+        "draws",
+        "seed",
+        "hit_rate",
+        "margin_pp",
+        "informative",
+        "why"
+      ],
+      "if": {"properties": {"informative": {"const": false}}},
+      "then": {"properties": {"hit_rate": {"type": "null"}, "margin_pp": {"type": "null"}}},
+      "else": {"properties": {"hit_rate": {"$ref": "#/$defs/Interval"},
+                              "margin_pp": {"$ref": "#/$defs/Interval"},
+                              "n_blocks": {"minimum": 3}}},
+      "additionalProperties": false
+    },
+    "RecordWeek": {
+      "type": "object",
+      "description": "One week of published leans. hit_rate is cleared / (cleared + missed); margin_pp is 100 x (hit_rate_priced - breakeven) over the n_priced leans with a valid ledgered price, i.e. the record measured against break-even at the price published, never against 50%.",
+      "properties": {
+        "season": {
+          "type": "integer"
+        },
+        "week": {
+          "type": "integer"
+        },
+        "n": {
+          "type": "integer"
+        },
+        "cleared": {
+          "type": "integer"
+        },
+        "missed": {
+          "type": "integer"
+        },
+        "push": {
+          "type": "integer"
+        },
+        "void": {
+          "type": "integer"
+        },
+        "graded": {
+          "type": "integer"
+        },
+        "ungraded": {
+          "type": "integer"
+        },
+        "n_priced": {
+          "type": "integer"
+        },
+        "n_price_invalid": {
+          "type": "integer"
+        },
+        "hit_rate": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "hit_rate_priced": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "breakeven": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "margin_pp": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "units": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "roi": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "season",
+        "week",
+        "n",
+        "cleared",
+        "missed",
+        "push",
+        "void",
+        "graded",
+        "ungraded",
+        "n_priced",
+        "n_price_invalid",
+        "hit_rate",
+        "hit_rate_priced",
+        "breakeven",
+        "margin_pp",
+        "units",
+        "roi"
+      ],
+      "additionalProperties": false
+    },
+    "RecordLean": {
+      "type": "object",
+      "description": "One published lean as the ledger holds it: what a reader can check, row by row, against board/{sport}/ledger.csv.",
+      "properties": {
+        "lean_id": {
+          "type": "string"
+        },
+        "season": {
+          "type": "integer"
+        },
+        "week": {
+          "type": "integer"
+        },
+        "game_id": {
+          "type": "string"
+        },
+        "gsis_id": {
+          "type": "string"
+        },
+        "market": {
+          "type": "string"
+        },
+        "line": {
+          "type": "number"
+        },
+        "side": {
+          "enum": [
+            "over",
+            "under"
+          ]
+        },
+        "read_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kickoff_ts": {
+          "type": "number"
+        },
+        "price": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "The lean-side American price the ledger published, or null when the ledgered value is not a valid American price (see price_ledgered)."
+        },
+        "price_ledgered": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "The ledger's price column as written. The Board takes a median of American odds, which lands inside (-100, 100) when an even number of books straddles even money."
+        },
+        "breakeven": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mkt_p_over": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "model_p_over": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "model_p_side": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "gap_pp": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "band": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "state": {
+          "enum": [
+            "graded",
+            "void",
+            "upcoming",
+            "live"
+          ]
+        },
+        "result": {
+          "enum": [
+            "cleared",
+            "missed",
+            "push",
+            null
+          ]
+        },
+        "actual": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "void_reason": {
+          "enum": [
+            "market_pulled",
+            "inactive",
+            "no_snap",
+            null
+          ]
+        },
+        "settled_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "lean_id",
+        "season",
+        "week",
+        "game_id",
+        "gsis_id",
+        "market",
+        "line",
+        "side",
+        "read_at",
+        "kickoff_ts",
+        "price",
+        "price_ledgered",
+        "breakeven",
+        "mkt_p_over",
+        "model_p_over",
+        "model_p_side",
+        "gap_pp",
+        "band",
+        "model_version",
+        "state",
+        "result",
+        "actual",
+        "void_reason",
+        "settled_at"
+      ],
+      "additionalProperties": false
+    },
+    "RecordPublishedFile": {
+      "type": "object",
+      "description": "THE PUBLISHED TIER (a-57): leans written to the Board ledger before kickoff, graded after. A projection of the ledger alone - never re-derived from anything else, never combined with the research or backtest tier. It supports 'these were our calls' and nothing wider.",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "record.published"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "tier": {
+          "const": "published"
+        },
+        "supports": {
+          "type": "string"
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "table": {
+              "const": "board_ledger"
+            },
+            "key": {
+              "type": "string"
+            },
+            "rows": {
+              "type": "integer"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "table",
+            "key",
+            "rows",
+            "sha256"
+          ],
+          "additionalProperties": false
+        },
+        "chain": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "head": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "rows_verified": {
+                  "type": "integer"
+                },
+                "verified_at": {
+                  "$ref": "#/$defs/Timestamp"
+                }
+              },
+              "required": [
+                "head",
+                "rows_verified",
+                "verified_at"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "description": "a-48's ledger hash chain, verified at build: its head, the rows it verified and when. null when the chain is not in the producer's tree or the ledger predates it - chain_note says which. No substitute integrity figure is ever published here."
+        },
+        "chain_note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "n_published": {
+          "type": "integer"
+        },
+        "n_graded": {
+          "type": "integer"
+        },
+        "n_void": {
+          "type": "integer"
+        },
+        "n_ungraded": {
+          "type": "integer"
+        },
+        "weeks_published": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "season": {
+                "type": "integer"
+              },
+              "week": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "season",
+              "week"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "weeks_graded": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "season": {
+                "type": "integer"
+              },
+              "week": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "season",
+              "week"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "excluded_not_pre_kickoff": {
+          "type": "object",
+          "description": "Leans whose publication cannot be shown to predate their own kickoff. They are not published calls and are in no count above.",
+          "properties": {
+            "n": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rule": {
+              "type": "string"
+            },
+            "order": {
+              "description": "a-62: the statement the ledger-order check approved - event_at non-decreasing in file order, and how many leading rows predate written_at. A ledger that fails it builds no file, so this is never a failure message.",
+              "type": "string",
+              "minLength": 1
+            },
+            "rows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "lean_id": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "terminal_event": {
+                    "enum": [
+                      "graded",
+                      "void",
+                      null
+                    ]
+                  }
+                },
+                "required": [
+                  "lean_id",
+                  "reason",
+                  "terminal_event"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "n",
+            "rule",
+            "order",
+            "rows"
+          ],
+          "additionalProperties": false
+        },
+        "record": {
+          "type": "object",
+          "properties": {
+            "cleared": {
+              "type": "integer"
+            },
+            "missed": {
+              "type": "integer"
+            },
+            "push": {
+              "type": "integer"
+            },
+            "void": {
+              "type": "integer"
+            },
+            "n_priced": {
+              "type": "integer"
+            },
+            "n_price_invalid": {
+              "type": "integer"
+            },
+            "hit_rate": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "hit_rate_priced": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "breakeven": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "margin_pp": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "units": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "roi": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "price_rule": {
+              "type": "string"
+            },
+            "interval": {
+              "$ref": "#/$defs/RecordInterval"
+            }
+          },
+          "required": [
+            "cleared",
+            "missed",
+            "push",
+            "void",
+            "n_priced",
+            "n_price_invalid",
+            "hit_rate",
+            "hit_rate_priced",
+            "breakeven",
+            "margin_pp",
+            "units",
+            "roi",
+            "price_rule",
+            "interval"
+          ],
+          "additionalProperties": false
+        },
+        "weeks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecordWeek"
+          }
+        },
+        "leans": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecordLean"
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "tier",
+        "supports",
+        "source",
+        "chain",
+        "chain_note",
+        "n_published",
+        "n_graded",
+        "n_void",
+        "n_ungraded",
+        "weeks_published",
+        "weeks_graded",
+        "excluded_not_pre_kickoff",
+        "record",
+        "weeks",
+        "leans"
+      ],
+      "additionalProperties": false
+    },
+    "RecordHeadline": {
+      "type": "object",
+      "description": "Parsed from `quote`, which appears verbatim in the row's pre-registration or findings document.",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "estimate": {
+          "type": "number"
+        },
+        "lo": {
+          "type": "number"
+        },
+        "hi": {
+          "type": "number"
+        },
+        "unit": {
+          "enum": [
+            "pp",
+            "brier",
+            "auc",
+            "slope"
+          ]
+        },
+        "quote": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "estimate",
+        "lo",
+        "hi",
+        "unit",
+        "quote"
+      ],
+      "additionalProperties": false
+    },
+    "RecordResearchRow": {
+      "type": "object",
+      "description": "One pre-registered hypothesis. registered_at is the commit that ADDED the pre-registration, with its author date.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "prereg": {
+          "type": "string"
+        },
+        "findings": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "question": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "registered_at": {
+          "type": "object",
+          "properties": {
+            "commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "author_date": {
+              "$ref": "#/$defs/Timestamp"
+            }
+          },
+          "required": [
+            "commit",
+            "author_date"
+          ],
+          "additionalProperties": false
+        },
+        "verdict": {
+          "enum": [
+            "supported",
+            "retired",
+            "open",
+            "stopped_by_gate"
+          ]
+        },
+        "headline": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecordHeadline"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "power": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "What a retirement was retired ON - venue, window, sample and interval. Never empty on a retired row (the producer refuses one): a bare 'retired' is a stronger claim than the data makes."
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "classified": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "prereg",
+        "findings",
+        "question",
+        "registered_at",
+        "verdict",
+        "headline",
+        "power",
+        "note",
+        "classified"
+      ],
+      "additionalProperties": false
+    },
+    "RecordResearchFile": {
+      "type": "object",
+      "description": "THE RESEARCH TIER (a-57): one row per tracked pre-registration, read at the producer's HEAD. It supports 'this is what we tested and what failed'. No row is pooled with the published or backtest tier.",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "record.research"
+        },
+        "sport": {
+          "type": "null"
+        },
+        "tier": {
+          "const": "research"
+        },
+        "supports": {
+          "type": "string"
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "preregistrations": {
+              "type": "string"
+            },
+            "findings": {
+              "type": "string"
+            },
+            "verdicts": {
+              "type": "string"
+            },
+            "read_at_commit": {
+              "type": "string"
+            },
+            "tracked_only": {
+              "const": true
+            }
+          },
+          "required": [
+            "preregistrations",
+            "findings",
+            "verdicts",
+            "read_at_commit",
+            "tracked_only"
+          ],
+          "additionalProperties": false
+        },
+        "n_rows": {
+          "type": "integer"
+        },
+        "by_verdict": {
+          "type": "object",
+          "properties": {
+            "supported": {
+              "type": "integer"
+            },
+            "retired": {
+              "type": "integer"
+            },
+            "open": {
+              "type": "integer"
+            },
+            "stopped_by_gate": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "supported",
+            "retired",
+            "open",
+            "stopped_by_gate"
+          ],
+          "additionalProperties": false
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecordResearchRow"
+          }
+        },
+        "unclassified": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "findings_unlinked": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "tier",
+        "supports",
+        "source",
+        "n_rows",
+        "by_verdict",
+        "rows",
+        "unclassified",
+        "findings_unlinked"
+      ],
+      "additionalProperties": false
+    },
+    "RecordFigures": {
+      "type": "object",
+      "properties": {
+        "calibration_share": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "by_season": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "season": {
+                "type": "integer"
+              },
+              "model_recal_minus_constant": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 3,
+                "maxItems": 3
+              },
+              "close_minus_constant": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 3,
+                "maxItems": 3
+              }
+            },
+            "required": [
+              "season",
+              "model_recal_minus_constant",
+              "close_minus_constant"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "auc_model_minus_close": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "RecordBacktestFile": {
+      "type": "object",
+      "description": "THE BACKTEST TIER (a-57): the walk-forward against the book close, at scale, with the counts that bound it. It supports 'the method was checked at scale'. Never combined with the published or research tier.",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "record.backtest"
+        },
+        "sport": {
+          "type": "null"
+        },
+        "tier": {
+          "const": "backtest"
+        },
+        "supports": {
+          "type": "string"
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "doc": {
+              "type": "string"
+            },
+            "commit": {
+              "type": "string"
+            },
+            "author_date": {
+              "$ref": "#/$defs/Timestamp"
+            }
+          },
+          "required": [
+            "doc",
+            "commit",
+            "author_date"
+          ],
+          "additionalProperties": false
+        },
+        "population": {
+          "type": "object",
+          "properties": {
+            "sport": {
+              "type": "string"
+            },
+            "markets": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "side": {
+              "type": "string"
+            },
+            "benchmark": {
+              "type": "string"
+            },
+            "seasons": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            },
+            "out_of_sample_outcomes": {
+              "type": "integer"
+            },
+            "games": {
+              "type": "integer"
+            },
+            "held_out": {
+              "type": "object",
+              "properties": {
+                "rule": {
+                  "type": "string"
+                },
+                "final_season": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "rule",
+                "final_season"
+              ],
+              "additionalProperties": false
+            },
+            "replay_rows": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "settled_props": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "not_in_source": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "sport",
+            "markets",
+            "side",
+            "benchmark",
+            "seasons",
+            "out_of_sample_outcomes",
+            "games",
+            "held_out",
+            "replay_rows",
+            "settled_props",
+            "not_in_source"
+          ],
+          "additionalProperties": false
+        },
+        "seasons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "season": {
+                "type": "integer"
+              },
+              "n": {
+                "type": "integer"
+              },
+              "brier_model_minus_close": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "season",
+              "n",
+              "brier_model_minus_close"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "register_figure": {
+          "type": "object",
+          "properties": {
+            "lo": {
+              "type": "number"
+            },
+            "hi": {
+              "type": "number"
+            },
+            "n": {
+              "type": "integer"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "lo",
+            "hi",
+            "n",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "superseded": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "lo": {
+                "type": "number"
+              },
+              "hi": {
+                "type": "number"
+              },
+              "n": {
+                "type": "integer"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "last_stated": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text",
+              "lo",
+              "hi",
+              "n",
+              "reason",
+              "last_stated"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The one string a page prints, and the ONLY field carrying clause text. It carries all three clauses - the loss is mostly over-confidence, a corrected model and the close both barely beat a constant base rate, the close still orders outcomes better - so no consumer can render the first alone. Each clause is worded from its figures."
+        },
+        "statement_parts": {
+          "description": "Each clause of `statement` by NAME, with the figures it was worded from - and no text (a-62): a per-clause string would be the first clause alone, one field away from a page. Render `statement`.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "clause": {
+                "enum": [
+                  "over_confidence",
+                  "constant_base_rate",
+                  "ordering"
+                ]
+              },
+              "figures": {
+                "$ref": "#/$defs/RecordFigures"
+              }
+            },
+            "required": [
+              "clause",
+              "figures"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "tier",
+        "supports",
+        "source",
+        "population",
+        "seasons",
+        "register_figure",
+        "superseded",
+        "statement",
+        "statement_parts"
+      ],
+      "additionalProperties": false
+    },
+    "BoardAppealingFile": {
+      "description": "a-70. Every outcome this week's market prices that we hold a model number for, on games that have not kicked off, ranked (jobs/appealing_export.py). It states a claim, the market's price, our number, the difference, the cost to take the side the difference falls on, depth where an exchange shows it, the gap band and the record of the model that produced the number. NO ROW IS A PICK and the file carries no verdict about any row. `ranking.by` is `net_pp` - the difference net of cost - and `ranking.is_a_finding` is false by const: the sort is a sort. The model orders outcomes worse than the market (c-24), and `ordering` carries what is measured about disagreement size. `parts` lists the four sources with their row counts and, for one that produced nothing, why.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "board_appealing"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "season": {
+          "type": "integer"
+        },
+        "week": {
+          "type": "integer"
+        },
+        "as_of": {
+          "type": "object",
+          "properties": {
+            "instant": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "kickoffs_after": {
+              "$ref": "#/$defs/Timestamp"
+            }
+          },
+          "required": [
+            "instant",
+            "kickoffs_after"
+          ],
+          "additionalProperties": false
+        },
+        "ranking": {
+          "type": "object",
+          "properties": {
+            "by": {
+              "const": "net_pp"
+            },
+            "order": {
+              "const": "descending"
+            },
+            "ties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "is_a_finding": {
+              "const": false
+            },
+            "ordering_note": {
+              "const": "disagreement_size"
+            }
+          },
+          "required": [
+            "by",
+            "order",
+            "ties",
+            "is_a_finding",
+            "ordering_note"
+          ],
+          "additionalProperties": false
+        },
+        "ordering": {
+          "description": "What has been measured about the SIZE of a disagreement, which every row points at. Three measurements, never pooled: the model's AUC against the closing price (c-24), the walk-forward return by gap band, and the Board's own graded leans by band (`gap_bands`). `larger_gap_has_meant_better` and `statement` are computed from those figures by `rule` and read the other way when the figures do.",
+          "type": "object",
+          "properties": {
+            "id": {
+              "const": "disagreement_size"
+            },
+            "larger_gap_has_meant_better": {
+              "type": "boolean"
+            },
+            "rule": {
+              "type": "string"
+            },
+            "model_vs_close_auc": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "estimate": {
+                      "type": "number"
+                    },
+                    "interval": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "verdict": {
+                      "enum": [
+                        "above",
+                        "below",
+                        "contains_zero"
+                      ]
+                    },
+                    "statement": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "estimate",
+                    "interval",
+                    "verdict",
+                    "statement"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "walkforward_bands": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "market": {
+                    "type": "string"
+                  },
+                  "lo_pp": {
+                    "type": "number"
+                  },
+                  "hi_pp": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "n": {
+                    "type": "integer"
+                  },
+                  "games": {
+                    "type": "integer"
+                  },
+                  "cleared": {
+                    "type": "number"
+                  },
+                  "interval": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "roi": {
+                    "type": "number"
+                  },
+                  "roi_interval": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "roi_verdict": {
+                    "enum": [
+                      "above",
+                      "below",
+                      "contains_zero"
+                    ]
+                  }
+                },
+                "required": [
+                  "market",
+                  "lo_pp",
+                  "hi_pp",
+                  "n",
+                  "games",
+                  "cleared",
+                  "interval",
+                  "roi",
+                  "roi_interval",
+                  "roi_verdict"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "walkforward_source": {
+              "type": "string"
+            },
+            "walkforward_scope": {
+              "type": "string"
+            },
+            "live_scope": {
+              "type": "string"
+            },
+            "not_on_this_branch": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "statement": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "larger_gap_has_meant_better",
+            "rule",
+            "model_vs_close_auc",
+            "walkforward_bands",
+            "walkforward_source",
+            "walkforward_scope",
+            "live_scope",
+            "not_on_this_branch",
+            "statement"
+          ],
+          "additionalProperties": false
+        },
+        "gap_bands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "lo_pp": {
+                "type": "number"
+              },
+              "hi_pp": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "graded": {
+                "type": "integer"
+              },
+              "cleared": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "rate": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "interval": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                ]
+              },
+              "interval_method": {
+                "const": "wilson_95"
+              },
+              "weeks": {
+                "type": "integer"
+              },
+              "breakeven": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "priced": {
+                "type": "integer"
+              },
+              "flagged": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "lo_pp",
+              "hi_pp",
+              "graded",
+              "cleared",
+              "rate",
+              "interval",
+              "interval_method",
+              "weeks",
+              "breakeven",
+              "priced",
+              "flagged"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "gap_bands_scope": {
+          "type": "object",
+          "properties": {
+            "population": {
+              "type": "string"
+            },
+            "flag_rule": {
+              "type": "string"
+            },
+            "flag_applies_to": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "population",
+            "flag_rule",
+            "flag_applies_to",
+            "source"
+          ],
+          "additionalProperties": false
+        },
+        "records": {
+          "type": "object",
+          "properties": {
+            "moneyline": {
+              "$ref": "#/$defs/BoardAppealingRecord"
+            },
+            "spread": {
+              "$ref": "#/$defs/BoardAppealingRecord"
+            },
+            "total": {
+              "$ref": "#/$defs/BoardAppealingRecord"
+            },
+            "prop": {
+              "$ref": "#/$defs/BoardAppealingRecord"
+            }
+          },
+          "additionalProperties": false
+        },
+        "parts": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "enum": [
+                  "game_exchange",
+                  "game_books",
+                  "prop_books",
+                  "prop_exchange"
+                ]
+              },
+              "rows": {
+                "type": "integer"
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "dropped": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "rows",
+              "reason",
+              "dropped"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/BoardAppealingRow"
+          }
+        },
+        "not_covered": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "definitions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "season",
+        "week",
+        "as_of",
+        "ranking",
+        "ordering",
+        "gap_bands",
+        "gap_bands_scope",
+        "records",
+        "parts",
+        "rows",
+        "not_covered",
+        "definitions"
+      ],
+      "additionalProperties": false
+    },
+    "BoardAppealingRow": {
+      "description": "One priced outcome. `claim` is the outcome as worded; `market_price.p` and `model.p` are both the probability of that claim; `difference_pp` is model minus market in points. `side` is arithmetic, not advice: `claim` when the model's number is at or above the market's, `against` when below - and `cost`, `depth` and `net_pp` are for that side. `flagged` is true only on a book prop whose gap band the file's `gap_bands` flags. `record` keys into the file's `records`; `ordering_note` into `ordering`.",
+      "type": "object",
+      "properties": {
+        "rank": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "row_id": {
+          "type": "string"
+        },
+        "market": {
+          "enum": [
+            "moneyline",
+            "spread",
+            "total",
+            "prop"
+          ]
+        },
+        "venue": {
+          "enum": [
+            "kalshi",
+            "books"
+          ]
+        },
+        "game_id": {
+          "type": "string"
+        },
+        "kickoff": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "claim": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "subject_type": {
+              "enum": [
+                "team",
+                "game",
+                "player"
+              ]
+            },
+            "subject": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "stat": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "line": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "direction": {
+              "enum": [
+                "wins",
+                "by_more_than",
+                "over"
+              ]
+            }
+          },
+          "required": [
+            "text",
+            "subject_type",
+            "subject",
+            "name",
+            "stat",
+            "line",
+            "direction"
+          ],
+          "additionalProperties": false
+        },
+        "market_price": {
+          "type": "object",
+          "properties": {
+            "p": {
+              "type": "number"
+            },
+            "basis": {
+              "enum": [
+                "exchange_mid",
+                "median_devig_mult"
+              ]
+            },
+            "bid": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "ask": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "books": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "read_at": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "instrument": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "p",
+            "basis",
+            "bid",
+            "ask",
+            "books",
+            "read_at",
+            "instrument"
+          ],
+          "additionalProperties": false
+        },
+        "model": {
+          "type": "object",
+          "properties": {
+            "p": {
+              "type": "number"
+            },
+            "model": {
+              "enum": [
+                "game_moneyline",
+                "game_spread",
+                "game_total",
+                "prop_baseline"
+              ]
+            },
+            "as_of": {
+              "$ref": "#/$defs/Timestamp"
+            }
+          },
+          "required": [
+            "p",
+            "model",
+            "as_of"
+          ],
+          "additionalProperties": false
+        },
+        "difference_pp": {
+          "type": "number"
+        },
+        "side": {
+          "enum": [
+            "claim",
+            "against"
+          ]
+        },
+        "cost": {
+          "type": "object",
+          "properties": {
+            "total_pp": {
+              "type": "number"
+            },
+            "half_spread_pp": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "fee_pp": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "book_margin_pp": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "basis": {
+              "enum": [
+                "exchange_touch_taker",
+                "book_devig"
+              ]
+            },
+            "ticket": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "fee_series": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "fee_multiplier": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "price": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "total_pp",
+            "half_spread_pp",
+            "fee_pp",
+            "book_margin_pp",
+            "basis",
+            "ticket",
+            "fee_series",
+            "fee_multiplier",
+            "price"
+          ],
+          "additionalProperties": false
+        },
+        "net_pp": {
+          "type": "number"
+        },
+        "depth": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "touch_price": {
+                  "type": "number"
+                },
+                "touch_size": {
+                  "type": "number"
+                },
+                "fills_ticket": {
+                  "type": "boolean"
+                },
+                "vwap_100": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "vwap_500": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "vwap_1000": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "slip_100_pp": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "read_at": {
+                  "$ref": "#/$defs/Timestamp"
+                }
+              },
+              "required": [
+                "touch_price",
+                "touch_size",
+                "fills_ticket",
+                "vwap_100",
+                "vwap_500",
+                "vwap_1000",
+                "slip_100_pp",
+                "read_at"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "gap_band": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "lo_pp": {
+                  "type": "number"
+                },
+                "hi_pp": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "lo_pp",
+                "hi_pp"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "flagged": {
+          "type": "boolean"
+        },
+        "record": {
+          "enum": [
+            "moneyline",
+            "spread",
+            "total",
+            "prop"
+          ]
+        },
+        "ordering_note": {
+          "const": "disagreement_size"
+        }
+      },
+      "required": [
+        "rank",
+        "row_id",
+        "market",
+        "venue",
+        "game_id",
+        "kickoff",
+        "claim",
+        "market_price",
+        "model",
+        "difference_pp",
+        "side",
+        "cost",
+        "net_pp",
+        "depth",
+        "gap_band",
+        "flagged",
+        "record",
+        "ordering_note"
+      ],
+      "additionalProperties": false
+    },
+    "BoardAppealingRecord": {
+      "description": "The record of the model behind a row's number, READ from the file named in `file` (the three game records) or from R15 and the Board's ledger (the prop model). `beats` is each baseline it was scored against, with the Brier difference and the word computed from its interval; `vs_close` is the same against the closing price. Nothing here is restated by hand.",
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "The key of the record file these figures were read from."
+        },
+        "generated_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "beats": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "d_brier": {
+                "$ref": "#/$defs/GameInterval"
+              },
+              "compared": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "d_brier",
+              "compared"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "beats_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "vs_close": {
+          "type": "object",
+          "properties": {
+            "d_brier": {
+              "$ref": "#/$defs/GameInterval"
+            },
+            "compared": {
+              "type": "string"
+            },
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "type": "boolean"
+            },
+            "register": {
+              "type": "string"
+            },
+            "season": {
+              "type": "integer"
+            },
+            "games": {
+              "type": "integer"
+            },
+            "source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "d_brier",
+            "compared",
+            "path",
+            "display"
+          ],
+          "additionalProperties": false
+        },
+        "published": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "graded": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "published": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "cleared": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "missed": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "rate": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "breakeven": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "graded",
+                "published",
+                "cleared",
+                "missed",
+                "rate",
+                "breakeven"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "file",
+        "generated_at",
+        "beats",
+        "beats_reason",
+        "vs_close",
+        "published"
+      ],
+      "additionalProperties": false
+    },
+    "GameInterval": {
+      "type": "object",
+      "description": "A difference, model minus comparator, with its 95% game-block bootstrap interval. `verdict` is where the interval lies relative to zero - `below`, `above`, `contains_zero`, or `not_read` (too few games) - and nothing more: whether below is better depends on the quantity (lower is better for a Brier score and for miscalibration, higher is better for discrimination and AUC). The words a page may use are in the sibling `compared`, where there is one.",
+      "properties": {
+        "estimate": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "interval": {
+          "type": "array",
+          "items": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "se": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "verdict": {
+          "enum": [
+            "below",
+            "above",
+            "contains_zero",
+            "not_read"
+          ]
+        }
+      },
+      "required": [
+        "estimate",
+        "interval",
+        "se",
+        "verdict"
+      ],
+      "additionalProperties": false
+    },
+    "GameForecastFile": {
+      "description": "a-63. The game forecast for the current week (jobs/game_export.py): per game the chance the home team wins and the home margin's distribution, as of a named instant. c-28's model (models/game.py), fitted walk-forward. Its settlement record is `record` (game/{sport}/record.json) and ships beside it. `season_stage` says which part of that record speaks for THIS week - c-28 measured that the margin-of-victory term adds nothing in weeks 1-4 - and its `statement` is worded from that part's interval, so the page states it rather than a week-4 number carrying a record earned later. No pick, no total, nothing from any spread or total market.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "game.forecast"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "season": {
+          "type": "integer"
+        },
+        "week": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "game_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "as_of": {
+          "type": "object",
+          "description": "`instant` is when the forecast was made; every game forecast kicks off after it and every result it read kicked off before it. `results_through` is the kickoff of the latest result read.",
+          "properties": {
+            "instant": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "results_through": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "games_seen": {
+              "type": "integer"
+            },
+            "versions": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "instant",
+            "results_through",
+            "games_seen",
+            "versions"
+          ],
+          "additionalProperties": false
+        },
+        "games": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "game_id": {
+                "type": "string"
+              },
+              "kickoff": {
+                "$ref": "#/$defs/Timestamp"
+              },
+              "home": {
+                "type": "string"
+              },
+              "away": {
+                "type": "string"
+              },
+              "p_home_win": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "margin": {
+                "$ref": "#/$defs/GameMargin"
+              }
+            },
+            "required": [
+              "game_id",
+              "kickoff",
+              "home",
+              "away",
+              "p_home_win",
+              "margin"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Why `games` is empty; null when it is not."
+        },
+        "method": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string"
+            },
+            "params": {
+              "type": "object",
+              "properties": {
+                "k": {
+                  "type": "number"
+                },
+                "hfa": {
+                  "type": "number"
+                },
+                "regress": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "k",
+                "hfa",
+                "regress"
+              ],
+              "additionalProperties": false
+            },
+            "fit_seasons": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "margin": {
+              "type": "object",
+              "properties": {
+                "family": {
+                  "const": "normal"
+                },
+                "sd": {
+                  "type": "number"
+                },
+                "mean_rule": {
+                  "type": "string"
+                },
+                "declared": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "family",
+                "sd",
+                "mean_rule",
+                "declared"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "model",
+            "params",
+            "fit_seasons",
+            "margin"
+          ],
+          "additionalProperties": false
+        },
+        "season_stage": {
+          "$ref": "#/$defs/GameSeasonStage"
+        },
+        "record": {
+          "type": "string",
+          "description": "The key of this forecast's settlement record."
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "season",
+        "week",
+        "game_type",
+        "as_of",
+        "games",
+        "reason",
+        "method",
+        "season_stage",
+        "record"
+      ],
+      "additionalProperties": false
+    },
+    "GameRecordFile": {
+      "description": "a-63. The game forecast's settlement record: c-28's Part 1 (docs/findings/game-forecast.md), re-run on the store at export. Three baselines, the Brier difference against each with its interval, the game count and the seasons, the same differences split at week 4, and what the record does and does not cover. `market_comparison` is COMPUTED, STORED AND NOT FOR DISPLAY (Ethan, 2026-09-30): it carries names and figures and no text, and `withheld.display` is const false. Turning it on is a contract and rendering change, never a re-measurement.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "game.record"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "population": {
+          "type": "object",
+          "properties": {
+            "games": {
+              "type": "integer"
+            },
+            "seasons": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "game_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "ties_excluded": {
+              "type": "integer"
+            },
+            "blocks": {
+              "const": "game"
+            },
+            "fit_seasons_from": {
+              "type": "integer"
+            },
+            "held_out": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "games",
+            "seasons",
+            "game_types",
+            "ties_excluded",
+            "blocks",
+            "fit_seasons_from",
+            "held_out"
+          ],
+          "additionalProperties": false
+        },
+        "model": {
+          "type": "object",
+          "properties": {
+            "brier": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "auc": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "brier",
+            "auc"
+          ],
+          "additionalProperties": false
+        },
+        "baselines": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "enum": [
+                  "home",
+                  "record",
+                  "elo_nomov"
+                ]
+              },
+              "label": {
+                "type": "string"
+              },
+              "definition": {
+                "type": "string"
+              },
+              "brier": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "d_brier": {
+                "$ref": "#/$defs/GameInterval"
+              },
+              "compared": {
+                "enum": [
+                  "better than",
+                  "worse than",
+                  "no better than"
+                ],
+                "description": "The words the interval licenses and nothing stronger: `better than` / `worse than` only when it excludes zero."
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "definition",
+              "brier",
+              "d_brier",
+              "compared"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "beats_all_baselines": {
+          "type": "boolean",
+          "description": "True exactly when every baseline's d_brier interval lies below zero; computed, so it can be false."
+        },
+        "by_stage": {
+          "type": "object",
+          "properties": {
+            "weeks_1_4": {
+              "type": "object",
+              "properties": {
+                "games": {
+                  "type": "integer"
+                },
+                "vs": {
+                  "type": "object",
+                  "properties": {
+                    "home": {
+                      "type": "object",
+                      "properties": {
+                        "brier_model": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "brier_baseline": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "d_brier": {
+                          "$ref": "#/$defs/GameInterval"
+                        }
+                      },
+                      "required": [
+                        "brier_model",
+                        "brier_baseline",
+                        "d_brier"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "record": {
+                      "type": "object",
+                      "properties": {
+                        "brier_model": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "brier_baseline": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "d_brier": {
+                          "$ref": "#/$defs/GameInterval"
+                        }
+                      },
+                      "required": [
+                        "brier_model",
+                        "brier_baseline",
+                        "d_brier"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "elo_nomov": {
+                      "type": "object",
+                      "properties": {
+                        "brier_model": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "brier_baseline": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "d_brier": {
+                          "$ref": "#/$defs/GameInterval"
+                        }
+                      },
+                      "required": [
+                        "brier_model",
+                        "brier_baseline",
+                        "d_brier"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "home",
+                    "record",
+                    "elo_nomov"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "games",
+                "vs"
+              ],
+              "additionalProperties": false
+            },
+            "weeks_5_plus": {
+              "type": "object",
+              "properties": {
+                "games": {
+                  "type": "integer"
+                },
+                "vs": {
+                  "type": "object",
+                  "properties": {
+                    "home": {
+                      "type": "object",
+                      "properties": {
+                        "brier_model": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "brier_baseline": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "d_brier": {
+                          "$ref": "#/$defs/GameInterval"
+                        }
+                      },
+                      "required": [
+                        "brier_model",
+                        "brier_baseline",
+                        "d_brier"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "record": {
+                      "type": "object",
+                      "properties": {
+                        "brier_model": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "brier_baseline": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "d_brier": {
+                          "$ref": "#/$defs/GameInterval"
+                        }
+                      },
+                      "required": [
+                        "brier_model",
+                        "brier_baseline",
+                        "d_brier"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "elo_nomov": {
+                      "type": "object",
+                      "properties": {
+                        "brier_model": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "brier_baseline": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "d_brier": {
+                          "$ref": "#/$defs/GameInterval"
+                        }
+                      },
+                      "required": [
+                        "brier_model",
+                        "brier_baseline",
+                        "d_brier"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "home",
+                    "record",
+                    "elo_nomov"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "games",
+                "vs"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "weeks_1_4",
+            "weeks_5_plus"
+          ],
+          "additionalProperties": false
+        },
+        "interval_method": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "draws": {
+              "type": "integer"
+            },
+            "level": {
+              "type": "number"
+            },
+            "difference": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "draws",
+            "level",
+            "difference"
+          ],
+          "additionalProperties": false
+        },
+        "covers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "does_not_cover": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "market_comparison": {
+          "type": "object",
+          "description": "NOT FOR DISPLAY (Ethan, 2026-09-30). The model against the sport's published moneyline close, de-vigged two-way. Figures only, deliberately no string: there is nothing here a page could print by accident. Not in the metric registry either, so the manifest never points a page at it.",
+          "properties": {
+            "withheld": {
+              "type": "object",
+              "properties": {
+                "display": {
+                  "const": false
+                },
+                "decided_by": {
+                  "type": "string"
+                },
+                "decided_on": {
+                  "type": "string"
+                },
+                "unit": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "display",
+                "decided_by",
+                "decided_on",
+                "unit"
+              ],
+              "additionalProperties": false
+            },
+            "benchmark": {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "type": "string"
+                },
+                "devig": {
+                  "type": "string"
+                },
+                "provenance_recorded": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "source",
+                "devig",
+                "provenance_recorded"
+              ],
+              "additionalProperties": false
+            },
+            "seasons": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "games": {
+              "type": "integer"
+            },
+            "brier_model": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "brier_benchmark": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "d_brier": {
+              "$ref": "#/$defs/GameInterval"
+            },
+            "d_miscalibration": {
+              "$ref": "#/$defs/GameInterval"
+            },
+            "d_discrimination": {
+              "$ref": "#/$defs/GameInterval"
+            },
+            "d_auc": {
+              "$ref": "#/$defs/GameInterval"
+            }
+          },
+          "required": [
+            "withheld",
+            "benchmark",
+            "seasons",
+            "games",
+            "brier_model",
+            "brier_benchmark",
+            "d_brier",
+            "d_miscalibration",
+            "d_discrimination",
+            "d_auc"
+          ],
+          "additionalProperties": false
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "preregistration": {
+              "type": "string"
+            },
+            "findings": {
+              "type": "string"
+            },
+            "script": {
+              "type": "string"
+            },
+            "versions": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "preregistration",
+            "findings",
+            "script",
+            "versions"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "population",
+        "model",
+        "baselines",
+        "beats_all_baselines",
+        "by_stage",
+        "interval_method",
+        "covers",
+        "does_not_cover",
+        "market_comparison",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "GameMargin": {
+      "type": "object",
+      "description": "Home points minus away points. Normal; `mean` is sd x PhiInv(p_home_win), so the chance the margin is above zero is p_home_win. `bands` are central: `level` percent of the distribution lies between `lo` and `hi`.",
+      "properties": {
+        "mean": {
+          "type": "number"
+        },
+        "bands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "level": {
+                "type": "integer"
+              },
+              "lo": {
+                "type": "number"
+              },
+              "hi": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "level",
+              "lo",
+              "hi"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "mean",
+        "bands"
+      ],
+      "additionalProperties": false
+    },
+    "GameSeasonStage": {
+      "description": "Null only when `games` is empty. The part of the settlement record that applies to this week, against plain Elo, with the other part beside it. `statement` is the one string a page prints; it is worded from the intervals it quotes. The figures equal record.json's `by_stage` (or its plain-Elo baseline for `all`) - jobs/game_export.stage_agrees refuses both files otherwise.",
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "stage": {
+              "enum": [
+                "weeks_1_4",
+                "weeks_5_plus",
+                "all"
+              ]
+            },
+            "week": {
+              "type": "integer"
+            },
+            "game_type": {
+              "type": "string"
+            },
+            "games": {
+              "type": "integer"
+            },
+            "vs_elo_nomov": {
+              "$ref": "#/$defs/GameInterval"
+            },
+            "compared": {
+              "enum": [
+                "better than",
+                "worse than",
+                "no better than"
+              ],
+              "description": "The words the interval licenses and nothing stronger: `better than` / `worse than` only when it excludes zero."
+            },
+            "other": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "stage": {
+                      "enum": [
+                        "weeks_1_4",
+                        "weeks_5_plus",
+                        "all"
+                      ]
+                    },
+                    "games": {
+                      "type": "integer"
+                    },
+                    "vs_elo_nomov": {
+                      "$ref": "#/$defs/GameInterval"
+                    },
+                    "compared": {
+                      "enum": [
+                        "better than",
+                        "worse than",
+                        "no better than"
+                      ],
+                      "description": "The words the interval licenses and nothing stronger: `better than` / `worse than` only when it excludes zero."
+                    }
+                  },
+                  "required": [
+                    "stage",
+                    "games",
+                    "vs_elo_nomov",
+                    "compared"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "stage",
+            "week",
+            "game_type",
+            "games",
+            "vs_elo_nomov",
+            "compared",
+            "other",
+            "statement"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "GameModelRecordFile": {
+      "description": "a-64. The scoring record of one of the game models the matchup files quote: the spread (c-28's margin with c-30's key-number shape) or the total (c-31). Read from the unit's committed result file, never recomputed at export.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "game.model_record"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "market": {
+          "enum": [
+            "spread",
+            "total"
+          ]
+        },
+        "model": {
+          "type": "string"
+        },
+        "population": {
+          "type": "object",
+          "properties": {
+            "games": {
+              "type": "integer"
+            },
+            "seasons": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "pushes_excluded": {
+              "type": "boolean"
+            },
+            "blocks": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "games",
+            "seasons",
+            "pushes_excluded",
+            "blocks"
+          ],
+          "additionalProperties": false
+        },
+        "against_baselines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "d_brier": {
+                "$ref": "#/$defs/GameInterval"
+              },
+              "compared": {
+                "enum": [
+                  "better than",
+                  "worse than",
+                  "no better than"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "d_brier",
+              "compared"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "against_shape": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "d_brier": {
+                  "$ref": "#/$defs/GameInterval"
+                },
+                "compared": {
+                  "enum": [
+                    "better than",
+                    "worse than",
+                    "no better than"
+                  ]
+                }
+              },
+              "required": [
+                "label",
+                "d_brier",
+                "compared"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "push_rates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "line": {
+                "type": "integer"
+              },
+              "games": {
+                "type": "integer"
+              },
+              "realised": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "predicted": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "difference": {
+                "$ref": "#/$defs/GameInterval"
+              }
+            },
+            "required": [
+              "line",
+              "games",
+              "realised",
+              "predicted",
+              "difference"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "wind_per_mph": {
+          "description": "Points of total per mph of RECORDED game-day wind; null for the spread.",
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/GameInterval"
+            }
+          ]
+        },
+        "vs_close": {
+          "description": "How the model does against the closing price, model minus close. `display` is the one switch that says whether a page shows it (a-64 set it true; a-63 kept the moneyline's own copy in record.json withheld).",
+          "type": "object",
+          "properties": {
+            "benchmark": {
+              "type": "string"
+            },
+            "devig": {
+              "type": "string"
+            },
+            "provenance_recorded": {
+              "type": "boolean"
+            },
+            "seasons": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "games": {
+              "type": "integer"
+            },
+            "brier_benchmark": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "d_brier": {
+              "$ref": "#/$defs/GameInterval"
+            },
+            "compared": {
+              "enum": [
+                "better than",
+                "worse than",
+                "no better than"
+              ]
+            },
+            "display": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "benchmark",
+            "devig",
+            "provenance_recorded",
+            "seasons",
+            "games",
+            "brier_benchmark",
+            "d_brier",
+            "compared",
+            "display"
+          ],
+          "additionalProperties": false
+        },
+        "covers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "does_not_cover": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "preregistration": {
+              "type": "string"
+            },
+            "findings": {
+              "type": "string"
+            },
+            "script": {
+              "type": "string"
+            },
+            "result": {
+              "type": "string"
+            },
+            "versions": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "preregistration",
+            "findings",
+            "script",
+            "result",
+            "versions"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "market",
+        "model",
+        "population",
+        "against_baselines",
+        "against_shape",
+        "push_rates",
+        "wind_per_mph",
+        "vs_close",
+        "covers",
+        "does_not_cover",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "GameMatchupFile": {
+      "description": "a-64. Everything the store holds about one game of the forecast week, as of a named instant: the three model numbers beside the market's with each one's scoring record, both teams, the head-to-head, and the situation. Written by jobs/game_export.py beside the forecast; every figure it repeats from another file is refused unless it equals it.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "game.matchup"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "season": {
+          "type": "integer"
+        },
+        "week": {
+          "type": "integer"
+        },
+        "game_id": {
+          "type": "string",
+          "pattern": "^\\d{4}_\\d{2}_[A-Z0-9]+_[A-Z0-9]+$"
+        },
+        "kickoff": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "home": {
+          "type": "string"
+        },
+        "away": {
+          "type": "string"
+        },
+        "as_of": {
+          "type": "object",
+          "properties": {
+            "instant": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "results_through": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "market_line_version": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "versions": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "instant",
+            "results_through",
+            "market_line_version",
+            "versions"
+          ],
+          "additionalProperties": false
+        },
+        "numbers": {
+          "description": "The model's number beside the market's, and model minus market. The market is the schedule's line at `as_of.market_line_version`, de-vigged two-way; its book and capture time are not recorded. No side is chosen: a difference is not a verdict.",
+          "type": "object",
+          "properties": {
+            "moneyline": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "object",
+                  "properties": {
+                    "p_home_win": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "p_home_win"
+                  ],
+                  "additionalProperties": false
+                },
+                "market": {
+                  "type": "object",
+                  "properties": {
+                    "p_home_win": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "p_home_win"
+                  ],
+                  "additionalProperties": false
+                },
+                "difference": {
+                  "type": "object",
+                  "properties": {
+                    "p_home_win": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "p_home_win"
+                  ],
+                  "additionalProperties": false
+                },
+                "record": {
+                  "type": "object",
+                  "properties": {
+                    "file": {
+                      "type": "string"
+                    },
+                    "beats": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "d_brier": {
+                            "$ref": "#/$defs/GameInterval"
+                          },
+                          "compared": {
+                            "enum": [
+                              "better than",
+                              "worse than",
+                              "no better than"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "d_brier",
+                          "compared"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "vs_close": {
+                      "description": "A copy of the owning record's figure, refused at export unless it equals it.",
+                      "type": "object",
+                      "properties": {
+                        "record": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "d_brier": {
+                          "$ref": "#/$defs/GameInterval"
+                        },
+                        "compared": {
+                          "enum": [
+                            "better than",
+                            "worse than",
+                            "no better than"
+                          ]
+                        },
+                        "display": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "record",
+                        "path",
+                        "d_brier",
+                        "compared",
+                        "display"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "file",
+                    "beats",
+                    "vs_close"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "model",
+                "market",
+                "difference",
+                "record"
+              ],
+              "additionalProperties": false
+            },
+            "spread": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "object",
+                  "properties": {
+                    "home_margin_mean": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "p_home_covers": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "p_push": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "scored": {
+                      "type": "object",
+                      "properties": {
+                        "home_margin_mean": {
+                          "type": "boolean"
+                        },
+                        "p_home_covers": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "home_margin_mean",
+                        "p_home_covers"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "home_margin_mean",
+                    "p_home_covers",
+                    "p_push",
+                    "scored",
+                    "reason"
+                  ],
+                  "additionalProperties": false
+                },
+                "market": {
+                  "type": "object",
+                  "properties": {
+                    "home_margin": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "p_home_covers": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "home_margin",
+                    "p_home_covers"
+                  ],
+                  "additionalProperties": false
+                },
+                "difference": {
+                  "type": "object",
+                  "properties": {
+                    "home_margin": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "p_home_covers": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "home_margin",
+                    "p_home_covers"
+                  ],
+                  "additionalProperties": false
+                },
+                "unscored": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "record": {
+                  "type": "object",
+                  "properties": {
+                    "file": {
+                      "type": "string"
+                    },
+                    "beats": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "d_brier": {
+                            "$ref": "#/$defs/GameInterval"
+                          },
+                          "compared": {
+                            "enum": [
+                              "better than",
+                              "worse than",
+                              "no better than"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "d_brier",
+                          "compared"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "vs_close": {
+                      "description": "A copy of the owning record's figure, refused at export unless it equals it.",
+                      "type": "object",
+                      "properties": {
+                        "record": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "d_brier": {
+                          "$ref": "#/$defs/GameInterval"
+                        },
+                        "compared": {
+                          "enum": [
+                            "better than",
+                            "worse than",
+                            "no better than"
+                          ]
+                        },
+                        "display": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "record",
+                        "path",
+                        "d_brier",
+                        "compared",
+                        "display"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "file",
+                    "beats",
+                    "vs_close"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "model",
+                "market",
+                "difference",
+                "unscored",
+                "record"
+              ],
+              "additionalProperties": false
+            },
+            "total": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "object",
+                  "properties": {
+                    "mean": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "p_over": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "components": {
+                      "anyOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "home_plays": {
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "home_points_per_play": {
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "away_plays": {
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "away_points_per_play": {
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "home_plays",
+                            "home_points_per_play",
+                            "away_plays",
+                            "away_points_per_play"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "mean",
+                    "p_over",
+                    "components",
+                    "reason"
+                  ],
+                  "additionalProperties": false
+                },
+                "market": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "p_over": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "total",
+                    "p_over"
+                  ],
+                  "additionalProperties": false
+                },
+                "difference": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "p_over": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "total",
+                    "p_over"
+                  ],
+                  "additionalProperties": false
+                },
+                "record": {
+                  "type": "object",
+                  "properties": {
+                    "file": {
+                      "type": "string"
+                    },
+                    "beats": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "d_brier": {
+                            "$ref": "#/$defs/GameInterval"
+                          },
+                          "compared": {
+                            "enum": [
+                              "better than",
+                              "worse than",
+                              "no better than"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "d_brier",
+                          "compared"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "vs_close": {
+                      "description": "A copy of the owning record's figure, refused at export unless it equals it.",
+                      "type": "object",
+                      "properties": {
+                        "record": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "d_brier": {
+                          "$ref": "#/$defs/GameInterval"
+                        },
+                        "compared": {
+                          "enum": [
+                            "better than",
+                            "worse than",
+                            "no better than"
+                          ]
+                        },
+                        "display": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "record",
+                        "path",
+                        "d_brier",
+                        "compared",
+                        "display"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "file",
+                    "beats",
+                    "vs_close"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "model",
+                "market",
+                "difference",
+                "record"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "moneyline",
+            "spread",
+            "total"
+          ],
+          "additionalProperties": false
+        },
+        "margin": {
+          "$ref": "#/$defs/GameMargin"
+        },
+        "teams": {
+          "type": "object",
+          "properties": {
+            "home": {
+              "type": "object",
+              "properties": {
+                "team": {
+                  "type": "string"
+                },
+                "games": {
+                  "type": "integer"
+                },
+                "record": {
+                  "type": "object",
+                  "properties": {
+                    "wins": {
+                      "type": "integer"
+                    },
+                    "losses": {
+                      "type": "integer"
+                    },
+                    "ties": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "wins",
+                    "losses",
+                    "ties"
+                  ],
+                  "additionalProperties": false
+                },
+                "rating": {
+                  "type": "object",
+                  "properties": {
+                    "current": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "path": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "after_week": {
+                            "type": "integer"
+                          },
+                          "rating": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "after_week",
+                          "rating"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "league_mean": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "current",
+                    "path",
+                    "league_mean"
+                  ],
+                  "additionalProperties": false
+                },
+                "points_per_game_for": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "points_per_game_against": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "efficiency": {
+                  "description": "Points per play first, then plays per game: c-31 measured efficiency as the sticky factor. Null with a reason unless team pace covers every game played this season.",
+                  "type": "object",
+                  "properties": {
+                    "points_per_play_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "points_per_play_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "plays_per_game_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "plays_per_game_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "games_with_pace": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "points_per_play_for",
+                    "points_per_play_against",
+                    "plays_per_game_for",
+                    "plays_per_game_against",
+                    "reason",
+                    "games_with_pace"
+                  ],
+                  "additionalProperties": false
+                },
+                "units": {
+                  "type": "object",
+                  "properties": {
+                    "passing_yards_per_game_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_yards_per_game_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "passing_yards_per_game_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_yards_per_game_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "interceptions_thrown": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "interceptions_made": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "definition": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "source": {
+                      "enum": [
+                        "team_rows",
+                        "player_rows",
+                        null
+                      ]
+                    },
+                    "passing_epa_per_game_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "passing_epa_per_game_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_epa_per_game_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_epa_per_game_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_epa_per_carry_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_epa_per_carry_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "epa_definition": {
+                      "type": "string"
+                    },
+                    "epa_reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "passing_yards_per_game_for",
+                    "rushing_yards_per_game_for",
+                    "passing_yards_per_game_against",
+                    "rushing_yards_per_game_against",
+                    "interceptions_thrown",
+                    "interceptions_made",
+                    "definition",
+                    "reason",
+                    "source",
+                    "passing_epa_per_game_for",
+                    "passing_epa_per_game_against",
+                    "rushing_epa_per_game_for",
+                    "rushing_epa_per_game_against",
+                    "rushing_epa_per_carry_for",
+                    "rushing_epa_per_carry_against",
+                    "epa_definition",
+                    "epa_reason"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Passing and rushing by unit. `source` is team_rows where the source's own team-game totals cover every game the team has played, else player_rows (summed player rows). The EPA figures exist only on the team rows and are null with epa_reason otherwise. Passing EPA has no per-play figure: the play set the source sums it over is not reproduced by attempts plus sacks."
+                },
+                "schedule_strength": {
+                  "type": "object",
+                  "properties": {
+                    "opponents_mean_rating": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "opponents": {
+                      "type": "integer"
+                    },
+                    "definition": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "opponents_mean_rating",
+                    "opponents",
+                    "definition"
+                  ],
+                  "additionalProperties": false
+                },
+                "results": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "game_id": {
+                        "type": "string"
+                      },
+                      "week": {
+                        "type": "integer"
+                      },
+                      "opponent": {
+                        "type": "string"
+                      },
+                      "home": {
+                        "type": "boolean"
+                      },
+                      "points_for": {
+                        "type": "number"
+                      },
+                      "points_against": {
+                        "type": "number"
+                      },
+                      "result": {
+                        "enum": [
+                          "win",
+                          "loss",
+                          "tie"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "game_id",
+                      "week",
+                      "opponent",
+                      "home",
+                      "points_for",
+                      "points_against",
+                      "result"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "team",
+                "games",
+                "record",
+                "rating",
+                "points_per_game_for",
+                "points_per_game_against",
+                "efficiency",
+                "units",
+                "schedule_strength",
+                "results"
+              ],
+              "additionalProperties": false
+            },
+            "away": {
+              "type": "object",
+              "properties": {
+                "team": {
+                  "type": "string"
+                },
+                "games": {
+                  "type": "integer"
+                },
+                "record": {
+                  "type": "object",
+                  "properties": {
+                    "wins": {
+                      "type": "integer"
+                    },
+                    "losses": {
+                      "type": "integer"
+                    },
+                    "ties": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "wins",
+                    "losses",
+                    "ties"
+                  ],
+                  "additionalProperties": false
+                },
+                "rating": {
+                  "type": "object",
+                  "properties": {
+                    "current": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "path": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "after_week": {
+                            "type": "integer"
+                          },
+                          "rating": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "after_week",
+                          "rating"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "league_mean": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "current",
+                    "path",
+                    "league_mean"
+                  ],
+                  "additionalProperties": false
+                },
+                "points_per_game_for": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "points_per_game_against": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "efficiency": {
+                  "description": "Points per play first, then plays per game: c-31 measured efficiency as the sticky factor. Null with a reason unless team pace covers every game played this season.",
+                  "type": "object",
+                  "properties": {
+                    "points_per_play_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "points_per_play_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "plays_per_game_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "plays_per_game_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "games_with_pace": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "points_per_play_for",
+                    "points_per_play_against",
+                    "plays_per_game_for",
+                    "plays_per_game_against",
+                    "reason",
+                    "games_with_pace"
+                  ],
+                  "additionalProperties": false
+                },
+                "units": {
+                  "type": "object",
+                  "properties": {
+                    "passing_yards_per_game_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_yards_per_game_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "passing_yards_per_game_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_yards_per_game_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "interceptions_thrown": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "interceptions_made": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "definition": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "source": {
+                      "enum": [
+                        "team_rows",
+                        "player_rows",
+                        null
+                      ]
+                    },
+                    "passing_epa_per_game_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "passing_epa_per_game_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_epa_per_game_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_epa_per_game_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_epa_per_carry_for": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "rushing_epa_per_carry_against": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "epa_definition": {
+                      "type": "string"
+                    },
+                    "epa_reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "passing_yards_per_game_for",
+                    "rushing_yards_per_game_for",
+                    "passing_yards_per_game_against",
+                    "rushing_yards_per_game_against",
+                    "interceptions_thrown",
+                    "interceptions_made",
+                    "definition",
+                    "reason",
+                    "source",
+                    "passing_epa_per_game_for",
+                    "passing_epa_per_game_against",
+                    "rushing_epa_per_game_for",
+                    "rushing_epa_per_game_against",
+                    "rushing_epa_per_carry_for",
+                    "rushing_epa_per_carry_against",
+                    "epa_definition",
+                    "epa_reason"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Passing and rushing by unit. `source` is team_rows where the source's own team-game totals cover every game the team has played, else player_rows (summed player rows). The EPA figures exist only on the team rows and are null with epa_reason otherwise. Passing EPA has no per-play figure: the play set the source sums it over is not reproduced by attempts plus sacks."
+                },
+                "schedule_strength": {
+                  "type": "object",
+                  "properties": {
+                    "opponents_mean_rating": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "opponents": {
+                      "type": "integer"
+                    },
+                    "definition": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "opponents_mean_rating",
+                    "opponents",
+                    "definition"
+                  ],
+                  "additionalProperties": false
+                },
+                "results": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "game_id": {
+                        "type": "string"
+                      },
+                      "week": {
+                        "type": "integer"
+                      },
+                      "opponent": {
+                        "type": "string"
+                      },
+                      "home": {
+                        "type": "boolean"
+                      },
+                      "points_for": {
+                        "type": "number"
+                      },
+                      "points_against": {
+                        "type": "number"
+                      },
+                      "result": {
+                        "enum": [
+                          "win",
+                          "loss",
+                          "tie"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "game_id",
+                      "week",
+                      "opponent",
+                      "home",
+                      "points_for",
+                      "points_against",
+                      "result"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "team",
+                "games",
+                "record",
+                "rating",
+                "points_per_game_for",
+                "points_per_game_against",
+                "efficiency",
+                "units",
+                "schedule_strength",
+                "results"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "home",
+            "away"
+          ],
+          "additionalProperties": false
+        },
+        "head_to_head": {
+          "description": "Every meeting the store holds, newest first. `record_starts` is the first season the store holds; nothing earlier is counted.",
+          "type": "object",
+          "properties": {
+            "meetings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "game_id": {
+                    "type": "string"
+                  },
+                  "season": {
+                    "type": "integer"
+                  },
+                  "week": {
+                    "type": "integer"
+                  },
+                  "game_type": {
+                    "type": "string"
+                  },
+                  "date": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "home": {
+                    "type": "string"
+                  },
+                  "away": {
+                    "type": "string"
+                  },
+                  "home_score": {
+                    "type": "number"
+                  },
+                  "away_score": {
+                    "type": "number"
+                  },
+                  "venue": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "game_id",
+                  "season",
+                  "week",
+                  "game_type",
+                  "date",
+                  "home",
+                  "away",
+                  "home_score",
+                  "away_score",
+                  "venue"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "sides": {
+              "type": "string"
+            },
+            "all_time": {
+              "type": "object",
+              "properties": {
+                "games": {
+                  "type": "integer"
+                },
+                "home_side_wins": {
+                  "type": "integer"
+                },
+                "away_side_wins": {
+                  "type": "integer"
+                },
+                "ties": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "games",
+                "home_side_wins",
+                "away_side_wins",
+                "ties"
+              ],
+              "additionalProperties": false
+            },
+            "recent": {
+              "type": "object",
+              "properties": {
+                "games": {
+                  "type": "integer"
+                },
+                "home_side_wins": {
+                  "type": "integer"
+                },
+                "away_side_wins": {
+                  "type": "integer"
+                },
+                "ties": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "games",
+                "home_side_wins",
+                "away_side_wins",
+                "ties"
+              ],
+              "additionalProperties": false
+            },
+            "recent_n": {
+              "type": "integer"
+            },
+            "record_starts": {
+              "type": "integer"
+            },
+            "common_opponents": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "opponent": {
+                    "type": "string"
+                  },
+                  "home_team": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "game_id": {
+                          "type": "string"
+                        },
+                        "week": {
+                          "type": "integer"
+                        },
+                        "opponent": {
+                          "type": "string"
+                        },
+                        "home": {
+                          "type": "boolean"
+                        },
+                        "points_for": {
+                          "type": "number"
+                        },
+                        "points_against": {
+                          "type": "number"
+                        },
+                        "result": {
+                          "enum": [
+                            "win",
+                            "loss",
+                            "tie"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "game_id",
+                        "week",
+                        "opponent",
+                        "home",
+                        "points_for",
+                        "points_against",
+                        "result"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "away_team": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "game_id": {
+                          "type": "string"
+                        },
+                        "week": {
+                          "type": "integer"
+                        },
+                        "opponent": {
+                          "type": "string"
+                        },
+                        "home": {
+                          "type": "boolean"
+                        },
+                        "points_for": {
+                          "type": "number"
+                        },
+                        "points_against": {
+                          "type": "number"
+                        },
+                        "result": {
+                          "enum": [
+                            "win",
+                            "loss",
+                            "tie"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "game_id",
+                        "week",
+                        "opponent",
+                        "home",
+                        "points_for",
+                        "points_against",
+                        "result"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "opponent",
+                  "home_team",
+                  "away_team"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "meetings",
+            "sides",
+            "all_time",
+            "recent",
+            "recent_n",
+            "record_starts",
+            "common_opponents"
+          ],
+          "additionalProperties": false
+        },
+        "situation": {
+          "type": "object",
+          "properties": {
+            "venue": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "neutral_site": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "division_game": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "roof_structure": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "roof_this_game": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "open_to_sky": {
+                  "enum": [
+                    0,
+                    1,
+                    null
+                  ]
+                },
+                "international": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "international_reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "country_code": {
+                  "description": "ISO 3166-1 alpha-2, from Wikidata P17 on the venue's own item.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "neutral_site",
+                "division_game",
+                "roof_structure",
+                "roof_this_game",
+                "open_to_sky",
+                "international",
+                "international_reason",
+                "country_code"
+              ],
+              "additionalProperties": false
+            },
+            "teams": {
+              "type": "object",
+              "properties": {
+                "home": {
+                  "type": "object",
+                  "properties": {
+                    "team": {
+                      "type": "string"
+                    },
+                    "rest": {
+                      "type": "object",
+                      "properties": {
+                        "days": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "short_week": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "off_bye": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "days",
+                        "short_week",
+                        "off_bye",
+                        "reason"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "travel_km": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "travel_definition": {
+                      "type": "string"
+                    },
+                    "travel_reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "time_zones_crossed": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "time_zones_reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "time_zones_definition": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "team",
+                    "rest",
+                    "travel_km",
+                    "travel_definition",
+                    "travel_reason",
+                    "time_zones_crossed",
+                    "time_zones_reason",
+                    "time_zones_definition"
+                  ],
+                  "additionalProperties": false
+                },
+                "away": {
+                  "type": "object",
+                  "properties": {
+                    "team": {
+                      "type": "string"
+                    },
+                    "rest": {
+                      "type": "object",
+                      "properties": {
+                        "days": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "short_week": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "off_bye": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "days",
+                        "short_week",
+                        "off_bye",
+                        "reason"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "travel_km": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "travel_definition": {
+                      "type": "string"
+                    },
+                    "travel_reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "time_zones_crossed": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "time_zones_reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "time_zones_definition": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "team",
+                    "rest",
+                    "travel_km",
+                    "travel_definition",
+                    "travel_reason",
+                    "time_zones_crossed",
+                    "time_zones_reason",
+                    "time_zones_definition"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "home",
+                "away"
+              ],
+              "additionalProperties": false
+            },
+            "weather": {
+              "type": "object",
+              "properties": {
+                "recorded_wind_mph": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "recorded_temp_f": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "recorded_reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "forecast_wind_mph": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "forecast_temp_f": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "forecast_reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "wind_effect_on_total": {
+                  "type": "object",
+                  "properties": {
+                    "per_mph": {
+                      "$ref": "#/$defs/GameInterval"
+                    },
+                    "measured_on": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "per_mph",
+                    "measured_on"
+                  ],
+                  "additionalProperties": false
+                },
+                "total_assumes_wind_mph": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "forecast_lead_hours": {
+                  "description": "Kickoff minus the instant the forecast was taken, in hours. Always positive.",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "forecast_taken": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "forecast_source": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "recorded_wind_mph",
+                "recorded_temp_f",
+                "recorded_reason",
+                "forecast_wind_mph",
+                "forecast_temp_f",
+                "forecast_reason",
+                "wind_effect_on_total",
+                "total_assumes_wind_mph",
+                "forecast_lead_hours",
+                "forecast_taken",
+                "forecast_source"
+              ],
+              "additionalProperties": false,
+              "description": "recorded_* is what the schedule's source recorded after the game. forecast_* is a FORECAST taken before kickoff and before the build, with how far ahead it was taken; a record never appears in a forecast field."
+            }
+          },
+          "required": [
+            "venue",
+            "teams",
+            "weather"
+          ],
+          "additionalProperties": false
+        },
+        "market_source": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "provenance_recorded": {
+              "type": "boolean"
+            },
+            "note_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "provenance_recorded",
+            "note_id"
+          ],
+          "additionalProperties": false
+        },
+        "forecast": {
+          "type": "string"
+        },
+        "season_stage": {
+          "$ref": "#/$defs/GameSeasonStage"
+        },
+        "model_notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "season",
+        "week",
+        "game_id",
+        "kickoff",
+        "home",
+        "away",
+        "as_of",
+        "numbers",
+        "margin",
+        "teams",
+        "head_to_head",
+        "situation",
+        "market_source",
+        "forecast",
+        "season_stage",
+        "model_notes"
+      ],
+      "additionalProperties": false
+    },
+    "GameMatchupIndexFile": {
+      "description": "a-64. The matchup files of the forecast week. Lists only matchups that built and passed every gate this run.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "generated_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "kind": {
+          "const": "game.matchup_index"
+        },
+        "sport": {
+          "type": "string"
+        },
+        "season": {
+          "type": "integer"
+        },
+        "week": {
+          "type": "integer"
+        },
+        "as_of": {
+          "type": "object",
+          "properties": {
+            "instant": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "results_through": {
+              "$ref": "#/$defs/Timestamp"
+            }
+          },
+          "required": [
+            "instant",
+            "results_through"
+          ],
+          "additionalProperties": false
+        },
+        "games": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "game_id": {
+                "type": "string"
+              },
+              "key": {
+                "type": "string"
+              },
+              "kickoff": {
+                "$ref": "#/$defs/Timestamp"
+              },
+              "home": {
+                "type": "string"
+              },
+              "away": {
+                "type": "string"
+              },
+              "difference": {
+                "type": "object",
+                "properties": {
+                  "p_home_win": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "home_margin": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "total": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "p_home_win",
+                  "home_margin",
+                  "total"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "game_id",
+              "key",
+              "kickoff",
+              "home",
+              "away",
+              "difference"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "records": {
+          "type": "object",
+          "properties": {
+            "moneyline": {
+              "type": "string"
+            },
+            "spread": {
+              "type": "string"
+            },
+            "total": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "moneyline",
+            "spread",
+            "total"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "generated_at",
+        "kind",
+        "sport",
+        "season",
+        "week",
+        "as_of",
+        "games",
+        "records"
       ],
       "additionalProperties": false
     }

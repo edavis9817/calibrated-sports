@@ -297,6 +297,57 @@ def normalize_weekly_rosters(data: bytes, version: str, week=None):
     return "nfl_roster_week", cols, rows
 
 
+# Keyless rows tolerated per stats_team file before it is refused. Measured over
+# 1999-2026 (research/stats_team_audit.py): one such row exists, in 1999.
+TEAM_STATS_MAX_KEYLESS = 2
+
+
+def normalize_team_stats(data: bytes, version: str, week=None):
+    """stats_team_week -> nfl_team_week (a-66). One row per team-game.
+
+    VERBATIM. Every stat keeps nflverse's column name and value; a column a
+    season's file lacks is NULL, never zero. What the file says and what was
+    collected are different questions for several of these columns in early
+    seasons, and that is answered at READ time (nflverse.team_stat_collected),
+    not by rewriting the store.
+
+    A row with no team has no place in the primary key. The 1999 file carries
+    exactly one (week 9, PHI at CAR: 1 attempt, 2 carries, -2 yards credited to
+    no team), so a keyless row is dropped and COUNTED on every run - but more
+    than TEAM_STATS_MAX_KEYLESS in one file is a changed file, and is refused."""
+    pl = _pl()
+    df = pl.read_parquet(io.BytesIO(data))
+    missing = [c for c in ("team", "season", "week", "season_type") if c not in df.columns]
+    if missing:
+        raise ValueError(f"stats_team file has no {missing} column - refusing it")
+    if week is not None:
+        df = df.filter(pl.col("week") == week)
+    keyless = (pl.col("team").is_null() | pl.col("season").is_null()
+               | pl.col("week").is_null() | pl.col("season_type").is_null())
+    bad = df.filter(keyless).height
+    if bad > TEAM_STATS_MAX_KEYLESS:
+        raise ValueError(f"stats_team file has {bad} row(s) without team/season/week/"
+                         f"season_type - refusing it")
+    print(f"       team_stats: {bad} keyless row(s) dropped of {df.height}")
+    df = df.filter(~keyless)
+    dup = df.height - df.select("team", "season", "week", "season_type").unique().height
+    if dup:
+        # Next Gen Stats carries a week-0 season total that doubles every sum; this
+        # file does not today (weeks start at 1). Two rows for one team-week would
+        # be the same defect arriving here, and INSERT OR REPLACE would hide it.
+        raise ValueError(f"stats_team file has {dup} duplicate team-week row(s) - refusing it")
+    now = time.time()
+    cols = ("sport", "team", "season", "week", "season_type", "data_version", "game_id",
+            "opponent", *store.TEAM_WEEK_COLS, "source", "ingested_ts")
+    have = set(df.columns)
+    rows = [("nfl", r["team"], int(r["season"]), int(r["week"]), r["season_type"], version,
+             r.get("game_id"), r.get("opponent_team"),
+             *[_f(r[c]) if c in have else None for c in store.TEAM_WEEK_COLS],
+             SOURCE, now)
+            for r in df.iter_rows(named=True)]
+    return "nfl_team_week", cols, rows
+
+
 def normalize_players(data: bytes, version: str, week=None):
     """The gsis_id crosswalk. Writes player_xwalk + player_alias directly - it
     is two tables, not one, so it does not fit the (table, cols, rows) shape."""
@@ -345,6 +396,7 @@ NORMALIZERS = {
     "teams": normalize_teams,
     "weekly_rosters": normalize_weekly_rosters,
     "pbp": normalize_pbp,
+    "team_stats": normalize_team_stats,
 }
 
 

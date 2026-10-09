@@ -800,6 +800,15 @@ most one `graded` or `void`). The uploader ships it only after reading the bucke
 copy back and showing the new file is that copy plus rows at the end, and **no uploader
 ever deletes a key under `board/`**.
 
+**`written_at` (a-62).** When the writer wrote the row, from its own wall clock, never
+from a caller. `read_at` and `event_at` are the READ's time, which `board_read --at`
+names, so a replayed week looks exactly like a live one on those two fields (f-22 D1).
+Null on rows written before a-62. It sits between the event columns and the chain; a
+row carrying it is hashed under `hash_chain.stamped.tag` with the stamp after the event
+cells, and a row without it exactly as a-48 hashed it, so no existing hash moves. A file
+written before it gains the column null on every existing row - the one other widening
+the uploader allows. `board_read` refuses `--at` whenever `--dest` is `BOARD_EXPORT_DIR`.
+
 ## landing.json — kind `landing` (a-47)
 
 The one file the landing page reads, sportless at the root. Built LAST in
@@ -824,6 +833,151 @@ index — plus the Board's own tree and the Lab universe meta; never the store.
 
 It owns no prefix: written through `sync_keys(dest, {"landing.json": ...}, [])`,
 so it deletes nothing and declares nothing to the uploader.
+
+## record/... — kinds `record.published`, `record.research`, `record.backtest` (a-57)
+
+Three tiers of evidence, three files, and **no figure in any of them combines
+two tiers**. Built by `jobs/record_export.py`; each file has exactly one source
+and its builder in `core/record.py` cannot see the other two.
+
+| key | tier | its one source | supports |
+|---|---|---|---|
+| `record/{sport}/published.json` | published | the Board ledger, `board/{sport}/ledger.parquet` | "these were our calls" |
+| `record/research.json` | research | tracked `docs/*preregistration*.md` + `docs/findings/*.md` at HEAD, with `docs/record/research-verdicts.json` | "this is what we tested and what failed" |
+| `record/backtest.json` | backtest | `docs/findings/ranking-versus-calibration.md` at HEAD | "the method was checked at scale" |
+
+- **published.** A projection of the ledger. A lean is a published call only if
+  its `read_at`, its `event_at` and, on rows written since a-62, its `written_at`
+  are all strictly before its own `kickoff_ts`; anything else is in
+  `excluded_not_pre_kickoff.rows` by lean id and in no count. No file is built
+  unless the ledger's `event_at` is non-decreasing in file order and unstamped rows
+  only lead it (`excluded_not_pre_kickoff.order` states what was checked): a replay
+  appended to the live ledger goes back in time.
+  `record` and `weeks[]` measure the hit rate against the break-even of the price
+  the ledger published (`margin_pp`), not against 50%. `record.interval` is a
+  week-block bootstrap: null bounds and `informative: false` below three graded
+  weeks, one exactly when the other (the contract's `if`/`then` holds it) — two
+  weeks have three resamples, whose "bounds" are the two weeks' own rates. A page
+  renders no interval then and says so in words. `chain` is a-48's verified head,
+  or null with `chain_note` saying why; nothing substitutes for it. A ledgered
+  price inside (-100, 100) is not an American price (the Board medians American
+  odds); such a lean carries `price: null`, `price_ledgered`, and is counted in
+  `n_price_invalid`. `leans[]` carry `gsis_id`, not a name: names are not in the
+  ledger.
+- **research.** One row per tracked pre-registration; `registered_at` is the
+  commit that added it. `headline` is parsed from a quote that appears verbatim
+  in the row's documents. A `retired` row always carries `power`. A
+  pre-registration with no declared verdict is `open` with `classified: false`.
+- **backtest.** `statement` is the one string to print, and the only field that
+  carries clause text: its three clauses (over-confidence, both barely beat a
+  constant, the close still orders better) are each worded from their figures,
+  which `statement_parts` carries by clause name with no text (a-62). No research
+  row restates the first clause either (`core.record.SPLIT_CLAUSE_WORDS`). `superseded` carries
+  the pre-settlement-fix pair, never as a current figure.
+
+Each owns no prefix (`sync_keys(dest, files, [])`), so the job deletes nothing.
+
+## game/{sport}/... — kinds `game.forecast`, `game.record` (a-63)
+
+The game forecast c-28 lifted out of the season model (`models/game.py`) and
+scored (`docs/findings/game-forecast.md`), published with its settlement record.
+Built by `jobs/game_export.py`, run by the weekly refresh after the season model;
+reads `nfl_games` mode=ro.
+
+| key | carries |
+|---|---|
+| `game/{sport}/forecast.json` | the first week with a game still to kick off: per game `p_home_win`, the home margin's `mean` and central `bands` (50/80/95), and `as_of` |
+| `game/{sport}/record.json` | c-28 Part 1 re-run: three baselines, `d_brier` against each with its game-block interval, `population.games` and `seasons`, `by_stage` (weeks 1-4 / 5+), `covers`, `does_not_cover` — and `market_comparison`, withheld |
+
+- **As-of.** `as_of.instant` is the build instant. Every forecast game kicks off
+  after it; every result read kicked off before it (`results_through`), or no
+  file is built. A game already kicked off is not in `games`.
+- **`season_stage` is the one sentence the page must carry.** c-28 measured that
+  the margin-of-victory term adds nothing in weeks 1-4 (-0.0008 [-0.0024,
+  +0.0007] against plain Elo); the gain arrives from week 5. `season_stage.statement`
+  says which part of the record speaks for THIS week, worded from that part's
+  interval (`no better than` when it contains zero), so it can come out otherwise.
+  Its figures equal `record.json`'s `by_stage`; `stage_agrees` refuses both files
+  if not.
+- **`market_comparison` is computed, stored and NOT FOR DISPLAY** (Ethan,
+  2026-09-30). Figures and names only, no text; `withheld.display` is const
+  `false`; not in the metric registry, so the manifest never points a page at it.
+  Showing it later is a contract and rendering change, not a re-measurement.
+- No total and nothing from `KXNFLSPREAD` / `KXNFLTOTAL`: c-28's total is a
+  league-level placeholder, and c-30 / c-31 own the spread and the total.
+- Non-fatal per file: each is built and gated (contract, source gate, metric gate)
+  on its own and written only if it passes; a failed file keeps its previous copy.
+  Owns no prefix (`sync_keys(dest, files, [])`), so the job deletes nothing.
+
+## game/{sport}/matchup/... — kinds `game.matchup`, `game.matchup_index`, `game.model_record` (a-64)
+
+Everything the store holds about each game of the forecast week, built in the same
+run as the forecast (`jobs/game_matchup.py`, called by `jobs/game_export.py`), so the
+matchup and the forecast can never describe different walks.
+
+| key | carries |
+|---|---|
+| `game/{sport}/matchup/{game_id}.json` | `numbers` (moneyline, spread, total: the model's number, the market's, the difference, and the `record` that scores each), `margin`, `teams` (both sides), `head_to_head`, `situation`, `season_stage`, `model_notes` |
+| `game/{sport}/matchup/index.json` | the week's matchups that built and passed every gate, each with its three differences |
+| `game/{sport}/record_spread.json` | c-30's record: cover of the closing spread against the result, the push rates on 3 and 7, and `vs_close` |
+| `game/{sport}/record_total.json` | c-31's record: over/under on eight lines against the result, the two naive baselines, `wind_per_mph`, and `vs_close` |
+
+- **The market's number is the nflverse schedule's line** at
+  `as_of.market_line_version`, de-vigged two-way where it is a price. The record
+  scores against the same source. Its book and capture time are not recorded
+  (`market_source.provenance_recorded: false`).
+- **Every model number carries its record, and every record says it loses to the
+  closing price** (`vs_close.compared` is `worse than` for all three). `display` is
+  one switch, `jobs.game_matchup.SHOW_CLOSE`; a-64 set it `true` against a-63's
+  withheld moneyline comparison, which record.json still stores withheld. See the
+  DECISIONS row.
+- **What is not scored is marked unscored.** The spread's mean margin
+  (`scored.home_margin_mean: false`) and the margin bands are c-28's and unscored;
+  only the chance of covering is scored.
+- **The total is null, with its reason, until track F's team pace covers every
+  game played this season.** c-31's factors drop a team-game with no pace row
+  (plays AND points), so a missing week would be a stale forecast rather than a
+  smaller sample. Efficiency (`points_per_play_*`, `plays_per_game_*`) follows
+  the same rule, per team.
+- **Wind.** Not-yet-played games have no recorded wind and no forecast is captured,
+  so the total is computed at `total_assumes_wind_mph` (the 2000..T-1 mean recorded
+  outdoor wind) and `wind_effect_on_total` carries c-31's -0.24 points per mph. The
+  total's record was scored with the RECORDED wind, which a pre-game forecast does not
+  have; `record_total.json`'s `does_not_cover` says so.
+- **Copies are checked.** A matchup's moneyline figure, margin and stage must equal
+  the forecast's, and each `record` copy must equal its owner's
+  (`jobs.game_export.matchup_agrees`); a matchup that differs is refused and left
+  out of the index.
+- **As-of.** Every team figure, head-to-head meeting and common-opponent result
+  kicked off before `as_of.instant` and has a final score. The spread's and the
+  total's constants are the committed season-T fits (seasons 2000..T-1) and are
+  refused for any other season.
+- **Units come from the source's team rows where they cover the season (a-66).**
+  `teams.*.units.source` is `team_rows` when nflverse's `stats_team` totals
+  (`nfl_team_week`) hold both sides of every game the team has played, else
+  `player_rows` (a-64's sum over player rows). Six EPA fields ride the team rows only:
+  `passing_epa_per_game_*`, `rushing_epa_per_game_*`, `rushing_epa_per_carry_*`, null
+  with `epa_reason` otherwise. **There is no passing EPA per play**: `rushing_epa`
+  equals the sum of play-by-play `epa` over carries on every team-game checked, and no
+  candidate play set reproduces `passing_epa` (88-89% of team-games). Fumbles are
+  published from neither source, as a-64 left them; measured, the team total equals
+  the player rows' `fumbles_lost_total` on all but 6 team-games, all in 2000-2001, so
+  that is a choice to revisit and not a defect. `research/stats_team_audit.py`.
+- **The forecast is a forecast (a-66).** `situation.weather.forecast_wind_mph` and
+  `forecast_temp_f` are read through `feeds.weather_read.pregame_forecasts`, which
+  returns only rows of kind `forecast` taken BEFORE the kickoff and before the build,
+  with `forecast_lead_hours` and `forecast_taken`. `recorded_*` is nflverse's value
+  after the game. The forecast does NOT feed the total: `total_assumes_wind_mph` is
+  unchanged, because c-31's wind term was fitted on nflverse's recorded wind and the
+  reanalysis of the same games correlates 0.71 with it
+  (`research/nfl_weather_coverage.py`).
+- **Country and time zones (a-66).** `situation.venue.country_code` is Wikidata P17 on
+  the venue's item and `international` is "not US". `time_zones_crossed` is the hours
+  between local time at the team's home stadium and at this game's stadium at kickoff,
+  the short way round; the zone is Open-Meteo's for the stadium's coordinate, because
+  Wikidata P421 is on none of the 47 items.
+- **Still null with a reason:** a fixed-roof venue has no forecast, and a kickoff more
+  than 15 days out is past the forecast endpoint's horizon.
 
 ## Refresh
 

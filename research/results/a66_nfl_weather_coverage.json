@@ -1,0 +1,394 @@
+{
+ "all_versions": 4264,
+ "by_kind": {
+  "archive": 4227,
+  "forecast": 37
+ },
+ "coord_offset_km_max": 0.0,
+ "current_rows": 4264,
+ "forecasts": {
+  "current_rows": 37,
+  "lead_hours_max": 332.2,
+  "lead_hours_median": 236.2,
+  "lead_hours_min": 68.2,
+  "taken_after_kickoff": 13,
+  "taken_before_kickoff": 24
+ },
+ "games_version": "2026-10-06",
+ "grid_offset_km_median": 3.619,
+ "per_season": {
+  "1999": {
+   "any_row": 0,
+   "archive": 0,
+   "beyond_forecast_horizon": 0,
+   "fixed_roof_skipped": 0,
+   "forecast": 0,
+   "games": 259,
+   "played": 259,
+   "refused": {
+    "no_kickoff_time": 259
+   }
+  },
+  "2000": {
+   "any_row": 49,
+   "archive": 49,
+   "beyond_forecast_horizon": 0,
+   "fixed_roof_skipped": 0,
+   "forecast": 0,
+   "games": 259,
+   "played": 259,
+   "refused": {
+    "offset_not_measured": 16,
+    "pair_not_in_crosswalk": 194
+   }
+  },
+  "2001": {
+   "any_row": 60,
+   "archive": 60,
+   "beyond_forecast_horizon": 0,
+   "fixed_roof_skipped": 0,
+   "forecast": 0,
+   "games": 259,
+   "played": 259,
+   "refused": {
+    "offset_not_measured": 16,
+    "pair_not_in_crosswalk": 183
+   }
+  },
+  "2002": {
+   "any_row": 67,
+   "archive": 67,
+   "beyond_forecast_horizon": 0,
+   "fixed_roof_skipped": 8,
+   "forecast": 0,
+   "games": 267,
+   "played": 267,
+   "refused": {
+    "offset_not_measured": 17,
+    "pair_not_in_crosswalk": 175
+   }
+  },
+  "2003": {
+   "any_row": 96,
+   "archive": 96,
+   "beyond_forecast_horizon": 0,
+   "fixed_roof_skipped": 8,
+   "forecast": 0,
+   "games": 267,
+   "played": 267,
+   "refused": {
+    "offset_not_measured": 15,
+    "pair_not_in_crosswalk": 148
+   }
+  },
+  "2004": {
+   "any_row": 102,
+   "archive": 102,
+   "beyond_forecast_horizon": 0,
+   "fixed_roof_skipped": 8,
+   "forecast": 0,
+   "games": 267,
+   "played": 267,
+   "refused": {
+    "offset_not_measured": 18,
+    "pair_not_in_crosswalk": 139
+   }
+  },
+  "2005": {
+   "any_row": 101,
+   "archive": 101,
+   "beyond_forecast_horizon": 0,
+   "fixed_roof_skipped": 9,
+   "forecast": 0,
+   "games": 267,
+   "played": 267,
+   "refused": {
+    "offset_not_measured": 16,
+    "pair_not_in_crosswalk": 141
+   }
+  },
+  "2006": {
+   "any_row": 109,
+   "archive": 109,
+   "beyond_forecast_horizon": 0,
+   "fixed_roof_skipped": 8,
+   "forecast": 0,
+   "games": 267,
+   "played": 267,
+   "refused": {
+    "offset_not_measured": 17,
+    "pair_not_in_crosswalk": 133
+   }
+  },
+  "2007": {
+   "any_row": 112,
+   "archive": 112,
+   "beyond_forecast_horizon": 0,
+   "fixed_roof_skipped": 8,
+   "forecast": 0,
+   "games": 267,
+   "played": 267,
+   "refused": {
+    "offset_not_measured": 17,
+    "pair_not_in_crosswalk": 130
+   }
+  },
+  "2008": {
+   "any_row": 127,
+   "archive": 127,
+   "beyond_forecast_horizon": null,
+   "fixed_roof_skipped": 8,
+   "forecast": 0,
+   "games": 267,
+   "played": 267,
+   "refused": {
+    "offset_not_measured": 17,
+    "pair_not_in_crosswalk": 115
+   }
+  },
+  "2009": {
+   "any_row": 125,
+   "archive": 125,
+   "beyond_forecast_horizon": null,
+   "fixed_roof_skipped": 8,
+   "forecast": 0,
+   "games": 267,
+   "played": 267,
+   "refused": {
+    "offset_not_measured": 17,
+    "pair_not_in_crosswalk": 117
+   }
+  },
+  "2010": {
+   "any_row": 137,
+   "archive": 137,
+   "beyond_forecast_horizon": null,
+   "fixed_roof_skipped": 9,
+   "forecast": 0,
+   "games": 267,
+   "played": 267,
+   "refused": {
+    "offset_not_measured": 17,
+    "pair_not_in_crosswalk": 104
+   }
+  },
+  "2011": {
+   "any_row": 160,
+   "archive": 160,
+   "beyond_forecast_horizon": null,
+   "fixed_roof_skipped": 17,
+   "forecast": 0,
+   "games": 267,
+   "played": 267,
+   "refused": {
+    "offset_not_measured": 16,
+    "pair_not_in_crosswalk": 74
+   }
+  },
+  "2012": {
+   "any_row": 160,
+   "archive": 160,
+   "beyond_forecast_horizon": null,
+   "fixed_roof_skipped": 17,
+   "forecast": 0,
+   "games": 267,
+   "played": 267,
+   "refused": {
+    "offset_not_measured": 18,
+    "pair_not_in_crosswalk": 72
+   }
+  },
+  "2013": {
+   "any_row": 180,
+   "archive": 180,
+   "beyond_forecast_horizon": null,
+   "fixed_roof_skipped": 16,
+   "forecast": 0,
+   "games": 267,
+   "played": 267,
+   "refused": {
+    "offset_not_measured": 16,
+    "pair_not_in_crosswalk": 55
+   }
+  },
+  "2014": {
+   "any_row": 189,
+   "archive": 189,
+   "beyond_forecast_horizon": null,
+   "fixed_roof_skipped": 17,
+   "forecast": 0,
+   "games": 267,
+   "played": 267,
+   "refused": {
+    "offset_not_measured": 15,
+    "pair_not_in_crosswalk": 46
+   }
+  },
+  "2015": {
+   "any_row": 195,
+   "archive": 195,
+   "beyond_forecast_horizon": null,
+   "fixed_roof_skipped": 16,
+   "forecast": 0,
+   "games": 267,
+   "played": 267,
+   "refused": {
+    "offset_not_measured": 16,
+    "pair_not_in_crosswalk": 40
+   }
+  },
+  "2016": {
+   "any_row": 217,
+   "archive": 217,
+   "beyond_forecast_horizon": null,
+   "fixed_roof_skipped": 24,
+   "forecast": 0,
+   "games": 267,
+   "played": 267,
+   "refused": {
+    "offset_not_measured": 26
+   }
+  },
+  "2017": {
+   "any_row": 224,
+   "archive": 224,
+   "beyond_forecast_horizon": null,
+   "fixed_roof_skipped": 27,
+   "forecast": 0,
+   "games": 267,
+   "played": 267,
+   "refused": {
+    "offset_not_measured": 16
+   }
+  },
+  "2018": {
+   "any_row": 226,
+   "archive": 226,
+   "beyond_forecast_horizon": null,
+   "fixed_roof_skipped": 26,
+   "forecast": 0,
+   "games": 267,
+   "played": 267,
+   "refused": {
+    "offset_not_measured": 15
+   }
+  },
+  "2019": {
+   "any_row": 227,
+   "archive": 227,
+   "beyond_forecast_horizon": null,
+   "fixed_roof_skipped": 25,
+   "forecast": 0,
+   "games": 267,
+   "played": 267,
+   "refused": {
+    "offset_not_measured": 15
+   }
+  },
+  "2020": {
+   "any_row": 209,
+   "archive": 209,
+   "beyond_forecast_horizon": null,
+   "fixed_roof_skipped": 50,
+   "forecast": 0,
+   "games": 269,
+   "played": 269,
+   "refused": {
+    "offset_not_measured": 10
+   }
+  },
+  "2021": {
+   "any_row": 223,
+   "archive": 223,
+   "beyond_forecast_horizon": null,
+   "fixed_roof_skipped": 52,
+   "forecast": 0,
+   "games": 285,
+   "played": 285,
+   "refused": {
+    "offset_not_measured": 10
+   }
+  },
+  "2022": {
+   "any_row": 222,
+   "archive": 222,
+   "beyond_forecast_horizon": null,
+   "fixed_roof_skipped": 53,
+   "forecast": 0,
+   "games": 284,
+   "played": 284,
+   "refused": {
+    "offset_not_measured": 9
+   }
+  },
+  "2023": {
+   "any_row": 222,
+   "archive": 222,
+   "beyond_forecast_horizon": null,
+   "fixed_roof_skipped": 53,
+   "forecast": 0,
+   "games": 285,
+   "played": 285,
+   "refused": {
+    "offset_not_measured": 10
+   }
+  },
+  "2024": {
+   "any_row": 222,
+   "archive": 222,
+   "beyond_forecast_horizon": null,
+   "fixed_roof_skipped": 53,
+   "forecast": 0,
+   "games": 285,
+   "played": 285,
+   "refused": {
+    "offset_not_measured": 10
+   }
+  },
+  "2025": {
+   "any_row": 226,
+   "archive": 226,
+   "beyond_forecast_horizon": null,
+   "fixed_roof_skipped": 50,
+   "forecast": 0,
+   "games": 285,
+   "played": 285,
+   "refused": {
+    "offset_not_measured": 9
+   }
+  },
+  "2026": {
+   "any_row": 77,
+   "archive": 40,
+   "beyond_forecast_horizon": 146,
+   "fixed_roof_skipped": 49,
+   "forecast": 37,
+   "games": 272,
+   "played": 63,
+   "refused": {}
+  }
+ },
+ "seasons_with_a_row": [
+  2000,
+  2026
+ ],
+ "winds": {
+  "correlation": 0.7052,
+  "games": 3381,
+  "mean_abs_difference_mph": 2.63,
+  "nflverse_recorded_mean_mph": 8.33,
+  "reanalysis_mean_mph": 7.82,
+  "reanalysis_on_recorded": {
+   "intercept": 2.991,
+   "slope": 0.5797
+  },
+  "recorded_on_reanalysis": {
+   "intercept": 1.621,
+   "slope": 0.8578
+  },
+  "seasons": [
+   2000,
+   2026
+  ]
+ }
+}

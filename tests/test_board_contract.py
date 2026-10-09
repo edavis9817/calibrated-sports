@@ -212,7 +212,7 @@ def test_a_row_with_no_lean_carries_no_band():
 def test_the_ledger_columns_and_types_are_the_contracts():
     from jobs import board_read as J
     schema = J.ledger_schema()
-    assert list(schema) == list(B.LEDGER_COLUMNS) + ["prev_hash", "row_hash"]
+    assert list(schema) == list(B.LEDGER_COLUMNS) + ["written_at", "prev_hash", "row_hash"]
     assert schema["season"] == pl.Int64 and schema["line"] == pl.Float64
     assert schema["event"] == pl.Utf8
     entry = E.TABLES["board_ledger"]
@@ -551,7 +551,13 @@ def test_tick_uploads_the_board_tree_and_nothing_else(env, creds, monkeypatch): 
     s3 = FakeS3()
     out = J.tick(2026, env["dest"], upload=True, now_ts=T0 + 60, client=s3, log=lambda *_: None)
     assert out["upload"]["uploaded"] == 4 and out["upload"]["deleted"] == 0
-    assert all(k.startswith("board/") for k in _put_keys(s3))
+    # a-61: the tick also ships the record, from its OWN tree and upload. The
+    # Board's upload is still board/ only; the only other keys put are record/,
+    # and exactly as many as the record step says it uploaded.
+    board = [k for k in _put_keys(s3) if k.startswith("board/")]
+    record = [k for k in _put_keys(s3) if k.startswith("record/")]
+    assert len(board) == 4 and len(board) + len(record) == len(_put_keys(s3))
+    assert len(record) == out["record"]["uploaded"] and not out["record"]["failed"]
 
 
 def test_the_cmd_runs_the_tick_from_its_own_clone_with_upload():

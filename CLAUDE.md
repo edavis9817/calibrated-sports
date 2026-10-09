@@ -2311,3 +2311,62 @@ while three writer tasks launched from it). a-10 built two production clones pin
   - **`core.settlement.resolve` grades `actual == line` as OVER when `push_possible` is 0, and it is 0
     on every receiving-yards outcome row.** Read from the code, and it did not fire here: 0 ties on
     the 18,685 bench rungs. Drop ties explicitly on any yards rung set that holds integer lines.
+
+## The appealing file (a-70)
+
+`board/nfl/appealing.json` (kind `board_appealing`, `jobs/appealing_export.py`) is every
+pre-kickoff outcome the week's market prices that we hold a model number for, ranked by
+**difference net of cost**. The Board tick writes it into the Board's tree after its own upload,
+so it ships one tick later; it never raises and a failed build leaves the previous file.
+
+- **The sort is a sort.** `ranking.is_a_finding` is `false` by contract const. What is measured
+  about disagreement size is in `ordering`, computed from c-24's AUC, the walk-forward bands and
+  the Board's graded leans - and it can read the other way when they do.
+- **Cost is never flat.** Exchange: half the quoted spread plus the series' taker fee on a
+  100-contract order (`core.fees`). Books: the side's offered implied probability minus its
+  de-vigged one, which scales with price.
+- **A game rung is priced only where the published files agree.** The moneyline must round to
+  `game/nfl/forecast.json`; a spread or total rung is dropped when the game's published matchup
+  withholds that number or this build does not reproduce it. Measured 2026-10-08: the store this
+  clone reads prices the total, the published week-5 matchups withhold it, so all 300 total rows
+  are withheld and counted in `parts`.
+- **The band flag is computed and scoped.** A band is flagged when the whole Wilson interval of
+  its graded cleared rate is below the mean break-even of its prices; it lands on BOOK PROP rows
+  only, the population the Board's ledger measured.
+- **`jobs.board_read._tick` is now a reader in the source registry** (the scan follows the hook
+  into the job's SQL), and `market_depth` has a source row for the first time.
+- **The flipping input of a ledgered lean is the player's own prior mean, on misses and clears
+  alike** (c-40, `research/counterfactual_ledger.py`, pre-registered at `8ce15b1`;
+  `docs/findings/c40-counterfactual-ledger.md`). NFL Board ledger snapshot of 2026-10-08, weeks 3-4,
+  31 games, 477 of 496 graded leans rebuilt to their ledgered probability. Smallest proportional
+  change to ONE input of `models.baseline` that puts the model on the other side: `own_mean` is
+  that input on 66.1% of missed leans (+0.461 over the 1/5 null [+0.369, +0.557], Holm p 2e-19
+  over 80 tests) and on 68.0% of cleared ones; missed minus cleared -0.019 [-0.099, +0.067]. So the
+  concentration describes the model's arithmetic and does NOT say which input was wrong on a miss.
+  - **A share against a uniform null needs the cleared rows beside it.** The brief's success
+    condition (one input above 1/k) was met by structure alone; only the missed-minus-cleared
+    contrast could have come out the other way.
+  - **Ceiling:** 0 of 227 missed leans are unflippable inside x20, which says little; 1.3% flip
+    within a 10% change, 22.5% within 25%, 52.9% within 50%. Median |gap| is 14.67 points and 378
+    of 477 leans are in the 8+ band - a lean that far out is not one small input error away.
+  - **The ledger's model has no rating and no home term.** Every lean is `baseline-usage`; its
+    inputs are own mean, group mean, weight, dispersion and the line.
+  - **`np.std` of 2,000 identical floats is ~1e-17, not 0.0.** `se == 0` let 19 zero-variance
+    tests into a Holm family at p = 0. Compare against a tolerance.
+  - **The ranking is not a product of the proportional ruler - and the agreement is about
+    structure, not about misses** (c-42, `research/counterfactual_uncertainty.py`, pre-registered
+    at `b69b376`; `docs/findings/c42-uncertainty-scale.md`). Same 477 leans, each input moved in
+    units of its own as-of standard error: `own_mean` is the flipping input on 97.4% of missed
+    leans (+0.640 over the 1/3 null [+0.615, +0.658], 48-test Holm family) and 98.0% of cleared
+    ones; missed minus cleared -0.006 [-0.036, +0.022]. On the same three inputs the proportional
+    scale gives 84.6% / 84.0%. The registered inequality `w * SE_own > (1 - w) * SE_group` holds
+    on 466 of 468 rows: the heavily weighted input (median w 0.73) is also the loosely known one
+    (median relative SE 14% against the group mean's 6.5%).
+    - **Only three of the five inputs have an as-of uncertainty.** No fit yields a standard error
+      for the shrink weight (n is exact, the constants are judgment calls), and a posted line is
+      exact - 409 of 477 leans have ONE listed line across the three benchmark books. Where the
+      LINE would rank on an uncertainty scale is not known; it was c-40's second input (22.9%).
+    - **Ceiling in standard errors:** the median missed lean needs its nearest input moved 3.1 of
+      its own sampling SEs (cleared 3.4); 3.1% flip within 1 SE, 26.0% within 2, 47.1% within 3.
+      The SE is sampling error only - it leaves out season-to-season drift - so this is not a
+      significance statement about any lean.
