@@ -930,6 +930,21 @@ matchup and the forecast can never describe different walks.
 | `game/{sport}/record_spread.json` | c-30's record: cover of the closing spread against the result, the push rates on 3 and 7, and `vs_close` |
 | `game/{sport}/record_total.json` | c-31's record: over/under on eight lines against the result, the two naive baselines, `wind_per_mph`, and `vs_close` |
 
+- **`index.json` `refused` (a-82), optional and additive.** Every matchup-side file
+  the build refused - a matchup, or the spread or total record - as `{key, reason,
+  figures, standing_generated_at}`. `reason` is `moved_figure` when a registered
+  figure is no longer the one its sentence was measured beside (a-79's refusal) and
+  `other` for any other failure; `figures` names the registered places as
+  `file|holder` and prints no digits; `standing_generated_at` is when the copy still
+  at that key was made, null when nothing is there. Absent from an index written
+  before a-82, `[]` when nothing was refused. **An index with `games: []` and a
+  non-empty `refused` is a refused week, not an empty one.** It cannot report a
+  refused forecast or record - no index is written then, and the one served is an
+  earlier build's: read its own `generated_at`. The full record (served and carried
+  figures, their difference, the age of every standing copy, the files never
+  attempted) is the operational gate report `jobs.game_export` writes beside its
+  log, `<STORAGE_DIR>/logs/game_gate.json`, which is not published.
+
 - **The market's number is the nflverse schedule's line** at
   `as_of.market_line_version`, de-vigged two-way where it is a price. The record
   scores against the same source. Its book and capture time are not recorded

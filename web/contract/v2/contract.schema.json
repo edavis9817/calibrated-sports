@@ -13196,6 +13196,47 @@
             "total"
           ],
           "additionalProperties": false
+        },
+        "refused": {
+          "description": "a-82. OPTIONAL and additive: absent from an index written before a-82, present (possibly empty) in every one written since. Every matchup-side file this build refused - a matchup, or the spread or total record - so an index listing no games can be told from a week with none. `reason` is computed from the refused payload: `moved_figure` when a registered figure (research/results/f27_required_sentences.json) is no longer the one its sentence was measured beside (a-79's refusal), `other` for any other failure. `figures` names those registered places as `file|holder` and prints NO DIGITS (a-77: a qualified figure is not printed without its sentence). `standing_generated_at` is the generated_at of the copy an earlier build left at that key in the export tree, which is what is still served there; null when there is no earlier copy, so nothing is at that key. This list cannot report a refused forecast or record: the matchup step does not run without them and no index is written, so the index served is then itself an earlier build's - read its own generated_at.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "reason": {
+                "enum": [
+                  "moved_figure",
+                  "other"
+                ]
+              },
+              "figures": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "standing_generated_at": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/Timestamp"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "key",
+              "reason",
+              "figures",
+              "standing_generated_at"
+            ],
+            "additionalProperties": false
+          }
         }
       },
       "required": [

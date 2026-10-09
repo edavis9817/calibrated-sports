@@ -42,6 +42,20 @@ that fails is logged and its previously written copy is left exactly as it was.
 landing's and the record's shape (a-47, a-61). Exit 0 when every file wrote, 1
 when any failed, so the weekly refresh records a WARN and carries on.
 
+A REFUSAL IS RECORDED, NOT ONLY LOGGED (a-82). a-79 made a moved figure refuse its
+file, and "its previous copy stands" then had one witness: a WARN line. `publish`
+now returns - and with `--report` (default for `--dest web`:
+<STORAGE_DIR>/logs/game_gate.json) writes - a gate report: per file that did not
+publish, the registered place that moved, the served and the carried figure, their
+difference, and WHEN THE COPY STILL STANDING WAS MADE. `frozen` is every key an
+earlier build is still answering for; `clean` is false whenever anything is. The
+matchup index carries the short form (`refused`: key, reason, registered places,
+the standing copy's time, NO FIGURES - a-77: a qualified figure is not printed
+without its sentence), because an index listing no games otherwise reads the same
+as a week with none. The index cannot be the only carrier: when the forecast or
+its record is refused the matchup step never runs and no index is written, so the
+report is what always says so.
+
 Reads `market_log.db` read-only (`mode=ro`) and nothing else. Never uploads.
 Publishes nothing from KXNFLSPREAD or KXNFLTOTAL, and no total at all: c-28's
 total is a league-level placeholder, not a forecast of this game.
@@ -50,6 +64,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import math
 import os
 import sys
@@ -71,6 +86,9 @@ FORECAST_KIND = "game.forecast"
 RECORD_KIND = "game.record"
 BANDS = (50, 80, 95)                 # central bands of the home margin, percent
 EARLY_LAST_WEEK = 4                  # c-28's registered cut: REG weeks 1-4 / 5+
+GAME_PREFIX = f"game/{SPORT}/"
+GATE_REPORT_KIND = "game.gate_report"        # an operational file, not a contract kind
+GATE_REPORT_FILE = "game_gate.json"          # under <STORAGE_DIR>/logs for --dest web
 MARKET_DECISION = {"display": False, "decided_by": "Ethan", "decided_on": "2026-09-30",
                    "unit": "a-63"}
 BASELINES = (
@@ -455,31 +473,54 @@ def gate(files):
     return "\n".join(out)
 
 
-def build(now_ts, log=print, draws=None):
-    """-> ({key: payload}, [{file, error}]). Each file is built and gated on its
-    own; if both build, the pair is gated too, and a disagreement writes neither."""
+def build(now_ts, log=print, draws=None, standing=None):
+    """-> ({key: payload}, [{file, error, moved, moved_unread}]). Each file is built
+    and gated on its own; if both build, the pair is gated too, and a disagreement
+    writes neither. `standing` (a-82) is `key -> the copy already at the
+    destination`, handed through to the matchup index; None when nothing is being
+    written (`--check`), and the index then says no earlier copy was looked for."""
     m = measure(log=log, draws=draws)
     files, failed = {}, []
     for key, kind, fn in ((RECORD_KEY, RECORD_KIND, lambda: build_record(m)),
                           (FORECAST_KEY, FORECAST_KIND, lambda: build_forecast(m, now_ts))):
+        payload = None
         try:
             payload = {key: envelope(kind, now_ts, fn())}
             gate(payload)
             files.update(payload)
         except Exception as e:  # noqa: BLE001 - one file's failure is that file's
-            failed.append({"file": key, "error": f"{type(e).__name__}: {e}"})
+            failed.append(refusal(key, e, payload))
     if len(files) == 2:
         try:
             log(gate(files))
         except Exception as e:  # noqa: BLE001 - the two disagree: publish neither
-            failed.append({"file": "*", "error": f"{type(e).__name__}: {e}"})
+            failed.append(refusal("*", e, files))
             files = {}
     if len(files) == 2:
-        add_matchups(m, files, failed, now_ts, log)
+        add_matchups(m, files, failed, now_ts, log, standing=standing)
     return files, failed
 
 
-def add_matchups(m, files, failed, now_ts, log=print):
+def refusal(key, e, payload=None):
+    """One entry of `failed`. a-82: beside the error it carries `moved` - every
+    registered figure in the refused payload that is not the one its sentence was
+    measured beside (`required_sentences.moved`) - so the gate report names the
+    place and the figures from the payload itself, never from the error's text.
+    `moved_unread` says why when the payload could not be walked: an empty `moved`
+    with a reason beside it is not "nothing moved"."""
+    out = {"file": key, "error": f"{type(e).__name__}: {e}", "moved": [], "moved_unread": None}
+    if payload:
+        try:
+            from jobs import required_sentences as RS
+            out["moved"] = RS.moved(payload)
+        except Exception as x:  # noqa: BLE001 - the record of a failure must not be one
+            out["moved_unread"] = f"{type(x).__name__}: {x}"
+    else:
+        out["moved_unread"] = "nothing was built to read"
+    return out
+
+
+def add_matchups(m, files, failed, now_ts, log=print, standing=None):
     """a-64: the matchup files and the spread and total records, from the same
     measurement. Each file is gated on its own and a matchup that disagrees with
     the forecast or a record it copies is dropped; the index lists only matchups
@@ -488,9 +529,10 @@ def add_matchups(m, files, failed, now_ts, log=print):
     try:
         built, bad = GM.build(m, files[FORECAST_KEY], files[RECORD_KEY], now_ts, log=log)
     except Exception as e:  # noqa: BLE001 - the matchup step failed; the forecast stands
-        failed.append({"file": GM.MATCHUP_DIR + "*", "error": f"{type(e).__name__}: {e}"})
+        failed.append(refusal(GM.MATCHUP_DIR + "*", e))
         return
-    failed += [{"file": k, "error": v} for k, v in bad.items()]
+    mine = [{"file": k, "error": v, "moved": [], "moved_unread": "refused before it was built"}
+            for k, v in bad.items()]
     index = built.pop(GM.INDEX_KEY, None)
     order = [GM.RECORD_SPREAD_KEY, GM.RECORD_TOTAL_KEY] + sorted(
         k for k in built if k.startswith(GM.MATCHUP_DIR))
@@ -498,6 +540,7 @@ def add_matchups(m, files, failed, now_ts, log=print):
         if key not in built:
             continue
         kind = GM.MODEL_RECORD_KIND if key.startswith("game/nfl/record_") else GM.MATCHUP_KIND
+        payload = None
         try:
             payload = {key: envelope(kind, now_ts, built[key])}
             gate(payload)
@@ -505,10 +548,12 @@ def add_matchups(m, files, failed, now_ts, log=print):
                 matchup_agrees(key, payload[key], files)
             files.update(payload)
         except Exception as e:  # noqa: BLE001 - that file's failure is that file's
-            failed.append({"file": key, "error": f"{type(e).__name__}: {e}"})
+            mine.append(refusal(key, e, payload))
+    failed += mine
     if index is None:
         return
     index["games"] = [r for r in index["games"] if r["key"] in files]
+    index["refused"] = index_refused(mine, standing)
     try:
         payload = {GM.INDEX_KEY: envelope(GM.INDEX_KIND, now_ts, index)}
         gate(payload)
@@ -554,24 +599,184 @@ def matchup_agrees(key, mu, files):
     return f"{key}: agrees with {FORECAST_KEY} and its three records"
 
 
-def publish(dest, now_ts=None, log=print, draws=None, dry_run=False):
+# =============================================================================
+# a-82: what a refusal leaves standing
+# =============================================================================
+
+def standing_copy(dest, key, now_ts):
+    """The copy of `key` already in the export tree -> {generated_at, age_seconds},
+    or None when there is none. `generated_at` is the file's own, which is when its
+    CONTENT was last written (`write_if_changed` leaves an unchanged file alone);
+    a file that is there and does not say comes back with both fields null, which
+    is a third answer and not "no copy"."""
+    from jobs import export_web as E
+    path = E.local_path(dest, key)
+    if not os.path.exists(path):
+        return None
+    out = {"generated_at": None, "age_seconds": None}
+    try:
+        with open(path, encoding="utf-8") as f:
+            made = json.load(f).get("generated_at")
+        t = dt.datetime.strptime(made, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
+        out = {"generated_at": made, "age_seconds": round(now_ts - t.timestamp())}
+    except (OSError, ValueError, TypeError, AttributeError):
+        pass
+    return out
+
+
+def index_refused(mine, standing):
+    """The matchup index's `refused`: every matchup-side file this build refused,
+    in the short form a published file may carry. `reason` is computed from the
+    payload (`moved_figure` when a registered figure is not the one its sentence was
+    measured beside, `other` for everything else); `figures` names the registered
+    places and prints NO DIGITS (a-77); `standing_generated_at` is when the copy
+    still at that key was made, null when there is none there or none was looked
+    for."""
+    out = []
+    for f in sorted(mine, key=lambda f: f["file"]):
+        copy_ = standing(f["file"]) if standing else None
+        out.append({"key": f["file"],
+                    "reason": "moved_figure" if f["moved"] else "other",
+                    "figures": sorted({mv["figure"] for mv in f["moved"]}),
+                    "standing_generated_at": copy_["generated_at"] if copy_ else None})
+    return out
+
+
+def _duration(seconds):
+    return "an unknown time" if seconds is None else (
+        f"{seconds / 86400:.1f} days" if seconds >= 86400 else f"{seconds / 3600:.1f} hours")
+
+
+def staleness(dest, files, failed, now_ts):
+    """The gate report: what this run did NOT publish, and what is answering for
+    it instead. -> a dict; `clean` is true only when every game file this run
+    should have written, it built.
+
+        refused        a file that was built or attempted and did not pass, with the
+                       registered figures that moved and its standing copy
+        not_attempted  a file an earlier build left that this run never reached,
+                       because the forecast or its record was refused before the
+                       matchup step: the two model records, the index, and every
+                       matchup THE STANDING INDEX STILL LISTS - which is what the
+                       site is being pointed at
+        steps_failed   a failure with no key of its own (the matchup step raised)
+        frozen         every key above with a standing copy: an earlier build is
+                       still what is served there
+        absent         refused with NO standing copy: nothing is at that key
+        earlier_files  other game files on disk this run did not build - previous
+                       weeks' matchups, which no run rewrites. A count, not a
+                       finding.
+    """
+    from jobs import export_web as E
+    from jobs import game_matchup as GM
+    # the game prefix only: the export tree holds ~23,000 files and this runs weekly
+    on_disk = {GAME_PREFIX + k for k in E.local_keys(E.local_path(dest, GAME_PREFIX.rstrip("/")))}
+    refused, steps = {}, []
+    for f in failed:
+        if f["file"] == "*":
+            keys = [k for k in (FORECAST_KEY, RECORD_KEY) if k not in files]
+        elif f["file"].endswith("*"):
+            keys = []
+        else:
+            keys = [f["file"]]
+        if not keys:
+            steps.append({"step": f["file"], "error": f["error"]})
+        for k in keys:
+            r = refused.setdefault(k, {"key": k, "errors": [], "moved": [], "moved_unread": None})
+            r["errors"].append(f["error"])
+            r["moved"] += [mv for mv in f.get("moved", []) if mv["file"] == k
+                           and mv not in r["moved"]]
+            r["moved_unread"] = r["moved_unread"] or f.get("moved_unread")
+    expected = {FORECAST_KEY, RECORD_KEY, GM.RECORD_SPREAD_KEY, GM.RECORD_TOTAL_KEY, GM.INDEX_KEY}
+    if GM.INDEX_KEY not in files and GM.INDEX_KEY in on_disk:
+        try:
+            with open(E.local_path(dest, GM.INDEX_KEY), encoding="utf-8") as fh:
+                expected |= {g["key"] for g in json.load(fh)["games"]}
+        except (OSError, ValueError, KeyError, TypeError) as e:
+            steps.append({"step": "read the standing index",
+                          "error": f"{type(e).__name__}: {e}"})
+    not_attempted = [{"key": k} for k in sorted(expected & on_disk)
+                     if k not in files and k not in refused]
+    rows = sorted(refused.values(), key=lambda r: r["key"]) + not_attempted
+    for r in rows:
+        r["standing"] = standing_copy(dest, r["key"], now_ts)
+    frozen = [r for r in rows if r["standing"] is not None]
+    absent = [r["key"] for r in rows if r["standing"] is None]
+    dated = [r for r in frozen if r["standing"]["age_seconds"] is not None]
+    oldest = max(dated, key=lambda r: r["standing"]["age_seconds"]) if dated else None
+    places = sorted({mv["figure"] for r in refused.values() for mv in r["moved"]})
+    clean = not rows and not steps
+    if clean:
+        text = (f"game: nothing frozen - {len(files)} file(s) built, none refused, none "
+                "left to an earlier build")
+    else:
+        text = (f"game: FROZEN {len(frozen)} file(s) still answered by an earlier build"
+                + (f" (oldest {oldest['key']}, made {oldest['standing']['generated_at']}, "
+                   f"{_duration(oldest['standing']['age_seconds'])} old)" if oldest else "")
+                + f"; {len(absent)} refused with no earlier copy; {len(steps)} step failure(s)"
+                + (f"; moved figure(s): {', '.join(places)}" if places else
+                   "; no registered figure moved"))
+    return {"kind": GATE_REPORT_KIND, "checked_at": iso(now_ts), "dest": str(dest),
+            "built": sorted(files),
+            "refused": sorted(refused.values(), key=lambda r: r["key"]),
+            "not_attempted": not_attempted, "steps_failed": steps,
+            "frozen": sorted(r["key"] for r in frozen), "absent": sorted(absent),
+            "oldest_standing": None if oldest is None else {"key": oldest["key"],
+                                                            **oldest["standing"]},
+            "moved_figures": places,
+            "earlier_files": len(on_disk - set(files) - {r["key"] for r in rows}),
+            "clean": clean, "statement": text}
+
+
+def write_report(path, report):
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(report, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, path)
+
+
+def publish(dest, now_ts=None, log=print, draws=None, dry_run=False, report=None):
     """Build, gate and write what passed. NEVER RAISES: a failure is logged and
-    listed, and that file's previous copy stays where it was. -> summary."""
+    listed, and that file's previous copy stays where it was. -> summary, with
+    `gate_report` (a-82, `staleness`) saying what an earlier build is still
+    answering for; written to `report` when a path is given, and its one-line
+    statement is the LAST line logged, so it is in the weekly refresh's tail."""
     from jobs import export_web as E
     now_ts = time.time() if now_ts is None else now_ts
     out = {"built": [], "failed": [], "written": 0}
+    files = {}
     try:
-        files, failed = build(now_ts, log=log, draws=draws)
+        files, failed = build(now_ts, log=log, draws=draws,
+                              standing=lambda key: standing_copy(dest, key, now_ts))
         out["failed"] += failed
         out["built"] = sorted(files)
         if files:
             out["written"], _deleted = E.sync_keys(dest, files, [], dry_run=dry_run)
     except (Exception, SystemExit) as e:  # noqa: BLE001 - the step failed, not the refresh
-        out["failed"].append({"file": "*", "error": f"{type(e).__name__}: {e}"})
+        # counted as nothing written: if `sync_keys` died part-way a file may be
+        # fresh on disk, and its standing copy's own time then says so
+        files = {}
+        out["built"] = []
+        out["failed"].append(refusal("*", e))
     for f in out["failed"]:
         log(f"!!! GAME FILE FAILED ({f['file']}): {f['error']} - the previously written file "
             "is left in place")
     log(f"game: built {out['built']} wrote {out['written']} failed {len(out['failed'])}")
+    try:
+        out["gate_report"] = staleness(dest, files, out["failed"], now_ts)
+    except Exception as e:  # noqa: BLE001 - an unread freeze is reported as one, never as clean
+        out["gate_report"] = {"kind": GATE_REPORT_KIND, "checked_at": iso(now_ts),
+                              "dest": str(dest), "clean": False,
+                              "statement": "game: STALENESS NOT READ "
+                                           f"({type(e).__name__}: {e}) - treat every game "
+                                           "file as possibly frozen"}
+    if report and not dry_run:
+        try:
+            write_report(report, out["gate_report"])
+        except OSError as e:
+            log(f"!!! GAME GATE REPORT NOT WRITTEN ({report}): {e}")
+    log(out["gate_report"]["statement"])
     return out
 
 
@@ -603,6 +808,8 @@ def main(argv=None):
     mode.add_argument("--write", action="store_true")
     ap.add_argument("--dest", help="a directory, or `web` for WEB_EXPORT_DIR (with --write)")
     ap.add_argument("--now", type=float, help="unix seconds; default the wall clock")
+    ap.add_argument("--report", help="where the gate report is written (with --write); default "
+                                     f"for `--dest web`: <STORAGE_DIR>/logs/{GATE_REPORT_FILE}")
     a = ap.parse_args(argv)
     from jobs import export_web as E
     E.assert_numeric_stack()
@@ -616,7 +823,11 @@ def main(argv=None):
     if not a.dest:
         ap.error("--write needs --dest")
     dest = E.require_setting("WEB_EXPORT_DIR") if a.dest == "web" else a.dest
-    out = publish(dest, now_ts=now)
+    report = a.report
+    if report is None and a.dest == "web":
+        import config
+        report = config.storage_path("logs", GATE_REPORT_FILE)
+    out = publish(dest, now_ts=now, report=report)
     return 1 if out["failed"] or not out["built"] else 0
 
 

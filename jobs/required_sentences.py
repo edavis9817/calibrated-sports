@@ -17,6 +17,10 @@ served. This module is where it gets attached, and what refuses a file without i
                sentence, a sentence that is not the one the figures word, a
                sentence on a figure nobody registered, and (a-79) a figure that
                has moved from the one its sentence was measured beside all raise.
+    moved      (a-82) the same movement as a record rather than a raise: which
+               registered place, the served and the carried figure, the difference.
+               `jobs.game_export` writes it into the gate report beside the age of
+               the copy still standing, so a refusal is not only a log line.
 
 THE SENTENCE IS A FOOTNOTE, NOT A VERDICT. It does not change `compared`: the
 words beside a figure still come from that figure's own interval. Whether a
@@ -241,6 +245,32 @@ def _carriers(o, path=""):
     elif isinstance(o, list):
         for i, v in enumerate(o):
             out += _carriers(v, f"{path}[{i}]")
+    return out
+
+
+def moved(files):
+    """a-82: every registered figure in `files` whose served estimate is not the one
+    its sentence was measured beside -> [{file, path, figure, served, carried,
+    difference}], in file order. The same test `require` refuses on (`_matches`,
+    the estimate at four decimals), returned as a record instead of a raise, so a
+    refusal can say WHICH figure froze the file and by how much without anyone
+    parsing an error string. `difference` is served minus carried at four decimals;
+    null with `served` when the figure has no estimate. Reads the figure, not its
+    sentence: a file with no qualifier at all is measured the same way.
+    `located` still raises on a path it cannot walk - an unread file is not a
+    file with nothing moved."""
+    out = []
+    for key in sorted(files):
+        for fid, path, blk, e in located(key, files[key]):
+            fig, against = blk[e["figure"]], e["measured_against"]
+            if _matches(against, fig):
+                continue
+            est = fig["estimate"]
+            out.append({"file": key, "path": f"{path}.{e['figure']}", "figure": fid,
+                        "served": None if est is None else round(est, 4),
+                        "carried": against["estimate"],
+                        "difference": None if est is None
+                        else round(round(est, 4) - against["estimate"], 4)})
     return out
 
 

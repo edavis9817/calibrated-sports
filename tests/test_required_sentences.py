@@ -566,3 +566,315 @@ def test_a_moved_total_record_takes_its_matchup_copies_down_with_it(
     assert len(mus) == 16 and all(MOVED in errors[k] for k in mus)
     assert files[GM.INDEX_KEY]["games"] == []
     assert GM.RECORD_SPREAD_KEY in files                 # the figure that did not move publishes
+
+
+# ------------------- a-82: a refusal is recorded, with what it leaves standing
+
+import functools                                            # noqa: E402
+import json                                                 # noqa: E402
+
+from tests.test_game_matchup import _ctx, _pace             # noqa: E402
+
+HOUR = 3600
+QUIET = lambda *_: None                                     # noqa: E731
+
+
+@pytest.mark.parametrize("fid", RS.REQUIRED)
+def test_moved_names_the_place_the_two_figures_and_their_difference(served, fid):
+    """The record `require` refuses on, as data. Nothing moved reads as the empty
+    list, and one planted place reads as that place and no other."""
+    files = copy.deepcopy(served)
+    assert RS.moved(files) == []
+    e = RS.required()[fid]
+    key, blk = _holders(files)[fid][0]
+    _move(blk, e, PLANT)
+    got = RS.moved(files)
+    assert [(g["file"], g["figure"]) for g in got] == [(key, fid)]
+    g = got[0]
+    assert g["carried"] == e["measured_against"]["estimate"]
+    assert g["served"] == round(g["carried"] + PLANT, 4) and g["difference"] == PLANT
+    assert g["path"].endswith("." + e["figure"])
+    _move(blk, e, 0.00004 - PLANT)                 # back, and under the fourth decimal
+    assert RS.moved(files) == []
+
+
+def test_moved_reads_the_figure_and_not_its_sentence(served):
+    """A file with no qualifier at all (what production serves before a-75) is
+    measured the same way, so files already on disk can be replayed."""
+    files = copy.deepcopy(served)
+    for holders in _holders(files).values():
+        for _key, blk in holders:
+            blk[RS.FIELD] = None
+    assert RS.moved(files) == []
+    fid = "game/nfl/record_total.json|vs_close"
+    _key, blk = _holders(files)[fid][0]
+    blk["d_brier"]["estimate"] += PLANT
+    assert [g["figure"] for g in RS.moved(files)] == [fid]
+
+
+def _publisher(measured_, monkeypatch, tmp_path):
+    monkeypatch.setattr(X, "add_matchups", lambda *a, **k: None)    # reads the stores
+    state = {"m": measured_}
+    monkeypatch.setattr(X, "measure", lambda **_k: state["m"])
+    report = tmp_path / "ops" / "game_gate.json"
+    dest = tmp_path / "web"
+
+    def run(at, log=QUIET):
+        return X.publish(str(dest), now_ts=at, log=log, report=str(report))
+    return state, dest, report, run
+
+
+def test_a_frozen_file_is_named_in_the_gate_report_with_the_age_of_its_copy(
+        measured, monkeypatch, tmp_path):       # noqa: F811
+    """THE TEST A SILENT FREEZE FAILS. One registered place is moved; the export
+    refuses, the tree does not change - and the report must say which files an
+    earlier build is still answering for, which figure did it, by how much, and how
+    old the standing copies are. A report that reads clean here is the defect."""
+    state, dest, report, run = _publisher(measured, monkeypatch, tmp_path)
+    first = run(NOW)
+    assert first["failed"] == [] and first["gate_report"]["clean"] is True
+    assert first["gate_report"]["frozen"] == [] and first["gate_report"]["refused"] == []
+    assert json.loads(report.read_text(encoding="utf-8")) == first["gate_report"]
+    before = _tree(dest)
+
+    moved = dict(measured, stages=copy.deepcopy(measured["stages"]))
+    moved["stages"]["weeks_1_4"]["elo_nomov"]["diffs"]["dBrier"]["est"] += PLANT
+    state["m"] = moved
+    logs = []
+    second = run(NOW + 5 * HOUR, logs.append)
+    assert _tree(dest) == before                        # frozen: nothing on disk moved
+    rep = second["gate_report"]
+    assert rep["clean"] is False
+    assert rep["frozen"] == [X.FORECAST_KEY, X.RECORD_KEY] and rep["absent"] == []
+    by_key = {r["key"]: r for r in rep["refused"]}
+    assert set(by_key) == {X.FORECAST_KEY, X.RECORD_KEY}
+    places = {X.FORECAST_KEY: RS.figure_id(X.FORECAST_KEY, RS.STAGE_HOLDER),
+              X.RECORD_KEY: RS.figure_id(X.RECORD_KEY, "by_stage.weeks_1_4.vs.elo_nomov")}
+    for key, r in by_key.items():
+        carried = RS.required()[places[key]]["measured_against"]["estimate"]
+        assert [(m["figure"], m["served"], m["carried"], m["difference"]) for m in r["moved"]] \
+            == [(places[key], round(carried + PLANT, 4), carried, PLANT)]
+        assert r["standing"] == {"generated_at": X.iso(NOW), "age_seconds": 5 * HOUR}
+        assert any(MOVED in err for err in r["errors"])
+    assert rep["moved_figures"] == sorted(places.values())
+    assert rep["oldest_standing"]["age_seconds"] == 5 * HOUR
+    assert rep["statement"].startswith("game: FROZEN 2 file(s)") and "5.0 hours old" in rep["statement"]
+    assert logs[-1] == rep["statement"]                 # the refresh logs a step's last lines
+    assert json.loads(report.read_text(encoding="utf-8")) == rep     # the artefact, not the log
+
+    state["m"] = measured                               # F re-measures / the figure returns
+    third = run(NOW + 6 * HOUR)
+    assert third["gate_report"]["clean"] is True and third["gate_report"]["frozen"] == []
+    assert json.loads(report.read_text(encoding="utf-8"))["clean"] is True
+
+
+@pytest.mark.parametrize("planted", ["build_forecast", "build_record", "measure", "gate",
+                                     "sync_keys"])
+def test_no_failure_of_the_step_leaves_a_clean_report_over_a_standing_file(
+        measured, monkeypatch, tmp_path, planted):       # noqa: F811
+    """Not only a moved figure. Whatever stops a file being written, a copy an
+    earlier build left at its key is reported frozen and the report is not clean."""
+    state, dest, report, run = _publisher(measured, monkeypatch, tmp_path)
+    assert run(NOW)["gate_report"]["clean"] is True
+    before = _tree(dest)
+
+    def boom(*_a, **_k):
+        raise RuntimeError(f"planted failure in {planted}")
+    monkeypatch.setattr(E if planted == "sync_keys" else X, planted, boom)
+    out = run(NOW + 2 * 86400)
+    rep = out["gate_report"]
+    stood = {"build_forecast": [X.FORECAST_KEY], "build_record": [X.RECORD_KEY]}.get(
+        planted, [X.FORECAST_KEY, X.RECORD_KEY])
+    after = _tree(dest)
+    assert rep["clean"] is False and all(after[k] == before[k] for k in stood)
+    assert rep["frozen"] == stood
+    assert all(r["standing"]["age_seconds"] == 2 * 86400 for r in rep["refused"])
+    assert "2.0 days old" in rep["statement"] and rep["moved_figures"] == []
+    assert json.loads(report.read_text(encoding="utf-8"))["frozen"] == stood
+
+
+def test_a_refused_file_with_no_earlier_copy_is_absent_not_frozen(
+        measured, monkeypatch, tmp_path):       # noqa: F811
+    """The other answer: refused on the first build, there is nothing at the key."""
+    _state, _dest, _report, run = _publisher(measured, monkeypatch, tmp_path)
+    monkeypatch.setattr(X, "build_forecast", lambda *_a: (_ for _ in ()).throw(RuntimeError("x")))
+    rep = run(NOW)["gate_report"]
+    assert rep["clean"] is False and rep["frozen"] == [] and rep["absent"] == [X.FORECAST_KEY]
+    assert rep["refused"][0]["standing"] is None and rep["oldest_standing"] is None
+
+
+def test_a_refused_forecast_freezes_the_matchup_files_nobody_attempted(
+        measured, monkeypatch, tmp_path):       # noqa: F811
+    """When the forecast or its record is refused the matchup step never runs, so
+    the index, the two model records and every matchup the standing index lists are
+    an earlier build's without having failed anything. They are reported too; a
+    matchup the standing index does not list is an earlier week's and is counted."""
+    state, dest, _report, run = _publisher(measured, monkeypatch, tmp_path)
+    run(NOW)
+    listed = GM.MATCHUP_DIR + "2026_05_AAA_BBB.json"
+    earlier = GM.MATCHUP_DIR + "2026_04_CCC_DDD.json"
+    old = X.iso(NOW - 7 * 86400)
+    for key, body in ((GM.INDEX_KEY, {"games": [{"key": listed}]}), (listed, {}), (earlier, {}),
+                      (GM.RECORD_TOTAL_KEY, {}), (GM.RECORD_SPREAD_KEY, {})):
+        path = dest / key
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"generated_at": old, **body}), encoding="utf-8")
+    assert run(NOW + HOUR)["gate_report"]["not_attempted"] == [
+        {"key": k, "standing": {"generated_at": old, "age_seconds": 7 * 86400 + HOUR}}
+        for k in sorted([GM.INDEX_KEY, listed, GM.RECORD_SPREAD_KEY, GM.RECORD_TOTAL_KEY])]
+    # ^ this fixture never runs the matchup step, so even a clean forecast leaves them
+
+    moved = dict(measured, stages=copy.deepcopy(measured["stages"]))
+    moved["stages"]["weeks_1_4"]["elo_nomov"]["diffs"]["dBrier"]["est"] += PLANT
+    state["m"] = moved
+    rep = run(NOW + HOUR)["gate_report"]
+    assert rep["frozen"] == sorted([X.FORECAST_KEY, X.RECORD_KEY, GM.INDEX_KEY, listed,
+                                    GM.RECORD_SPREAD_KEY, GM.RECORD_TOTAL_KEY])
+    assert earlier not in rep["frozen"] and rep["earlier_files"] == 1
+    assert rep["oldest_standing"]["age_seconds"] == 7 * 86400 + HOUR
+    assert rep["statement"].startswith("game: FROZEN 6 file(s)")
+
+
+def test_a_moved_total_record_is_said_by_the_index_and_by_the_report(
+        measured, monkeypatch, results_on_this_walk, tmp_path):       # noqa: F811
+    """The partial freeze a-79 measured, end to end through `publish`: the total
+    record moves, the forecast and its record publish fresh, and the index is
+    written listing no games. The index now says why, without a digit, and the
+    report carries the figures and the age of all seventeen standing copies."""
+    monkeypatch.setattr(X, "measure", lambda **_k: measured)
+    monkeypatch.setattr(GM, "build", functools.partial(
+        GM.build, ctx=_ctx(measured, None), pace=_pace(measured), pace_err=None))
+    report = tmp_path / "game_gate.json"
+    dest = tmp_path / "web"
+    first = X.publish(str(dest), now_ts=NOW, log=QUIET, report=str(report))
+    assert first["failed"] == [] and first["gate_report"]["clean"] is True
+    index = json.loads((dest / GM.INDEX_KEY).read_text(encoding="utf-8"))
+    assert len(index["games"]) == 16 and index["refused"] == []
+    mus = sorted(g["key"] for g in index["games"])
+
+    load = GM.load_result
+
+    def planted(rel):
+        d = copy.deepcopy(load(rel))
+        if rel == GM.C31_RESULT:
+            d["part2"]["S2 book"]["diffs"]["dBrier"]["est"] += PLANT
+        return d
+    monkeypatch.setattr(GM, "load_result", planted)
+    logs = []
+    second = X.publish(str(dest), now_ts=NOW + HOUR, log=logs.append, report=str(report))
+    fid = "game/nfl/record_total.json|vs_close"
+    index = json.loads((dest / GM.INDEX_KEY).read_text(encoding="utf-8"))
+    assert index["generated_at"] == X.iso(NOW + HOUR) and index["games"] == []
+    assert index["refused"] == [
+        {"key": k, "reason": "moved_figure", "figures": [fid], "standing_generated_at": X.iso(NOW)}
+        for k in sorted(mus + [GM.RECORD_TOTAL_KEY])]
+    E.validate_contract({GM.INDEX_KEY: index})
+    assert not any(isinstance(v, float) for r in index["refused"] for v in r.values())
+
+    rep = second["gate_report"]
+    assert rep["clean"] is False and rep["frozen"] == sorted(mus + [GM.RECORD_TOTAL_KEY])
+    assert {X.FORECAST_KEY, X.RECORD_KEY, GM.RECORD_SPREAD_KEY, GM.INDEX_KEY} <= set(rep["built"])
+    carried = RS.required()[fid]["measured_against"]["estimate"]
+    for r in rep["refused"]:
+        assert r["standing"] == {"generated_at": X.iso(NOW), "age_seconds": HOUR}
+        assert [(m["figure"], m["served"], m["carried"], m["difference"]) for m in r["moved"]] \
+            == [(fid, round(carried + PLANT, 4), carried, PLANT)]
+    assert rep["moved_figures"] == [fid] and rep["not_attempted"] == []
+    assert logs[-1].startswith("game: FROZEN 17 file(s)") and "1.0 hours old" in logs[-1]
+    assert json.loads(report.read_text(encoding="utf-8")) == rep
+
+    # A WEEK LATER the forecast week has moved on, so the refused matchups are NEW
+    # keys with nothing behind them: absent, not frozen. Only the total record is an
+    # earlier build's; last week's sixteen matchups are still on disk and are no
+    # part of this build.
+    third = X.publish(str(dest), now_ts=NOW + 7 * 86400, log=QUIET, report=str(report))
+    rep = third["gate_report"]
+    index = json.loads((dest / GM.INDEX_KEY).read_text(encoding="utf-8"))
+    assert index["games"] == [] and len(index["refused"]) == 17
+    stood = {r["key"]: r["standing_generated_at"] for r in index["refused"]}
+    assert stood.pop(GM.RECORD_TOTAL_KEY) == X.iso(NOW)
+    assert set(stood.values()) == {None} and not set(stood) & set(mus)
+    assert rep["frozen"] == [GM.RECORD_TOTAL_KEY] and rep["absent"] == sorted(stood)
+    assert rep["earlier_files"] == 16 and rep["clean"] is False
+    assert rep["oldest_standing"] == {"key": GM.RECORD_TOTAL_KEY, "generated_at": X.iso(NOW),
+                                      "age_seconds": 7 * 86400}
+
+
+def test_the_index_reason_can_come_out_the_other_way(
+        measured, monkeypatch, results_on_this_walk):       # noqa: F811
+    """`reason` is computed from the refused payload: a matchup refused for anything
+    other than a moved figure says `other` and names no figure."""
+    real = X.matchup_agrees
+    seen = []
+
+    def one_bad(key, mu, files):
+        seen.append(key)
+        if len(seen) == 1:
+            raise RuntimeError("planted disagreement")
+        return real(key, mu, files)
+    monkeypatch.setattr(X, "matchup_agrees", one_bad)
+    files, failed = _build(measured, monkeypatch)
+    assert [f["file"] for f in failed] == seen[:1] and failed[0]["moved"] == []
+    assert files[GM.INDEX_KEY]["refused"] == [
+        {"key": seen[0], "reason": "other", "figures": [], "standing_generated_at": None}]
+    assert len(files[GM.INDEX_KEY]["games"]) == 15
+    X.gate({GM.INDEX_KEY: files[GM.INDEX_KEY]})
+
+
+def test_an_index_written_before_a82_still_passes_the_contract(
+        measured, monkeypatch, results_on_this_walk):       # noqa: F811
+    """Additive: `refused` is optional, so a standing index without it is still a
+    legal file, and nothing else about the index changed shape."""
+    files, _failed = _build(measured, monkeypatch)
+    index = copy.deepcopy(files[GM.INDEX_KEY])
+    assert set(index) - {"refused"} == {"schema_version", "generated_at", "kind", "sport",
+                                        "season", "week", "as_of", "games", "records"}
+    del index["refused"]
+    E.validate_contract({GM.INDEX_KEY: index})
+    index["refused"] = [{"key": "x", "reason": "because", "figures": [],
+                         "standing_generated_at": None}]
+    with pytest.raises(Exception):
+        E.validate_contract({GM.INDEX_KEY: index})
+
+
+# ----------------------------------------- a-82: the replay over files on disk
+
+def _write_tree(root, files):
+    for key, payload in files.items():
+        path = root / key
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def test_the_replay_counts_a_moved_file_and_reads_zero_only_when_none_moved(served, tmp_path):
+    from research import gate_replay as R
+    clean, moved_ = tmp_path / "clean", tmp_path / "moved"
+    _write_tree(clean, served)
+    s = R.summarise(str(clean), R.replay(str(clean)))
+    assert s["files"] == 4 and s["would_refuse"] == 0 and s["unread"] == []
+    assert s["figure_readings"] == len(RS.REQUIRED) and s["sentence_gate"] == {"passes": 4}
+
+    files = copy.deepcopy(served)
+    fid = "game/nfl/record_total.json|vs_close"
+    _key, blk = _holders(files)[fid][0]
+    _move(blk, RS.required()[fid], PLANT)
+    _write_tree(moved_, files)
+    s = R.summarise(str(moved_), R.replay(str(moved_)))
+    assert s["would_refuse"] == 1 and s["would_refuse_at"] == {fid: 1}
+    assert s["sentence_gate"] == {"passes": 3, "moved": 1}
+
+
+def test_the_replay_of_an_empty_tree_fails_rather_than_reporting_zero(tmp_path, capsys):
+    """Zero files replayed is not zero refusals."""
+    from research import gate_replay as R
+    assert R.main(["--dest", str(tmp_path)]) == 1
+    assert "nothing was replayed" in capsys.readouterr().err
+
+
+def test_the_replay_counts_a_file_it_cannot_read(served, tmp_path):
+    from research import gate_replay as R
+    files = copy.deepcopy(served)
+    del files[GM.RECORD_TOTAL_KEY]["vs_close"]
+    _write_tree(tmp_path, files)
+    s = R.summarise(str(tmp_path), R.replay(str(tmp_path)))
+    assert [u["key"] for u in s["unread"]] == [GM.RECORD_TOTAL_KEY] and s["would_refuse"] == 0
