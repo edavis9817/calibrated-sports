@@ -81,3 +81,34 @@ condition of the rule.
   respelled in place across ingests. `aj-green-4596437` a season ago is `aj-green-jr-4596437`
   in the staged tree.
 - **Bare names would collide for 503 players (3.5%)** across 229 names.
+
+## f-34 — the rule for a baseline, written before any script was changed
+
+a-78 ran `tree_census.py` unmodified on its restaged tree: exit 0, 0 MISSING, agreement True
+on both kinds, and step 1 printed DOES NOT REPRODUCE, because the script carried a-72's
+totals and file counts as literals. The rule below was committed before the repair.
+
+**A comparison stays only if it can still fail for the right reason.** A reproduction check
+against a baseline supplied at run time can fail correctly, so it stays and takes an
+argument. A reproduction check whose baseline is a figure from one superseded export can only
+fail because the tree moved; that is not a reproduction check and it is dropped, with one
+line here saying what was dropped and why.
+
+Applied, before measuring anything:
+
+- **The baseline is an argument with no default.** A script that compares against a published
+  figure takes that figure from a file named on the command line and refuses to start without
+  it. A default would be this defect with a newer number in it.
+- **A baseline names the tree it describes** (each tree's `manifest.json` `generated_at`). A
+  baseline for another tree is refused before anything is compared, with a message that says
+  so. It is never reported as a failed reproduction.
+- **A failed reproduction is a failed run.** Step 1 printing DOES NOT REPRODUCE while the
+  process exits 0 is how a-78's run read as clean; it exits non-zero.
+- **Where the target's own committed file already carries the figure, the script reads it
+  there** and keeps no second copy.
+
+For the sibling audit, "can produce a false verdict" means: a comparison against the literal
+changes a printed verdict word or the exit status when the tree, the store or the target
+moves while the claim under test still holds. Those are fixed. A figure in a docstring, a
+printed annotation that is compared with nothing, and a sanity floor whose failure is an
+`AssertionError` are listed and left alone.
