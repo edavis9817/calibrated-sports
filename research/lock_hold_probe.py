@@ -138,6 +138,9 @@ class Load:
 # --- the prune's clock --------------------------------------------------------
 
 PRUNE_LOG = []           # ("x" | "c", t0, t1) for every DELETE and its commit
+ONE_TX = False           # --one-transaction: swallow the per-batch commit, which is
+                         # the arrangement that killed the logger. It exists to show
+                         # what each clock reads when the lock really IS held.
 
 
 class TimedConn(sqlite3.Connection):
@@ -155,6 +158,10 @@ class TimedConn(sqlite3.Connection):
 
     def commit(self):
         t0 = pc()
+        if ONE_TX and self._pending:      # lock kept until close rolls it back
+            PRUNE_LOG.append(("c", t0, pc()))
+            self._pending = False
+            return
         super().commit()
         if self._pending:
             PRUNE_LOG.append(("c", t0, pc()))
@@ -510,6 +517,8 @@ def main(argv=None):
     ap.add_argument("--tag", default="", help="a label carried on every row")
     ap.add_argument("--run-test", action="store_true",
                     help="run the test itself under the load, one process per run")
+    ap.add_argument("--one-transaction", action="store_true",
+                    help="swallow the prune's per-batch commits (the old arrangement)")
     ap.add_argument("--child", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--summarize", nargs="+", default=None)
     ap.add_argument("--pool", action="store_true",
@@ -518,6 +527,12 @@ def main(argv=None):
 
     if args.summarize:
         return summarize(args.summarize, args.pool)
+    if args.one_transaction:
+        global ONE_TX
+        ONE_TX = True
+        if args.procs or args.run_test:
+            raise SystemExit("--one-transaction runs in this process only")
+        args.tag = args.tag or "one-transaction"
 
     root = args.root or tempfile.mkdtemp(prefix="lock_hold_probe_")
     os.makedirs(root, exist_ok=True)
