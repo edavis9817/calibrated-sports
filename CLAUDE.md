@@ -2327,6 +2327,32 @@ while three writer tasks launched from it). a-10 built two production clones pin
     on every receiving-yards outcome row.** Read from the code, and it did not fire here: 0 ties on
     the 18,685 bench rungs. Drop ties explicitly on any yards rung set that holds integer lines.
 
+- **Given the line, nothing in c-41's six-candidate set was detected in receptions or rush
+  attempts - and "not detected" there is three different statements, not one** (c-47,
+  `research/residual_two_markets.py`, pre-registered at `5374561`, power written before the run
+  at `d8a227e`; `docs/findings/c47-two-markets.md`). NFL receptions and rush attempts, over side,
+  REG 2023-2025, the de-vigged DK/FD/MGM price at each book's own line ~14 min before kickoff;
+  receptions 10,527 rungs / 9,450 player-games / 813 games, rush attempts 4,581 / 3,654 / 806
+  (QBs included, 31% of rungs). 84 tests in one Holm family, 98 specifications, one run:
+  **0 of 12 candidate-market cells detected, 0 of 84 tests Holm-significant.**
+  - **An effect of 2 points of over probability per sd is ruled out in ONE cell of twelve**
+    (receptions `line_pos`). In the other eleven it is not: pre-run power at 0.020 was 0.62-0.72
+    in receptions and 0.09-0.78 in rush attempts. 3.3 points is excluded for all six receptions
+    candidates and for rush-attempts `line_pos` only; 4.5 points for every cell but one.
+  - **Rush-attempts `form_gap` is UNRESOLVED at every pre-stated size**: +0.0201
+    [+0.0033, +0.0368], Holm p 1.00, Bonferroni interval to +0.0494, same sign in all three
+    seasons. The detection rule fires on a true effect of that size about 1% of the time on
+    3,654 player-games. It is not a finding and not a null. Receptions `book_gap` +0.0140
+    [+0.0037, +0.0246] (Holm p 0.64, negative in 2025) is excluded at 0.033 and not at 0.020.
+  - **In rush attempts the two-part detection rule is close to blind**: at most 12% at 0.020,
+    7-50% at 0.033 and 18-31% at 0.045 for five of six candidates (simulated upper bounds). Read
+    the exclusion, which rests on the coefficient interval, never the rule failing to fire.
+  - **Write the power of every test down before the run, from an outcome-free simulation on the
+    real rows** (one uniform per player-game, prices and candidates real, no settlement joined).
+    The registered run refuses to start without that file, so "excluded" cannot be computed
+    against a power figure produced after the outcomes.
+  - No ranking of candidates or markets and no comparison with receiving yards: none was tested.
+
 ## The appealing file (a-70)
 
 `board/nfl/appealing.json` (kind `board_appealing`, `jobs/appealing_export.py`) is every
