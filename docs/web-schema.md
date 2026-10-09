@@ -975,11 +975,19 @@ matchup and the forecast can never describe different walks.
   - `measured_against` is the figure F attacked, with F's own draw of its interval;
     `served_matches` is whether the ESTIMATE beside the block still equals it at four
     decimals. Intervals are bootstrap draws and are not compared: F redrew the stage
-    figure as -0.0008 [-0.0024, +0.0009] beside a served [-0.0024, +0.0007]. False
-    means the figure moved after the sentence was measured. The sentence stays.
+    figure as -0.0008 [-0.0024, +0.0009] beside a served [-0.0024, +0.0007].
+  - **`served_matches` is `true` in every file the export writes (a-79).** False means
+    the figure moved after the sentence was measured, and the gate refuses that file:
+    the previous one stays where it was, with a figure and a sentence that still
+    agree, until track F re-measures and the carried file moves. Under a-75 a false
+    flag published, and f-31 measured the result: a figure planted +0.0090 away
+    carried a sentence giving wind's worth as 0.0016 against a no-wind figure 0.0074
+    from it. The shape is unchanged - the field is still a boolean, still required -
+    so a reader may ignore it, and a file can still be checked on its own.
   - `jobs.required_sentences.require` runs in the game gate and refuses a file that
     serves a registered figure without its sentence, a sentence that is not the one
-    its figures word, and a sentence on a figure nobody registered. The registry is
+    its figures word, a sentence on a figure nobody registered, and (a-79) a figure
+    that has moved from the one its sentence was measured beside. The registry is
     the carried file, keyed `file|holder`, so registering another figure is one entry.
   - **Every place a qualified figure is printed with its own digits carries the
     sentence (a-77).** a-75 measured two places it had left bare; both now carry it:

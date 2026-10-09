@@ -13,6 +13,12 @@ a-77 closed the two places a-75 measured it had missed: `record.json`'s
 every matchup file's `numbers.{market}.record` copies, which print the figure's own
 digits beside a pointer and so carry the owner's sentence, not the pointer alone.
 
+a-79 made a moved figure a refusal. f-31 measured that a served estimate planted
++0.0090 away from the one its sentence was measured beside still passed the gate,
+with the sentence worded against the moved number. The last section plants that
+movement at every registered place and through the export's own build, and fails
+if anything is published.
+
 No test opens a live store: the forecast is a-63's synthetic league and the two
 records are the real committed result files, as in tests/test_game_matchup.py.
 """
@@ -433,3 +439,130 @@ def test_each_wording_can_come_out_the_other_way():
 def test_a_builder_asking_for_an_unregistered_sentence_raises():
     with pytest.raises(KeyError):
         RS.qualifier(GM.RECORD_SPREAD_KEY, "vs_close", {"estimate": 0.0, "interval": [0, 0]})
+
+
+# ------------------------- a-79: a figure that moved from under its sentence: refused
+
+PLANT = 0.0090          # f-31's planted movement of a served estimate
+MOVED = "has moved and the sentence no longer describes it"
+
+
+def _move(blk, e, by):
+    """Move a served estimate and REBUILD its sentence beside it - what the builders
+    do on a real export once the figure has moved, and the one path a-75's gate
+    passed (f-31: 'served moved with qualifier REBUILT -> does NOT raise')."""
+    fig = blk[e["figure"]]
+    fig["estimate"] = round(fig["estimate"] + by, 4)
+    blk[RS.FIELD] = RS.qualifier(e["file"], e["holder"], fig)
+    return blk[RS.FIELD]
+
+
+def test_the_planted_movement_is_the_contradiction_f31_measured(served):
+    """What the refusal is for. Rebuilt beside a figure moved +0.0090, the sentence
+    still gives wind's worth as 0.0016 against F's frozen no-wind figure - beside a
+    figure now 0.0074 from it - and calls it the unfavourable end, where the figure
+    F measured sat on the favourable one. If this stops holding, the plant below is
+    no longer the case f-31 raised."""
+    files = copy.deepcopy(served)
+    vc = files[GM.RECORD_TOTAL_KEY]["vs_close"]
+    e = RS.required()["game/nfl/record_total.json|vs_close"]
+    assert vc["d_brier"]["estimate"] == 0.004
+    assert vc[RS.FIELD]["statement"].endswith("the favourable end.")
+    q = _move(vc, e, PLANT)
+    assert vc["d_brier"]["estimate"] == 0.013 and q["served_matches"] is False
+    assert "+0.0056 [+0.0035, +0.0079]" in q["statement"]
+    assert "recorded wind moves it by 0.0016" in q["statement"]
+    assert q["statement"].endswith("the unfavourable end.")
+    assert round(0.013 - 0.0056, 4) == 0.0074           # the size it states is not the gap
+
+
+@pytest.mark.parametrize("fid", RS.REQUIRED)
+def test_a_figure_planted_away_from_its_sentence_is_refused(served, fid):
+    files = copy.deepcopy(served)
+    assert RS.require(files).startswith("sentence check: ")     # as built, it publishes
+    key, blk = _holders(files)[fid][0]
+    q = _move(blk, RS.required()[fid], PLANT)
+    assert q["served_matches"] is False
+    E.validate_contract({key: files[key]})          # legal in the contract: only the gate refuses
+    with pytest.raises(RS.MissingSentence, match=MOVED):
+        RS.require(files)
+    with pytest.raises(RS.MissingSentence, match=MOVED):
+        X.gate({key: files[key]})                   # the export's own gate, so no file writes
+
+
+@pytest.mark.parametrize("fid", RS.REQUIRED)
+def test_the_refusal_is_of_a_moved_estimate_and_of_nothing_smaller(served, fid):
+    """The gate reads the flag, so it refuses what the flag calls a move: the estimate
+    at four decimals. A change below that and a redrawn interval both publish."""
+    e = RS.required()[fid]
+    files = copy.deepcopy(served)
+    key, blk = _holders(files)[fid][0]
+    fig = blk[e["figure"]]
+    fig["estimate"] += 0.00004
+    fig["interval"] = [-0.5, 0.5]
+    blk[RS.FIELD] = RS.qualifier(e["file"], e["holder"], fig)
+    assert blk[RS.FIELD]["served_matches"] is True
+    RS.require({key: files[key]})
+    _move(blk, e, 0.0001)                           # the smallest move the file can print
+    with pytest.raises(RS.MissingSentence, match=MOVED):
+        RS.require({key: files[key]})
+    _move(blk, e, -0.0001)                          # and back: it is the value, not the edit
+    RS.require({key: files[key]})
+
+
+def _tree(root):
+    return {str(p.relative_to(root)).replace("\\", "/"): p.read_bytes()
+            for p in root.rglob("*.json")}
+
+
+def test_the_export_writes_neither_file_when_the_stage_figure_has_moved(
+        measured, monkeypatch, tmp_path):       # noqa: F811
+    """Through `publish`, the function the weekly refresh runs, with the real builders
+    and the real gate. The stage figure is re-measured on the store every export; a
+    movement must write nothing and leave the previous files, whose figure and
+    sentence still agree, exactly where they were."""
+    monkeypatch.setattr(X, "add_matchups", lambda *a, **k: None)    # reads the stores
+    state = {"m": measured}
+    monkeypatch.setattr(X, "measure", lambda **_k: state["m"])
+    quiet = lambda *_: None                                         # noqa: E731
+    first = X.publish(str(tmp_path), now_ts=NOW, log=quiet)
+    assert first["built"] == [X.FORECAST_KEY, X.RECORD_KEY] and first["failed"] == []
+    assert first["written"] == 2
+    before = _tree(tmp_path)
+    assert set(before) == {X.FORECAST_KEY, X.RECORD_KEY}
+
+    moved = dict(measured, stages=copy.deepcopy(measured["stages"]))
+    moved["stages"]["weeks_1_4"]["elo_nomov"]["diffs"]["dBrier"]["est"] += PLANT
+    state["m"] = moved
+    files, failed = X.build(NOW + 3600, log=quiet)
+    assert files == {}
+    assert {f["file"] for f in failed} == {X.RECORD_KEY, X.FORECAST_KEY}
+    assert all(MOVED in f["error"] for f in failed)
+    second = X.publish(str(tmp_path), now_ts=NOW + 3600, log=quiet)
+    assert second["built"] == [] and second["written"] == 0 and len(second["failed"]) == 2
+    assert _tree(tmp_path) == before                    # the previous files stand, untouched
+
+
+def test_a_moved_total_record_takes_its_matchup_copies_down_with_it(
+        measured, monkeypatch, results_on_this_walk):       # noqa: F811
+    """Through `add_matchups` on the real committed results, c-31's close figure
+    planted +0.0090. The total record is refused, and so is every matchup, each of
+    which prints that figure with its own digits; the index lists none of them."""
+    files, failed = _build(measured, monkeypatch)
+    assert failed == [] and GM.RECORD_TOTAL_KEY in files and len(_matchups(files)) == 16
+    load = GM.load_result
+
+    def planted(rel):
+        d = copy.deepcopy(load(rel))
+        if rel == GM.C31_RESULT:
+            d["part2"]["S2 book"]["diffs"]["dBrier"]["est"] += PLANT
+        return d
+    monkeypatch.setattr(GM, "load_result", planted)
+    files, failed = _build(measured, monkeypatch)
+    assert GM.RECORD_TOTAL_KEY not in files and _matchups(files) == {}
+    errors = {f["file"]: f["error"] for f in failed}
+    assert MOVED in errors[GM.RECORD_TOTAL_KEY]
+    mus = [k for k in errors if k.startswith(GM.MATCHUP_DIR)]
+    assert len(mus) == 16 and all(MOVED in errors[k] for k in mus)
+    assert files[GM.INDEX_KEY]["games"] == []
+    assert GM.RECORD_SPREAD_KEY in files                 # the figure that did not move publishes

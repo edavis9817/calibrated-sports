@@ -14,20 +14,31 @@ served. This module is where it gets attached, and what refuses a file without i
                generated from figures, in code that can produce the other answer),
                the figures themselves, and the figure it was measured beside.
     require    the gate (`jobs.game_export.gate`). A served figure without its
-               sentence, a sentence that is not the one the figures word, and a
-               sentence on a figure nobody registered all raise.
+               sentence, a sentence that is not the one the figures word, a
+               sentence on a figure nobody registered, and (a-79) a figure that
+               has moved from the one its sentence was measured beside all raise.
 
 THE SENTENCE IS A FOOTNOTE, NOT A VERDICT. It does not change `compared`: the
 words beside a figure still come from that figure's own interval. Whether a
 figure that does not survive correction should keep its verdict is Ethan's call
 (a-75 report) and is not taken here.
 
-`served_matches` is the staleness guard. The carried figures were measured
-beside one served value; `forecast.json`'s stage figure is re-measured on the
-store every export and can move. The sentence stays attached either way - absence
-would be the worse error - and the flag says whether the ESTIMATE it sits beside
-is still the one F attacked, at four decimals. `measured_against.interval` is F's
-own draw and is carried for the reader, not compared.
+`served_matches` is the staleness guard, AND THE GATE REFUSES IT FALSE (a-79).
+The carried figures were measured beside one served value; `forecast.json`'s
+stage figure is re-measured on the store every export and can move. The flag says
+whether the ESTIMATE the sentence sits beside is still the one F attacked, at four
+decimals; `measured_against.interval` is F's own draw and is carried for the
+reader, not compared. a-75 let a False through with the sentence attached, and
+f-31 measured what that publishes: move a served figure by +0.0090 and the wind
+sentence sets F's frozen no-wind figure against it, reads "recorded wind moves it
+by 0.0016 ... the unfavourable end", and passes. Every sentence here states a
+relation between the served figure and a carried one (how far wind moves it, its
+ratio to its own MDE, the same comparison on a wider grid), so once the served
+figure moves the sentence is about a number that is no longer printed, and it
+cannot be re-worded without re-measuring, which is track F's and not the
+export's. `require` therefore refuses the file: the previous file stands, whose
+figure and sentence still agree, until F re-measures and the carried file moves.
+A builder still gets the block with the flag False - the refusal is the gate's.
 
 a-77: A COPY PRINTED WITH ITS OWN DIGITS CARRIES THE SENTENCE TOO. A matchup file
 repeats each record's figures under `numbers.{market}.record` - the interval
@@ -86,6 +97,10 @@ REQUIRED = tuple(sorted(required()))
 def _fig(d):
     e, iv = d["estimate"], d["interval"]
     return f"{e:+.4f}" if iv is None else f"{e:+.4f} [{iv[0]:+.4f}, {iv[1]:+.4f}]"
+
+
+def _est(x):
+    return "no estimate" if x is None else f"{x:+.4f}"
 
 
 def _size(d):
@@ -230,8 +245,9 @@ def _carriers(o, path=""):
 
 
 def require(files):
-    """Every registered figure in `files` carries the sentence its figures word, and
-    no other figure carries one. -> the statement; raises MissingSentence."""
+    """Every registered figure in `files` carries the sentence its figures word, is
+    still the figure that sentence was measured beside, and no other figure carries
+    one. -> the statement; raises MissingSentence."""
     problems, n = [], 0
     for key in sorted(files):
         payload = files[key]
@@ -244,6 +260,14 @@ def require(files):
                 problems.append(f"{key}: {path}.{e['figure']} is served without its sentence")
             elif got != qualifier(e["file"], e["holder"], blk[e["figure"]]):
                 problems.append(f"{key}: the sentence at {path} is not the one its figures word")
+            elif got["served_matches"] is not True:
+                # a-79. Reached only by a sentence correctly rebuilt beside a moved
+                # figure - the one path a-75's gate let through (f-31).
+                problems.append(
+                    f"{key}: {path}.{e['figure']} is {_est(blk[e['figure']]['estimate'])}, and "
+                    f"its sentence was measured beside "
+                    f"{_est(e['measured_against']['estimate'])} - the figure has moved and the "
+                    f"sentence no longer describes it ({CARRIED} needs track F's re-measurement)")
         for path, blk in _carriers(payload):
             if id(blk) not in expected:
                 problems.append(f"{key}: {path} carries a sentence no registered figure owns")

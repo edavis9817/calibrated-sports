@@ -66,9 +66,23 @@ def synthetic_measure(tmp_dir):
                                    S.M.EloParams(30.0, 25.0, 0.5),
                                    S.M.EloParams(10.0, 75.0, 0.25)])
     try:
-        return X.measure(log=lambda *_: None, draws=40)
+        return as_attacked(X.measure(log=lambda *_: None, draws=40))
     finally:
         mp.undo()
+
+
+def as_attacked(m):
+    """a-79: the game gate refuses a qualified figure that is not the one track F's
+    sentence was measured beside, and this league's weeks 1-4 figure against plain
+    Elo is its own (-0.0030), not the real record's. So that one interval is set to
+    the carried figure, read from the registry rather than typed here - which makes
+    these files the export on an ordinary day. tests/test_required_sentences.py
+    moves it again and asserts the refusal."""
+    from jobs import required_sentences as RS
+    a = RS.required()[RS.figure_id(X.FORECAST_KEY, RS.STAGE_HOLDER)]["measured_against"]
+    d = m["stages"][RS.EARLY_STAGE]["elo_nomov"]["diffs"]["dBrier"]
+    d["est"], (d["lo"], d["hi"]) = a["estimate"], a["interval"]
+    return m
 
 
 def synthetic_files(tmp_dir):
