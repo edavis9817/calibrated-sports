@@ -127,7 +127,10 @@ class Load:
         root = os.path.dirname(self.beat)
         for f in os.listdir(root):        # a terminated burner leaves its file
             if f.startswith(f"burn-{os.getpid()}-"):
-                os.remove(os.path.join(root, f))
+                try:
+                    os.remove(os.path.join(root, f))
+                except OSError:           # still held for a moment after the kill;
+                    pass                  # a scratch file, not worth a failed run
         if os.path.exists(self.beat):
             os.remove(self.beat)
 
