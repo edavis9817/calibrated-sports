@@ -1,0 +1,184 @@
+NFL: games loaded 7,548, Part 1 population 6,743; versions {'nfl_games': '2026-10-08', 'nfl_teams': '2026-09-16'}
+college: FBS-FBS games loaded 18,991, completed 18,500; grids 331s
+
+######## REPRODUCTION GATE - each sport's published Part 1, to 4 dp
+   nfl vs home       dBrier -0.02553  published -0.0255  ok
+   nfl vs record     dBrier -0.01623  published -0.0162  ok
+   nfl vs elo_nomov  dBrier -0.00267  published -0.0027  ok
+   cfb vs home       dBrier -0.06147  published -0.0615  ok
+   cfb vs record     dBrier -0.03796  published -0.0380  ok
+   cfb vs elo_nomov  dBrier -0.00416  published -0.0042  ok
+
+######## PRIMARY - against settlement, each sport's own registered population, game blocks
+
+== nfl: n 6,743  realized home-win rate 0.5630  mean favourite p 0.6374
+   model      BS 0.2206 = MCB 0.0014 - DSC 0.0268 + UNC 0.2460   DSC/UNC 0.1091   AUC 0.6868
+   home       BS 0.2461 = MCB 0.0001 - DSC 0.0000 + UNC 0.2460   DSC/UNC 0.0002   AUC 0.5001
+   record     BS 0.2368 = MCB 0.0035 - DSC 0.0127 + UNC 0.2460   DSC/UNC 0.0518   AUC 0.6165
+   elo_nomov  BS 0.2232 = MCB 0.0016 - DSC 0.0244 + UNC 0.2460   DSC/UNC 0.0992   AUC 0.6766
+   d_home                                         -0.0255 [-0.0288, -0.0221]* SE 0.0017  MDE 0.0047  -> below
+   d_record                                       -0.0162 [-0.0189, -0.0135]* SE 0.0013  MDE 0.0038  -> below
+   d_elo_nomov                                    -0.0027 [-0.0035, -0.0018]* SE 0.0005  MDE 0.0013  -> below
+   c1 = d_home - d_record                         -0.0093 [-0.0123, -0.0062]* SE 0.0015  MDE 0.0043  -> below
+   c2 = d_record - d_elo_nomov                    -0.0136 [-0.0162, -0.0109]* SE 0.0014  MDE 0.0038  -> below
+   skill 1 - BS(model)/BS(home)                   +0.1037 [+0.0899, +0.1167]* SE 0.0068  MDE 0.0191  -> above
+   skill 1 - BS(model)/BS(record)                 +0.0685 [+0.0572, +0.0797]* SE 0.0056  MDE 0.0158  -> above
+   skill 1 - BS(model)/BS(elo_nomov)              +0.0120 [+0.0079, +0.0159]* SE 0.0020  MDE 0.0057  -> above
+
+== cfb: n 15,508  realized home-win rate 0.5808  mean favourite p 0.7352
+   model      BS 0.1819 = MCB 0.0012 - DSC 0.0628 + UNC 0.2435   DSC/UNC 0.2578   AUC 0.7932
+   home       BS 0.2434 = MCB 0.0002 - DSC 0.0003 + UNC 0.2435   DSC/UNC 0.0011   AUC 0.5069
+   record     BS 0.2199 = MCB 0.0041 - DSC 0.0277 + UNC 0.2435   DSC/UNC 0.1137   AUC 0.6810
+   elo_nomov  BS 0.1861 = MCB 0.0011 - DSC 0.0585 + UNC 0.2435   DSC/UNC 0.2401   AUC 0.7823
+   d_home                                         -0.0615 [-0.0644, -0.0583]* SE 0.0016  MDE 0.0044  -> below
+   d_record                                       -0.0380 [-0.0406, -0.0352]* SE 0.0014  MDE 0.0039  -> below
+   d_elo_nomov                                    -0.0042 [-0.0049, -0.0034]* SE 0.0004  MDE 0.0011  -> below
+   c1 = d_home - d_record                         -0.0235 [-0.0263, -0.0209]* SE 0.0014  MDE 0.0040  -> below
+   c2 = d_record - d_elo_nomov                    -0.0338 [-0.0364, -0.0311]* SE 0.0014  MDE 0.0038  -> below
+   skill 1 - BS(model)/BS(home)                   +0.2526 [+0.2398, +0.2642]* SE 0.0064  MDE 0.0178  -> above
+   skill 1 - BS(model)/BS(record)                 +0.1726 [+0.1606, +0.1843]* SE 0.0062  MDE 0.0172  -> above
+   skill 1 - BS(model)/BS(elo_nomov)              +0.0224 [+0.0182, +0.0267]* SE 0.0021  MDE 0.0059  -> above
+
+== between sports (college - NFL), independent draws per sport
+   D_home  (registered MDE 0.0065)                -0.0359 [-0.0404, -0.0314]* SE 0.0024  MDE 0.0066  -> below
+   Ds_home                                        +0.1488 [+0.1308, +0.1670]* SE 0.0095  MDE 0.0267  -> above
+   D_record  (registered MDE 0.0055)              -0.0217 [-0.0255, -0.0179]* SE 0.0019  MDE 0.0055  -> below
+   Ds_record                                      +0.1041 [+0.0876, +0.1202]* SE 0.0084  MDE 0.0235  -> above
+   D_elo_nomov  (registered MDE 0.0016)           -0.0015 [-0.0026, -0.0003]* SE 0.0006  MDE 0.0017  -> below
+   Ds_elo_nomov                                   +0.0104 [+0.0048, +0.0160]* SE 0.0029  MDE 0.0082  -> above
+
+   Holm family of 16: 16 significant at 0.05
+      nfl      d_home         p 2.59e-51  Holm 2.59e-50  *
+      nfl      d_record       p 1.12e-33  Holm 9.00e-33  *
+      nfl      d_elo_nomov    p 4.92e-09  Holm 1.48e-08  *
+      nfl      c1             p 1.59e-09  Holm 6.36e-09  *
+      nfl      c2             p 3.86e-23  Holm 1.93e-22  *
+      cfb      d_home         p 0.00e+00  Holm 0.00e+00  *
+      cfb      d_record       p 3.64e-163  Holm 5.46e-162  *
+      cfb      d_elo_nomov    p 1.50e-26  Holm 9.00e-26  *
+      cfb      c1             p 2.07e-61  Holm 2.69e-60  *
+      cfb      c2             p 4.48e-136  Holm 6.27e-135  *
+      between  D_home         p 8.67e-53  Holm 9.54e-52  *
+      between  Ds_home        p 5.11e-55  Holm 6.13e-54  *
+      between  D_record       p 7.04e-29  Holm 4.93e-28  *
+      between  Ds_record      p 2.33e-35  Holm 2.09e-34  *
+      between  D_elo_nomov    p 1.23e-02  Holm 1.23e-02  *
+      between  Ds_elo_nomov   p 3.45e-04  Holm 6.90e-04  *
+
+   PRIMARY VERDICT: SUCCESS - same sign and same ordering in both sports
+
+######## M - matched on the model's favourite probability (college at the NFL's bin shares)
+   [0.50, 0.55)  NFL n  1466 share 0.217 f 0.525 | college n  1736 share 0.112 f 0.525 | d_home -0.0063 / -0.0114  d_record -0.0120 / -0.0178  d_elo -0.0015 / -0.0071
+   [0.55, 0.60)  NFL n  1370 share 0.203 f 0.575 | college n  1683 share 0.109 f 0.575 | d_home -0.0111 / -0.0125  d_record -0.0135 / -0.0198  d_elo -0.0036 / -0.0061
+   [0.60, 0.65)  NFL n  1181 share 0.175 f 0.625 | college n  1619 share 0.104 f 0.625 | d_home -0.0170 / -0.0175  d_record -0.0126 / -0.0263  d_elo -0.0048 / -0.0071
+   [0.65, 0.70)  NFL n   989 share 0.147 f 0.674 | college n  1636 share 0.105 f 0.675 | d_home -0.0296 / -0.0280  d_record -0.0115 / -0.0217  d_elo -0.0002 / -0.0062
+   [0.70, 0.75)  NFL n   756 share 0.112 f 0.723 | college n  1676 share 0.108 f 0.724 | d_home -0.0352 / -0.0395  d_record -0.0142 / -0.0215  d_elo -0.0031 / -0.0050
+   [0.75, 0.80)  NFL n   519 share 0.077 f 0.773 | college n  1596 share 0.103 f 0.774 | d_home -0.0602 / -0.0647  d_record -0.0264 / -0.0273  d_elo -0.0031 / -0.0042
+   [0.80, 0.85)  NFL n   307 share 0.046 f 0.823 | college n  1582 share 0.102 f 0.825 | d_home -0.0791 / -0.0789  d_record -0.0401 / -0.0346  d_elo -0.0028 / -0.0014
+   [0.85, 1.00]  NFL n   155 share 0.023 f 0.879 | college n  3980 share 0.257 f 0.918 | d_home -0.1039 / -0.1367  d_record -0.0675 / -0.0784  d_elo -0.0010 / -0.0008
+   Dm_home (matched college - NFL)                -0.0028 [-0.0071, +0.0012]  SE 0.0022  MDE 0.0061  -> contains 0
+      reading: size difference accounted for by the wider spread of forecast strength, to within the MDE
+   Dm_record (matched college - NFL)              -0.0073 [-0.0115, -0.0029]* SE 0.0022  MDE 0.0061  -> below
+      reading: not accounted for by the spread alone
+   Dm_elo_nomov (matched college - NFL)           -0.0032 [-0.0046, -0.0018]* SE 0.0007  MDE 0.0021  -> below
+      reading: not accounted for by the spread alone
+
+######## T - transfer: the other sport's 2026 constants carried across, nothing fitted here
+
+== arm N: NFL constants over college: Brier carried MOV 0.1929, carried plain 0.1964, fitted model 0.1819
+   carried MOV - home                             -0.0505 [-0.0524, -0.0485]* SE 0.0010  MDE 0.0029  -> below
+   carried MOV - record                           -0.0270 [-0.0290, -0.0249]* SE 0.0011  MDE 0.0029  -> below
+   carried MOV - FITTED plain Elo (not like-for-like) +0.0068 [+0.0053, +0.0083]* SE 0.0008  MDE 0.0022  -> above
+   carried MOV - carried plain Elo (like-for-like) -0.0035 [-0.0041, -0.0030]* SE 0.0003  MDE 0.0008  -> below
+
+== arm R: college constants over the NFL: Brier carried MOV 0.2248, carried plain 0.2265, fitted model 0.2206
+   carried MOV - home                             -0.0213 [-0.0259, -0.0165]* SE 0.0025  MDE 0.0069  -> below
+   carried MOV - record                           -0.0120 [-0.0156, -0.0082]* SE 0.0019  MDE 0.0052  -> below
+   carried MOV - FITTED plain Elo (not like-for-like) +0.0016 [-0.0005, +0.0037]  SE 0.0011  MDE 0.0030  -> contains 0
+   carried MOV - carried plain Elo (like-for-like) -0.0017 [-0.0029, -0.0005]* SE 0.0006  MDE 0.0018  -> below
+   reading, arm N: NFL constants over college: the advantage is not a product of the per-sport fit
+   reading, arm R: college constants over the NFL: the advantage is not a product of the per-sport fit
+
+######## CUTS (not verdicts) - d_b per sport, D_b and Ds_b between sports
+
+-- cut 1 common window 2005-2025: NFL n 5,684, college n 15,508
+   home       NFL -0.0266 [-0.0302, -0.0231]* SE 0.0018 | college -0.0615 [-0.0644, -0.0583]* SE 0.0016
+              D -0.0349 [-0.0396, -0.0303]* SE 0.0024 | Ds +0.1448 [+0.1259, +0.1641]* SE 0.0097
+   record     NFL -0.0166 [-0.0192, -0.0136]* SE 0.0014 | college -0.0380 [-0.0406, -0.0352]* SE 0.0014
+              D -0.0214 [-0.0254, -0.0173]* SE 0.0020 | Ds +0.1027 [+0.0850, +0.1196]* SE 0.0087
+   elo_nomov  NFL -0.0028 [-0.0037, -0.0018]* SE 0.0005 | college -0.0042 [-0.0049, -0.0034]* SE 0.0004
+              D -0.0014 [-0.0027, -0.0002]* SE 0.0006 | Ds +0.0100 [+0.0041, +0.0160]* SE 0.0030
+
+-- cut 2 regular season only: NFL n 6,456, college n 14,728
+   home       NFL -0.0260 [-0.0293, -0.0228]* SE 0.0017 | college -0.0641 [-0.0673, -0.0610]* SE 0.0016
+              D -0.0381 [-0.0428, -0.0337]* SE 0.0024 | Ds +0.1582 [+0.1401, +0.1777]* SE 0.0096
+   record     NFL -0.0161 [-0.0188, -0.0133]* SE 0.0014 | college -0.0385 [-0.0412, -0.0357]* SE 0.0014
+              D -0.0223 [-0.0262, -0.0188]* SE 0.0019 | Ds +0.1088 [+0.0934, +0.1257]* SE 0.0084
+   elo_nomov  NFL -0.0026 [-0.0035, -0.0017]* SE 0.0005 | college -0.0040 [-0.0047, -0.0033]* SE 0.0004
+              D -0.0014 [-0.0026, -0.0002]* SE 0.0006 | Ds +0.0103 [+0.0045, +0.0160]* SE 0.0029
+
+-- cut 3 regular weeks 1-4: NFL n 1,547, college n 3,881
+   home       NFL -0.0170 [-0.0222, -0.0118]* SE 0.0027 | college -0.0709 [-0.0771, -0.0649]* SE 0.0031
+              D -0.0539 [-0.0621, -0.0460]* SE 0.0041 | Ds +0.2330 [+0.2012, +0.2675]* SE 0.0169
+   record     NFL -0.0194 [-0.0251, -0.0143]* SE 0.0027 | college -0.0625 [-0.0686, -0.0557]* SE 0.0032
+              D -0.0431 [-0.0514, -0.0351]* SE 0.0042 | Ds +0.1979 [+0.1649, +0.2325]* SE 0.0174
+   elo_nomov  NFL -0.0008 [-0.0024, +0.0007]  SE 0.0008 | college -0.0028 [-0.0040, -0.0016]* SE 0.0006
+              D -0.0020 [-0.0040, +0.0001]  SE 0.0010 | Ds +0.0132 [+0.0029, +0.0233]* SE 0.0052
+
+-- cut 4 regular weeks 5+: NFL n 4,909, college n 10,847
+   home       NFL -0.0289 [-0.0328, -0.0248]* SE 0.0021 | college -0.0617 [-0.0654, -0.0579]* SE 0.0019
+              D -0.0328 [-0.0385, -0.0274]* SE 0.0028 | Ds +0.1337 [+0.1118, +0.1560]* SE 0.0114
+   record     NFL -0.0151 [-0.0179, -0.0120]* SE 0.0015 | college -0.0299 [-0.0328, -0.0271]* SE 0.0015
+              D -0.0148 [-0.0188, -0.0106]* SE 0.0021 | Ds +0.0747 [+0.0565, +0.0924]* SE 0.0093
+   elo_nomov  NFL -0.0032 [-0.0042, -0.0021]* SE 0.0005 | college -0.0045 [-0.0053, -0.0035]* SE 0.0004
+              D -0.0013 [-0.0027, +0.0001]  SE 0.0007 | Ds +0.0092 [+0.0027, +0.0161]* SE 0.0034
+
+-- cut 5 college non-neutral only: NFL n 6,743, college n 14,386
+   home       NFL -0.0255 [-0.0288, -0.0221]* SE 0.0017 | college -0.0641 [-0.0672, -0.0606]* SE 0.0017
+              D -0.0385 [-0.0431, -0.0340]* SE 0.0023 | Ds +0.1600 [+0.1417, +0.1782]* SE 0.0094
+   record     NFL -0.0162 [-0.0189, -0.0135]* SE 0.0013 | college -0.0383 [-0.0411, -0.0354]* SE 0.0014
+              D -0.0221 [-0.0257, -0.0184]* SE 0.0019 | Ds +0.1080 [+0.0921, +0.1236]* SE 0.0083
+   elo_nomov  NFL -0.0027 [-0.0035, -0.0018]* SE 0.0005 | college -0.0040 [-0.0048, -0.0033]* SE 0.0004
+              D -0.0014 [-0.0026, -0.0002]* SE 0.0006 | Ds +0.0102 [+0.0047, +0.0161]* SE 0.0029
+
+-- cut 6 college conference games only: NFL n 6,743, college n 10,581
+   home       NFL -0.0255 [-0.0288, -0.0221]* SE 0.0017 | college -0.0588 [-0.0627, -0.0552]* SE 0.0019
+              D -0.0332 [-0.0383, -0.0282]* SE 0.0025 | Ds +0.1325 [+0.1127, +0.1525]* SE 0.0101
+   record     NFL -0.0162 [-0.0189, -0.0135]* SE 0.0013 | college -0.0270 [-0.0298, -0.0241]* SE 0.0015
+              D -0.0108 [-0.0147, -0.0068]* SE 0.0020 | Ds +0.0560 [+0.0386, +0.0727]* SE 0.0086
+   elo_nomov  NFL -0.0027 [-0.0035, -0.0018]* SE 0.0005 | college -0.0046 [-0.0055, -0.0037]* SE 0.0005
+              D -0.0019 [-0.0032, -0.0007]* SE 0.0007 | Ds +0.0117 [+0.0055, +0.0180]* SE 0.0032
+
+-- cut 7 2005-2014: NFL n 2,666, college n 7,183
+   home       NFL -0.0275 [-0.0328, -0.0222]* SE 0.0028 | college -0.0660 [-0.0706, -0.0614]* SE 0.0024
+              D -0.0385 [-0.0456, -0.0314]* SE 0.0036 | Ds +0.1588 [+0.1302, +0.1875]* SE 0.0144
+   record     NFL -0.0191 [-0.0232, -0.0150]* SE 0.0021 | college -0.0412 [-0.0451, -0.0375]* SE 0.0020
+              D -0.0222 [-0.0277, -0.0166]* SE 0.0029 | Ds +0.1079 [+0.0839, +0.1322]* SE 0.0123
+   elo_nomov  NFL -0.0035 [-0.0049, -0.0021]* SE 0.0007 | college -0.0042 [-0.0052, -0.0032]* SE 0.0005
+              D -0.0007 [-0.0025, +0.0011]  SE 0.0009 | Ds +0.0072 [-0.0014, +0.0160]  SE 0.0044
+
+-- cut 8 2015-2025: NFL n 3,018, college n 8,325
+   home       NFL -0.0258 [-0.0306, -0.0210]* SE 0.0024 | college -0.0576 [-0.0616, -0.0532]* SE 0.0022
+              D -0.0318 [-0.0381, -0.0254]* SE 0.0033 | Ds +0.1327 [+0.1065, +0.1579]* SE 0.0132
+   record     NFL -0.0143 [-0.0180, -0.0105]* SE 0.0019 | college -0.0351 [-0.0388, -0.0316]* SE 0.0018
+              D -0.0208 [-0.0260, -0.0154]* SE 0.0027 | Ds +0.0985 [+0.0754, +0.1208]* SE 0.0117
+   elo_nomov  NFL -0.0021 [-0.0035, -0.0007]* SE 0.0007 | college -0.0041 [-0.0051, -0.0031]* SE 0.0005
+              D -0.0020 [-0.0037, -0.0003]* SE 0.0009 | Ds +0.0124 [+0.0042, +0.0202]* SE 0.0041
+
+   cuts Holm family of 96: 85 significant
+   cuts where d_b is below zero (Holm) in one sport only: [{"cut": "3 regular weeks 1-4", "baseline": "elo_nomov", "holds_in": "cfb"}]
+
+######## SECONDARY - against a price. NOT COMPARABLE across sports; no between-sport interval
+   The NFL comparator is the nflverse closing line, a sportsbook close of unrecorded provenance. The college comparator is CFBD's last value per provider, read after the game, with no capture time - not a close. Different books, different seasons (2006-2025 against 2021-2025), different base uncertainty; and if any college value is in-game it favours the price. The two losses are shown side by side and are not a measurement of which market is harder to beat.
+   NFL nflverse moneyline close 2006-2025: n 5,281  BS model 0.2203 price 0.2111 ratio 1.0434  UNC 0.2466  dMCB -0.0003 dDSC -0.0094
+         dBrier (model - price)                   +0.0092 [+0.0067, +0.0114]* SE 0.0012  MDE 0.0033  -> above
+      published: n 5,281, dBrier +0.0092 -> reproduced
+   college CFBD moneyline (last value, no capture time) 2021-2025: n 3,768  BS model 0.1960 price 0.1853 ratio 1.0577  UNC 0.2450  dMCB +0.0004 dDSC -0.0102
+         dBrier (model - price)                   +0.0107 [+0.0070, +0.0144]* SE 0.0019  MDE 0.0052  -> above
+      published: n 3,768, dBrier +0.0107 -> reproduced
+   NFL nflverse moneyline close 2021-2025: n 1,420  BS model 0.2241 price 0.2115 ratio 1.0595  UNC 0.2478  dMCB +0.0010 dDSC -0.0116
+         dBrier (model - price)                   +0.0126 [+0.0079, +0.0170]* SE 0.0024  MDE 0.0066  -> above
+   college Odds API pre-kickoff h2h 2026 (timestamped, as on disk): n 168  BS model 0.1745 price 0.1424 ratio 1.2253  UNC 0.2431  dMCB -0.0022 dDSC -0.0343
+         dBrier (model - price)                   +0.0321 [+0.0147, +0.0495]* SE 0.0089  MDE 0.0250  -> above
+
+   registered intervals 133 (primary 16 + 6 skill levels, matched 3, transfer 8, cuts 96, price 4 unpooled); specifications 16

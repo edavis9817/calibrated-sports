@@ -184,6 +184,15 @@ not yet measured and the retention arithmetic depends on it.**
   400, so chunk. **429 after ~5 rapid requests**, no rate headers, no
   Retry-After. Candles carry `volume_fp` and `open_interest_fp`; `price` is
   `{}` when nothing traded, and bid/ask still exist there.
+- **No candle is emitted for a period in which nothing changed, and the last one stands.**
+  Measured 2026-10-08 on `KXNFLWINS` (c-36, `research/win_total_drift.py`,
+  `research/c36_candle_diag_carry.py`): 544 rungs carry a median 398 hourly candles over ~750
+  hours. Reading "the candle ending at T" silently drops every quiet rung; carry the latest
+  candle ending at or before T instead - it matched the live quote to 1c on 347 of 347 stale
+  reads. With that read the candle `yes_bid`/`yes_ask` closes reproduce the logger's quotes
+  (319 of 320 and 304 of 304 rungs at two instants), so a season future's PRICE path is
+  recoverable for free back to the market's open even though `prune_quotes` keeps 14 days.
+  Depth is still not: a candle carries no book.
 - **Live `volume` is CUMULATIVE, a candle's `volume_fp` is PER-PERIOD.**
   Summing both together produced a 6.7-billion-contract week.
 - **Kalshi ladders are dense where they exist and absent where they do not.**
@@ -2040,6 +2049,45 @@ the agent — stated as options with a recommendation, not as a question without
 - **Scheduled weekly CFB refresh:** `run_weekly_cfb.cmd` (runs the job with `--log`;
   output and exit code in `<STORAGE_DIR>/cfb/logs/ingest_cfb.log`).
 - **Track C state lives in `docs/TRACK-C-HANDOFF.md`** - read it before any CFB work.
+- **The college game model beats the naive baselines and loses to every price on disk** (c-39,
+  `research/cfb_game_forecast.py`, pre-registered at `1787e1f`; `models/cfb_game.py`). FBS-FBS
+  decisive games 2005-2025, walk-forward, n 15,508: Brier 0.1819 against home 0.2434, better
+  record 0.2199, plain Elo 0.1861 - every dBrier interval below zero. Against a price: CFBD
+  moneyline 2021-25 (provider's last value, NOT a timestamped close) +0.0107 [+0.0070, +0.0144],
+  n 3,768; the timestamped Odds API pre-kickoff h2h, 2026 weeks 3-5 only, +0.0321
+  [+0.0147, +0.0495], n 168; the model's side against the CFBD spread 2013-25 covers 0.4980
+  [0.4880, 0.5075], n 9,652. By the registered rule that reads "the method is the limit", for THIS
+  method (final scores only) on THESE prices - it says nothing about a model that reads rosters.
+  - **The fitted college multiplier is plain ln(margin + 1): no cap and no rating-gap damping**
+    in 22 of 22 seasons. College wants LESS blowout damping than the NFL form, not more. K 40
+    against the NFL's 20, regression 0.4 against 0.5 (weaker, not stronger), and the regression
+    target is the team's CONFERENCE mean (weight 1.0 every season), home advantage 55 Elo, 0 on a
+    neutral site. Carrying the NFL constants across costs 0.0110 Brier.
+  - **A postseason row carries `week = 1`.** Order college games by `start_ts`, never by week.
+- **The game model's advantage over the naive baselines appears in BOTH sports, same sign and
+  same ordering** (c-38, `research/cross_sport.py`, pre-registered at `dbd3d29`;
+  `docs/findings/cross-sport.md`). Margin-of-victory Elo against settlement, each sport's own
+  walk-forward population (NFL 2001-2025, 6,743 games; college FBS-FBS 2005-2025, 15,508): 16 of
+  16 primary tests Holm-significant. It is LARGER in college on every baseline - college minus NFL
+  dBrier -0.0359 [-0.0404, -0.0314] against home, -0.0217 [-0.0255, -0.0179] against better record,
+  -0.0015 [-0.0026, -0.0003] against plain Elo (that last one sits on its MDE and survives Holm in
+  no cut). "Works" means beats three baselines; the model loses to every price in both sports.
+  - **The size gap against `home` is the wider spread of college games, not a better model**:
+    re-weighted to the NFL's distribution of favourite probability it is -0.0028 [-0.0071, +0.0012].
+    Against record (-0.0073) and plain Elo (-0.0032) a gap remains at equal forecast strength.
+  - **The advantage is not a product of the per-sport fit.** Each sport's 2026 constants carried
+    into the OTHER sport with nothing refitted still beat home, record and a carried plain Elo
+    (6 of 6 like-for-like tests Holm-significant). Fitting is worth 0.0110 Brier in college
+    and 0.0042 in the NFL. A carried margin model does NOT beat a plain Elo fitted to the sport.
+  - **Never compare the two sports' losses to a price.** NFL +0.0092 is a 2006-2025 close; college
+    +0.0107 is CFBD's untimestamped last value on 2021-2025. On 2021-2025 alone the NFL figure is
+    +0.0126 (ratio 1.060 against college's 1.058), so "loses by more in college" was a difference
+    in SEASONS. No between-sport interval exists for a price, by registration.
+  - **Compare two subjects with independent draws.** One shared bootstrap seed across the two
+    sports gives a zero-width difference on identical data (`tests/test_cross_sport.py`).
+  - **c-28's published identity hash `2a2ca2dc...0b16` is stale; the current one is
+    `12b91365...49dd`.** The model files have no diff since `d1b259d`; `nfl_games` was re-ingested
+    (2026-09-30 -> 2026-10-08). Compare the hash against one taken on the same data version.
 - **CFB line sources are layers, not substitutes:** CFBD for 2013-2019 (unreachable elsewhere) and
   as the free 2020-2025 layer; the Odds API is the forward source (bulk game lines, ~3 credits a
   slate); Kalshi/Polymarket are exchange probabilities, never presented as a book line. CFBD lines

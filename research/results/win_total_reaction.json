@@ -1,0 +1,327 @@
+{
+ "unit": "c-36",
+ "post_hoc": true,
+ "hours": [
+  3.5,
+  4,
+  5,
+  6,
+  8,
+  12,
+  17,
+  24
+ ],
+ "path": {
+  "3.5": {
+   "n": 100,
+   "win_mean": 0.3512498876985677,
+   "loss_mean": -0.35231842565927457,
+   "share_of_24h_move": {
+    "est": 0.5932231509336765,
+    "se": 0.16128362673743796,
+    "lo": 0.2725966455680069,
+    "hi": 0.9006862681305227,
+    "n": 100,
+    "n_blocks": 58
+   },
+   "rungs_median": 2.0
+  },
+  "4": {
+   "n": 100,
+   "win_mean": 0.4179164848049322,
+   "loss_mean": -0.5672661029812942,
+   "share_of_24h_move": {
+    "est": 0.7703373367030052,
+    "se": 0.14618151153749212,
+    "lo": 0.46157191655345514,
+    "hi": 1.042483859517928,
+    "n": 100,
+    "n_blocks": 58
+   },
+   "rungs_median": 3.0
+  },
+  "5": {
+   "n": 108,
+   "win_mean": 0.24381334331843177,
+   "loss_mean": -0.39587728515741294,
+   "share_of_24h_move": {
+    "est": 0.5128577047053506,
+    "se": 0.13061070939792255,
+    "lo": 0.22789936844588837,
+    "hi": 0.7420726162665744,
+    "n": 108,
+    "n_blocks": 61
+   },
+   "rungs_median": 4.0
+  },
+  "6": {
+   "n": 105,
+   "win_mean": 0.5152982865461848,
+   "loss_mean": -0.5573996161026469,
+   "share_of_24h_move": {
+    "est": 0.8776281169782852,
+    "se": 0.12364501573268022,
+    "lo": 0.6346102494240998,
+    "hi": 1.1286090413953502,
+    "n": 105,
+    "n_blocks": 59
+   },
+   "rungs_median": 3.5
+  },
+  "8": {
+   "n": 114,
+   "win_mean": 0.4869379825776168,
+   "loss_mean": -0.4573916045536256,
+   "share_of_24h_move": {
+    "est": 0.7731218087557338,
+    "se": 0.09884058956798845,
+    "lo": 0.575583980626331,
+    "hi": 0.9606120652579428,
+    "n": 114,
+    "n_blocks": 63
+   },
+   "rungs_median": 6.5
+  },
+  "12": {
+   "n": 115,
+   "win_mean": 0.4470464491684136,
+   "loss_mean": -0.6191238877424292,
+   "share_of_24h_move": {
+    "est": 0.8871034118877763,
+    "se": 0.05600224670133996,
+    "lo": 0.7690198895621704,
+    "hi": 0.9901894406511789,
+    "n": 115,
+    "n_blocks": 63
+   },
+   "rungs_median": 6.0
+  },
+  "17": {
+   "n": 120,
+   "win_mean": 0.5030709662074115,
+   "loss_mean": -0.6484103457165168,
+   "share_of_24h_move": {
+    "est": 0.9414427069155443,
+    "se": 0.05032654472779229,
+    "lo": 0.8387760819109628,
+    "hi": 1.032869274499969,
+    "n": 120,
+    "n_blocks": 64
+   },
+   "rungs_median": 8.0
+  },
+  "24": {
+   "n": 122,
+   "win_mean": 0.5562198425372895,
+   "loss_mean": -0.6672452891726512,
+   "share_of_24h_move": {
+    "est": 1.0,
+    "se": 0.0,
+    "lo": 1.0,
+    "hi": 1.0,
+    "n": 122,
+    "n_blocks": 64
+   },
+   "rungs_median": 9.0
+  }
+ },
+ "trade": {
+  "4": {
+   "n": 127,
+   "skipped": 1,
+   "net": {
+    "est": -0.09244645669291339,
+    "se": 0.008778044900552976,
+    "lo": -0.1097051156496063,
+    "hi": -0.07576779189222443,
+    "n": 127,
+    "n_blocks": 64
+   },
+   "to_mid_one_fee": {
+    "est": -0.06344566929133859,
+    "se": 0.008374424665737276,
+    "lo": -0.07981684380952382,
+    "hi": -0.04743450142857144,
+    "n": 127,
+    "n_blocks": 64
+   },
+   "mid_moved_at_entry": {
+    "est": 0.06074803149606299,
+    "se": 0.00835602900133289,
+    "lo": 0.04443864829396324,
+    "hi": 0.07783620016247969,
+    "n": 127,
+    "n_blocks": 64
+   },
+   "mid_moved_at_24h": {
+    "est": 0.08622047244094486,
+    "se": 0.00682577166735094,
+    "lo": 0.07278987782777153,
+    "hi": 0.09937695312499999,
+    "n": 127,
+    "n_blocks": 64
+   },
+   "entry_spread_median": 0.09999999999999998,
+   "share_positive": 0.12598425196850394,
+   "by_week": {
+    "1": -0.09911875000000002,
+    "2": -0.09240645161290323,
+    "3": -0.133575,
+    "4": -0.044684375
+   }
+  },
+  "5": {
+   "n": 127,
+   "skipped": 1,
+   "net": {
+    "est": -0.0824464566929134,
+    "se": 0.008530987396885811,
+    "lo": -0.09981822834645672,
+    "hi": -0.06657039791901012,
+    "n": 127,
+    "n_blocks": 64
+   },
+   "to_mid_one_fee": {
+    "est": -0.05344566929133859,
+    "se": 0.008275309254911644,
+    "lo": -0.07025469956880392,
+    "hi": -0.037850931428571426,
+    "n": 127,
+    "n_blocks": 64
+   },
+   "mid_moved_at_entry": {
+    "est": 0.06700787401574805,
+    "se": 0.00676518533453124,
+    "lo": 0.05378733593750001,
+    "hi": 0.07988197544642855,
+    "n": 127,
+    "n_blocks": 64
+   },
+   "mid_moved_at_24h": {
+    "est": 0.08622047244094486,
+    "se": 0.00682577166735094,
+    "lo": 0.07278987782777153,
+    "hi": 0.09937695312499999,
+    "n": 127,
+    "n_blocks": 64
+   },
+   "entry_spread_median": 0.050000000000000044,
+   "share_positive": 0.11023622047244094,
+   "by_week": {
+    "1": -0.105184375,
+    "2": -0.07014516129032258,
+    "3": -0.11031875000000001,
+    "4": -0.043753125000000004
+   }
+  },
+  "6": {
+   "n": 127,
+   "skipped": 1,
+   "net": {
+    "est": -0.10074094488188975,
+    "se": 0.009429502512361968,
+    "lo": -0.12011584362204722,
+    "hi": -0.08295568359375001,
+    "n": 127,
+    "n_blocks": 64
+   },
+   "to_mid_one_fee": {
+    "est": -0.07174015748031498,
+    "se": 0.008962289084955668,
+    "lo": -0.09014058593749999,
+    "hi": -0.05413682445944259,
+    "n": 127,
+    "n_blocks": 64
+   },
+   "mid_moved_at_entry": {
+    "est": 0.07133858267716536,
+    "se": 0.007133792335236845,
+    "lo": 0.058038999999999986,
+    "hi": 0.08543396284448819,
+    "n": 127,
+    "n_blocks": 64
+   },
+   "mid_moved_at_24h": {
+    "est": 0.08622047244094486,
+    "se": 0.00682577166735094,
+    "lo": 0.07278987782777153,
+    "hi": 0.09937695312499999,
+    "n": 127,
+    "n_blocks": 64
+   },
+   "entry_spread_median": 0.08999999999999997,
+   "share_positive": 0.047244094488188976,
+   "by_week": {
+    "1": -0.103796875,
+    "2": -0.09421612903225807,
+    "3": -0.15575,
+    "4": -0.048996874999999995
+   }
+  },
+  "8": {
+   "n": 127,
+   "skipped": 1,
+   "net": {
+    "est": -0.07874251968503936,
+    "se": 0.006644305435393053,
+    "lo": -0.09217277009728622,
+    "hi": -0.06624220949187994,
+    "n": 127,
+    "n_blocks": 64
+   },
+   "to_mid_one_fee": {
+    "est": -0.049741732283464575,
+    "se": 0.006282430856693396,
+    "lo": -0.06245179748031497,
+    "hi": -0.038029852515994104,
+    "n": 127,
+    "n_blocks": 64
+   },
+   "mid_moved_at_entry": {
+    "est": 0.07669291338582677,
+    "se": 0.007226408849503821,
+    "lo": 0.0627952755905512,
+    "hi": 0.09068253125,
+    "n": 127,
+    "n_blocks": 64
+   },
+   "mid_moved_at_24h": {
+    "est": 0.08622047244094486,
+    "se": 0.00682577166735094,
+    "lo": 0.07278987782777153,
+    "hi": 0.09937695312499999,
+    "n": 127,
+    "n_blocks": 64
+   },
+   "entry_spread_median": 0.040000000000000036,
+   "share_positive": 0.07086614173228346,
+   "by_week": {
+    "1": -0.09291250000000001,
+    "2": -0.08351935483870969,
+    "3": -0.08144375,
+    "4": -0.05724374999999999
+   }
+  }
+ },
+ "log": [
+  "== POST HOC: the path of the market number after the team's own kickoff K (wins)",
+  "  team-games 128 (ties dropped); usable undecided rungs per ladder before kickoff: median 9",
+  "  K+ 3.5h: after a win +0.35, after a loss -0.35 (n 100); share of the K+24h move done +0.59 [+0.27, +0.90] n 100 blocks 58; usable rungs median 2",
+  "  K+   4h: after a win +0.42, after a loss -0.57 (n 100); share of the K+24h move done +0.77 [+0.46, +1.04] n 100 blocks 58; usable rungs median 3",
+  "  K+   5h: after a win +0.24, after a loss -0.40 (n 108); share of the K+24h move done +0.51 [+0.23, +0.74] n 108 blocks 61; usable rungs median 4",
+  "  K+   6h: after a win +0.52, after a loss -0.56 (n 105); share of the K+24h move done +0.88 [+0.63, +1.13] n 105 blocks 59; usable rungs median 4",
+  "  K+   8h: after a win +0.49, after a loss -0.46 (n 114); share of the K+24h move done +0.77 [+0.58, +0.96] n 114 blocks 63; usable rungs median 6",
+  "  K+  12h: after a win +0.45, after a loss -0.62 (n 115); share of the K+24h move done +0.89 [+0.77, +0.99] n 115 blocks 63; usable rungs median 6",
+  "  K+  17h: after a win +0.50, after a loss -0.65 (n 120); share of the K+24h move done +0.94 [+0.84, +1.03] n 120 blocks 64; usable rungs median 8",
+  "  K+  24h: after a win +0.56, after a loss -0.67 (n 122); share of the K+24h move done +1.00 [+1.00, +1.00] n 122 blocks 64; usable rungs median 9",
+  "\n== POST HOC: the obvious trade. Central rung chosen BEFORE kickoff; after the game buy the result's side at the candle touch, sell at K+24h at the opposite touch; taker fee both legs at 100 contracts; game blocks",
+  "  enter K+4h (n 127, no quote 1): central rung mid moved toward the result by entry +0.0607 [+0.0444, +0.0778] n 127 blocks 64, by K+24h +0.0862 [+0.0728, +0.0994] n 127 blocks 64; entry spread median 10c",
+  "       round trip net -0.0924 [-0.1097, -0.0758] n 127 blocks 64; marked to the K+24h mid with the entry fee -0.0634 [-0.0798, -0.0474] n 127 blocks 64; positive in 13%; by week wk1 -9.9c, wk2 -9.2c, wk3 -13.4c, wk4 -4.5c",
+  "  enter K+5h (n 127, no quote 1): central rung mid moved toward the result by entry +0.0670 [+0.0538, +0.0799] n 127 blocks 64, by K+24h +0.0862 [+0.0728, +0.0994] n 127 blocks 64; entry spread median 5c",
+  "       round trip net -0.0824 [-0.0998, -0.0666] n 127 blocks 64; marked to the K+24h mid with the entry fee -0.0534 [-0.0703, -0.0379] n 127 blocks 64; positive in 11%; by week wk1 -10.5c, wk2 -7.0c, wk3 -11.0c, wk4 -4.4c",
+  "  enter K+6h (n 127, no quote 1): central rung mid moved toward the result by entry +0.0713 [+0.0580, +0.0854] n 127 blocks 64, by K+24h +0.0862 [+0.0728, +0.0994] n 127 blocks 64; entry spread median 9c",
+  "       round trip net -0.1007 [-0.1201, -0.0830] n 127 blocks 64; marked to the K+24h mid with the entry fee -0.0717 [-0.0901, -0.0541] n 127 blocks 64; positive in 5%; by week wk1 -10.4c, wk2 -9.4c, wk3 -15.6c, wk4 -4.9c",
+  "  enter K+8h (n 127, no quote 1): central rung mid moved toward the result by entry +0.0767 [+0.0628, +0.0907] n 127 blocks 64, by K+24h +0.0862 [+0.0728, +0.0994] n 127 blocks 64; entry spread median 4c",
+  "       round trip net -0.0787 [-0.0922, -0.0662] n 127 blocks 64; marked to the K+24h mid with the entry fee -0.0497 [-0.0625, -0.0380] n 127 blocks 64; positive in 7%; by week wk1 -9.3c, wk2 -8.4c, wk3 -8.1c, wk4 -5.7c"
+ ]
+}
