@@ -1,0 +1,34 @@
+{
+ "game": {
+  "game_id": "f32-synthetic",
+  "season": 2026,
+  "week": 99,
+  "season_type": "regular",
+  "start_ts": 1797192000.0,
+  "neutral": 0,
+  "conference_game": 0,
+  "home": "84",
+  "away": "2638",
+  "home_conf": "Big Ten",
+  "away_conf": "Mountain West",
+  "home_score": 0,
+  "away_score": 1,
+  "fit": true
+ },
+ "target": {
+  "k": 30.0,
+  "hfa": 70.0,
+  "regress": 0.1,
+  "a": 1.0,
+  "cap": null,
+  "conf_w": 1.0,
+  "entry": -300.0
+ },
+ "rating_hi": 2033.9981951545751,
+ "rating_lo": 1012.0527558625453,
+ "rating_gap_plus_hfa": 1091.9454392920297,
+ "needed": 1000.0,
+ "feasible": true,
+ "real_fingerprint": "055ac7bd06b598a4a82f40bb577550289c91c8ea6de35d5454dce41c9bcba52d",
+ "built_by": "D:\\temp\\c49\\base"
+}

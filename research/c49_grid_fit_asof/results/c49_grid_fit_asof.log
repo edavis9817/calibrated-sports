@@ -1,0 +1,20 @@
+store: 18991 FBS-FBS games, 15508 forecasts in the 2005-2025 population (f-32: 15508); one store across all eight walks
+planted game: team 2638 at team 84, away side wins 1-0, a day after the last real game; gap + hfa 1092 against 1000 needed
+
+-- the planted case (GRID_MOV with a = 1.0, 51840 points)
+   base code (control)  compared 15508 of 15508, MOVED 1378 (max |dp| 0.0647); fits changed in 2 of 22 seasons ['2005', '2006']; errors 0 / 0; points ever bad 26415 -> 31689
+   repaired code        compared 15508 of 15508, MOVED 0 (max |dp| 0); fits changed in 0 of 22 seasons []; errors 0 / 0; points ever bad 26415 -> 31689
+   the plant, as the repaired code sees it: points newly marked by season {'2026': 5274}; choice sets that changed ['2027'] (2027: 25425 -> 20151)
+   substituted games under a chosen point (a = 1.0 grid): unplanted none; planted {'2005': {'through_own_season': 0, 'whole_walk': 1}, '2006': {'through_own_season': 0, 'whole_walk': 1}}
+   on the a = 1.0 grid itself the repair changes the unplanted fit in 0 of 22 seasons [] (not a published grid)
+   control 1378 against f-32's 1378; detector FIRES; repaired zero is non-vacuous -> planted case PASS
+
+-- no-change condition, registered grids (base code against repaired code, same store)
+   mov    207360 points: constants unchanged in 22 of 22 seasons; forecasts moved 0 of 15508 (max |dp| 0); Brier 0.181909 -> 0.181909
+   plain    9600 points: constants unchanged in 22 of 22 seasons; forecasts moved 0 of 15508 (max |dp| 0); Brier 0.186073 -> 0.186073
+   dBrier against home and against better record moves by +0.000000 (neither baseline reads grid_fit); against plain Elo -0.0042 -> -0.0042, a move of +0.000000 (published -0.0042); threshold 0.0015
+   registered MOV grid: 29505 points ever bad (base code masks 29505); points the repair returns to a season's choice set: min 224, max 9097 (f-32: 224 to 9,097); 2026: 224
+   substituted games under any chosen point: MOV 0, plain 0
+   secondary - repaired fits against the committed c-39 result (an earlier store): MOV differs in no season, plain differs in no season
+
+VERDICT: repaired

@@ -2416,3 +2416,17 @@ so it ships one tick later; it never raises and a failed build leaves the previo
       its own sampling SEs (cleared 3.4); 3.1% flip within 1 SE, 26.0% within 2, 47.1% within 3.
       The SE is sampling error only - it leaves out season-to-season drift - so this is not a
       significance statement about any lean.
+
+- **`models.cfb_game.grid_fit` no longer masks; eligibility is as-of the season being fitted**
+  (c-49, `research/c49_grid_fit_asof/`, pre-registered at `4ceaeca`;
+  `docs/findings/c49-grid-fit-asof.md`). It returns `(seasons, sums, counts, first_bad)` and
+  `best_params(..., first_bad, fit_from, year)` refuses a point only if it went bad in a season
+  before `year`; the old three-value unpack and six-argument call raise. On `cfb.db` of 2026-10-08:
+  f-32's planted case (a = 1.0 grid, one synthetic game after every real one) moves 1,378 of 15,508
+  earlier forecasts under the base code and 0 under the repair, with all 15,508 compared; on c-39's
+  registered grids the constants are unchanged in 22 of 22 seasons, 0 forecasts move and no
+  published dBrier moves (threshold 0.0015).
+  - `run` raises on a non-positive multiplier denominator unless given `undefined=[]`, which
+    substitutes 1.0 and records the game. `Walk` passes it; the rule has fired on no
+    registered-grid forecast, so what it does to forecast quality is unmeasured.
+  - The unit is the season: a point that goes bad during season T stays T's chosen point.

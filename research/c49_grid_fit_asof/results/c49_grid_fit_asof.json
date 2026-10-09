@@ -1,0 +1,235 @@
+{
+ "preregistration": "docs/C49-grid-fit-asof-preregistration.md @ 4ceaeca",
+ "store_fingerprint": "055ac7bd06b598a4a82f40bb577550289c91c8ea6de35d5454dce41c9bcba52d",
+ "games": 18991,
+ "population": 15508,
+ "f32_population": 15508,
+ "chunk": 8640,
+ "seconds": {
+  "base_a1": 27,
+  "base_a1_planted": 27,
+  "new_a1": 27,
+  "new_a1_planted": 27,
+  "base_mov": 102,
+  "new_mov": 105,
+  "base_plain": 5,
+  "new_plain": 5
+ },
+ "plant": {
+  "game": {
+   "game_id": "f32-synthetic",
+   "season": 2026,
+   "week": 99,
+   "season_type": "regular",
+   "start_ts": 1797192000.0,
+   "neutral": 0,
+   "conference_game": 0,
+   "home": "84",
+   "away": "2638",
+   "home_conf": "Big Ten",
+   "away_conf": "Mountain West",
+   "home_score": 0,
+   "away_score": 1,
+   "fit": true
+  },
+  "target": {
+   "k": 30.0,
+   "hfa": 70.0,
+   "regress": 0.1,
+   "a": 1.0,
+   "cap": null,
+   "conf_w": 1.0,
+   "entry": -300.0
+  },
+  "rating_gap_plus_hfa": 1091.9454392920297,
+  "needed": 1000.0,
+  "feasible": true,
+  "built_by": "D:\\temp\\c49\\base"
+ },
+ "planted_case": {
+  "control_base_code": {
+   "population": 15508,
+   "compared": 15508,
+   "moved": 1378,
+   "max_abs_delta_p": 0.06469531296682779,
+   "fits_changed": [
+    "2005",
+    "2006"
+   ],
+   "errors": {
+    "unplanted": {},
+    "planted": {}
+   },
+   "ever_bad": {
+    "unplanted": 26415,
+    "planted": 31689
+   }
+  },
+  "repaired_code": {
+   "population": 15508,
+   "compared": 15508,
+   "moved": 0,
+   "max_abs_delta_p": 0.0,
+   "fits_changed": [],
+   "errors": {
+    "unplanted": {},
+    "planted": {}
+   },
+   "ever_bad": {
+    "unplanted": 26415,
+    "planted": 31689
+   }
+  },
+  "f32_control": 1378,
+  "control_reproduces_f32": true,
+  "detector_fires": true,
+  "non_vacuous": true,
+  "pass": true,
+  "plant_seen": {
+   "points_marked_by_the_plant_by_season": {
+    "2026": 5274
+   },
+   "choice_sets_changed": [
+    "2027"
+   ],
+   "choice_set_2027": {
+    "unplanted": 25425,
+    "planted": 20151
+   },
+   "seen_only_by_the_season_after": true
+  },
+  "undefined": {
+   "new_a1": {},
+   "new_a1_planted": {
+    "2005": {
+     "through_own_season": 0,
+     "whole_walk": 1
+    },
+    "2006": {
+     "through_own_season": 0,
+     "whole_walk": 1
+    }
+   }
+  },
+  "a1_fits_changed_base_vs_repaired_unplanted": []
+ },
+ "no_change": {
+  "mov": {
+   "grid_points": 207360,
+   "seasons_unchanged": 22,
+   "seasons_changed": [],
+   "changed": {},
+   "forecasts_compared": 15508,
+   "forecasts_moved": 0,
+   "max_abs_delta_p": 0.0,
+   "brier_base": 0.18190884829752202,
+   "brier_repaired": 0.18190884829752202
+  },
+  "plain": {
+   "grid_points": 9600,
+   "seasons_unchanged": 22,
+   "seasons_changed": [],
+   "changed": {},
+   "forecasts_compared": 15508,
+   "forecasts_moved": 0,
+   "max_abs_delta_p": 0.0,
+   "brier_base": 0.18607301597426373,
+   "brier_repaired": 0.18607301597426373
+  },
+  "dbrier": {
+   "vs_home_and_vs_record_change": 0.0,
+   "vs_plain_elo_base": -0.004164167676741715,
+   "vs_plain_elo_repaired": -0.004164167676741715,
+   "vs_plain_elo_change": 0.0,
+   "threshold": 0.0015,
+   "published_vs_plain_elo": -0.0042
+  },
+  "choice_sets": {
+   "whole_walk": 177855,
+   "ever_bad": 29505,
+   "base_ever_bad": 29505,
+   "as_of": {
+    "2005": 186952,
+    "2006": 186361,
+    "2007": 186343,
+    "2008": 186017,
+    "2009": 185996,
+    "2010": 185176,
+    "2011": 184855,
+    "2012": 184821,
+    "2013": 184821,
+    "2014": 184821,
+    "2015": 184724,
+    "2016": 184708,
+    "2017": 184708,
+    "2018": 184294,
+    "2019": 182163,
+    "2020": 182153,
+    "2021": 178098,
+    "2022": 178080,
+    "2023": 178079,
+    "2024": 178079,
+    "2025": 178079,
+    "2026": 178079
+   },
+   "returned_by_the_repair": {
+    "2005": 9097,
+    "2006": 8506,
+    "2007": 8488,
+    "2008": 8162,
+    "2009": 8141,
+    "2010": 7321,
+    "2011": 7000,
+    "2012": 6966,
+    "2013": 6966,
+    "2014": 6966,
+    "2015": 6869,
+    "2016": 6853,
+    "2017": 6853,
+    "2018": 6439,
+    "2019": 4308,
+    "2020": 4298,
+    "2021": 243,
+    "2022": 225,
+    "2023": 224,
+    "2024": 224,
+    "2025": 224,
+    "2026": 224
+   },
+   "first_bad_by_season": {
+    "2001": 12480,
+    "2002": 3290,
+    "2003": 2220,
+    "2004": 2418,
+    "2005": 591,
+    "2006": 18,
+    "2007": 326,
+    "2008": 21,
+    "2009": 820,
+    "2010": 321,
+    "2011": 34,
+    "2014": 97,
+    "2015": 16,
+    "2017": 414,
+    "2018": 2131,
+    "2019": 10,
+    "2020": 4055,
+    "2021": 18,
+    "2022": 1,
+    "2026": 224
+   }
+  },
+  "undefined_games_under_chosen_points": {
+   "mov": 0,
+   "plain": 0
+  },
+  "secondary_vs_committed_c39_result": {
+   "mov": [],
+   "nomov": []
+  },
+  "constants_unchanged_22_of_22": true,
+  "no_dbrier_beyond_threshold": true,
+  "any_forecast_moved": false
+ },
+ "verdict": "repaired"
+}
