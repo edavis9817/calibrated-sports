@@ -1,0 +1,124 @@
+c-33 attack | extract live 780236 rows, historical 907421, kickoffs 1126 | unit run_ts 2026-10-06 04:00 UTC
+
+== 1 REPRODUCE (archived extract, target's run_panel, now = unit run_ts) ==
+  every est/lo/hi in the unit's result.json vs this re-run: 1116 identical, 0 different
+  L.dis.rush_yds.est           published    2.81  measured   2.8084  reproduces
+  L.dis.rush_yds.lo            published    2.15  measured   2.1534  reproduces
+  L.dis.rush_yds.hi            published    3.60  measured   3.6039  reproduces
+  L.dis.reception_yds.est      published    2.57  measured   2.5687  reproduces
+  L.dis.reception_yds.lo       published    2.17  measured   2.1717  reproduces
+  L.dis.reception_yds.hi       published    3.10  measured   3.0967  reproduces
+  H.dis.reception_yds.est      published    2.31  measured   2.3073  reproduces
+  H.dis.reception_yds.lo       published    2.22  measured   2.2180  reproduces
+  H.dis.reception_yds.hi       published    2.40  measured   2.4003  reproduces
+  H.dis.receptions.est         published    1.80  measured   1.8007  reproduces
+  H.dis.rush_attempts.est      published    1.85  measured   1.8475  reproduces
+  L.spearman.hold_dis          published   -0.48  measured  -0.4762  reproduces
+  L.hold.props_min             published    6.24  measured   6.2447  reproduces
+  L.hold.props_max             published    6.71  measured   6.7093  reproduces
+  L.hold.h2h                   published    4.17  measured   4.1731  reproduces
+  L.hold.spreads               published    4.45  measured   4.4471  reproduces
+  L.hold.totals                published    4.59  measured   4.5923  reproduces
+  H.hold.props_min             published    5.85  measured   5.8535  reproduces
+  H.hold.props_max             published    6.71  measured   6.7062  reproduces
+  H.hold.h2h                   published    4.25  measured   4.2527  reproduces
+  H.hold.spreads               published    4.68  measured   4.6812  reproduces
+  H.hold.totals                published    4.77  measured   4.7710  reproduces
+  L.dis.props_min              published    1.12  measured   1.1160  reproduces
+  L.dis.props_max              published    2.81  measured   2.8084  reproduces
+  L.dis.h2h                    published    0.77  measured   0.7664  reproduces
+  L.dis.spreads                published    0.68  measured   0.6765  reproduces
+  L.dis.totals                 published    0.63  measured   0.6326  reproduces
+  H.dis.props_min              published    1.22  measured   1.2211  reproduces
+  H.dis.props_max              published    2.31  measured   2.3073  reproduces
+  H.dis.h2h                    published    0.82  measured   0.8225  reproduces
+  H.dis.spreads                published    0.63  measured   0.6280  reproduces
+  H.dis.totals                 published    0.53  measured   0.5309  reproduces
+  L.mv.props_min               published    1.48  measured   1.4811  reproduces
+  L.mv.props_max               published    2.76  measured   2.7611  reproduces
+  L.mv.h2h                     published    1.37  measured   1.3741  reproduces
+  L.mv.spreads                 published    1.11  measured   1.1052  reproduces
+  L.mv.totals                  published    0.84  measured   0.8371  reproduces
+  games counted here from close event_ids: L 32 (kickoffs 09-25 -> 10-06 UTC; 2 NFL weeks, games per week [16, 16]; 6 kickoff days)  H 855
+
+== 2 BLOCKS (through soft_markets.game_vec + soft_markets.boot_means) ==
+  L rush_yds disagreement            THROUGH research.soft_markets.game_vec + boot_means (191 rows, 32 units): copies inside their block x1.000, copies as new blocks x0.434 (expected 0.447) -> honours_blocks | 6.0 rows per game
+  L disagreement props - game lines  THROUGH research.soft_markets.game_vec + boot_means (1554 rows, 32 units): copies inside their block x1.000, copies as new blocks x0.446 (expected 0.447) -> honours_blocks | 48.6 rows per game
+  H reception_yds - receptions       THROUGH research.soft_markets.game_vec + boot_means (20178 rows, 850 units): copies inside their block x1.000, copies as new blocks x0.452 (expected 0.447) -> honours_blocks | 23.7 rows per game
+  require_through: {'L rush_yds disagreement': 'honours_blocks', 'L disagreement props - game lines': 'honours_blocks', 'H reception_yds - receptions': 'honours_blocks'}
+  under the 32 rush_yds game values: 191 claims (player-games), 2753 book pairs; the game value is the mean over claims, so rows == units at the level the bootstrap sees
+  ALT rush_yds disagreement            by game        (32 blocks) +2.81 [+2.15, +3.55] SE 0.360 *
+  ALT rush_yds disagreement            by kickoff_day ( 6 blocks) +2.81 [+2.29, +3.65] SE 0.384 *
+  ALT rush_yds disagreement            by week        ( 2 blocks) +2.81 [+2.32, +3.29] SE 0.336  (<5 blocks: NOT READ)
+  ALT disagreement props - game lines  by game        (32 blocks) +1.10 [+0.95, +1.24] SE 0.072 *
+  ALT disagreement props - game lines  by kickoff_day ( 6 blocks) +1.10 [+1.04, +1.45] SE 0.098 *
+  ALT disagreement props - game lines  by week        ( 2 blocks) +1.10 [+1.04, +1.17] SE 0.046  (<5 blocks: NOT READ)
+    week block 0: 16 games | rush_yds 2.32  reception_yds 2.35  receptions 1.54  pass_tds 1.89  totals 0.62
+    week block 1: 16 games | rush_yds 3.29  reception_yds 2.78  receptions 1.93  pass_tds 1.81  totals 0.64
+  leave one book out (target's disagreement(), slope fixed), key means pp and rush_yds / reception_yds rank of 8:
+    without betmgm       rush_yds 2.72 (r1)  reception_yds 2.45 (r2)  receptions 1.53  pass_tds 1.65
+    without betonlineag  rush_yds 2.88 (r1)  reception_yds 2.67 (r2)  receptions 1.83  pass_tds 1.98
+    without betrivers    rush_yds 2.47 (r1)  reception_yds 2.34 (r2)  receptions 1.73  pass_tds 1.74
+    without bovada       rush_yds 3.37 (r1)  reception_yds 2.71 (r2)  receptions 1.89  pass_tds 1.96
+    without draftkings   rush_yds 3.06 (r1)  reception_yds 2.63 (r2)  receptions 1.94  pass_tds 2.00
+    without fanatics     rush_yds 2.82 (r1)  reception_yds 2.56 (r2)  receptions 1.73  pass_tds 1.76
+    without fanduel      rush_yds 2.34 (r2)  reception_yds 2.35 (r1)  receptions 1.49  pass_tds 1.86
+
+== 3 THE SLOPE'S OMITTED UNCERTAINTY ==
+  per-observation slopes reproduce the target's kappa on 7 keys: receptions 0.608 (ladder, n=898), reception_yds 0.469 (ladder, n=1326), rush_attempts 0.685 (cross-book, n=89), rush_yds 0.573 (ladder, n=676), pass_yds 1.313 (ladder, n=362), pass_attempts 1.014 (cross-book, n=144), pass_tds 0.431 (cross-book, n=49)
+  draws with no usable refitted slope (< 30 pairs or not positive; the same-line figure is used, as the target does): {'pass_tds': 268}
+  rush_yds        slope 0.573, refit 95% [0.558, 0.595] | interval, slope fixed [2.15, 3.60] -> refit in the draw [2.12, 3.65]  width x1.052
+  reception_yds   slope 0.469, refit 95% [0.459, 0.477] | interval, slope fixed [2.17, 3.10] -> refit in the draw [2.18, 3.08]  width x0.966
+  receptions      slope 0.608, refit 95% [0.592, 0.620] | interval, slope fixed [1.52, 1.98] -> refit in the draw [1.52, 1.97]  width x0.982
+  pass_yds        slope 1.313, refit 95% [1.267, 1.335] | interval, slope fixed [1.43, 1.73] -> refit in the draw [1.43, 1.72]  width x0.964
+  rush_attempts   slope 0.685, refit 95% [0.591, 0.778] | interval, slope fixed [1.42, 1.68] -> refit in the draw [1.42, 1.68]  width x1.015
+  pass_tds        slope 0.431, refit 95% [0.316, 0.542] | interval, slope fixed [1.57, 2.18] -> refit in the draw [1.44, 2.12]  width x1.122
+  pass_attempts   slope 1.014, refit 95% [0.733, 1.274] | interval, slope fixed [0.93, 1.30] -> refit in the draw [0.93, 1.30]  width x1.007
+  ORDER slope fixed (the unit) both_yards_top2 0.994  rush_yds_first 0.685  rush_yds_gt_reception_yds 0.685  rush_yds_gt_pass_tds 0.999  rush_yds_gt_receptions 1.000  reception_yds_gt_pass_tds 0.995  reception_yds_gt_receptions 1.000
+  ORDER slope refit per draw   both_yards_top2 0.996  rush_yds_first 0.696  rush_yds_gt_reception_yds 0.696  rush_yds_gt_pass_tds 0.999  rush_yds_gt_receptions 1.000  reception_yds_gt_pass_tds 0.996  reception_yds_gt_receptions 1.000
+  the slope as a SPECIFICATION (point estimates pp, rank of 8 in brackets; nothing here is resampled):
+    registered (cross-book)         receptions 1.71[2]  reception_yd 0.68[7]  rush_attempt 1.55[3]  rush_yds 0.73[6]  pass_yds 0.34[8]  pass_attempt 1.12[5]  pass_tds 1.85[1]  tackles_assi 1.14[4]
+    addendum (ladder median)        receptions 1.73[4]  reception_yd 2.57[2]  rush_attempt 1.55[6]  rush_yds 2.81[1]  pass_yds 1.58[5]  pass_attempt 1.12[8]  pass_tds 1.85[3]  tackles_assi 1.14[7]
+    ladder q25                      receptions 1.62[4]  reception_yd 2.13[2]  rush_attempt 1.55[5]  rush_yds 2.19[1]  pass_yds 1.45[6]  pass_attempt 1.12[8]  pass_tds 1.85[3]  tackles_assi 1.14[7]
+    ladder q75                      receptions 1.93[3]  reception_yd 3.04[2]  rush_attempt 1.55[6]  rush_yds 3.47[1]  pass_yds 1.67[5]  pass_attempt 1.12[8]  pass_tds 1.85[4]  tackles_assi 1.14[7]
+    adverse: yards q25, others q75  receptions 1.93[3]  reception_yd 2.13[2]  rush_attempt 1.55[6]  rush_yds 2.19[1]  pass_yds 1.67[5]  pass_attempt 1.12[8]  pass_tds 1.85[4]  tackles_assi 1.14[7]
+    unit's empirical slope          receptions 1.67[4]  reception_yd 2.19[1]  rush_attempt 1.55[5]  rush_yds 2.14[2]  pass_yds 1.33[6]  pass_attempt 1.12[8]  pass_tds 1.85[3]  tackles_assi 1.14[7]
+    each claim's own ladder slope   receptions 1.60[4]  reception_yd 2.14[2]  rush_attempt 1.55[6]  rush_yds 2.47[1]  pass_yds 1.55[5]  pass_attempt 1.12[8]  pass_tds 1.85[3]  tackles_assi 1.14[7]
+    movement, registered -> addendum (rank 1 = LEAST movement): receptions 2.25[7]->2.31[6]  reception_yd 0.57[2]->2.51[7]  rush_attempt 1.56[6]->1.56[4]  rush_yds 0.61[3]->2.22[5]  pass_yds 0.30[1]->1.48[1]  pass_attempt 1.54[5]->1.54[3]  pass_tds 1.50[4]->1.50[2]  tackles_assi 2.76[8]->2.76[8]
+  BREAKEVEN slope at which the yards key falls to the named key (ladder median, [q25, q75] beside it):
+    L rush_yds = pass_tds (1.85)         0.368   (used 0.573 [0.442, 0.709])
+    L rush_yds = receptions (1.73)       0.342   (used 0.573 [0.442, 0.709])
+    L reception_yds = pass_tds (1.85)    0.329   (used 0.469 [0.384, 0.559])
+    L reception_yds = receptions (1.73)  0.306   (used 0.469 [0.384, 0.559])
+  PANEL H (855 games), 2026 ladder slope borrowed: reception_yds 2.31, slope fixed [2.22, 2.40] -> 2026 slope draws carried [2.21, 2.41]  width x1.08
+    BREAKEVEN H reception_yds = receptions (1.80)    0.344   (used 0.469, borrowed from 2026; 2026 ladder [q25, q75] [0.384, 0.559])
+    BREAKEVEN H reception_yds = rush_attempts (1.85) 0.356   (used 0.469, borrowed from 2026; 2026 ladder [q25, q75] [0.384, 0.559])
+    H at ladder q25 (yards) / q75 (receptions)  reception_yds 1.95  receptions 1.99  (rush_attempts 1.85, own cross-book slope)
+    H at unit's empirical slopes                reception_yds 2.01  receptions 1.74  (rush_attempts 1.85, own cross-book slope)
+
+== 4 SPECIFICATIONS ==
+  registered_count(): REFUSED - c-33: no registered_intervals.count in the recorded result - refusing to correct over a made-up k
+  counted from the unit's result.json: 372 value intervals in panel tables (61 in the three primary tables), 20 forecastability intervals, 2 anytime-TD. Registered contrast intervals between keys or classes: 0
+  CLASS L.hold  props(8 keys) - game lines(3): +2.02 [+1.96, +2.09] SE 0.033 * pp | z 62.1 | Bonferroni k=[5, 61, 372]: [True, True, True] | weakest pair (pass_attempts vs h2h) holds in 1.000 of draws
+  CLASS H.hold  props(5 keys) - game lines(3): +1.81 [+1.79, +1.82] SE 0.006 * pp | z 288.1 | Bonferroni k=[5, 61, 372]: [True, True, True] | weakest pair (reception_yds vs h2h) holds in 1.000 of draws | 749 non-finite draws dropped
+  CLASS L.dis   props(8 keys) - game lines(3): +1.10 [+0.96, +1.25] SE 0.073 * pp | z 15.1 | Bonferroni k=[5, 61, 372]: [True, True, True] | weakest pair (tackles_assists vs h2h) holds in 0.994 of draws
+  CLASS H.dis   props(4 keys) - game lines(3): +1.13 [+1.10, +1.17] SE 0.017 * pp | z 67.9 | Bonferroni k=[5, 61, 372]: [True, True, True] | weakest pair (reception_yds vs h2h) holds in 1.000 of draws
+  CLASS L.mv    props(8 keys) - game lines(3): +0.88 [+0.61, +1.19] SE 0.144 * pp | z 6.1 | Bonferroni k=[5, 61, 372]: [True, True, True] | weakest pair (pass_yds vs h2h) holds in 0.687 of draws
+  SPEARMAN hold vs disagreement, 8 keys: -0.4762 | exact permutation p (40,320 orders, two-sided) 0.2431 | |rho| needed for p<0.05 at n=8: 0.714
+    over the unit's 2,000 game draws: rho 95% [-0.60, -0.07], share of draws < 0: 0.999 | under the REGISTERED slope the same rho is +0.74
+
+== 5 MDE on the between-key differences (the unit stated no MDE and no difference interval) ==
+  L rush_yds - receptions           +1.07pp | slope fixed [+0.40, +1.87] MDE 1.03 ratio 1.04 at    | slope drawn [+0.39, +1.94] MDE 1.09 ratio 0.99 at
+  L rush_yds - pass_tds (next key)  +0.96pp | slope fixed [+0.27, +1.73] MDE 1.02 ratio 0.94 at    | slope drawn [+0.38, +1.95] MDE 1.09 ratio 0.88 at
+  L reception_yds - receptions      +0.83pp | slope fixed [+0.38, +1.40] MDE 0.72 ratio 1.16 at    | slope drawn [+0.39, +1.38] MDE 0.71 ratio 1.18 at
+  L reception_yds - pass_tds        +0.72pp | slope fixed [+0.16, +1.39] MDE 0.89 ratio 0.81 at    | slope drawn [+0.24, +1.51] MDE 0.91 ratio 0.79 below
+  H reception_yds - receptions      +0.51pp | slope fixed [+0.42, +0.60] MDE 0.13 ratio 3.91 clear | slope drawn [+0.42, +0.61] MDE 0.14 ratio 3.72 clear
+  H reception_yds - rush_attempts   +0.46pp | slope fixed [+0.37, +0.55] MDE 0.13 ratio 3.45 clear | slope drawn [+0.36, +0.56] MDE 0.14 ratio 3.19 clear
+  mde_claim: {'stated': None, 'remeasured': 0.010293390160270742, 'rel_diff': None, 'consistent': False}
+
+== 6 LEAKAGE: no forecast, so no scramble. What applies: are both movement reads before kickoff? ==
+  L close   8965 rows | read lead: min 0.4s median 0.05h max 1.5h | book last_update at/after kickoff: 0, after the read: 0, null: 0
+  L open    7285 rows | read lead: min 86405.9s median 24.03h max 72.0h | book last_update at/after kickoff: 0, after the read: 0, null: 0
+  H prop 'close' read lead, minutes before nfl_games kickoff: min 14 median 14 p95 14 max 14; no source_ts exists on H rows
+
+elapsed 29s

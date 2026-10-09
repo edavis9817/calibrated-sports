@@ -1,0 +1,12 @@
+f-31 run 4: every sub-agent adapter RE-RUN by the parent, exit code captured on the line after the command (never through a pipe).
+One sub-agent ran `taskkill /F /IM timeout.exe` mid-run, which killed four timeout wrappers machine-wide; the exit codes the
+c-35 and c-38 sub-agents had captured were therefore unverified. These are the parent's:
+
+  attack_c40.py  rc 0   output identical to c40.log except the --out path
+  attack_c41.py  rc 0   steps 1-5 identical; power plant re-drawn at 30 reps: 0.033 -> 37% pass, 0.045 -> 90% (sub-agent, 80 reps: 41%, 85%)
+  attack_c33.py  rc 0   output identical to c33.log except a numpy RuntimeWarning on stderr and the elapsed line
+  attack_c35.py  rc 0   output identical to c35.log except the --out path
+  attack_c34.py  rc 0 / 0 / 0  (--part a, blocks, b); c34.log in this directory IS the parent's run
+  attack_c38.py  rc 0   from the sub-agent's cached rows (pipeline not re-run a second time); 16 of 16 figures REPRODUCE, six THROUGH lines equal
+                        (a first parent invocation exited 1 on a scratch directory the parent had not created - the invocation, not the adapter)
+  sentences_a75.py, uptime_a74.py, clusters_f28.py   rc 0 each, run by the parent only

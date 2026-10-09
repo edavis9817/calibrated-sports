@@ -1,0 +1,71 @@
+A. carried figures against F's committed run files (6 files, 164 distinct magnitudes)
+  game/nfl/record_total.json|vs_close                             9 floats, 0 not found in F's files 
+  game/nfl/record_total.json|against_baselines[id=league]         5 floats, 0 not found in F's files 
+  game/nfl/record_total.json|against_baselines[id=season_avg]     5 floats, 0 not found in F's files 
+  game/nfl/record_spread.json|against_shape                       6 floats, 1 not found in F's files [('alpha', 0.05)]
+  game/nfl/forecast.json|season_stage[stage=weeks_1_4]            6 floats, 0 not found in F's files 
+  -> 30 of 31 carried floats appear somewhere in F's run files (a VALUE match, not an identity: A2 is the identity)
+  A2 vs_close served                    one line of c31_served.log  holds [0.004, 0.0019, 0.0063]: YES
+       | == SERVED vs_close (record_total.json, as fetched): +0.0040 [+0.0019, +0.0063] over 5216 games
+  A2 vs_close no-wind                   one line of c31_served.log  holds [0.0056, 0.0035, 0.0079]: YES
+       | no wind: +0.0056 [+0.0035, +0.0079] SE 0.00111 *   | recorded wind is worth -0.00157 [-0.00268, -0.00044] SE 0.000570 * Brier on this comparison
+  A2 vs_close wind_worth                one line of c31_served.log  holds [0.0016, 0.0004, 0.0027]: YES
+       | no wind: +0.0056 [+0.0035, +0.0079] SE 0.00111 *   | recorded wind is worth -0.00157 [-0.00268, -0.00044] SE 0.000570 * Brier on this comparison
+  A2 league: registered | no-wind       one line of run1/c31.log    holds [0.0075, 0.0065, 0.0078, 0.0052]: YES
+       | league     registered (recorded wind) -0.0075 | no wind -0.0065 [-0.0078, -0.0052] SE 0.00067 *
+  A2 season_avg: registered | no-wind   one line of run1/c31.log    holds [0.0063, 0.0053, 0.0067, 0.004]: YES
+       | season_avg registered (recorded wind) -0.0063 | no wind -0.0053 [-0.0067, -0.0040] SE 0.00066 *
+  A2 pooled dBrier(E-N0)                one line of c30.log         holds [0.0009, 0.0003, 0.0016]: YES
+       | ######## pooled_dBrier (n 6580)  +0.0009 [+0.0003, +0.0016] SE 0.00033 *
+  A2 run-2 c30.log carries p 0.3786     True
+  A2 run-2 c30.log carries ratio 1.00   True
+  A2 run-2 c30.log carries 72           True
+  A2 run-2 a-63 verdict holds -0.0008: True
+  A2 run-2 a-63 verdict holds -0.0024: True
+  A2 run-2 a-63 verdict holds +0.0009: True
+  A2 run-2 a-63 verdict holds -0.0017: True
+  A2 run-2 a-63 verdict holds -0.0031: True
+  A2 run-2 a-63 verdict holds -0.0004: True
+  A2 the a-63 / c-28 verdicts carry '25 of 25' True
+  A2 the a-63 / c-28 verdicts carry '\\b40\\b' True
+  A2 the a-63 / c-28 verdicts carry '\\b120\\b' True
+  A2 the a-63 / c-28 verdicts carry 'one seed' True
+  PLANT a carried no-wind of 0.0167 is found in F's files: False (must be False)
+
+B. served_matches and the gate, driven to the other answer
+  game/nfl/record_total.json|vs_close                            same True | est +0.0002 False | est +0.00004 True | interval replaced by [-0.9, +0.9] True
+  game/nfl/record_total.json|against_baselines[id=league]        same True | est +0.0002 False | est +0.00004 True | interval replaced by [-0.9, +0.9] True
+  game/nfl/record_total.json|against_baselines[id=season_avg]    same True | est +0.0002 False | est +0.00004 True | interval replaced by [-0.9, +0.9] True
+  game/nfl/record_spread.json|against_shape                      same True | est +0.0002 False | est +0.00004 True | interval replaced by [-0.9, +0.9] True
+  game/nfl/forecast.json|season_stage[stage=weeks_1_4]           same True | est +0.0002 False | est +0.00004 True | interval replaced by [-0.9, +0.9] True
+  a-75's own export output: 20 files
+  gate on it, untouched: sentence check: 20 figure(s) that need a sentence carry it, across 20 file(s)
+  gate PLANT record_total vs_close: sentence removed                                      raises True  (must True) game/nfl/record_total.json: vs_close.d_brier is served without its sentence - refusing
+  gate PLANT record_spread: sentence reworded by hand                                     raises True  (must True) game/nfl/record_spread.json: the sentence at against_shape is not the one its figures word - refusin
+  gate PLANT record_total vs_close: served estimate moved to +0.0090, OLD qualifier left  raises True  (must True) game/nfl/record_total.json: the sentence at vs_close is not the one its figures word - refusing
+  gate PLANT same move, qualifier REBUILT as a real export would rebuild it               raises False (must False) 
+     -> that file passes the gate with served_matches=False, wording: ... With wind taken out of the model the same comparison is +0.0056 [+0.0035, +0.0079]: recorded wind moves it by 0.0016 [0.0004, 0.0027], which makes the published figure the unfavourable end.
+     -> served_matches CAN read False; when it does NOTHING refuses. It is a flag in the file, not a gate.
+  in a-75's export: 20 qualifier blocks, served_matches true on 20
+
+C. where the weeks 1-4 figure is served in a-75's own export, and where its sentence is
+  game/nfl/forecast.json        1 holder(s) of the stage figure, 1 with the sentence
+  game/nfl/matchup/*           15 holder(s) of the stage figure, 15 with the sentence
+  record.json by_stage.weeks_1_4.vs.elo_nomov = {"brier_model": 0.229, "brier_baseline": 0.2298, "d_brier": {"estimate": -0.0008, "interval": [-0.0024, 0.0007], "se": 0.0008, "verdict": "contains_zero"}}
+  a `qualifier` key anywhere under record.json by_stage.weeks_1_4: False ; anywhere in record.json: False
+  REQUIRED (the figures the gate knows) = ['game/nfl/forecast.json|season_stage[stage=weeks_1_4]', 'game/nfl/record_spread.json|against_shape', 'game/nfl/record_total.json|against_baselines[id=league]', 'game/nfl/record_total.json|against_baselines[id=season_avg]', 'game/nfl/record_total.json|vs_close']
+  record.json among them: False  -> the gate cannot refuse record.json for it
+  matchup files whose numbers.total.record carries total figures with NO sentence: 15 of 15
+
+D. what PRODUCTION serves (fetched over HTTP into D:/temp/f31/served)
+  record.json          generated_at 2026-10-07T13:30:09Z  objects with a non-null qualifier: 0
+     by_stage.weeks_1_4.vs.elo_nomov = {"brier_model": 0.229, "brier_baseline": 0.2298, "d_brier": {"estimate": -0.0008, "interval": [-0.0024, 0.0007], "se": 0.0008, "verdict": "contains_zero"}}
+  record_total.json    generated_at 2026-10-01T13:29:37Z  objects with a non-null qualifier: 0
+  record_spread.json   generated_at 2026-10-01T13:29:37Z  objects with a non-null qualifier: 0
+  forecast.json        generated_at 2026-10-07T13:30:09Z  objects with a non-null qualifier: 0
+     season_stage stage=weeks_5_plus vs_elo_nomov={"estimate": -0.0032, "interval": [-0.0042, -0.0021], "se": 0.0005, "verdict": "below"}
+        statement='This is week 5. From week 5 on, this forecast has been better than the same rating without the margin-of-victory term (plain Elo): the difference in forecast error (Brier score) is -0.0032 [-0.0042, -'
+     season_stage.other stage=weeks_1_4 vs_elo_nomov={"estimate": -0.0008, "interval": [-0.0024, 0.0007], "se": 0.0008, "verdict": "contains_zero"}
+        statement=''
+
+checks that came out the wrong way: 0

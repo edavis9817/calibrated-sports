@@ -38,7 +38,20 @@ import sys
 
 WINDOW_START = "2026-09-30T01:38:40-04:00"          # f-23 finished
 PRIOR_ATTACKS = {"a-57": "f-22", "c-27": "f-23"}    # attacked before the marker existed
-SELF_TRACK_ATTACKS = re.compile(r"^f-(2[1236789]|30)$")  # the adversarial units themselves (f-27 repair, f-29 run 3, f-30 college build) are not targets
+SELF_TRACK_ATTACKS = re.compile(r"^f-(2[123]|30)$")   # attack units that left no file in this directory: f-21..f-23 (before it existed), f-30 (research/f30_cfb_build/)
+AGENT_DIR = "research/f26_reliability/"
+
+
+def is_attack_unit(unit, d):
+    """The adversarial units themselves are not targets. f-31: this was a regex of unit numbers that every run had
+    to extend by hand (it stopped at f-26 and ranked f-27; extended to f-27/f-29 it also swallowed f-28, which is
+    NOT an attack unit, and still missed f-30 and f-31). The rule is now the evidence: a track-F unit whose own
+    files_changed touch this directory ran the agent. The regex keeps only the units that rule cannot see."""
+    if SELF_TRACK_ATTACKS.match(unit):
+        return "listed"
+    if unit.startswith("f-") and any(AGENT_DIR in f.replace("\\", "/") for f in d.get("files_changed") or []):
+        return "its files_changed touch " + AGENT_DIR
+    return None
 INTERVAL = re.compile(r"([+-]?\d+\.\d+)(?:pp|c|%)?\s*\[\s*([+-]?\d+\.\d+)\s*,\s*([+-]?\d+\.\d+)\s*\]")
 PUBLISHES = re.compile(r"(^|/)(jobs/[a-z_]*export[a-z_]*\.py|jobs/game_[a-z_]+\.py|web/contract/|app/|lib/)")
 MERGE_ASK = re.compile(r"\bmerg(e|ing)\b|\bto (origin/)?main\b", re.I)
@@ -126,7 +139,7 @@ def window(reports, marker):
     start = dt.datetime.fromisoformat(marker["window_start"]).timestamp()
     done = set(marker["verdicts"]) | set(marker["declined"])
     return sorted((u for u, d in reports.items() if d["_ts"] > start and u not in done
-                   and not SELF_TRACK_ATTACKS.match(u)), key=lambda u: reports[u]["_ts"])
+                   and not is_attack_unit(u, d)), key=lambda u: reports[u]["_ts"])
 
 
 def rank(reports, marker):
@@ -181,6 +194,9 @@ def main(argv):
         print("  %-5s score %d  %-52s %2d intervals  headline %s"
               % (x["unit"], x["score"], "; ".join(x["why"]) or "-", x["intervals"], x["headline"]))
     print("  no interval stated (not targets for this checklist): %s" % ", ".join(no_claim))
+    excl = {u: is_attack_unit(u, d) for u, d in reports.items() if is_attack_unit(u, d)}
+    print("  excluded as the agent's own units (never targets): %s"
+          % ", ".join("%s (%s)" % kv for kv in sorted(excl.items(), key=lambda kv: int(kv[0][2:]))))
     if a.needs_ethan:
         seen = set(marker.get("seen") or [])
         new_units = [u for u in win if u not in seen]      # counted once: a unit an earlier run saw is not recounted

@@ -41,7 +41,11 @@ unit that was ranked and not reached is still a target next run; nothing ages ou
 
 - **Window**: every machine report finished after `window_start` (fixed at f-23's
   finish, 2026-09-30T01:38 EDT — the last adversarial unit before this one) that has
-  no verdict and is not itself an attack unit.
+  no verdict and is not itself an attack unit. **An attack unit is recognised by what it touched,
+  not by its number** (f-31): a track-F unit whose `files_changed` touch this directory ran the agent. The
+  number regex this replaced had to be extended by hand every run - it ranked f-27, the agent's own repair,
+  as a target, and once widened to f-27/f-29 it also swallowed f-28, which is not an attack unit. The regex
+  survives only for units that left no file here (f-21..f-23, f-30). `select.py` prints who it excluded and why.
 - **Target**: a unit whose report states an estimate with an interval. No interval,
   no claim this checklist can attack; those units are listed, not ranked.
 - **Rank**: +3 if a page will publish the claim (the unit's own files touch an export,
@@ -124,6 +128,27 @@ happened yet. Plant the failing row in memory and show the count move.
 Diff the files the hashed job imports first; if the unit touched none of them the hash is a
 restatement of the diff. Then plant a change and show the hash moves.
 
+## A null is attacked for its power, not only its arithmetic (run 4)
+
+A null that reproduces can still be worded past what its test could see. Two checks, both from run 4:
+
+- **Push a planted effect through the target's own pass rule.** c-41's rule required the out-of-sample gain to
+  exceed its realized MDE; by construction that passes a true effect at the MDE about half the time. Its stated
+  "rules out about 2 points per sd" was the rule's 9% point; the 80% point was 4.5-5. The plant also shows the
+  rule CAN pass, which is what makes the null a null.
+- **Ask what the perturbation could have reached.** c-34's "MDE is 6-11% of the gap" was arithmetic on an
+  adjustment that, made perfect on every row it touches, closes 15% of that gap. Measure the ceiling before
+  calling a null tight.
+
+And for a positive: **find the null the claim needs.** c-40's 66.1% rejected a uniform null at p 2e-19 and sat at
+the 62nd percentile of the label-permutation null; c-35's 95.8% was far from noise and equal to what another
+player's ladder gives.
+
+**Sub-agents (run 4).** Six targets were attacked by one sub-agent each, in parallel, from one written brief.
+Every adapter was then re-run by the run itself with its own exit code, because a sub-agent's summary is a
+report and not a measurement. Tell a sub-agent never to kill processes by image name: one ran
+`taskkill /F /IM timeout.exe` and removed the time limit from two other adapters mid-run.
+
 ## Verdicts
 
 - **citable** — survived every step that was run; the report names the steps.
@@ -164,6 +189,22 @@ so the hand count is a floor.
     attack_c37.py    c-37's yards result, from its scratch rows     arithmetic only, NO leakage step
     attack_c29.py    c-29's CLV record                              own script re-run, compared lean by lean
     receipts_blocks.py  the Receipts hit rate, from the Board ledger   per-lean interval against block intervals
+    attack_c38.py    c-38's cross-sport contrast                    pipeline re-run (~7 min: give it a timeout) or cached
+                     rows; carried-walk scramble with a misdated-game plant; an unregistered re-binning
+    attack_c41.py    c-41's residual null                           own script re-run; a POWER PLANT - a synthetic
+                     candidate of known size pushed through the target's own pass rule (--plant-reps, --plant-b)
+    attack_c40.py    c-40's counterfactual ledger, from its rows    NO leakage step; the label-permutation null the
+                     claim-about-misses needs; the 19 excluded leans bounded
+    attack_c35.py    c-35's ladder edges, from its extract cache    NO leakage step; a measured null for the level share
+    attack_c34.py    c-34's injury null                             three processes (--part a | blocks | b), b is the
+                     pipeline; 'is the arm inert' and oracle / toward-the-close plants
+    attack_c33.py    c-33's soft markets, from its archived extract the slope as a specification, not as sampling error
+    sentences_a75.py a-75's attached sentences (no interval)        carried figures traced to F's own run files; the gate
+                     and served_matches driven to both answers; where the figure is still served bare
+    uptime_a74.py    a-74's poll-gap uptime (no interval)           own re-count on poll_log, mode=ro; the outages on
+                     record; what 'up' hides when one venue is silent
+    clusters_f28.py  f-28's cluster count (no interval)             replayed to the registered population hash; where a
+                     cluster count is written
     attack_rows.py   any coefficient published with its rows       arithmetic only, NO leakage step;
                      --src/--boot hand the rows to the target's own bootstrap (without them the
                      blocks step prints NOT RUN, it does not pass)

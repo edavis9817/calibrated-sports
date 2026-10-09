@@ -1,0 +1,43 @@
+poll_log: 181936 rows, 181907 ok, first 2026-09-09 02:52:03Z, read closes 2026-10-08 23:17:57Z
+
+1. re-count
+  this file: 10 gaps over 300 s, 244.5 min down of 42986, up share 0.9943, longest 84.4 min
+  a-74's find_gaps/window_uptime on the same rows: 10 gaps, up share 0.994313, longest 84.4 min
+  the two agree: True
+  a-74 REPORTED at 2026-10-08 21:08Z: 99.43% up, 10 gaps, longest 84.4. Today's read: 99.43%, 10 gaps, longest 84.4
+    gap 2026-09-11 06:42:38Z -> 2026-09-11 06:49:25Z     6.8 min
+    gap 2026-09-15 02:18:04Z -> 2026-09-15 03:42:30Z    84.4 min
+    gap 2026-09-24 07:24:03Z -> 2026-09-24 07:29:11Z     5.1 min  (cadence floor, <= 330 s)
+    gap 2026-09-29 15:59:22Z -> 2026-09-29 16:05:26Z     6.1 min
+    gap 2026-09-29 16:11:06Z -> 2026-09-29 16:16:13Z     5.1 min  (cadence floor, <= 330 s)
+    gap 2026-09-29 16:21:07Z -> 2026-09-29 16:26:13Z     5.1 min  (cadence floor, <= 330 s)
+    gap 2026-09-29 16:31:08Z -> 2026-09-29 16:36:17Z     5.2 min  (cadence floor, <= 330 s)
+    gap 2026-09-30 06:03:58Z -> 2026-09-30 06:09:08Z     5.2 min  (cadence floor, <= 330 s)
+    gap 2026-10-04 14:50:22Z -> 2026-10-04 15:28:04Z    37.7 min
+    gap 2026-10-06 03:24:06Z -> 2026-10-06 04:47:55Z    83.8 min
+
+2. the outages on record, and plants
+  a-65 (2026-10-04 14:50:00Z, 37.7 min): a gap starts within 10 min of it: True 2026-10-04 14:50:22Z 37.7 min
+  a-67 (2026-10-06 03:24:00Z, 83.8 min): a gap starts within 10 min of it: True 2026-10-06 03:24:06Z 83.8 min
+  PLANT one hour of successful polls removed at 2026-09-24 06:07:23Z: a-74 finds it: True (11 gaps, was 10)
+  PLANT a poll every 60 s for the whole window: gaps 0 (must be 0)
+  PLANT the same hour with every poll present but ok=0 (a LIVE process recording failures): reads as a gap: True
+
+3. what 'up' does not mean: the same 300 s rule on one venue's successful polls
+  kalshi       silent >  300 s: 1850 spans,   9544.2 min; of that   9299.7 min while the published figure reads UP (longest such span 10.1 min)
+  kalshi       silent >  900 s:    4 spans,    222.1 min; of that      9.4 min while the published figure reads UP (longest such span 0.0 min)
+  kalshi       silent > 3600 s:    2 spans,    168.9 min; of that      0.6 min while the published figure reads UP (longest such span 0.0 min)
+  oddsapi      silent >  300 s: 4046 spans,  40139.4 min; of that  39894.9 min while the published figure reads UP (longest such span 20.2 min)
+  oddsapi      silent >  900 s:    6 spans,    266.6 min; of that     48.8 min while the published figure reads UP (longest such span 20.2 min)
+  oddsapi      silent > 3600 s:    2 spans,    171.7 min; of that      3.4 min while the published figure reads UP (longest such span 0.0 min)
+  polymarket   silent >  300 s: 1594 spans,   8189.8 min; of that   7945.3 min while the published figure reads UP (longest such span 6.2 min)
+  polymarket   silent >  900 s:    3 spans,    206.1 min; of that      0.2 min while the published figure reads UP (longest such span 0.0 min)
+  polymarket   silent > 3600 s:    2 spans,    168.3 min; of that      0.1 min while the published figure reads UP (longest such span 0.0 min)
+  PLANT venue A silent for 180 min while venue B polls every 60 s: a-74 up_share 1.0, gaps 0
+     -> by the rule as written this reads fully up. It is the rule, not a bug; it is why the figure is not a capture figure.
+
+4. the wording that travels with the figure (DEFINITIONS['uptime'], exported in the file):
+     Computed from successful-poll gaps, not process liveness: a gap is more than 300 s between consecutive poll_log rows with ok = 1 (any venue, any endpoint); minutes up is the window minus the gaps inside it. The window runs from the first poll on record to the read time.
+   summary() prints 'up 99.xx% of N min; ...' with no definition beside it
+
+checks that came out the wrong way: 0

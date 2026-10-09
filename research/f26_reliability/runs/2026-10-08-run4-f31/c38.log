@@ -1,0 +1,104 @@
+# attack_c38.py stdout. Two invocations: the first re-ran the pipeline and printed
+#   pipeline RE-RUN: NFL loader 15s, college loader 393s; 15 scalar C.run calls seen
+# and steps 1, 2, 4, 5 identical to the below (diffed). Step 3 below is from the second invocation, over the cached rows,
+# after two corrections to the ATTACKER's step 3: the plant must misfile season as well as start_ts (the walk orders by
+# (season, start_ts)) - the first plant DID NOT FIRE; and the college walks audited must be arm N / N0 (hfa_on_neutral), not
+# c-39's last two lazy Walk calls.
+rows from cache D:/temp/f31/c-38/rows.pkl (pipeline NOT re-run in this invocation)
+
+== 1. REPRODUCE: the target's own main() over the re-derived rows, against its committed JSON
+   main() rc 0; 1442 numeric leaves compared with research/results/cross_sport.json, 1 differ
+      differs /cfb/odds_api_census/no_fresh_pair: committed 89, re-run 85
+   D_home college - NFL       measured -0.035942  published -0.0359  -> REPRODUCES
+   Dm_home est                measured -0.002807  published -0.0028  -> REPRODUCES
+   Dm_home lo                 measured -0.007088  published -0.0071  -> REPRODUCES
+   Dm_home hi                 measured +0.001220  published +0.0012  -> REPRODUCES
+   D_record college - NFL     measured -0.021727  published -0.0217  -> REPRODUCES
+   Dm_record est              measured -0.007341  published -0.0073  -> REPRODUCES
+   Dm_record lo               measured -0.011532  published -0.0115  -> REPRODUCES
+   Dm_record hi               measured -0.002929  published -0.0029  -> REPRODUCES
+   D_elo_nomov college - NFL  measured -0.001496  published -0.0015  -> REPRODUCES
+   Dm_elo_nomov est           measured -0.003241  published -0.0032  -> REPRODUCES
+   Dm_elo_nomov lo            measured -0.004618  published -0.0046  -> REPRODUCES
+   Dm_elo_nomov hi            measured -0.001776  published -0.0018  -> REPRODUCES
+   Holm-significant of 16     measured +16.000000  published +16.0000  -> REPRODUCES
+   n NFL                      measured +6743.000000  published +6743.0000  -> REPRODUCES
+   n college                  measured +15508.000000  published +15508.0000  -> REPRODUCES
+
+== 2. BLOCKS: THROUGH the target's boot() + interval() (+ matched() for Dm), 300 draws
+   within cfb d_elo_nomov   THROUGH cross_sport.boot+interval (15508 rows, 15508 units): copies inside their block x0.381, copies as new blocks x0.381 (expected 0.447) -> row_bootstrap_one_per_unit
+                            Tab's 'a game appears twice' guard fired 1 time(s) on the in-block copies and was bypassed
+   within nfl d_elo_nomov   THROUGH cross_sport.boot+interval (6743 rows, 6743 units): copies inside their block x0.449, copies as new blocks x0.449 (expected 0.447) -> row_bootstrap_one_per_unit
+                            Tab's 'a game appears twice' guard fired 1 time(s) on the in-block copies and was bypassed
+   between D_elo_nomov      THROUGH cross_sport.boot x2 (seeds 3801/3802)+interval (22251 rows, 22251 units): copies inside their block x0.501, copies as new blocks x0.501 (expected 0.447) -> row_bootstrap_one_per_unit
+                            Tab's 'a game appears twice' guard fired 2 time(s) on the in-block copies and was bypassed
+   between D_home           THROUGH cross_sport.boot x2 (seeds 3801/3802)+interval (22251 rows, 22251 units): copies inside their block x0.481, copies as new blocks x0.481 (expected 0.447) -> row_bootstrap_one_per_unit
+                            Tab's 'a game appears twice' guard fired 2 time(s) on the in-block copies and was bypassed
+   matched Dm_home          THROUGH cross_sport.boot x2 (bins)+matched+interval (22251 rows, 22251 units): copies inside their block x0.483, copies as new blocks x0.483 (expected 0.447) -> row_bootstrap_one_per_unit
+                            Tab's 'a game appears twice' guard fired 2 time(s) on the in-block copies and was bypassed
+   matched Dm_elo_nomov     THROUGH cross_sport.boot x2 (bins)+matched+interval (22251 rows, 22251 units): copies inside their block x0.492, copies as new blocks x0.492 (expected 0.447) -> row_bootstrap_one_per_unit
+                            Tab's 'a game appears twice' guard fired 2 time(s) on the in-block copies and was bypassed
+   rows == units in every claim (22251 rows, 22251 distinct games across both sports): the target's bootstrap is a ROW bootstrap
+   that never sees a game label; it is a game bootstrap because Tab refuses a repeated game.
+   the matched interval: NFL bin shares are recomputed in every NFL resample (cross_sport.matched reads dr_n['share'][j]); held FIXED instead:
+      Dm_home       resampled -0.0028 [-0.0071, +0.0012] SE 0.00217 | fixed -0.0028 [-0.0071, +0.0013] SE 0.00218 | width ratio fixed/resampled 1.012 | draws dropped 0
+      Dm_record     resampled -0.0073 [-0.0115, -0.0029] SE 0.00217 * | fixed -0.0073 [-0.0116, -0.0029] SE 0.00218 * | width ratio fixed/resampled 1.009 | draws dropped 0
+      Dm_elo_nomov  resampled -0.0032 [-0.0046, -0.0018] SE 0.00074 * | fixed -0.0032 [-0.0046, -0.0018] SE 0.00073 * | width ratio fixed/resampled 0.991 | draws dropped 0
+   alt_blocks (f26lib's bootstrap, blocks pooled over both sports so the per-sport block count is not held fixed):
+      D_home        game                     (22251 blocks) -0.0359 [-0.0402, -0.0316] SE 0.00224 *
+      D_home        season-week (per sport)  (  868 blocks) -0.0359 [-0.0408, -0.0312] SE 0.00239 *
+      D_home        season (per sport)       (   46 blocks) -0.0359 [-0.0410, -0.0310] SE 0.00251 *
+      D_record      game                     (22251 blocks) -0.0217 [-0.0254, -0.0182] SE 0.00189 *
+      D_record      season-week (per sport)  (  868 blocks) -0.0217 [-0.0256, -0.0175] SE 0.00207 *
+      D_record      season (per sport)       (   46 blocks) -0.0217 [-0.0255, -0.0180] SE 0.00192 *
+      D_elo_nomov   game                     (22251 blocks) -0.0015 [-0.0026, -0.0003] SE 0.00058 *
+      D_elo_nomov   season-week (per sport)  (  868 blocks) -0.0015 [-0.0027, -0.0003] SE 0.00062 *
+      D_elo_nomov   season (per sport)       (   46 blocks) -0.0015 [-0.0026, -0.0004] SE 0.00055 *
+      Dm_home       game                     (22251 blocks) -0.0028 [-0.0070, +0.0015] SE 0.00217
+      Dm_home       season-week (per sport)  (  868 blocks) -0.0028 [-0.0073, +0.0014] SE 0.00223
+      Dm_home       season (per sport)       (   46 blocks) -0.0028 [-0.0068, +0.0016] SE 0.00217
+      Dm_record     game                     (22251 blocks) -0.0073 [-0.0115, -0.0031] SE 0.00217 *
+      Dm_record     season-week (per sport)  (  868 blocks) -0.0073 [-0.0116, -0.0033] SE 0.00211 *
+      Dm_record     season (per sport)       (   46 blocks) -0.0073 [-0.0116, -0.0032] SE 0.00215 *
+      Dm_elo_nomov  game                     (22251 blocks) -0.0032 [-0.0046, -0.0018] SE 0.00071 *
+      Dm_elo_nomov  season-week (per sport)  (  868 blocks) -0.0032 [-0.0047, -0.0017] SE 0.00076 *
+      Dm_elo_nomov  season (per sport)       (   46 blocks) -0.0032 [-0.0047, -0.0020] SE 0.00069 *
+
+== 3. LEAKAGE - TRANSFER ARMS ONLY (the walk-forward fits are c-28's / c-39's: NOT RUN here)
+   carried MOV   walk over nfl (7548 games): scores at/after the 60th-percentile kickoff scrambled, 4390 earlier forecasts checked, 0 moved (2921 later moved); planted misdated game: 2149 earlier moved -> FIRES
+   carried plain walk over nfl (7548 games): scores at/after the 60th-percentile kickoff scrambled, 4390 earlier forecasts checked, 0 moved (2915 later moved); planted misdated game: 2149 earlier moved -> FIRES
+   carried MOV   walk over cfb (18991 games): scores at/after the 60th-percentile kickoff scrambled, 11091 earlier forecasts checked, 0 moved (7355 later moved); planted misdated game: 5172 earlier moved -> FIRES
+   carried plain walk over cfb (18991 games): scores at/after the 60th-percentile kickoff scrambled, 11091 earlier forecasts checked, 0 moved (7332 later moved); planted misdated game: 5173 earlier moved -> FIRES
+   the carried constants: fitted by c-28 / c-39 on the OTHER sport's seasons through 2025 and applied to every season of the
+   receiving sport from its first - not walk-forward in time. No receiving-sport game enters them (reading).
+
+== 4-5. SPECIFICATIONS (the unit's own counts: primary family 16, all registered intervals 133) AND MDE
+   D_home        z -15.29 p 8.67e-53  Bonferroni k=3 True, k=16 True, k=133 True   |est|/MDE 5.46 (clear)  stated MDE 0.0065 vs 2.8xSE 0.0066 -> consistent
+   D_record      z -11.15 p 7.04e-29  Bonferroni k=3 True, k=16 True, k=133 True   |est|/MDE 3.98 (clear)  stated MDE 0.0055 vs 2.8xSE 0.0055 -> consistent
+   D_elo_nomov   z  -2.50 p 1.23e-02  Bonferroni k=3 True, k=16 False, k=133 False   |est|/MDE 0.89 (at)  stated MDE 0.0016 vs 2.8xSE 0.0017 -> consistent
+   Ds_home       z +15.62 p 5.11e-55  Bonferroni k=3 True, k=16 True, k=133 True   |est|/MDE 5.58 (clear)
+   Ds_record     z +12.41 p 2.33e-35  Bonferroni k=3 True, k=16 True, k=133 True   |est|/MDE 4.43 (clear)
+   Ds_elo_nomov  z  +3.58 p 3.45e-04  Bonferroni k=3 True, k=16 True, k=133 True   |est|/MDE 1.28 (clear)
+   Dm_home       z  -1.29 p 1.95e-01  Bonferroni k=3 False, k=16 False, k=133 False   |est|/MDE 0.46 (below)  stated MDE 0.0061 vs 2.8xSE 0.0061 -> consistent
+   Dm_record     z  -3.38 p 7.29e-04  Bonferroni k=3 True, k=16 True, k=133 False   |est|/MDE 1.21 (at)
+   Dm_elo_nomov  z  -4.41 p 1.04e-05  Bonferroni k=3 True, k=16 True, k=133 True   |est|/MDE 1.57 (clear)
+   4b SUCCESS draws on 10 of the 16 (6 d_b + 4 contrasts). Worst case for each contrast - the two d_b perfectly anti-correlated,
+      SE = SE_1 + SE_2 - against Holm's largest multiplier (16):
+      nfl c1 est -0.0093  worst-case SE 0.0030 (actual 0.0015)  z -3.06  p x 16 = 0.035 -> could NOT have failed once the gate passed
+      nfl c2 est -0.0136  worst-case SE 0.0018 (actual 0.0014)  z -7.54  p x 16 = 7.37e-13 -> could NOT have failed once the gate passed
+      cfb c1 est -0.0235  worst-case SE 0.0030 (actual 0.0014)  z -7.93  p x 16 = 3.63e-14 -> could NOT have failed once the gate passed
+      cfb c2 est -0.0338  worst-case SE 0.0018 (actual 0.0014)  z -18.93  p x 16 = 9.81e-79 -> could NOT have failed once the gate passed
+      nfl d_home       z -15.1 - gated: the script stops unless it equals the published value to 4 dp
+      nfl d_record     z -12.1 - gated: the script stops unless it equals the published value to 4 dp
+      nfl d_elo_nomov  z -5.8 - gated: the script stops unless it equals the published value to 4 dp
+      cfb d_home       z -39.1 - gated: the script stops unless it equals the published value to 4 dp
+      cfb d_record     z -27.2 - gated: the script stops unless it equals the published value to 4 dp
+      cfb d_elo_nomov  z -10.7 - gated: the script stops unless it equals the published value to 4 dp
+   4c UNREGISTERED re-binning of the matched comparison (registered: 8 bins, top bin [0.85, 1.00]):
+      registered 8               top-bin n NFL  155 / college  3980 | home -0.0028 [-0.0071, +0.0012] | record -0.0073 [-0.0116, -0.0030] | elo_nomov -0.0032 [-0.0046, -0.0018]
+      top bin split at 0.90      top-bin n NFL   27 / college  2465 | home -0.0025 [-0.0068, +0.0015] | record -0.0070 [-0.0111, -0.0026] | elo_nomov -0.0032 [-0.0046, -0.0018]
+      top split at 0.90, 0.95    top-bin n NFL    1 / college  1024 | home -0.0024 [-0.0067, +0.0016] | record -0.0069 [-0.0111, -0.0026] | elo_nomov -0.0032 [-0.0046, -0.0018]
+      4 bins (0.60/0.70/0.80)    top-bin n NFL  462 / college  5562 | home -0.0049 [-0.0092, -0.0009] | record -0.0085 [-0.0127, -0.0041] | elo_nomov -0.0032 [-0.0046, -0.0018]
+      20 bins of 0.025           top-bin n NFL    0 / college   393 | home -0.0024 [-0.0068, +0.0016] | record -0.0068 [-0.0110, -0.0025] | elo_nomov -0.0033 [-0.0047, -0.0018]
+
+wrote D:/temp/f31/c-38/c38.json (89s)
