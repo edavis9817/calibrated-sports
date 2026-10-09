@@ -1,0 +1,178 @@
+NFL: scored games 2001-2025 loaded 6,758; versions {'nfl_games': '2026-10-08', 'nfl_teams': '2026-09-16'}
+college: completed FBS-FBS games 2001-2025 loaded 18,229
+nfl: scored 2005-2025 n 5,698; (k, r) chosen per season: 2005:(16,0.5), 2006:(24,0.5), 2007:(24,0.5), 2008:(24,0.35), 2009:(24,0.35), 2010:(24,0.35), 2011:(24,0.35), 2012:(16,0.35), 2013:(16,0.35), 2014:(16,0.35), 2015:(16,0.35), 2016:(16,0.35), 2017:(16,0.35), 2018:(16,0.35), 2019:(16,0.35), 2020:(16,0.35), 2021:(16,0.35), 2022:(16,0.35), 2023:(16,0.35), 2024:(16,0.35), 2025:(16,0.35)
+   grid-edge choices: none
+   environment bins (share of games): 0.014 0.062 0.173 0.262 0.249 0.157 0.062 0.021
+cfb: scored 2005-2025 n 15,508; (k, r) chosen per season: 2005:(12,0.35), 2006:(12,0.35), 2007:(12,0.2), 2008:(8,0.2), 2009:(8,0.35), 2010:(8,0.35), 2011:(8,0.35), 2012:(8,0.35), 2013:(8,0.35), 2014:(8,0.35), 2015:(8,0.35), 2016:(8,0.35), 2017:(8,0.35), 2018:(8,0.35), 2019:(8,0.35), 2020:(8,0.35), 2021:(8,0.35), 2022:(8,0.35), 2023:(8,0.35), 2024:(8,0.35), 2025:(8,0.35)
+   grid-edge choices: none
+   environment bins (share of games): 0.138 0.102 0.130 0.139 0.142 0.119 0.093 0.137
+
+######## MDE of every test from SE(d) ~ 2 sigma rms(m - b) / sqrt(n) - no forecast error is read
+   nfl d_league           MDE 3.1123
+   nfl d_pair             MDE 1.2339
+   nfl c                  MDE 2.9825
+   cfb d_league           MDE 4.9916
+   cfb d_pair             MDE 2.3210
+   cfb c                  MDE 4.5163
+   cfb@nfl d_league       MDE 3.4398
+   R nfl@cfb d_league     MDE 11.1039
+   cfb@nfl d_pair         MDE 2.5827
+   R nfl@cfb d_pair       MDE 2.8279
+   cfb@nfl c              MDE 2.2429
+   R nfl@cfb c            MDE 11.6789
+   D_league               MDE 5.8824
+   Ds_league              MDE 0.0217
+   Dm_league              MDE 4.6389
+   Dms_league             MDE 0.0187
+   R D_league             MDE 12.1743
+   R Ds_league            MDE 0.0573
+   B nfl dB_league        MDE 0.0032
+   B cfb dB_league        MDE 0.0031
+   B D_league             MDE 0.0045
+   D_pair                 MDE 2.6286
+   Ds_pair                MDE 0.0094
+   Dm_pair                MDE 2.8623
+   Dms_pair               MDE 0.0100
+   R D_pair               MDE 3.6585
+   R Ds_pair              MDE 0.0158
+   B nfl dB_pair          MDE 0.0012
+   B cfb dB_pair          MDE 0.0014
+   B D_pair               MDE 0.0019
+   cut 1 regular season only: nfl d_league 3.1477  nfl d_pair 1.2538  cfb d_league 5.0701  cfb d_pair 2.3645  D_league 5.9678  Ds_league 0.0220  D_pair 2.6763  Ds_pair 0.0095
+   cut 2 regular weeks 1-4: nfl d_league 5.2974  nfl d_pair 2.3285  cfb d_league 7.3371  cfb d_pair 4.0890  D_league 9.0496  Ds_league 0.0346  D_pair 4.7055  Ds_pair 0.0170
+   cut 3 regular weeks 5+: nfl d_league 3.7908  nfl d_pair 1.4772  cfb d_league 6.3640  cfb d_pair 2.8577  D_league 7.4075  Ds_league 0.0271  D_pair 3.2170  Ds_pair 0.0114
+   cut 4 2005-2014: nfl d_league 4.8183  nfl d_pair 1.5900  cfb d_league 7.1454  cfb d_pair 3.4455  D_league 8.6182  Ds_league 0.0326  D_pair 3.7947  Ds_pair 0.0133
+   cut 5 2015-2025: nfl d_league 4.0312  nfl d_pair 1.8509  cfb d_league 6.9606  cfb d_pair 3.1394  D_league 8.0437  Ds_league 0.0290  D_pair 3.6444  Ds_pair 0.0132
+
+######## PRIMARY - squared error of the total against settlement, game blocks
+
+== nfl: n 5,698  MSE model 184.59  league 193.74  pair 186.32   sd of e 2.83 points
+   d_league                                 -9.143 [-11.335, -7.048]* SE 1.1006  MDE run 3.0817 / registered 3.1123  -> below
+   d_pair                                   -1.731 [-2.561, -0.882]* SE 0.4262  MDE run 1.1934 / registered 1.2339  -> below
+   c = d_league - d_pair                    -7.413 [-9.511, -5.419]* SE 1.0426  MDE run 2.9193 / registered 2.9825  -> below
+   skill 1 - MSE(model)/MSE(league) (level) +0.0472 [+0.0368, +0.0580]* SE 0.0054  MDE run 0.0152  -> above
+   skill 1 - MSE(model)/MSE(pair) (level)   +0.0093 [+0.0048, +0.0136]* SE 0.0023  MDE run 0.0063  -> above
+
+== cfb: n 15,508  MSE model 284.09  league 325.25  pair 293.58   sd of e 5.55 points
+   d_league                                 -41.159 [-44.448, -37.611]* SE 1.7424  MDE run 4.8787 / registered 4.9916  -> below
+   d_pair                                   -9.485 [-11.028, -7.871]* SE 0.8139  MDE run 2.2790 / registered 2.3210  -> below
+   c = d_league - d_pair                    -31.674 [-34.619, -28.602]* SE 1.5426  MDE run 4.3194 / registered 4.5163  -> below
+   skill 1 - MSE(model)/MSE(league) (level) +0.1265 [+0.1171, +0.1358]* SE 0.0048  MDE run 0.0134  -> above
+   skill 1 - MSE(model)/MSE(pair) (level)   +0.0323 [+0.0269, +0.0374]* SE 0.0027  MDE run 0.0075  -> above
+
+== college at the NFL's bin shares of e
+   d_league                                 -18.355 [-20.713, -15.999]* SE 1.2252  MDE run 3.4305 / registered 3.4398  -> below
+   d_pair                                   -8.065 [-9.816, -6.395]* SE 0.8825  MDE run 2.4709 / registered 2.5827  -> below
+   c                                        -10.290 [-11.910, -8.603]* SE 0.8141  MDE run 2.2794 / registered 2.2429  -> below
+   draws dropped for an empty college bin: 0
+
+== between sports (college - NFL), independent draws per sport: raw, then re-weighted
+   D_league (raw)                           -32.016 [-36.218, -27.816]* SE 2.1026  MDE run 5.8874 / registered 5.8824  -> below
+   Dm_league (college at NFL shares - NFL)  -9.212 [-12.426, -6.128]* SE 1.6304  MDE run 4.5652 / registered 4.6389  -> below
+   Ds_league (raw)                          +0.0794 [+0.0649, +0.0937]* SE 0.0074  MDE run 0.0207 / registered 0.0217  -> above
+   Dms_league (college at NFL shares - NFL) +0.0134 [+0.0008, +0.0265]* SE 0.0066  MDE run 0.0186 / registered 0.0187  -> above
+   D_pair (raw)                             -7.754 [-9.557, -5.932]* SE 0.9204  MDE run 2.5770 / registered 2.6286  -> below
+   Dm_pair (college at NFL shares - NFL)    -6.334 [-8.316, -4.400]* SE 0.9891  MDE run 2.7696 / registered 2.8623  -> below
+   Ds_pair (raw)                            +0.0230 [+0.0162, +0.0300]* SE 0.0036  MDE run 0.0100 / registered 0.0094  -> above
+   Dms_pair (college at NFL shares - NFL)   +0.0183 [+0.0110, +0.0258]* SE 0.0038  MDE run 0.0106 / registered 0.0100  -> above
+
+   Holm family of 17: 17 significant at 0.05
+      nfl      d_league     p 9.77e-17  Holm 7.82e-16  *
+      nfl      d_pair       p 4.89e-05  Holm 9.78e-05  *
+      nfl      c            p 1.16e-12  Holm 8.15e-12  *
+      cfb      d_league     p 2.27e-123  Holm 3.86e-122  *
+      cfb      d_pair       p 2.20e-31  Holm 2.65e-30  *
+      cfb      c            p 1.11e-93  Holm 1.77e-92  *
+      cfb@nfl  d_league     p 9.70e-51  Holm 1.36e-49  *
+      cfb@nfl  d_pair       p 6.29e-20  Holm 6.29e-19  *
+      cfb@nfl  c            p 1.27e-36  Holm 1.65e-35  *
+      between  D_league     p 2.36e-52  Holm 3.54e-51  *
+      between  Dm_league    p 1.61e-08  Holm 6.42e-08  *
+      between  Ds_league    p 9.18e-27  Holm 1.01e-25  *
+      between  Dms_league   p 4.44e-02  Holm 4.44e-02  *
+      between  D_pair       p 3.60e-17  Holm 3.24e-16  *
+      between  Dm_pair      p 1.51e-10  Holm 7.57e-10  *
+      between  Ds_pair      p 1.04e-10  Holm 6.25e-10  *
+      between  Dms_pair     p 1.39e-06  Holm 4.17e-06  *
+
+   PART 1: SUCCESS - model beats pair beats league in the NFL, in college, and in college at the NFL's distribution of e
+   PART 2, against league (skill scale): not accounted for by the spread alone
+   PART 2, against pair (skill scale): not accounted for by the spread alone
+
+== per bin of e: n, mean e, d_league / d_pair (points^2), NFL | college
+   [-inf, -6.0)   n    77 share 0.014 e   -6.89 d_league  -34.68 d_pair   +1.70 | n  2140 share 0.138 e   -8.53 d_league  -89.18 d_pair   -6.32
+   [-6.0, -4.0)   n   352 share 0.062 e   -4.78 d_league  -24.76 d_pair   -0.19 | n  1582 share 0.102 e   -4.98 d_league  -30.89 d_pair   -8.90
+   [-4.0, -2.0)   n   987 share 0.173 e   -2.85 d_league   -8.85 d_pair   -1.59 | n  2013 share 0.130 e   -2.98 d_league  -15.34 d_pair   -5.19
+   [-2.0, 0.0)    n  1494 share 0.262 e   -0.97 d_league   -1.11 d_pair   -0.80 | n  2155 share 0.139 e   -1.01 d_league   -8.20 d_pair   -7.62
+   [0.0, 2.0)     n  1420 share 0.249 e   +0.95 d_league   -3.46 d_pair   -2.43 | n  2204 share 0.142 e   +0.99 d_league   -8.92 d_pair   -5.88
+   [2.0, 4.0)     n   895 share 0.157 e   +2.87 d_league  -10.87 d_pair   -2.27 | n  1848 share 0.119 e   +2.95 d_league  -25.01 d_pair  -11.97
+   [4.0, 6.0)     n   356 share 0.062 e   +4.81 d_league  -27.97 d_pair   -0.95 | n  1438 share 0.093 e   +4.94 d_league  -31.69 d_pair  -13.00
+   [6.0, inf)     n   117 share 0.021 e   +7.02 d_league  -48.83 d_pair  -11.53 | n  2128 share 0.137 e   +9.15 d_league -112.11 d_pair  -18.26
+
+######## R (secondary) - the NFL at college's bin shares of e
+   NFL at college shares: d_league          -19.696 [-27.876, -11.384]* SE 4.2611  MDE run 11.9312 / registered 11.1039  -> below
+   NFL at college shares: d_pair            -2.387 [-4.375, -0.362]* SE 1.0113  MDE run 2.8316 / registered 2.8279  -> below
+   NFL at college shares: c                 -17.309 [-25.818, -8.893]* SE 4.3266  MDE run 12.1146 / registered 11.6789  -> below
+   college - NFL at college shares: D_league -21.463 [-30.651, -12.717]* SE 4.6254  MDE run 12.9510 / registered 12.1743  -> below
+   college - NFL at college shares: Ds_league +0.0325 [-0.0022, +0.0713]  SE 0.0192  MDE run 0.0537 / registered 0.0573  -> contains 0
+   college - NFL at college shares: D_pair  -7.098 [-9.569, -4.494]* SE 1.2807  MDE run 3.5859 / registered 3.6585  -> below
+   college - NFL at college shares: Ds_pair +0.0199 [+0.0085, +0.0311]* SE 0.0058  MDE run 0.0161 / registered 0.0158  -> above
+   draws dropped for an empty NFL bin: 0
+
+######## B (secondary) - Brier of 'the total is above the league-and-season mean'
+   nfl: Brier model 0.2417 league 0.2497 pair 0.2430
+   nfl dB_league                            -0.0080 [-0.0101, -0.0058]* SE 0.0011  MDE run 0.0031 / registered 0.0032  -> below
+   nfl dB_pair                              -0.0013 [-0.0021, -0.0004]* SE 0.0004  MDE run 0.0012 / registered 0.0012  -> below
+   cfb: Brier model 0.2308 league 0.2497 pair 0.2345
+   cfb dB_league                            -0.0189 [-0.0209, -0.0170]* SE 0.0010  MDE run 0.0028 / registered 0.0031  -> below
+   cfb dB_pair                              -0.0037 [-0.0046, -0.0028]* SE 0.0005  MDE run 0.0013 / registered 0.0014  -> below
+   college - NFL dB_league (raw)            -0.0109 [-0.0139, -0.0079]* SE 0.0015  MDE run 0.0042 / registered 0.0045  -> below
+   college at NFL shares - NFL dB_league    -0.0007 [-0.0033, +0.0021]  SE 0.0014  MDE run 0.0039  -> contains 0
+   college - NFL dB_pair (raw)              -0.0024 [-0.0037, -0.0012]* SE 0.0006  MDE run 0.0018 / registered 0.0019  -> below
+   college at NFL shares - NFL dB_pair      -0.0022 [-0.0036, -0.0008]* SE 0.0007  MDE run 0.0020  -> below
+
+######## CUTS (not verdicts) - d_b per sport, raw D_b and Ds_b
+
+-- cut 1 regular season only: NFL n 5,455, college n 14,728
+   league  NFL -8.965 [-11.092, -6.782]* SE 1.1196 | college -40.479 [-44.200, -36.886]* SE 1.8405
+           D -31.514 [-35.699, -27.271]* SE 2.1491 | Ds +0.0782 [+0.0640, +0.0929]* SE 0.0074
+   pair    NFL -1.744 [-2.593, -0.873]* SE 0.4387 | college -9.184 [-10.794, -7.508]* SE 0.8303
+           D -7.440 [-9.305, -5.534]* SE 0.9470 | Ds +0.0219 [+0.0145, +0.0288]* SE 0.0036
+
+-- cut 2 regular weeks 1-4: NFL n 1,315, college n 3,881
+   league  NFL -7.678 [-11.215, -3.990]* SE 1.8573 | college -21.025 [-25.941, -16.221]* SE 2.4951
+           D -13.348 [-19.380, -7.282]* SE 3.0534 | Ds +0.0289 [+0.0054, +0.0523]* SE 0.0120
+   pair    NFL -1.284 [-2.853, +0.214]  SE 0.7994 | college -5.742 [-8.419, -2.804]* SE 1.4513
+           D -4.458 [-7.694, -1.221]* SE 1.6229 | Ds +0.0129 [+0.0001, +0.0259]* SE 0.0064
+
+-- cut 3 regular weeks 5+: NFL n 4,140, college n 10,847
+   league  NFL -9.374 [-12.052, -6.672]* SE 1.3421 | college -47.439 [-51.908, -42.877]* SE 2.3198
+           D -38.065 [-43.298, -33.123]* SE 2.6012 | Ds +0.0945 [+0.0774, +0.1123]* SE 0.0088
+   pair    NFL -1.890 [-2.948, -0.837]* SE 0.5265 | college -10.416 [-12.407, -8.358]* SE 1.0377
+           D -8.526 [-10.794, -6.235]* SE 1.1590 | Ds +0.0252 [+0.0166, +0.0336]* SE 0.0044
+
+-- cut 4 2005-2014: NFL n 2,670, college n 7,183
+   league  NFL -10.906 [-14.041, -7.850]* SE 1.6159 | college -44.178 [-49.340, -38.998]* SE 2.5958
+           D -33.273 [-39.113, -27.375]* SE 3.0169 | Ds +0.0777 [+0.0571, +0.0986]* SE 0.0105
+   pair    NFL -1.152 [-2.175, -0.122]* SE 0.5447 | college -12.158 [-14.617, -9.479]* SE 1.3049
+           D -11.006 [-13.775, -8.223]* SE 1.3866 | Ds +0.0345 [+0.0243, +0.0443]* SE 0.0050
+
+-- cut 5 2015-2025: NFL n 3,028, college n 8,325
+   league  NFL -7.589 [-10.593, -4.998]* SE 1.4502 | college -38.554 [-43.374, -33.645]* SE 2.4607
+           D -30.965 [-36.504, -25.410]* SE 2.8370 | Ds +0.0808 [+0.0614, +0.1001]* SE 0.0100
+   pair    NFL -2.241 [-3.572, -0.944]* SE 0.6747 | college -7.178 [-9.349, -5.073]* SE 1.0576
+           D -4.937 [-7.388, -2.564]* SE 1.2432 | Ds +0.0129 [+0.0032, +0.0227]* SE 0.0050
+
+   cuts Holm family of 40: 35 significant
+   cuts where d_b is below zero (Holm) in one sport only: [{"cut": "2 regular weeks 1-4", "baseline": "pair", "holds_in": "cfb"}, {"cut": "4 2005-2014", "baseline": "pair", "holds_in": "cfb"}]
+
+######## PRICE - separate, outside the success condition. College: NOT A TIMESTAMPED CLOSE
+   The NFL comparator is the nflverse total_line, a sportsbook close of unrecorded provenance. The college comparator is the CFBD total, median over providers - NOT A TIMESTAMPED CLOSE: CFBD's last value per provider, read after the game, with no capture time. f-30's check (2026 weeks 3-5) was on the moneyline and c-15's (2026 week 3) on the spread; neither covers a total or a backfill season, so nothing on disk says when a college total was captured. The two figures are shown side by side, carry no between-sport interval, and enter no verdict.
+   college share of games carrying a CFBD total, by season: 2013:1.000 2014:1.000 2015:1.000 2016:1.000 2017:1.000 2018:1.000 2019:1.000 2020:1.000 2021:1.000 2022:1.000 2023:1.000 2024:1.000 2025:1.000
+   seasons at or above 0.90, applied to BOTH sports: [2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
+   NFL nflverse total_line (close, provenance unrecorded): n 3,562 of 3,562  MSE model 185.61 price 176.03 ratio 1.0544
+      dMSE (model - price) +9.585 [+7.149, +12.075]* SE 1.2712 -> above
+   college CFBD total (not a timestamped close): n 9,822 of 9,822  MSE model 284.77 price 268.25 ratio 1.0616
+      dMSE (model - price) +16.523 [+13.629, +19.480]* SE 1.4889 -> above
+
+   registered intervals 74 (primary 17, R 7, B 8, cuts 40, price 2); specifications 9; grid points 63 per sport per season
