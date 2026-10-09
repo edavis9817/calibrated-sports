@@ -1,0 +1,264 @@
+{
+ "unit": "c-48",
+ "preregistration": "bea5737",
+ "commit": "7aea03e",
+ "market": "NFL receiving yards, over side, REG 2023-2025, de-vigged DK/FD/MGM bench close",
+ "store": "D:/calibrated-sports/data/market_log.db",
+ "published_by_c37": {
+  "share": 0.995,
+  "sd": 0.01,
+  "mean_model": 0.41,
+  "over_rate": 0.479,
+  "slope": 0.037
+ },
+ "tolerance": 0.0005,
+ "census": {
+  "rungs": 56732,
+  "settled over/under": 53859,
+  "settle_one: void (dropped)": 63,
+  "not a regular-season game (dropped)": 2810,
+  "settled but not in the frame (dropped)": 126
+ },
+ "counts": {
+  "scored": {
+   "2023": 20114,
+   "2024": 22508,
+   "2025": 11111
+  },
+  "scored_total": 53733,
+  "RB": 18666,
+  "RB_player_games": 10016,
+  "RB_games": 814,
+  "RB_n_bench": {
+   "1": 12432,
+   "2": 4998,
+   "3": 1236
+  },
+  "RB_by_season": {
+   "2023": 5261,
+   "2024": 6294,
+   "2025": 7111
+  },
+  "integer_lines_RB": 2
+ },
+ "population_check": {
+  "same_as_c37": true,
+  "differences": {}
+ },
+ "figures": {
+  "share": 0.9947498124933033,
+  "sd": 0.010121728117871025,
+  "mean_model": 0.4100327569974174,
+  "over_rate": 0.4792671166827387,
+  "gap": -0.06923435968532125,
+  "intercept": -0.06861566496925921,
+  "slope": 0.036886692002882915,
+  "n": 18666
+ },
+ "intervals": {
+  "share": {
+   "lo": 0.9935287860564285,
+   "hi": 0.9958391511727056,
+   "se": 0.0005787537042141776,
+   "games": 814
+  },
+  "sd": {
+   "lo": 0.009799353848300387,
+   "hi": 0.01047456179204304,
+   "se": 0.00017077650521372823,
+   "games": 814
+  },
+  "mean_model": {
+   "lo": 0.4068431274030192,
+   "hi": 0.41325354449054874,
+   "se": 0.0016667666839186768,
+   "games": 814
+  },
+  "over_rate": {
+   "lo": 0.46902383636420975,
+   "hi": 0.4898876402637019,
+   "se": 0.005320703205294905,
+   "games": 814
+  },
+  "gap": {
+   "lo": -0.08076597858487221,
+   "hi": -0.058442390597711245,
+   "se": 0.0056702875538244685,
+   "games": 814
+  },
+  "slope": {
+   "lo": -0.04288215396361273,
+   "hi": 0.11015525457197012,
+   "se": 0.0386070343556773,
+   "games": 814
+  }
+ },
+ "verdicts": {
+  "rows": {
+   "share": {
+    "value": 0.9947498124933033,
+    "published": 0.995,
+    "diff": -0.0002501875066966974,
+    "status": "REPRODUCED"
+   },
+   "sd": {
+    "value": 0.010121728117871025,
+    "published": 0.01,
+    "diff": 0.00012172811787102521,
+    "status": "REPRODUCED"
+   },
+   "mean_model": {
+    "value": 0.4100327569974174,
+    "published": 0.41,
+    "diff": 3.2756997417449085e-05,
+    "status": "REPRODUCED"
+   },
+   "over_rate": {
+    "value": 0.4792671166827387,
+    "published": 0.479,
+    "diff": 0.0002671166827387106,
+    "status": "REPRODUCED"
+   },
+   "slope": {
+    "value": 0.036886692002882915,
+    "published": 0.037,
+    "diff": -0.00011330799711708334,
+    "status": "REPRODUCED"
+   }
+  },
+  "F1": {
+   "status": "REPRODUCED",
+   "argument": "the close has too little price variation for a resolution statistic",
+   "argument_survives": true,
+   "bar": "share >= 0.9"
+  },
+  "F2": {
+   "status": "REPRODUCED",
+   "argument": "the model sits below the realised over rate at the book's line",
+   "argument_survives": true,
+   "bar": "95% interval of mean(model - outcome) wholly below 0"
+  },
+  "F3": {
+   "status": "REPRODUCED",
+   "argument": "the model's disagreement with the line carries almost no information",
+   "argument_survives": true,
+   "bar": "95% interval of the Platt slope wholly below 0.5"
+  }
+ },
+ "descriptive": {
+  "arms": {
+   "S0": {
+    "mean": 0.45128192062950845,
+    "platt_slope": 0.03127434895021196
+   },
+   "S1": {
+    "mean": 0.43651750438151776,
+    "platt_slope": 0.0360136159476045
+   },
+   "Y": {
+    "mean": 0.4100327569974174,
+    "platt_slope": 0.036886692002882915
+   },
+   "Y-lognormal": {
+    "mean": 0.36224777978109113,
+    "platt_slope": 0.03269442582670701
+   },
+   "Y-weibull": {
+    "mean": 0.41940768600727596,
+    "platt_slope": 0.03818223334761849
+   },
+   "half": {
+    "mean": 0.5
+   },
+   "prior": {
+    "mean": 0.5036533524139737
+   },
+   "p_bench": {
+    "mean": 0.5005246917914022
+   }
+  },
+  "by_season": {
+   "2023": {
+    "n": 5261,
+    "share": 0.9931571944497244,
+    "sd": 0.010589680680908074
+   },
+   "2024": {
+    "n": 6294,
+    "share": 0.9969812519860184,
+    "sd": 0.010217396796057186
+   },
+   "2025": {
+    "n": 7111,
+    "share": 0.9939530305161018,
+    "sd": 0.009590096215754086
+   }
+  },
+  "by_n_bench": {
+   "1": {
+    "n": 12432,
+    "share": 0.9923584298584298,
+    "sd": 0.01099503316689246
+   },
+   "2": {
+    "n": 4998,
+    "share": 0.9993997599039616,
+    "sd": 0.008505228103434424
+   },
+   "3": {
+    "n": 1236,
+    "share": 1.0,
+    "sd": 0.006222345971848833
+   }
+  }
+ },
+ "other_markets": [
+  {
+   "market": "receiving_yards",
+   "measured_by": "c-41",
+   "file": "research/results/residual_given_line.json",
+   "share": 0.9947498124933033,
+   "sd": 0.010121728117871027,
+   "n": 18666
+  },
+  {
+   "market": "receptions",
+   "measured_by": "c-47",
+   "file": "research/results/residual_two_markets.json",
+   "share": 0.4012539184952978,
+   "sd": 0.0713751140940959,
+   "n": 10527
+  },
+  {
+   "market": "rush_attempts",
+   "measured_by": "c-47",
+   "file": "research/results/residual_two_markets.json",
+   "share": 0.769046059812268,
+   "sd": 0.04190134786041985,
+   "n": 4581
+  }
+ ],
+ "scratch": {
+  "state": "COMPARED",
+  "path": "D:/temp/c37/predictions.csv",
+  "scratch_rows": 53733,
+  "scratch_bench_rows": 18666,
+  "regenerated_bench_rows": 18666,
+  "shared": 18666,
+  "only_scratch": 0,
+  "only_regenerated": 0,
+  "mtime": "2026-10-08T07:05:36Z",
+  "max_abs_diff_Y": 0.0,
+  "max_abs_diff_S0": 0.0,
+  "max_abs_diff_S1": 0.0,
+  "max_abs_diff_p_bench": 0.0,
+  "max_abs_diff_y": 0.0,
+  "identical_keys": true
+ },
+ "boot": 2000,
+ "seed": 48,
+ "band": [
+  0.45,
+  0.55
+ ]
+}

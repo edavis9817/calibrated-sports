@@ -1,0 +1,57 @@
+c-48 / c37_figures  prereg bea5737  commit 7aea03e  store D:/calibrated-sports/data/market_log.db (mode=ro)
+MARKET: NFL receiving yards, over side, REG 2023-2025, de-vigged DK/FD/MGM bench close
+panel: 501,470 player-games  (20s)
+frame: 57,355 receiving_yards rows 2016-2025  (25s)
+   T=2023: shapes on [2020, 2021, 2022], 20,114 rungs scored  (30s)
+   T=2024: shapes on [2021, 2022, 2023], 22,508 rungs scored  (35s)
+   T=2025: shapes on [2022, 2023, 2024], 11,111 rungs scored  (39s)
+
+POPULATION (every count; compare these on a re-run)
+  not a regular-season game (dropped)                           2,810
+  rungs                                                        56,732
+  settle_one: void (dropped)                                       63
+  settled but not in the frame (dropped)                          126
+  settled over/under                                           53,859
+  scored by season {'2023': 20114, '2024': 22508, '2025': 11111}  total 53,733
+  RB 18,666 rungs / 10,016 player-games / 814 games   by season {'2023': 5261, '2024': 6294, '2025': 7111}   by n_bench {'1': 12432, '2': 4998, '3': 1236}   integer lines 2
+  SAME POPULATION AS c-37 (18,666 / 10,016 / 814, n_bench and scored counts): YES
+
+THE THREE FIGURES - NFL receiving yards, over side, REG 2023-2025, de-vigged DK/FD/MGM bench close
+  game-block bootstrap, 2000 draws, seed 48, 814 games; reproduced = within 0.0005 of the published digits
+  F1 share of p_bench in [0.45, 0.55]    0.994750 [0.993529, 0.995839]   published 0.995   diff -0.000250   REPRODUCED
+  F1 sd of p_bench                       0.010122 [0.009799, 0.010475]   published 0.010   diff +0.000122   REPRODUCED
+  F2 mean model P(over), arm Y           0.410033 [0.406843, 0.413254]   published 0.410   diff +0.000033   REPRODUCED
+  F2 realised over rate                  0.479267 [0.469024, 0.489888]   published 0.479   diff +0.000267   REPRODUCED
+  F3 Platt slope, arm Y                  0.036887 [-0.042882, 0.110155]   published 0.037   diff -0.000113   REPRODUCED
+     mean(model - outcome)               -0.069234 [-0.080766, -0.058442]
+     Platt intercept                     -0.068616
+  F1: REPRODUCED.  'the close has too little price variation for a resolution statistic' SURVIVES (share >= 0.9)
+  F2: REPRODUCED.  'the model sits below the realised over rate at the book's line' SURVIVES (95% interval of mean(model - outcome) wholly below 0)
+  F3: REPRODUCED.  'the model's disagreement with the line carries almost no information' SURVIVES (95% interval of the Platt slope wholly below 0.5)
+
+DESCRIPTIVE (declared, not figures of record)
+  mean S0           0.4513   Platt slope +0.0313
+  mean S1           0.4365   Platt slope +0.0360
+  mean Y            0.4100   Platt slope +0.0369
+  mean Y-lognormal  0.3622   Platt slope +0.0327
+  mean Y-weibull    0.4194   Platt slope +0.0382
+  mean half         0.5000
+  mean prior        0.5037
+  mean p_bench      0.5005
+  F1 season   2023  n  5,261   share 0.9932   sd 0.0106
+  F1 season   2024  n  6,294   share 0.9970   sd 0.0102
+  F1 season   2025  n  7,111   share 0.9940   sd 0.0096
+  F1 n_bench  1     n 12,432   share 0.9924   sd 0.0110
+  F1 n_bench  2     n  4,998   share 0.9994   sd 0.0085
+  F1 n_bench  3     n  1,236   share 1.0000   sd 0.0062
+
+THE SAME SHARE IN OTHER MARKETS - read from the unit that measured it, NOT recomputed here.
+F1 is a fact about receiving yards. It does not carry to the rows below.
+  receiving_yards  this run   share 0.9947   sd 0.0101   n 18,666
+  receiving_yards  c-41       share 0.9947   sd 0.0101   n 18,666   (research/results/residual_given_line.json)
+  receptions       c-47       share 0.4013   sd 0.0714   n 10,527   (research/results/residual_two_markets.json)
+  rush_attempts    c-47       share 0.7690   sd 0.0419   n 4,581   (research/results/residual_two_markets.json)
+
+SCRATCH COMPARISON: {"state": "COMPARED", "path": "D:/temp/c37/predictions.csv", "scratch_rows": 53733, "scratch_bench_rows": 18666, "regenerated_bench_rows": 18666, "shared": 18666, "only_scratch": 0, "only_regenerated": 0, "mtime": "2026-10-08T07:05:36Z", "max_abs_diff_Y": 0.0, "max_abs_diff_S0": 0.0, "max_abs_diff_S1": 0.0, "max_abs_diff_p_bench": 0.0, "max_abs_diff_y": 0.0, "identical_keys": true}
+
+runtime 45s
