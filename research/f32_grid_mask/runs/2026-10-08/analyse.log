@@ -1,0 +1,75 @@
+== 0. THE INSTRUMENTED WALK AGAINST c-39's OWN grid_fit
+   base_sums.npz          nan mask == instrumented ever-bad: True; max |sum diff| on 177855 kept points x 26 seasons: 0.00e+00; seasons and counts equal: True
+   base_chunk_sums.npz    nan mask == instrumented ever-bad: True; max |sum diff| on 177855 kept points x 26 seasons: 0.00e+00; seasons and counts equal: True
+
+== 1. THE MASK, SEASON BY SEASON (grid 207360 points; 29505 ever bad over the whole walk)
+   season  bad as-of  removed by the future  share of grid  share of as-of set   of which in season T itself
+   2005      20408         9097              0.0439         0.0487                  591
+   2006      20999         8506              0.0410         0.0456                   18
+   2007      21017         8488              0.0409         0.0456                  326
+   2008      21343         8162              0.0394         0.0439                   21
+   2009      21364         8141              0.0393         0.0438                  820
+   2010      22184         7321              0.0353         0.0395                  321
+   2011      22505         7000              0.0338         0.0379                   34
+   2012      22539         6966              0.0336         0.0377                    0
+   2013      22539         6966              0.0336         0.0377                    0
+   2014      22539         6966              0.0336         0.0377                   97
+   2015      22636         6869              0.0331         0.0372                   16
+   2016      22652         6853              0.0330         0.0371                    0
+   2017      22652         6853              0.0330         0.0371                  414
+   2018      23066         6439              0.0311         0.0349                 2131
+   2019      25197         4308              0.0208         0.0236                   10
+   2020      25207         4298              0.0207         0.0236                 4055
+   2021      29262          243              0.0012         0.0014                   18
+   2022      29280          225              0.0011         0.0013                    1
+   2023      29281          224              0.0011         0.0013                    0
+   2024      29281          224              0.0011         0.0013                    0
+   2025      29281          224              0.0011         0.0013                    0
+   2026      29281          224              0.0011         0.0013                  224   (current-season fit, not scored)
+   points newly bad per season: {2001: 12480, 2002: 3290, 2003: 2220, 2004: 2418, 2005: 591, 2006: 18, 2007: 326, 2008: 21, 2009: 820, 2010: 321, 2011: 34, 2012: 0, 2013: 0, 2014: 97, 2015: 16, 2016: 0, 2017: 414, 2018: 2131, 2019: 10, 2020: 4055, 2021: 18, 2022: 1, 2023: 0, 2024: 0, 2025: 0, 2026: 224}
+   a = None points ever bad: 0 (the mask cannot touch them: True)
+
+== 2. TRUNCATED REFITS: as-of choice vs the walk's, every season
+   season  walk == recorded  as-of(inst) == walk  genuine truncated C.grid_fit   closest future-removed point
+   2005         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01154 log loss
+   2006         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01309 log loss
+   2007         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01180 log loss
+   2008         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01329 log loss
+   2009         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01367 log loss
+   2010         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01317 log loss
+   2011         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01351 log loss
+   2012         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01306 log loss
+   2013         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01299 log loss
+   2014         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01285 log loss
+   2015         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01412 log loss
+   2016         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01403 log loss
+   2017         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01487 log loss
+   2018         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01553 log loss
+   2019         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01488 log loss
+   2020         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01420 log loss
+   2021         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01781 log loss
+   2022         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01849 log loss
+   2023         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01918 log loss
+   2024         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01880 log loss
+   2025         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01912 log loss
+   2026         True               SAME      MOV SAME, plain SAME (mask==inst True, |dsum| 0.0e+00) +0.01919 log loss
+   constants differ in: []; genuine truncated refits done for 22 of 22 seasons (missing []); instrumented disagrees with genuine in []
+
+   the declared sub-grid (a != None, 155520 points): does the mask change a choice there
+      seasons where the mask changes the sub-grid choice: 0 of 22 []
+
+== 3. FULL-PIPELINE SCRAMBLE (genuine grid_fit + best_params + scalar walk)
+   registered grid, scrambled     cutoff ts 1447534800 (season 2015): 7752 pre-cutoff forecasts checked, 0 MOVED (0 missing); fits changed for seasons <= 2015: []; after: 10 seasons; post-cutoff forecasts moved 7703 of 7756; `bad` points 29505 -> 33812; errors none
+   P1 misdated game, scrambled    cutoff ts 1447534800 (season 2015): 7752 pre-cutoff forecasts checked, 272 MOVED (0 missing); fits changed for seasons <= 2015: []; after: 10 seasons; post-cutoff forecasts moved 7751 of 7756; `bad` points 29504 -> 33585; errors none
+      P1 (rating channel): FIRES
+   P2 sub-grid (a != None), scrambled cutoff ts 1447534800 (season 2015): 7752 pre-cutoff forecasts checked, 0 MOVED (0 missing); fits changed for seasons <= 2015: []; after: 11 seasons; post-cutoff forecasts moved 7703 of 7756; `bad` points 29505 -> 33812; errors none
+      P2 (mask channel, declared sub-grid): DID NOT FIRE on this scramble
+
+== 4. THE PUBLISHED FIGURES UNDER AS-OF FITS
+   as-of constants equal the walk's in all 21 scored seasons -> every forecast is unchanged; move 0.0000 in each arm (thresholds {'home': 0.0061, 'record': 0.0054, 'elo_nomov': 0.0015}; binding 0.0015: NOT reached)
+
+== VERDICT (pre-registered rule): (a) harmless
+   scored seasons with a genuine truncated refit: 21 of 21; instrumented-only: []
+   independent of the verdict - can the mask change a choice at all: on the declared sub-grid, not on this store
+
+wrote C:\Users\Ethan Davis\code\cs-analytics\research\f32_grid_mask\results\f32_mask_audit.json

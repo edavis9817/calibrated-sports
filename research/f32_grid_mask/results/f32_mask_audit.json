@@ -1,0 +1,2096 @@
+{
+ "equivalence": {
+  "base_sums.npz": {
+   "nan_mask_equals_ever_bad": true,
+   "max_abs_sum_diff": 0.0,
+   "counts_seasons_equal": true,
+   "points_compared": 177855,
+   "bad_points": 29505
+  },
+  "base_chunk_sums.npz": {
+   "nan_mask_equals_ever_bad": true,
+   "max_abs_sum_diff": 0.0,
+   "counts_seasons_equal": true,
+   "points_compared": 177855,
+   "bad_points": 29505
+  }
+ },
+ "unchunked_reference_present": true,
+ "mask": {
+  "2005": {
+   "bad_as_of": 20408,
+   "removed_by_future": 9097,
+   "share_of_grid": 0.04387056327160494,
+   "share_of_as_of_set": 0.048659548975138,
+   "removed_by_own_season": 591,
+   "scored": true
+  },
+  "2006": {
+   "bad_as_of": 20999,
+   "removed_by_future": 8506,
+   "share_of_grid": 0.041020447530864194,
+   "share_of_as_of_set": 0.045642596895273155,
+   "removed_by_own_season": 18,
+   "scored": true
+  },
+  "2007": {
+   "bad_as_of": 21017,
+   "removed_by_future": 8488,
+   "share_of_grid": 0.04093364197530864,
+   "share_of_as_of_set": 0.04555040972829674,
+   "removed_by_own_season": 326,
+   "scored": true
+  },
+  "2008": {
+   "bad_as_of": 21343,
+   "removed_by_future": 8162,
+   "share_of_grid": 0.03936149691358025,
+   "share_of_as_of_set": 0.043877710101764895,
+   "removed_by_own_season": 21,
+   "scored": true
+  },
+  "2009": {
+   "bad_as_of": 21364,
+   "removed_by_future": 8141,
+   "share_of_grid": 0.039260223765432097,
+   "share_of_as_of_set": 0.04376975848942988,
+   "removed_by_own_season": 820,
+   "scored": true
+  },
+  "2010": {
+   "bad_as_of": 22184,
+   "removed_by_future": 7321,
+   "share_of_grid": 0.035305748456790124,
+   "share_of_as_of_set": 0.039535360953903316,
+   "removed_by_own_season": 321,
+   "scored": true
+  },
+  "2011": {
+   "bad_as_of": 22505,
+   "removed_by_future": 7000,
+   "share_of_grid": 0.03375771604938271,
+   "share_of_as_of_set": 0.03786751778420924,
+   "removed_by_own_season": 34,
+   "scored": true
+  },
+  "2012": {
+   "bad_as_of": 22539,
+   "removed_by_future": 6966,
+   "share_of_grid": 0.03359375,
+   "share_of_as_of_set": 0.037690522180921,
+   "removed_by_own_season": 0,
+   "scored": true
+  },
+  "2013": {
+   "bad_as_of": 22539,
+   "removed_by_future": 6966,
+   "share_of_grid": 0.03359375,
+   "share_of_as_of_set": 0.037690522180921,
+   "removed_by_own_season": 0,
+   "scored": true
+  },
+  "2014": {
+   "bad_as_of": 22539,
+   "removed_by_future": 6966,
+   "share_of_grid": 0.03359375,
+   "share_of_as_of_set": 0.037690522180921,
+   "removed_by_own_season": 97,
+   "scored": true
+  },
+  "2015": {
+   "bad_as_of": 22636,
+   "removed_by_future": 6869,
+   "share_of_grid": 0.03312596450617284,
+   "share_of_as_of_set": 0.03718520603711483,
+   "removed_by_own_season": 16,
+   "scored": true
+  },
+  "2016": {
+   "bad_as_of": 22652,
+   "removed_by_future": 6853,
+   "share_of_grid": 0.03304880401234568,
+   "share_of_as_of_set": 0.037101803928362605,
+   "removed_by_own_season": 0,
+   "scored": true
+  },
+  "2017": {
+   "bad_as_of": 22652,
+   "removed_by_future": 6853,
+   "share_of_grid": 0.03304880401234568,
+   "share_of_as_of_set": 0.037101803928362605,
+   "removed_by_own_season": 414,
+   "scored": true
+  },
+  "2018": {
+   "bad_as_of": 23066,
+   "removed_by_future": 6439,
+   "share_of_grid": 0.0310522762345679,
+   "share_of_as_of_set": 0.0349387391884706,
+   "removed_by_own_season": 2131,
+   "scored": true
+  },
+  "2019": {
+   "bad_as_of": 25197,
+   "removed_by_future": 4308,
+   "share_of_grid": 0.020775462962962964,
+   "share_of_as_of_set": 0.023649149388185308,
+   "removed_by_own_season": 10,
+   "scored": true
+  },
+  "2020": {
+   "bad_as_of": 25207,
+   "removed_by_future": 4298,
+   "share_of_grid": 0.02072723765432099,
+   "share_of_as_of_set": 0.023595548796890527,
+   "removed_by_own_season": 4055,
+   "scored": true
+  },
+  "2021": {
+   "bad_as_of": 29262,
+   "removed_by_future": 243,
+   "share_of_grid": 0.001171875,
+   "share_of_as_of_set": 0.0013644173432604521,
+   "removed_by_own_season": 18,
+   "scored": true
+  },
+  "2022": {
+   "bad_as_of": 29280,
+   "removed_by_future": 225,
+   "share_of_grid": 0.0010850694444444445,
+   "share_of_as_of_set": 0.001263477088948787,
+   "removed_by_own_season": 1,
+   "scored": true
+  },
+  "2023": {
+   "bad_as_of": 29281,
+   "removed_by_future": 224,
+   "share_of_grid": 0.0010802469135802468,
+   "share_of_as_of_set": 0.0012578686987236001,
+   "removed_by_own_season": 0,
+   "scored": true
+  },
+  "2024": {
+   "bad_as_of": 29281,
+   "removed_by_future": 224,
+   "share_of_grid": 0.0010802469135802468,
+   "share_of_as_of_set": 0.0012578686987236001,
+   "removed_by_own_season": 0,
+   "scored": true
+  },
+  "2025": {
+   "bad_as_of": 29281,
+   "removed_by_future": 224,
+   "share_of_grid": 0.0010802469135802468,
+   "share_of_as_of_set": 0.0012578686987236001,
+   "removed_by_own_season": 0,
+   "scored": true
+  },
+  "2026": {
+   "bad_as_of": 29281,
+   "removed_by_future": 224,
+   "share_of_grid": 0.0010802469135802468,
+   "share_of_as_of_set": 0.0012578686987236001,
+   "removed_by_own_season": 224,
+   "scored": false
+  }
+ },
+ "mask_first_bad_by_season": {
+  "2001": 12480,
+  "2002": 3290,
+  "2003": 2220,
+  "2004": 2418,
+  "2005": 591,
+  "2006": 18,
+  "2007": 326,
+  "2008": 21,
+  "2009": 820,
+  "2010": 321,
+  "2011": 34,
+  "2012": 0,
+  "2013": 0,
+  "2014": 97,
+  "2015": 16,
+  "2016": 0,
+  "2017": 414,
+  "2018": 2131,
+  "2019": 10,
+  "2020": 4055,
+  "2021": 18,
+  "2022": 1,
+  "2023": 0,
+  "2024": 0,
+  "2025": 0,
+  "2026": 224
+ },
+ "a_none_ever_bad": 0,
+ "refit": {
+  "2005": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 85.0,
+    "regress": 0.3,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 85.0,
+    "regress": 0.3,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 2069,
+   "chosen_mean_log_loss": 0.5150529876790874,
+   "best_future_removed_minus_chosen": 0.011538465518561303,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 85.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -300.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 85.0,
+     "regress": 0.2,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -300.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 20408,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 2721
+   }
+  },
+  "2006": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 70.0,
+    "regress": 0.3,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 70.0,
+    "regress": 0.3,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 2733,
+   "chosen_mean_log_loss": 0.5241872817811806,
+   "best_future_removed_minus_chosen": 0.013093425561558125,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 70.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 70.0,
+     "regress": 0.2,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 20999,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 3385
+   }
+  },
+  "2007": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 70.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 70.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 3447,
+   "chosen_mean_log_loss": 0.5236694008943231,
+   "best_future_removed_minus_chosen": 0.011800675167666808,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 70.0,
+     "regress": 0.4,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 100.0,
+     "hfa": 70.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 21017,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 4099
+   }
+  },
+  "2008": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 70.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 70.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 4159,
+   "chosen_mean_log_loss": 0.5275905058565272,
+   "best_future_removed_minus_chosen": 0.013285035190452876,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 70.0,
+     "regress": 0.4,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 70.0,
+     "regress": 0.2,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 21343,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 4811
+   }
+  },
+  "2009": {
+   "walk": {
+    "k": 30.0,
+    "hfa": 70.0,
+    "regress": 0.3,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 30.0,
+    "hfa": 70.0,
+    "regress": 0.3,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 4876,
+   "chosen_mean_log_loss": 0.5290359866595316,
+   "best_future_removed_minus_chosen": 0.013669718353089166,
+   "genuine": {
+    "mov": {
+     "k": 30.0,
+     "hfa": 70.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 55.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 21364,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 5528
+   }
+  },
+  "2010": {
+   "walk": {
+    "k": 30.0,
+    "hfa": 70.0,
+    "regress": 0.3,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 30.0,
+    "hfa": 70.0,
+    "regress": 0.3,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 5590,
+   "chosen_mean_log_loss": 0.5265453392211461,
+   "best_future_removed_minus_chosen": 0.013174692620176787,
+   "genuine": {
+    "mov": {
+     "k": 30.0,
+     "hfa": 70.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 70.0,
+     "regress": 0.2,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 22184,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 6242
+   }
+  },
+  "2011": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 70.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 70.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 6308,
+   "chosen_mean_log_loss": 0.527490440932091,
+   "best_future_removed_minus_chosen": 0.013510753399005093,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 70.0,
+     "regress": 0.4,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 55.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 22505,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 6960
+   }
+  },
+  "2012": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 70.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 70.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 7023,
+   "chosen_mean_log_loss": 0.5278365916661866,
+   "best_future_removed_minus_chosen": 0.01305927121310102,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 70.0,
+     "regress": 0.4,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 55.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 22539,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 7675
+   }
+  },
+  "2013": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 7755,
+   "chosen_mean_log_loss": 0.5262973755979481,
+   "best_future_removed_minus_chosen": 0.012989089416550192,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 55.0,
+     "regress": 0.4,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 55.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 22539,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 8407
+   }
+  },
+  "2014": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 8492,
+   "chosen_mean_log_loss": 0.5222974204438562,
+   "best_future_removed_minus_chosen": 0.012848327406765558,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 55.0,
+     "regress": 0.4,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 55.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 22539,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 9144
+   }
+  },
+  "2015": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 9252,
+   "chosen_mean_log_loss": 0.5239140741796732,
+   "best_future_removed_minus_chosen": 0.014124908445072304,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 55.0,
+     "regress": 0.4,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 55.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 22636,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 9904
+   }
+  },
+  "2016": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 10017,
+   "chosen_mean_log_loss": 0.5221687945847338,
+   "best_future_removed_minus_chosen": 0.014032316066858286,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 55.0,
+     "regress": 0.4,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 55.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 22652,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 10669
+   }
+  },
+  "2017": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 10777,
+   "chosen_mean_log_loss": 0.524863317528684,
+   "best_future_removed_minus_chosen": 0.014867899547601149,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 55.0,
+     "regress": 0.4,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 55.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 22652,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 11429
+   }
+  },
+  "2018": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 11553,
+   "chosen_mean_log_loss": 0.5266974932350519,
+   "best_future_removed_minus_chosen": 0.015533314279573496,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 55.0,
+     "regress": 0.4,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 55.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 23066,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 12205
+   }
+  },
+  "2019": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 12325,
+   "chosen_mean_log_loss": 0.5267058046628782,
+   "best_future_removed_minus_chosen": 0.014878036729813915,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 55.0,
+     "regress": 0.4,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 55.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 25197,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 12977
+   }
+  },
+  "2020": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 13099,
+   "chosen_mean_log_loss": 0.5267847691182895,
+   "best_future_removed_minus_chosen": 0.014204974995911446,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 55.0,
+     "regress": 0.4,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -300.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 55.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -400.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 25207,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 13751
+   }
+  },
+  "2021": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 13633,
+   "chosen_mean_log_loss": 0.5283855765033778,
+   "best_future_removed_minus_chosen": 0.01780922748534619,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 55.0,
+     "regress": 0.4,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -300.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 55.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -300.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 29262,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 14285
+   }
+  },
+  "2022": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 14403,
+   "chosen_mean_log_loss": 0.5296540535711184,
+   "best_future_removed_minus_chosen": 0.018492384292718822,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 55.0,
+     "regress": 0.4,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -300.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 55.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -300.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 29280,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 15055
+   }
+  },
+  "2023": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 15179,
+   "chosen_mean_log_loss": 0.532426334242339,
+   "best_future_removed_minus_chosen": 0.019182850146736707,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 55.0,
+     "regress": 0.4,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -300.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 55.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -300.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 29281,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 15831
+   }
+  },
+  "2024": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 15971,
+   "chosen_mean_log_loss": 0.5329951365463904,
+   "best_future_removed_minus_chosen": 0.018803398700256158,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 55.0,
+     "regress": 0.4,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -300.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 55.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -300.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 29281,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 16623
+   }
+  },
+  "2025": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 16769,
+   "chosen_mean_log_loss": 0.534587378102966,
+   "best_future_removed_minus_chosen": 0.019120197507081382,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 55.0,
+     "regress": 0.4,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -300.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 55.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -300.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 29281,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 17422
+   }
+  },
+  "2026": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": null,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "walk_equals_recorded": true,
+   "as_of_equals_walk": true,
+   "fit_games": 17577,
+   "chosen_mean_log_loss": 0.5345898502499303,
+   "best_future_removed_minus_chosen": 0.01919220621450113,
+   "genuine": {
+    "mov": {
+     "k": 40.0,
+     "hfa": 55.0,
+     "regress": 0.4,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -300.0
+    },
+    "equals_walk": true,
+    "equals_inst_as_of": true,
+    "plain": {
+     "k": 80.0,
+     "hfa": 55.0,
+     "regress": 0.3,
+     "a": null,
+     "cap": null,
+     "conf_w": 1.0,
+     "entry": -300.0
+    },
+    "plain_equals_recorded": true,
+    "bad_as_of": 29281,
+    "bad_mask_equals_inst": true,
+    "max_abs_fitsum_diff": 0.0,
+    "plain_nan_points": 0,
+    "games": 18230
+   }
+  }
+ },
+ "refit_summary": {
+  "seasons_where_constants_differ": [],
+  "genuine_truncated_done": [
+   2005,
+   2006,
+   2007,
+   2008,
+   2009,
+   2010,
+   2011,
+   2012,
+   2013,
+   2014,
+   2015,
+   2016,
+   2017,
+   2018,
+   2019,
+   2020,
+   2021,
+   2022,
+   2023,
+   2024,
+   2025,
+   2026
+  ],
+  "genuine_truncated_missing": [],
+  "inst_disagrees_with_genuine": [],
+  "walk_differs_from_recorded": []
+ },
+ "subgrid": {
+  "2005": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 85.0,
+    "regress": 0.3,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 85.0,
+    "regress": 0.3,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5163343964645324,
+   "log_loss_as_of": 0.5163343964645324
+  },
+  "2006": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 70.0,
+    "regress": 0.3,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 70.0,
+    "regress": 0.3,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5251438776886993,
+   "log_loss_as_of": 0.5251438776886993
+  },
+  "2007": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 70.0,
+    "regress": 0.3,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 70.0,
+    "regress": 0.3,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.524225294567368,
+   "log_loss_as_of": 0.524225294567368
+  },
+  "2008": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 70.0,
+    "regress": 0.3,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 70.0,
+    "regress": 0.3,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5284371687910241,
+   "log_loss_as_of": 0.5284371687910241
+  },
+  "2009": {
+   "walk": {
+    "k": 30.0,
+    "hfa": 55.0,
+    "regress": 0.3,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 30.0,
+    "hfa": 55.0,
+    "regress": 0.3,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5295993063969394,
+   "log_loss_as_of": 0.5295993063969394
+  },
+  "2010": {
+   "walk": {
+    "k": 30.0,
+    "hfa": 70.0,
+    "regress": 0.3,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 30.0,
+    "hfa": 70.0,
+    "regress": 0.3,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5271573638078172,
+   "log_loss_as_of": 0.5271573638078172
+  },
+  "2011": {
+   "walk": {
+    "k": 30.0,
+    "hfa": 55.0,
+    "regress": 0.3,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 30.0,
+    "hfa": 55.0,
+    "regress": 0.3,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5279898345216624,
+   "log_loss_as_of": 0.5279898345216624
+  },
+  "2012": {
+   "walk": {
+    "k": 30.0,
+    "hfa": 55.0,
+    "regress": 0.3,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 30.0,
+    "hfa": 55.0,
+    "regress": 0.3,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5282690974090352,
+   "log_loss_as_of": 0.5282690974090352
+  },
+  "2013": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5266855792555636,
+   "log_loss_as_of": 0.5266855792555636
+  },
+  "2014": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5227003564287794,
+   "log_loss_as_of": 0.5227003564287794
+  },
+  "2015": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5243918626465013,
+   "log_loss_as_of": 0.5243918626465013
+  },
+  "2016": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5226652508158686,
+   "log_loss_as_of": 0.5226652508158686
+  },
+  "2017": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5252424810905633,
+   "log_loss_as_of": 0.5252424810905633
+  },
+  "2018": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5270364330799951,
+   "log_loss_as_of": 0.5270364330799951
+  },
+  "2019": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5270090185550516,
+   "log_loss_as_of": 0.5270090185550516
+  },
+  "2020": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5270085208174321,
+   "log_loss_as_of": 0.5270085208174321
+  },
+  "2021": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5285723968330002,
+   "log_loss_as_of": 0.5285723968330002
+  },
+  "2022": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5298130664886762,
+   "log_loss_as_of": 0.5298130664886762
+  },
+  "2023": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5325681725049145,
+   "log_loss_as_of": 0.5325681725049145
+  },
+  "2024": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5331356942573955,
+   "log_loss_as_of": 0.5331356942573955
+  },
+  "2025": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.534670387755699,
+   "log_loss_as_of": 0.534670387755699
+  },
+  "2026": {
+   "walk": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "as_of": {
+    "k": 40.0,
+    "hfa": 55.0,
+    "regress": 0.4,
+    "a": 4.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "same": true,
+   "as_of_choice_first_bad_season": null,
+   "log_loss_walk": 0.5346700650569003,
+   "log_loss_as_of": 0.5346700650569003
+  }
+ },
+ "subgrid_seasons_differ": [],
+ "scramble": {
+  "registered grid, scrambled": {
+   "cutoff_ts": 1447534800.0,
+   "cutoff_season": 2015,
+   "pre_cutoff_checked": 7752,
+   "pre_cutoff_moved": 0,
+   "pre_cutoff_missing": 0,
+   "post_cutoff_checked": 7756,
+   "post_cutoff_moved": 7703,
+   "fits_changed_at_or_before_cutoff_season": [],
+   "fits_changed_after": [
+    "2017",
+    "2018",
+    "2019",
+    "2020",
+    "2021",
+    "2022",
+    "2023",
+    "2024",
+    "2025",
+    "2026"
+   ],
+   "bad_full_base": 29505,
+   "bad_full_other": 33812,
+   "scrambled_games": 8027,
+   "errors": {},
+   "base_errors": {}
+  },
+  "P1 misdated game, scrambled": {
+   "cutoff_ts": 1447534800.0,
+   "cutoff_season": 2015,
+   "pre_cutoff_checked": 7752,
+   "pre_cutoff_moved": 272,
+   "pre_cutoff_missing": 0,
+   "post_cutoff_checked": 7756,
+   "post_cutoff_moved": 7751,
+   "fits_changed_at_or_before_cutoff_season": [],
+   "fits_changed_after": [
+    "2017",
+    "2018",
+    "2019",
+    "2020",
+    "2021",
+    "2022",
+    "2023",
+    "2024",
+    "2025",
+    "2026"
+   ],
+   "bad_full_base": 29504,
+   "bad_full_other": 33585,
+   "scrambled_games": 8027,
+   "errors": {},
+   "base_errors": {},
+   "fires": true
+  },
+  "P2 sub-grid (a != None), scrambled": {
+   "cutoff_ts": 1447534800.0,
+   "cutoff_season": 2015,
+   "pre_cutoff_checked": 7752,
+   "pre_cutoff_moved": 0,
+   "pre_cutoff_missing": 0,
+   "post_cutoff_checked": 7756,
+   "post_cutoff_moved": 7703,
+   "fits_changed_at_or_before_cutoff_season": [],
+   "fits_changed_after": [
+    "2016",
+    "2017",
+    "2018",
+    "2019",
+    "2020",
+    "2021",
+    "2022",
+    "2023",
+    "2024",
+    "2025",
+    "2026"
+   ],
+   "bad_full_base": 29505,
+   "bad_full_other": 33812,
+   "scrambled_games": 8027,
+   "errors": {},
+   "base_errors": {},
+   "fires": false
+  }
+ },
+ "scramble_base_file": "base.json",
+ "scramble_missing": [],
+ "figures": {
+  "threshold": {
+   "home": 0.0061,
+   "record": 0.0054,
+   "elo_nomov": 0.0015
+  },
+  "binding_threshold": 0.0015,
+  "moves": {
+   "home": 0.0,
+   "record": 0.0,
+   "elo_nomov": 0.0
+  },
+  "note": "as-of fits equal the walk's in every scored season: the forecasts are the same objects"
+ },
+ "verdict": {
+  "verdict": "(a) harmless",
+  "constants_changed": false,
+  "material": false,
+  "visible_at_4dp": false,
+  "scored_seasons_with_genuine_truncated_refit": [
+   2005,
+   2006,
+   2007,
+   2008,
+   2009,
+   2010,
+   2011,
+   2012,
+   2013,
+   2014,
+   2015,
+   2016,
+   2017,
+   2018,
+   2019,
+   2020,
+   2021,
+   2022,
+   2023,
+   2024,
+   2025
+  ],
+  "scored_seasons_instrumented_only": [],
+  "scramble_pre_cutoff_moved": 0,
+  "plant_p1_fires": true,
+  "plant_p2_fires": false,
+  "mask_can_change_a_choice_on_subgrid": false,
+  "published": {
+   "home": -0.0615,
+   "record": -0.038,
+   "elo_nomov": -0.0042
+  }
+ }
+}

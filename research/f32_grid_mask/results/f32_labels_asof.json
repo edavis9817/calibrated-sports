@@ -1,0 +1,565 @@
+{
+ "source": [
+  [
+   "games",
+   49115,
+   2001,
+   2026
+  ]
+ ],
+ "tests": [
+  {
+   "team": "Nebraska",
+   "season": 2010,
+   "column": "conf",
+   "expected": "Big 12",
+   "got": [
+    [
+     "Big 12",
+     14
+    ]
+   ],
+   "pass": true
+  },
+  {
+   "team": "Nebraska",
+   "season": 2011,
+   "column": "conf",
+   "expected": "Big Ten",
+   "got": [
+    [
+     "Big Ten",
+     13
+    ]
+   ],
+   "pass": true
+  },
+  {
+   "team": "Texas A&M",
+   "season": 2011,
+   "column": "conf",
+   "expected": "Big 12",
+   "got": [
+    [
+     "Big 12",
+     13
+    ]
+   ],
+   "pass": true
+  },
+  {
+   "team": "Texas A&M",
+   "season": 2012,
+   "column": "conf",
+   "expected": "SEC",
+   "got": [
+    [
+     "SEC",
+     13
+    ]
+   ],
+   "pass": true
+  },
+  {
+   "team": "Utah",
+   "season": 2010,
+   "column": "conf",
+   "expected": "Mountain West",
+   "got": [
+    [
+     "Mountain West",
+     13
+    ]
+   ],
+   "pass": true
+  },
+  {
+   "team": "Utah",
+   "season": 2011,
+   "column": "conf",
+   "expected": "Pac-12",
+   "got": [
+    [
+     "Pac-12",
+     13
+    ]
+   ],
+   "pass": true
+  },
+  {
+   "team": "TCU",
+   "season": 2011,
+   "column": "conf",
+   "expected": "Mountain West",
+   "got": [
+    [
+     "Mountain West",
+     13
+    ]
+   ],
+   "pass": true
+  },
+  {
+   "team": "TCU",
+   "season": 2012,
+   "column": "conf",
+   "expected": "Big 12",
+   "got": [
+    [
+     "Big 12",
+     13
+    ]
+   ],
+   "pass": true
+  },
+  {
+   "team": "Maryland",
+   "season": 2013,
+   "column": "conf",
+   "expected": "ACC",
+   "got": [
+    [
+     "ACC",
+     13
+    ]
+   ],
+   "pass": true
+  },
+  {
+   "team": "Maryland",
+   "season": 2014,
+   "column": "conf",
+   "expected": "Big Ten",
+   "got": [
+    [
+     "Big Ten",
+     13
+    ]
+   ],
+   "pass": true
+  },
+  {
+   "team": "Texas",
+   "season": 2023,
+   "column": "conf",
+   "expected": "Big 12",
+   "got": [
+    [
+     "Big 12",
+     14
+    ]
+   ],
+   "pass": true
+  },
+  {
+   "team": "Texas",
+   "season": 2024,
+   "column": "conf",
+   "expected": "SEC",
+   "got": [
+    [
+     "SEC",
+     16
+    ]
+   ],
+   "pass": true
+  },
+  {
+   "team": "App State",
+   "season": 2007,
+   "column": "div",
+   "expected": "fcs",
+   "got": [
+    [
+     "fcs",
+     13
+    ]
+   ],
+   "pass": true
+  },
+  {
+   "team": "James Madison",
+   "season": 2021,
+   "column": "div",
+   "expected": "fcs",
+   "got": [
+    [
+     "fcs",
+     14
+    ]
+   ],
+   "pass": true
+  },
+  {
+   "team": "James Madison",
+   "season": 2022,
+   "column": "div",
+   "expected": "fbs",
+   "got": [
+    [
+     "fbs",
+     11
+    ]
+   ],
+   "pass": true
+  },
+  {
+   "team": "Massachusetts",
+   "season": 2011,
+   "column": "div",
+   "expected": "fcs",
+   "got": [
+    [
+     "fcs",
+     11
+    ]
+   ],
+   "pass": true
+  },
+  {
+   "team": "Massachusetts",
+   "season": 2012,
+   "column": "div",
+   "expected": "fbs",
+   "got": [
+    [
+     "fbs",
+     12
+    ]
+   ],
+   "pass": true
+  }
+ ],
+ "era_names": [
+  {
+   "season": 2010,
+   "label": "Pac-10",
+   "fbs_teams": 10,
+   "expected_present": true,
+   "pass": true
+  },
+  {
+   "season": 2010,
+   "label": "Pac-12",
+   "fbs_teams": 0,
+   "expected_present": false,
+   "pass": true
+  },
+  {
+   "season": 2012,
+   "label": "Big East",
+   "fbs_teams": 8,
+   "expected_present": true,
+   "pass": true
+  },
+  {
+   "season": 2012,
+   "label": "American Athletic",
+   "fbs_teams": 0,
+   "expected_present": false,
+   "pass": true
+  },
+  {
+   "season": 2013,
+   "label": "American Athletic",
+   "fbs_teams": 10,
+   "expected_present": true,
+   "pass": true
+  },
+  {
+   "season": 2013,
+   "label": "Big East",
+   "fbs_teams": 0,
+   "expected_present": false,
+   "pass": true
+  },
+  {
+   "season": 2012,
+   "label": "Western Athletic",
+   "fbs_teams": 7,
+   "expected_present": true,
+   "pass": true
+  }
+ ],
+ "failures": 0,
+ "fbs_team_seasons": 3260,
+ "fbs_team_seasons_with_two_conference_labels": 0,
+ "division_moves_involving_fbs": [
+  [
+   2004,
+   "Florida A&M",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2004,
+   "Florida Atlantic",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2005,
+   "Florida A&M",
+   "fbs",
+   "fcs"
+  ],
+  [
+   2005,
+   "Florida International",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2008,
+   "Western Kentucky",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2012,
+   "Massachusetts",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2012,
+   "South Alabama",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2012,
+   "Texas State",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2012,
+   "UTSA",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2013,
+   "Georgia State",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2014,
+   "App State",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2014,
+   "Georgia Southern",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2014,
+   "Old Dominion",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2015,
+   "Charlotte",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2017,
+   "Coastal Carolina",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2018,
+   "Idaho",
+   "fbs",
+   "fcs"
+  ],
+  [
+   2018,
+   "Liberty",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2022,
+   "James Madison",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2023,
+   "Jacksonville State",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2023,
+   "Sam Houston",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2024,
+   "Kennesaw State",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2025,
+   "Delaware",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2025,
+   "Missouri State",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2026,
+   "North Dakota State",
+   "fcs",
+   "fbs"
+  ],
+  [
+   2026,
+   "Sacramento State",
+   "fcs",
+   "fbs"
+  ]
+ ],
+ "vintage": {
+  "valid_from_range_seasons_before_current": [
+   1789617359.5675797,
+   1789617375.6499681,
+   45436
+  ],
+  "superseded_versions_by_season": [
+   [
+    2026,
+    1022
+   ]
+  ],
+  "label_changes_between_versions": [
+   [
+    401907615,
+    2026,
+    "ii",
+    "ii"
+   ]
+  ]
+ },
+ "null_division": {
+  "rows": 1581,
+  "fbs_team_both_sides_dropped": [
+   [
+    2008,
+    "California Golden Bears",
+    null,
+    "Arizona State Sun Devils",
+    null,
+    24,
+    14
+   ],
+   [
+    2008,
+    "Fresno State Bulldogs",
+    null,
+    "Hawai'i Rainbow Warriors",
+    null,
+    29,
+    32
+   ],
+   [
+    2012,
+    "Army Black Knights",
+    null,
+    "Temple Owls",
+    null,
+    32,
+    63
+   ],
+   [
+    2012,
+    "Kent State Golden Flashes",
+    null,
+    "Northern Illinois Huskies",
+    null,
+    37,
+    44
+   ],
+   [
+    2012,
+    "Georgia Tech Yellow Jackets",
+    null,
+    "Florida State Seminoles",
+    null,
+    15,
+    21
+   ],
+   [
+    2012,
+    "Wisconsin Badgers",
+    null,
+    "Nebraska Cornhuskers",
+    null,
+    70,
+    31
+   ],
+   [
+    2012,
+    "Tulsa Golden Hurricane",
+    null,
+    "UCF Knights",
+    null,
+    33,
+    27
+   ],
+   [
+    2012,
+    "Georgia Bulldogs",
+    null,
+    "Alabama Crimson Tide",
+    null,
+    28,
+    32
+   ],
+   [
+    2012,
+    "Stanford Cardinal",
+    null,
+    "UCLA Bruins",
+    null,
+    27,
+    24
+   ],
+   [
+    2013,
+    "Tulane Green Wave",
+    null,
+    "Louisiana Ragin' Cajuns",
+    null,
+    21,
+    24
+   ],
+   [
+    2013,
+    "Georgia Bulldogs",
+    null,
+    "Nebraska Cornhuskers",
+    null,
+    19,
+    24
+   ]
+  ]
+ },
+ "reading": "season-vintage"
+}

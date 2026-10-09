@@ -1,0 +1,3 @@
+trunc: 18991 games, 15508 Part-1, MOV grid 207360 points, cutoff ts 1447534800
+trunc 2016: 10669 games, MOV {'k': 40.0, 'hfa': 55.0, 'regress': 0.4, 'a': None, 'cap': None, 'conf_w': 1.0, 'entry': -400.0}, bad as of then 22652 (116s)
+trunc 2025: 17422 games, MOV {'k': 40.0, 'hfa': 55.0, 'regress': 0.4, 'a': None, 'cap': None, 'conf_w': 1.0, 'entry': -300.0}, bad as of then 29281 (175s)

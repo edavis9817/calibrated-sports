@@ -1,0 +1,5 @@
+trunc: 18991 games, 15508 Part-1, MOV grid 207360 points, cutoff ts 1447534800
+trunc 2005: 2721 games, MOV {'k': 40.0, 'hfa': 85.0, 'regress': 0.3, 'a': None, 'cap': None, 'conf_w': 1.0, 'entry': -300.0}, bad as of then 20408 (30s)
+trunc 2012: 7675 games, MOV {'k': 40.0, 'hfa': 70.0, 'regress': 0.4, 'a': None, 'cap': None, 'conf_w': 1.0, 'entry': -400.0}, bad as of then 22539 (85s)
+trunc 2013: 8407 games, MOV {'k': 40.0, 'hfa': 55.0, 'regress': 0.4, 'a': None, 'cap': None, 'conf_w': 1.0, 'entry': -400.0}, bad as of then 22539 (97s)
+trunc 2014: 9144 games, MOV {'k': 40.0, 'hfa': 55.0, 'regress': 0.4, 'a': None, 'cap': None, 'conf_w': 1.0, 'entry': -400.0}, bad as of then 22539 (79s)

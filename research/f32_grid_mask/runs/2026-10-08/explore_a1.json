@@ -1,0 +1,17 @@
+{
+ "1.0": {
+  "points": 51840,
+  "ever_bad": 26415,
+  "differ": []
+ },
+ "2.2": {
+  "points": 51840,
+  "ever_bad": 3090,
+  "differ": []
+ },
+ "4.0": {
+  "points": 51840,
+  "ever_bad": 0,
+  "differ": []
+ }
+}

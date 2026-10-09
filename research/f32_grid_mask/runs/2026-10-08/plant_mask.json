@@ -1,0 +1,72 @@
+{
+ "a": 1.0,
+ "grid_points": 51840,
+ "target_fit_season": 2005,
+ "target": {
+  "k": 30.0,
+  "hfa": 70.0,
+  "regress": 0.1,
+  "a": 1.0,
+  "cap": null,
+  "conf_w": 1.0,
+  "entry": -300.0
+ },
+ "home": "84",
+ "away": "2638",
+ "rating_gap_plus_hfa": 1091.9454392920297,
+ "needed": 1000.0,
+ "feasible": true,
+ "bad_before": 26415,
+ "bad_after": 31689,
+ "fits_changed": [
+  2005,
+  2006
+ ],
+ "errors": {},
+ "forecasts_checked": 15508,
+ "forecasts_moved": 1378,
+ "all_checked_kick_before_the_synthetic_game": true,
+ "fires": true,
+ "example": {
+  "2005": {
+   "before": {
+    "k": 30.0,
+    "hfa": 70.0,
+    "regress": 0.1,
+    "a": 1.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   },
+   "after": {
+    "k": 30.0,
+    "hfa": 70.0,
+    "regress": 0.2,
+    "a": 1.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   }
+  },
+  "2006": {
+   "before": {
+    "k": 30.0,
+    "hfa": 70.0,
+    "regress": 0.2,
+    "a": 1.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -400.0
+   },
+   "after": {
+    "k": 30.0,
+    "hfa": 70.0,
+    "regress": 0.2,
+    "a": 1.0,
+    "cap": null,
+    "conf_w": 1.0,
+    "entry": -300.0
+   }
+  }
+ }
+}

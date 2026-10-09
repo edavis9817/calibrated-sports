@@ -1,0 +1,41 @@
+source rows: [('games', 49115, 2001, 2026)]
+   Nebraska       2010 conf expected Big 12         got [('Big 12', 14)]             PASS
+   Nebraska       2011 conf expected Big Ten        got [('Big Ten', 13)]            PASS
+   Texas A&M      2011 conf expected Big 12         got [('Big 12', 13)]             PASS
+   Texas A&M      2012 conf expected SEC            got [('SEC', 13)]                PASS
+   Utah           2010 conf expected Mountain West  got [('Mountain West', 13)]      PASS
+   Utah           2011 conf expected Pac-12         got [('Pac-12', 13)]             PASS
+   TCU            2011 conf expected Mountain West  got [('Mountain West', 13)]      PASS
+   TCU            2012 conf expected Big 12         got [('Big 12', 13)]             PASS
+   Maryland       2013 conf expected ACC            got [('ACC', 13)]                PASS
+   Maryland       2014 conf expected Big Ten        got [('Big Ten', 13)]            PASS
+   Texas          2023 conf expected Big 12         got [('Big 12', 14)]             PASS
+   Texas          2024 conf expected SEC            got [('SEC', 16)]                PASS
+   App State      2007 div  expected fcs            got [('fcs', 13)]                PASS
+   James Madison  2021 div  expected fcs            got [('fcs', 14)]                PASS
+   James Madison  2022 div  expected fbs            got [('fbs', 11)]                PASS
+   Massachusetts  2011 div  expected fcs            got [('fcs', 11)]                PASS
+   Massachusetts  2012 div  expected fbs            got [('fbs', 12)]                PASS
+   era name  2010 Pac-10             fbs teams 10  expected present True  PASS
+   era name  2010 Pac-12             fbs teams  0  expected present False PASS
+   era name  2012 Big East           fbs teams  8  expected present True  PASS
+   era name  2012 American Athletic  fbs teams  0  expected present False PASS
+   era name  2013 American Athletic  fbs teams 10  expected present True  PASS
+   era name  2013 Big East           fbs teams  0  expected present False PASS
+   era name  2012 Western Athletic   fbs teams  7  expected present True  PASS
+FBS team-seasons carrying more than one conference label: 0 of 3260
+division changes involving FBS, by first season of the new label (25): [(2004, 'Florida A&M', 'fcs', 'fbs'), (2004, 'Florida Atlantic', 'fcs', 'fbs'), (2005, 'Florida A&M', 'fbs', 'fcs'), (2005, 'Florida International', 'fcs', 'fbs'), (2008, 'Western Kentucky', 'fcs', 'fbs'), (2012, 'Massachusetts', 'fcs', 'fbs'), (2012, 'South Alabama', 'fcs', 'fbs'), (2012, 'Texas State', 'fcs', 'fbs'), (2012, 'UTSA', 'fcs', 'fbs'), (2013, 'Georgia State', 'fcs', 'fbs'), (2014, 'App State', 'fcs', 'fbs'), (2014, 'Georgia Southern', 'fcs', 'fbs'), (2014, 'Old Dominion', 'fcs', 'fbs'), (2015, 'Charlotte', 'fcs', 'fbs'), (2017, 'Coastal Carolina', 'fcs', 'fbs'), (2018, 'Idaho', 'fbs', 'fcs'), (2018, 'Liberty', 'fcs', 'fbs'), (2022, 'James Madison', 'fcs', 'fbs'), (2023, 'Jacksonville State', 'fcs', 'fbs'), (2023, 'Sam Houston', 'fcs', 'fbs'), (2024, 'Kennesaw State', 'fcs', 'fbs'), (2025, 'Delaware', 'fcs', 'fbs'), (2025, 'Missouri State', 'fcs', 'fbs'), (2026, 'North Dakota State', 'fcs', 'fbs'), (2026, 'Sacramento State', 'fcs', 'fbs')]
+every current row for seasons before 2026 was written between ts 1789617360 and 1789617376 (45436 rows); superseded versions exist for: [(2026, 1022)]; label changes between versions: [(401907615, 2026, 'ii', 'ii')]
+rows with a NULL division on a side: 1581; completed decisive games where BOTH teams are FBS in their other games that season but one side's label is NULL (so load() drops them): 11
+      (2008, 'California Golden Bears', None, 'Arizona State Sun Devils', None, 24, 14)
+      (2008, 'Fresno State Bulldogs', None, "Hawai'i Rainbow Warriors", None, 29, 32)
+      (2012, 'Army Black Knights', None, 'Temple Owls', None, 32, 63)
+      (2012, 'Kent State Golden Flashes', None, 'Northern Illinois Huskies', None, 37, 44)
+      (2012, 'Georgia Tech Yellow Jackets', None, 'Florida State Seminoles', None, 15, 21)
+      (2012, 'Wisconsin Badgers', None, 'Nebraska Cornhuskers', None, 70, 31)
+      (2012, 'Tulsa Golden Hurricane', None, 'UCF Knights', None, 33, 27)
+      (2012, 'Georgia Bulldogs', None, 'Alabama Crimson Tide', None, 28, 32)
+      (2012, 'Stanford Cardinal', None, 'UCLA Bruins', None, 27, 24)
+      (2013, 'Tulane Green Wave', None, "Louisiana Ragin' Cajuns", None, 21, 24)
+      (2013, 'Georgia Bulldogs', None, 'Nebraska Cornhuskers', None, 19, 24)
+READING: season-vintage (0 failures of 24 checks)
